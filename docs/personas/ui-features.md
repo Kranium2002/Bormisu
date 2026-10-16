@@ -371,7 +371,7 @@ Brand: Herrenknecht green `#7DB713`, dark green `#003E25` for the app bar, text 
 
 ## 10. Mock data for building the UI before the backend is ready
 
-The frontend can build against fixtures shaped like this (fictional values). Agree on the final shape with the backend team.
+The frontend can build against fixtures shaped like this (fictional values). The agreed endpoints and field names are in **[api-contract.md](../design/api-contract.md)**, which is based on the backend on `arav/dev`. Where they differ, the contract wins.
 
 ```json
 {
