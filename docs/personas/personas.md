@@ -7,6 +7,7 @@ These personas are **simulated**: AI agents role-playing realistic jobs at a TBM
 **Results:**
 - [feature-backlog.md](feature-backlog.md): every button and feature the personas asked for, deduplicated and ranked, per screen.
 - [build-cut.md](build-cut.md): what we build by Sun 11:30, what we cut, the 5-minute demo storyline and pitch lines.
+- [features-explained.md](features-explained.md): every feature in plain words (what you see, why, how), with a glossary.
 
 | # | Persona | Job to be done | Key screens |
 |---|---|---|---|
