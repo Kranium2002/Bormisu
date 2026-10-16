@@ -12,22 +12,22 @@ from backend.extractor.mistral_ocr_pipeline import MistralOCRExtractor
 def main():
     # Pick default test file or from CLI args
     target_file = sys.argv[1] if len(sys.argv) > 1 else "AF01.PDF"
+    force_refresh = "--force" in sys.argv
     
     print("=" * 70)
     print(" BORMISU - MISTRAL OCR 2503 EXTRACTION TEST")
-    print(f" Target File: {target_file}")
+    print(f" Target File: {target_file} {'(FORCED REFRESH)' if force_refresh else '(CACHE ENABLED)'}")
     print("=" * 70)
     
     extractor = MistralOCRExtractor()
     
     if not extractor.openrouter_key and not extractor.mistral_key:
         print("\n[!] WARNING: No API key found in .env!")
-        print("Please set your OPENROUTER_API_KEY in .env before running:")
-        print("OPENROUTER_API_KEY=sk-or-v1-...\n")
+        print("Please set your MISTRAL_API_KEY in .env before running.")
         sys.exit(1)
         
     try:
-        result = extractor.process_document(target_file, force_refresh=True)
+        result = extractor.process_document(target_file, force_refresh=force_refresh)
         
         print("\n" + "=" * 70)
         print(" EXTRACTION SUCCESSFUL!")
