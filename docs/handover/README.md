@@ -39,7 +39,12 @@ Files outside git exist only in the main checkout, so use their absolute paths f
 1. **The contract is the interface.** Build against `contracts/openapi.yaml` and `contracts/realtime-and-chat.md`, not against the other session's code. If something is missing or wrong, do not work around it silently.
 2. **Contract changes.** Only the backend session edits `contracts/`. Changes inside 1.x are additive and get a `CHANGELOG.md` entry in the same commit. The frontend session asks for changes by adding an entry under "Requests" in `COORDINATION.md` on its branch and merging that to `integration`.
 3. **Seeing the other side.** Both worktrees share one repository, so each session can read the other's latest commits without pushing: `git log feat/backend`, `git show feat/backend:contracts/openapi.yaml`, `git diff integration feat/frontend`.
-4. **Integration.** Merge your branch into `integration` at the end of every milestone, only with green tests: `git switch integration && git merge --no-ff feat/<you> && git switch feat/<you> && git merge integration`. Never rewrite `integration` history, never force-push, never push to `origin` unless the user asks.
+4. **Integration.** `integration` stays checked out in `D:\Bormisu`, which is the integration workspace. Never check it out in your own worktree; git refuses a branch that is checked out elsewhere. At the end of every milestone, with green tests and everything committed:
+   ```bash
+   git -C D:/Bormisu merge --no-ff feat/<you> -m "merge: feat/<you> M<n>"   # into integration
+   git merge integration                                                  # back into your branch
+   ```
+   If git reports `index.lock`, the other session is merging; retry in a minute. If the first merge conflicts, resolve it inside `D:\Bormisu` and commit there: only shared files should conflict, and for `COORDINATION.md` keep both sides. Never edit files in `D:\Bormisu` otherwise. Never rewrite `integration` history, never force-push, never push to `origin` unless the user asks.
 5. **Status.** At each milestone end, update your section in `COORDINATION.md` (done, next, blockers, contract requests) and commit it with your merge.
 6. **Ports and URLs.** Compose serves the app at http://localhost:8080 (nginx: SPA and `/api` proxy). The API listens on 8000 inside the network and is published on http://localhost:8000 for development. The Vite dev server proxies `/api` to http://127.0.0.1:8000.
 
