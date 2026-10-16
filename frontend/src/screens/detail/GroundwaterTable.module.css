@@ -1,0 +1,17 @@
+.cols {
+  grid-template-columns: 160px 140px minmax(0, 1fr) 76px 30px;
+}
+
+.type {
+  padding: 8px 14px;
+}
+
+.cell {
+  padding: 8px;
+  min-width: 0;
+}
+
+.raw {
+  font: 12px var(--font-mono);
+  color: var(--c-faint);
+}

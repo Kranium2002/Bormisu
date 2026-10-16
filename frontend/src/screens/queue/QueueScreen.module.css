@@ -1,0 +1,81 @@
+/* Upload & queue screen layout (prototype template lines 81–123). */
+
+.scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.page {
+  /* Shared by the column header and every document card. */
+  --queue-cols: 320px minmax(0, 1fr) 300px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 26px 32px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.title {
+  margin: 0;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 0.03em;
+}
+
+.legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 10px;
+  height: 14px;
+  border: 1px solid transparent;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: var(--queue-cols);
+  gap: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--c-muted);
+  padding: 0 19px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.empty {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  padding: 22px 18px;
+  font-size: 13px;
+  color: var(--c-muted);
+  text-align: center;
+}

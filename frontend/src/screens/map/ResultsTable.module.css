@@ -1,0 +1,112 @@
+.results {
+  grid-column: 1 / span 2;
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--c-surface);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 24px 10px;
+}
+
+.title {
+  margin: 0;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.07em;
+}
+
+.summary {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+/* The column header sits inside the scroll box (sticky), so it lines up with the rows even when a
+   scrollbar takes width. Its negative margin stretches the grey band over the box padding. */
+.scroll {
+  overflow: auto;
+  flex: 1;
+  padding: 0 14px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1.3fr) 110px 150px minmax(0, 1fr) 130px;
+  align-items: center;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -14px;
+  padding: 0 14px;
+  background: var(--c-line);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--c-muted);
+}
+
+.header .cell {
+  padding: 8px 10px;
+}
+
+.body {
+  font-size: 13px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.cell {
+  padding: 7px 10px;
+  min-width: 0;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background: var(--c-hover);
+}
+
+.clickable:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: -2px;
+  background: var(--c-hover);
+}
+
+.id {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.muted {
+  color: var(--c-muted);
+}
+
+.warn {
+  color: var(--c-amber-text);
+}
+
+.action {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--c-green-text);
+}
+
+.empty {
+  padding: 18px 10px;
+  font-size: 13px;
+  color: var(--c-muted);
+}

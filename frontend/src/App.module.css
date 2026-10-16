@@ -1,0 +1,15 @@
+.app {
+  height: 100vh;
+  min-width: 1280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-bg);
+  font-family: var(--font-sans);
+  color: var(--c-text);
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}

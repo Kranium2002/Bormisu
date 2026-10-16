@@ -1,0 +1,161 @@
+/* One document in the queue: name, status steps, checks, found counts, page map, hint. */
+
+.card {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: default;
+}
+
+/* Reviewable: green border, the whole card opens Review. */
+.openable {
+  border-color: var(--c-ok-border);
+  cursor: pointer;
+}
+
+.openable:hover {
+  border-color: var(--c-green);
+}
+
+.failedCard {
+  border-color: var(--c-red);
+}
+
+.top {
+  display: grid;
+  grid-template-columns: var(--queue-cols);
+  gap: 20px;
+  align-items: start;
+}
+
+.ident {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font: 600 13px var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.checks {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Completeness chip; tone from domain completenessSummary(). */
+.comp {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 2px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+  text-align: right;
+}
+
+.comp:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.error {
+  border-color: var(--c-red);
+  color: var(--c-red);
+  background: var(--c-red-bg-soft);
+}
+
+.warning {
+  border-color: var(--c-amber);
+  color: var(--c-amber-text);
+}
+
+.ok {
+  border-color: var(--c-green);
+  color: var(--c-green-text);
+}
+
+.muted {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--c-faint);
+}
+
+.counts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.count {
+  font-size: 12px;
+  padding: 3px 8px;
+  background: var(--c-line);
+  border-radius: 2px;
+}
+
+.count b {
+  font-family: var(--font-mono);
+}
+
+.bottom {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--c-faint);
+  white-space: nowrap;
+}
+
+.hintAction {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--c-green-text);
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hintAction:hover {
+  color: var(--c-dark);
+}
+
+.hintAction:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 3px;
+}
+
+.hintError {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-red);
+  max-width: 420px;
+  text-align: right;
+}

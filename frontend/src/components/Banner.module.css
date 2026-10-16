@@ -1,0 +1,23 @@
+.banner {
+  flex: none;
+  box-sizing: border-box;
+  min-height: 32px;
+  background: var(--c-line);
+  border-bottom: 1px solid var(--c-border);
+  padding: 7px 24px;
+  font-size: 13px;
+  color: var(--c-muted);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tag {
+  background: var(--c-text);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 2px;
+}

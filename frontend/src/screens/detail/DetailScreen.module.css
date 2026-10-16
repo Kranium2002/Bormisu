@@ -1,0 +1,109 @@
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.header {
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.crumbs {
+  font-size: 12px;
+  color: var(--c-muted);
+  display: flex;
+  gap: 6px;
+}
+
+.crumbLink {
+  cursor: pointer;
+  text-decoration: underline;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.crumbLink:hover {
+  color: var(--c-dark);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.id {
+  margin: 0;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  line-height: normal;
+}
+
+.reviewed {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.spacer {
+  margin-left: auto;
+}
+
+.reviewButton {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 9px 14px;
+  border: 1px solid var(--c-text);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+}
+
+.reviewButton:hover {
+  background: var(--c-hover);
+}
+
+.body {
+  padding: 20px 24px 40px;
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.profileHead {
+  display: flex;
+  justify-content: space-between;
+}
+
+.profileNote {
+  font-weight: 400;
+  color: var(--c-muted);
+  letter-spacing: 0;
+}
+
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}

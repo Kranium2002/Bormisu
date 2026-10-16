@@ -1,0 +1,29 @@
+.icon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.icon:hover {
+  background: var(--c-line);
+}
+
+.dim {
+  opacity: 0.35;
+}
+
+.sheet {
+  width: 9px;
+  height: 11px;
+  border: 1.5px solid var(--c-muted);
+  border-radius: 1px;
+  box-sizing: border-box;
+  display: block;
+}

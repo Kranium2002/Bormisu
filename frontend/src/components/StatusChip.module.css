@@ -1,0 +1,15 @@
+.chip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.sm {
+  padding: 2px 7px;
+}
+
+.md {
+  padding: 3px 8px;
+}

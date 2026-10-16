@@ -1,0 +1,15 @@
+/* Map left, NOT ON MAP aside right, RESULTS across the bottom (prototype template line 48). */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-rows: minmax(0, 1fr) 270px;
+}
+
+.mapCell {
+  position: relative;
+  /* Keeps Leaflet's pane and control z-indexes (400–1000) below the side panel and dialogs. */
+  isolation: isolate;
+  border-right: 1px solid var(--c-border);
+}
