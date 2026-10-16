@@ -4,7 +4,7 @@ Seamless SVG fill patterns for soil and rock layers according to **DIN 4023:2023
 Everything is keyed by the **DIN code** (e.g. `T` = clay, `Kst` = limestone): the code gives you the colour **and** the shape.
 
 ```
-din4023_patterns/
+assets/din4023_patterns/
 ├── din_codes.json   # DIN code → colour, symbol colour, svg file, pattern id, tile size
 ├── patterns.svg     # all 49 patterns as <pattern> definitions (for SVG)
 └── svg/<file>.svg   # one seamless tile per DIN code (for CSS / images)
@@ -53,7 +53,7 @@ Copy the needed `<pattern>` from `patterns.svg` into the `<defs>` of your SVG (e
 
 ### HTML / CSS
 ```html
-<div style="background-image:url('din4023_patterns/svg/rock_Kst.svg');
+<div style="background-image:url('assets/din4023_patterns/svg/rock_Kst.svg');
             background-repeat:repeat;
             background-size:50.395px 11.265px;   /* tile_width tile_height, both × the same factor */
             width:100%; height:240px"></div>
@@ -63,7 +63,7 @@ Never use `background-size: cover / contain / 100%` — that stretches the tile.
 ### Python (find what to draw)
 ```python
 import json
-codes = json.load(open("din4023_patterns/din_codes.json", encoding="utf-8"))
+codes = json.load(open("assets/din4023_patterns/din_codes.json", encoding="utf-8"))
 c = codes.get(layer["din_code"])          # None -> plain #E0E0E0
 svg_file, w, h = c["svg"], c["tile_width"], c["tile_height"]
 ```
