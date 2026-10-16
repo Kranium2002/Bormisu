@@ -122,3 +122,33 @@ bin/
 *.sqlite
 *.sqlite3
 *.db
+# ==========================================
+# Challenge data, local notes and runtime state (never commit)
+# Merged from arav/dev on the integration branch. Runtime folders are anchored
+# to the repo root so they never hide source packages such as backend/app/storage/.
+# ==========================================
+HKBoreholeChallenge*
+*HKBoreholeChallenge*
+/raw_data/
+/dataset/
+/datasets/
+*.zip
+*.tar.gz
+*.7z
+/local/
+/storage/
+/backend/storage/
+/.data/
+/uploads/
+/backend/uploads/
+/backend/cache/
+.cache/
+*.xlsx
+*.xls
+*.doc
+*.docx
+!**/fixtures/**/*.docx
+!**/fixtures/**/*.xlsx
+*.env
+.env.local
+.env.*.local
