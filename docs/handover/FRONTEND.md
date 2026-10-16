@@ -20,7 +20,7 @@ At the end, a user opens http://localhost:8080 and can:
 Verified facts:
 - React 19, TypeScript 7 (native `tsc`), Vite 8 (rolldown), zustand 5, Leaflet 1.9.4, exceljs 4.4, vitest 5, Playwright 1.64, CSS modules. About 10k lines.
 - With Node 22: `npm ci` ok, **224/224 unit tests** (18 files), `npm run build` ok, **24/24 Playwright tests** in sample mode.
-- **Node ≥ 22.12 is required.** On Node 20.9, tests fail (`node:util` has no `styleText`) and the build fails (TypeScript 7's bin). There is no `engines` field.
+- **Node ≥ 22.12 is required.** On Node 20.9, tests fail (`node:util` has no `styleText`) and the build fails (TypeScript 7's bin). There is no `engines` field. This machine's system Node is 20.9, so run every npm or npx command with the portable Node 22 first on the PATH: `export PATH="/d/Bormisu-tools/node22:$PATH"` (README section 2). Playwright can use the installed Chrome (`channel: 'chrome'`) locally.
 - One timing-flaky test: `src/export/standardXlsx.test.ts` can pass 5 s on a cold run.
 - `ARCHITECTURE.md` is binding: no sample data outside `src/sample`, the data source is chosen once in `createDataSource.ts`, the target format is defined once in `src/schema/targetFormat.ts`, no challenge data, CSS modules.
 

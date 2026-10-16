@@ -297,6 +297,8 @@ Services:
 | `gotenberg` | `gotenberg/gotenberg:8` | Internal only |
 | `web` | `build: {context: ., dockerfile: frontend/Dockerfile}` (owned by the frontend session) | nginx on 80, published as 8080; proxies `/api` to `api:8000`; depends on `api` healthy |
 
+Published host ports come from `WEB_PORT` (default 8080), `API_PORT` (default 8000) and `DB_PORT` (default 5432), so the frontend worktree can run its own stack on other ports at the same time (README section 3).
+
 `env_file: .env` only on `api`, `worker` and `migrate`, with `required: false` so a clone without `.env` still starts in demo mode. Never pass keys to `web`. Add a `Makefile` with `up`, `down`, `logs`, `seed`, `unseed`, `test`, `lint`, `eval`, `contract-test`. A fresh clone plus `.env` plus `docker compose up --build` must work, and so must a fresh clone without `.env`.
 
 You also own, because the judge reads them first:

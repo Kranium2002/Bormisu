@@ -32,6 +32,14 @@ The setup ran on Sat 17 Oct 2026 before either session started:
 
 Start the backend session in `D:\Bormisu-backend` and the frontend session in `D:\Bormisu-frontend`.
 
+Tools on this machine (checked 2026-10-17): Docker Desktop 25.0.3 with Compose 2.24.6, Python 3.12.7, Git 2.44. The system Node is 20.9, which is too old for the frontend toolchain (it needs 22.12 or newer). A portable Node 22 therefore lives in `D:\Bormisu-tools\node22`, and uv lives in its own venv in `D:\Bormisu-tools\uv-venv`. Shell state does not persist between commands, so prefix every command that needs them:
+
+```bash
+export PATH="/d/Bormisu-tools/node22:/d/Bormisu-tools/uv-venv/Scripts:$PATH"
+```
+
+Install nothing globally. Python packages go in a venv or in the Docker images; never install PyMuPDF.
+
 Files outside git exist only in the main checkout, so use their absolute paths from a worktree: the sample data in `D:\Bormisu\HKBoreholeChallenge_Data_BFH2026-20261016T175641Z-1-001\HKBoreholeChallenge_Data_BFH2026\`, the data audit in `D:\Bormisu\local\data-audit\`, and the original plan `D:\Bormisu\GeoMemory_Product_and_Build_Plan.md`.
 
 ## 3. How the two sessions work together
@@ -46,7 +54,7 @@ Files outside git exist only in the main checkout, so use their absolute paths f
    ```
    If git reports `index.lock`, the other session is merging; retry in a minute. If the first merge conflicts, resolve it inside `D:\Bormisu` and commit there: only shared files should conflict, and for `COORDINATION.md` keep both sides. Never edit files in `D:\Bormisu` otherwise. Never rewrite `integration` history, never force-push, never push to `origin` unless the user asks.
 5. **Status.** At each milestone end, update your section in `COORDINATION.md` (done, next, blockers, contract requests) and commit it with your merge.
-6. **Ports and URLs.** Compose serves the app at http://localhost:8080 (nginx: SPA and `/api` proxy). The API listens on 8000 inside the network and is published on http://localhost:8000 for development. The Vite dev server proxies `/api` to http://127.0.0.1:8000.
+6. **Ports and URLs.** Compose publishes host ports from `WEB_PORT` (default 8080: nginx with the SPA and the `/api` proxy), `API_PORT` (default 8000) and `DB_PORT` (default 5432). The backend worktree uses the defaults. The frontend worktree has its own `.env` with `WEB_PORT=8081`, `API_PORT=8001` and `DB_PORT=5433` and no keys, so both stacks can run at the same time. The Vite dev server proxies `/api` to the backend session's API at http://127.0.0.1:8000.
 
 ## 4. Deadline, milestones and cut line
 
