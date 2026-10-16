@@ -26,6 +26,9 @@ uploads/
 *.zip
 *.tar.gz
 *.7z
+backend/cache/
+.cache/
+cache/
 
 # Environment variables & local secrets
 .env
