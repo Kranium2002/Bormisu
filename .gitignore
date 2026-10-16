@@ -1,0 +1,41 @@
+# Dependencies & Environments
+node_modules/
+dist/
+build/
+.next/
+out/
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Confidential Challenge Data & Downloads (STRICT: Never commit or push)
+HKBoreholeChallenge*
+*HKBoreholeChallenge*
+data/
+raw_data/
+dataset/
+datasets/
+uploads/
+*.pdf
+*.xlsx
+*.xls
+*.doc
+*.docx
+*.zip
+*.tar.gz
+*.7z
+
+# Environment variables & local secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
