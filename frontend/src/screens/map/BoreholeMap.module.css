@@ -1,0 +1,5 @@
+/* Leaflet container. Grayscale tiles and popup chrome are global (tokens.css), as Leaflet owns that DOM. */
+.map {
+  position: absolute;
+  inset: 0;
+}

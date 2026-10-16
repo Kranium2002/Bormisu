@@ -1,0 +1,41 @@
+/* Pin popup content (prototype popupHtml). Leaflet's own popup chrome is styled in tokens.css. */
+.popup {
+  font: 12px/1.45 var(--font-sans);
+  min-width: 200px;
+  color: var(--c-text);
+}
+
+.id {
+  font: 600 15px var(--font-mono);
+}
+
+.chipRow {
+  margin-top: 4px;
+}
+
+.crs {
+  margin-top: 2px;
+  color: var(--c-amber-text);
+}
+
+.open {
+  margin-top: 10px;
+  width: 100%;
+  background: var(--c-green);
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  padding: 8px;
+  font: 700 11px var(--font-sans);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.open:hover {
+  filter: brightness(0.92);
+}
+
+.open:focus-visible {
+  outline: 2px solid var(--c-dark);
+  outline-offset: 2px;
+}

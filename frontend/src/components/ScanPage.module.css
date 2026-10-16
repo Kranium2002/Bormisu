@@ -1,0 +1,74 @@
+.frame {
+  position: relative;
+  flex: none;
+}
+
+.page {
+  position: relative;
+  background: var(--c-paper);
+  box-shadow: var(--shadow-page);
+  font-family: var(--font-scan);
+  color: var(--c-ink);
+  transform-origin: 0 0;
+  flex: none;
+}
+
+.imagePage {
+  line-height: 0;
+}
+
+.image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.text {
+  position: absolute;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.line {
+  position: absolute;
+}
+
+.box {
+  position: absolute;
+  box-sizing: border-box;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+button.box {
+  cursor: pointer;
+}
+
+.focus {
+  border: 3px solid var(--c-green);
+  background: rgba(125, 183, 19, 0.16);
+}
+
+.flagged {
+  border: 2px solid var(--c-amber);
+}
+
+.lint {
+  border: 1.5px dashed var(--c-red);
+}
+
+.approved {
+  border: 1.5px solid rgba(125, 183, 19, 0.75);
+}
+
+.idle {
+  border: 1px dashed rgba(0, 0, 0, 0.28);
+}
+
+.highlight {
+  border: 3px solid var(--c-green);
+  background: rgba(125, 183, 19, 0.16);
+  box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.12);
+}

@@ -1,0 +1,30 @@
+.track {
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--c-border-strong);
+  position: relative;
+  flex: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.on {
+  background: var(--c-amber);
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.12s;
+}
+
+.on .knob {
+  left: 18px;
+}

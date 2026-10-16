@@ -1,0 +1,46 @@
+.svg {
+  display: block;
+  font-family: var(--font-sans);
+}
+
+.hit {
+  cursor: pointer;
+}
+
+.hit:focus {
+  outline: none;
+}
+
+.hit:focus-visible rect,
+.hit:focus-visible path {
+  stroke: var(--c-green);
+}
+
+.noHit {
+  pointer-events: none;
+}
+
+.legend {
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--c-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rBadge {
+  background: var(--c-amber);
+  color: var(--c-text);
+  font-weight: 800;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 2px;
+}

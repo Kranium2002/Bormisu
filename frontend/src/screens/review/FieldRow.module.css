@@ -1,0 +1,284 @@
+/* One value row of the Review list (prototype template lines 157–181). */
+.row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 78px 112px;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-surface);
+  cursor: pointer;
+  scroll-margin-top: 44px;
+}
+
+.focused {
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-green);
+}
+
+.labelCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.page {
+  font-size: 11px;
+  color: var(--c-faint);
+}
+
+.valueCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* raw → normalised */
+.pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.raw {
+  font: 12px var(--font-mono);
+  color: var(--c-muted);
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  color: var(--c-faint);
+}
+
+.refusal {
+  background: var(--c-amber);
+  color: var(--c-text);
+  font-weight: 800;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  cursor: help;
+}
+
+.norm {
+  font: 500 13px var(--font-mono);
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.normError {
+  color: var(--c-red);
+}
+
+/* 3-line lithology */
+.lith {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  row-gap: 3px;
+  font-size: 12px;
+  align-items: baseline;
+}
+
+.lithKey {
+  font-size: 10px;
+  color: var(--c-faint);
+  letter-spacing: 0.05em;
+}
+
+.lithRaw {
+  font-family: var(--font-mono);
+  color: var(--c-muted);
+}
+
+.lithEn {
+  font-weight: 600;
+}
+
+.lithDin {
+  font-family: var(--font-mono);
+}
+
+.state {
+  font-style: italic;
+  color: var(--c-faint);
+  font-size: 13px;
+}
+
+.ai {
+  font: 11px var(--font-mono);
+  color: var(--c-faint);
+}
+
+.noteFaint,
+.noteOk,
+.noteWarn {
+  font-size: 11px;
+}
+
+.noteFaint {
+  color: var(--c-faint);
+}
+
+.noteOk {
+  color: var(--c-green-text);
+}
+
+.noteWarn {
+  color: var(--c-amber-text);
+}
+
+.lintError,
+.lintWarn,
+.flagText {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lintError {
+  color: var(--c-red);
+}
+
+.lintWarn,
+.flagText {
+  color: var(--c-amber-text);
+}
+
+/* inline edit / flag input */
+.edit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  cursor: default;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--c-green);
+  padding: 0 8px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+  border-radius: 0;
+  outline: none;
+}
+
+.input:focus {
+  box-shadow: 0 0 0 1px var(--c-green);
+}
+
+.save {
+  cursor: pointer;
+  background: var(--c-green);
+  color: #fff;
+  border: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.cancel {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  color: var(--c-text);
+  font-size: 12px;
+  padding: 6px 4px;
+}
+
+/* more actions while focused */
+.moreBar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  cursor: default;
+}
+
+.crs,
+.more {
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 2px;
+  line-height: normal;
+}
+
+.crs {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: var(--c-dark);
+  color: #fff;
+  border: 0;
+}
+
+.more {
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+}
+
+.more:hover {
+  border-color: var(--c-faint);
+}
+
+.morePressed {
+  background: var(--c-line);
+  border-color: var(--c-faint);
+  font-weight: 700;
+}
+
+/* ✓ ✎ ⚑ */
+.actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  cursor: default;
+}
+
+.act {
+  /* prototype: 30 × 28 content box + 1 px border */
+  box-sizing: border-box;
+  width: 32px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 14px;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.actApprove {
+  font-weight: 700;
+}
+
+.act:hover {
+  border-color: var(--c-faint);
+}
+
+.actApproved,
+.actApproved:hover {
+  background: var(--c-green);
+  border-color: var(--c-green);
+  color: #fff;
+}
+
+.actFlagged,
+.actFlagged:hover {
+  background: var(--c-amber);
+  border-color: var(--c-amber);
+}

@@ -1,0 +1,87 @@
+.wrap {
+  position: relative;
+}
+
+.button {
+  cursor: pointer;
+  display: block;
+  border: 0;
+  background: var(--c-green);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 10px 16px;
+  border-radius: 4px;
+}
+
+.button:hover {
+  filter: brightness(0.95);
+}
+
+.head {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.option {
+  padding: 11px 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 0;
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-surface);
+  text-align: left;
+  color: var(--c-text);
+}
+
+.option:hover,
+.option:focus-visible {
+  background: var(--c-hover);
+  outline: none;
+}
+
+.optionLabel {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.optionDesc {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.include {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  background: var(--c-bg);
+}
+
+.includeText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  cursor: pointer;
+}
+
+.includeLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.includeNote {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.draft {
+  color: var(--c-amber-text);
+}
