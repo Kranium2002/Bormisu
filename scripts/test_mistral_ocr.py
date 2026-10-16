@@ -8,14 +8,22 @@ root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir))
 
 from backend.extractor.mistral_ocr_pipeline import MistralOCRExtractor
+from backend.extractor.excel_exporter import export_borehole_to_herrenknecht_excel
 
 def main():
+    # Ensure stdout handles UTF-8 on Windows
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except AttributeError:
+            pass
+
     # Pick default test file or from CLI args
-    target_file = sys.argv[1] if len(sys.argv) > 1 else "AF01.PDF"
+    target_file = sys.argv[1] if len(sys.argv) > 1 else "ToughOne1.pdf"
     force_refresh = "--force" in sys.argv
     
     print("=" * 70)
-    print(" BORMISU - MISTRAL OCR 2503 EXTRACTION TEST")
+    print(" BORMISU - MISTRAL OCR 2503 EXTRACTION & STANDARDIZATION")
     print(f" Target File: {target_file} {'(FORCED REFRESH)' if force_refresh else '(CACHE ENABLED)'}")
     print("=" * 70)
     
@@ -36,8 +44,9 @@ def main():
         
         # Metadata
         meta = result.get("metadata", {})
-        print("\n[METADATA]")
+        print("\n[HERRENKNECHT METADATA]")
         print(f"  • Borehole ID:   {meta.get('borehole_id', 'N/A')}")
+        print(f"  • Borehole Name: {meta.get('borehole_name', 'N/A')}")
         print(f"  • Project Name:  {meta.get('project_name', 'N/A')}")
         print(f"  • Location:      {meta.get('location_name', 'N/A')} ({meta.get('country', 'N/A')})")
         print(f"  • Coordinates:   {meta.get('coordinates', {})}")
@@ -46,31 +55,38 @@ def main():
         
         # Stratigraphy
         layers = result.get("stratigraphy_layers", [])
-        print(f"\n[STRATIGRAPHY LAYERS ({len(layers)} detected)]")
-        print(f"{'Depth (m)':<15} | {'USCS':<6} | {'Lithology / Description':<35} | {'RQD':<6} | {'UCS (MPa)':<10}")
-        print("-" * 80)
+        print(f"\n[STRATIGRAPHY & DIN 4023 PROFILES ({len(layers)} layers)]")
+        print(f"{'Depth (m)':<17} | {'DIN Code':<10} | {'USCS':<6} | {'Lithology / Description':<38} | {'UCS':<8}")
+        print("-" * 90)
         for layer in layers:
-            depth_str = f"{layer.get('depth_from_m', 0):.2f} - {layer.get('depth_to_m', 0):.2f}m"
+            depth_str = f"{layer.get('depth_from_m', 0):.2f} – {layer.get('depth_to_m', 0):.2f}m"
+            din = layer.get('din4023_code') or '-'
             uscs = layer.get('uscs_group') or '-'
-            desc = (layer.get('soil_rock_name') or '-')[:33]
-            rqd = f"{layer.get('rqd_percent')}%" if layer.get('rqd_percent') is not None else '-'
-            ucs = f"{layer.get('ucs_mpa')}" if layer.get('ucs_mpa') is not None else '-'
-            print(f"{depth_str:<15} | {uscs:<6} | {desc:<35} | {rqd:<6} | {ucs:<10}")
+            desc = (layer.get('soil_rock_name') or '-')[:36]
+            ucs = f"{layer.get('ucs_mpa')} MPa" if layer.get('ucs_mpa') is not None else '-'
+            print(f"{depth_str:<17} | {din:<10} | {uscs:<6} | {desc:<38} | {ucs:<8}")
 
         # Test results
         tests = result.get("test_results", {})
         if tests:
-            print("\n[GEOMECHANICAL PARAMETERS]")
+            print("\n[GEOTECHNICAL & TBM PARAMETERS]")
             for k, v in tests.items():
                 if v is not None:
                     print(f"  • {k}: {v}")
 
+        # Export to Herrenknecht official Excel specification
+        stem = Path(target_file).stem
+        out_excel = root_dir / "backend" / "cache" / f"{stem}_BoreholeDataFormat.xlsx"
+        export_borehole_to_herrenknecht_excel(result, out_excel)
+        print(f"\n[EXCEL EXPORT] Successfully generated Herrenknecht standard format:")
+        print(f"  -> {out_excel}")
+
         # OCR Markdown preview
         md = result.get("raw_markdown_ocr", "")
         if md:
-            print("\n[RAW MISTRAL OCR MARKDOWN PREVIEW (first 400 chars)]")
+            print("\n[RAW MISTRAL OCR MARKDOWN PREVIEW (first 350 chars)]")
             print("-" * 50)
-            print(md[:400] + ("..." if len(md) > 400 else ""))
+            print(md[:350].replace('\u2610', '[ ]') + ("..." if len(md) > 350 else ""))
             print("-" * 50)
             
     except Exception as e:
