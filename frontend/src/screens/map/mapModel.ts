@@ -5,6 +5,7 @@
 import { metres } from '../../domain/format';
 import { boreholeStatus } from '../../domain/review';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
+import { inFocusRegion, outsideFocusReason, type FocusRegion } from '../../geo/mapFocus';
 import { pinColor } from '../../theme';
 
 /** Initial map view: Germany, as in the prototype. */
@@ -97,7 +98,7 @@ export function popupCrsWarning(crs: Borehole['crs']): string | null {
 
 export interface NotOnMapReason {
   text: string;
-  /** Amber text for CRS problems, grey for missing coordinates. */
+  /** Amber text for CRS problems and positions outside the map focus, grey for missing coordinates. */
   warn: boolean;
 }
 
@@ -107,6 +108,41 @@ export function notOnMapReason(b: Borehole): NotOnMapReason {
     b.unplottedReason?.trim() ||
     (b.crs.status === 'unknown' && b.lat != null ? 'CRS unknown' : 'No usable coordinates');
   return { text, warn: /^crs\b/i.test(text) };
+}
+
+export interface NotOnMapItem {
+  borehole: Borehole;
+  reason: NotOnMapReason;
+}
+
+/** Which boreholes the map draws as pins, and which it lists under NOT ON MAP instead. */
+export interface MapPlacement {
+  plotted: PlottedBorehole[];
+  notOnMap: NotOnMapItem[];
+  /** How many of `notOnMap` have usable coordinates outside the focus region. */
+  outsideFocus: number;
+}
+
+/**
+ * Splits the boreholes into pins and the NOT ON MAP list, both in data order. Without a focus region
+ * (VITE_MAP_FOCUS=world) a pin is any `isPlotted` borehole. With one, a borehole whose position lies
+ * outside the region is listed with "Outside map focus (…)" instead: often a sign of a wrong CRS.
+ */
+export function placeBoreholes(boreholes: Borehole[], region: FocusRegion | null): MapPlacement {
+  const plotted: PlottedBorehole[] = [];
+  const notOnMap: NotOnMapItem[] = [];
+  let outsideFocus = 0;
+  for (const b of boreholes) {
+    if (!isPlotted(b)) {
+      notOnMap.push({ borehole: b, reason: notOnMapReason(b) });
+    } else if (region && !inFocusRegion(region, b.lat, b.lng)) {
+      outsideFocus += 1;
+      notOnMap.push({ borehole: b, reason: { text: outsideFocusReason(region), warn: true } });
+    } else {
+      plotted.push(b);
+    }
+  }
+  return { plotted, notOnMap, outsideFocus };
 }
 
 /** Final depth as "18.00 m", or "–" when no depth was extracted (a blank never means 0). */

@@ -128,6 +128,11 @@ describe('search', () => {
     st().search();
     expect(st().searchMessage).toBe('No results for “zzz”');
   });
+
+  it('showNotOnMap explains a search target the map did not place (e.g. outside the map focus)', () => {
+    st().showNotOnMap('TB-09', 'Outside map focus (Germany)');
+    expect(st().searchMessage).toBe('TB-09: Outside map focus (Germany). Listed under Not on map.');
+  });
 });
 
 describe('navigation and panels', () => {

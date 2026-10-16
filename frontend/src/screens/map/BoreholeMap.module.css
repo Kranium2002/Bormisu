@@ -3,3 +3,15 @@
   position: absolute;
   inset: 0;
 }
+
+/*
+ * Tile seams. At fractional zoom (zoomSnap 0.25) the 256 px tiles are scaled and their edges fall
+ * between pixels. Leaflet's fix (mix-blend-mode: plus-lighter) then adds up both edge pixels and draws
+ * a white hairline where tiles meet, very visible next to the focus border. Normal blending plus half
+ * a pixel of overlap closes the seams without the bright line.
+ */
+.map :global(.leaflet-tile-container img.leaflet-tile) {
+  mix-blend-mode: normal;
+  width: 256.5px !important;
+  height: 256.5px !important;
+}

@@ -5,16 +5,22 @@
  * - One circle marker per plotted borehole, coloured by review status and restyled in place when a
  *   status, a position or the highlighted borehole changes.
  * - Clicking a pin opens a popup with OPEN DETAIL ›.
- * - A new `focus` signal (header search) flies to the borehole and opens its popup.
+ * - A new `focus` signal (header search) flies to the borehole and opens its popup. A target the
+ *   map doesn't draw is reported through `onFocusMissed` instead.
+ * - With a focus `region` (VITE_MAP_FOCUS=DE) the map starts on the region, can't leave it, and
+ *   masks everything outside it (focusLayers.ts). Without one it starts on Germany, or on the pins'
+ *   bounds when some lie outside Germany.
  * - App unmounts the screen on navigation, so the view is kept in a module variable and restored.
  */
 import * as L from 'leaflet';
 import { useEffect, useRef } from 'react';
 import { osmTileLayer, removeMap } from '../../components/leaflet';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
+import type { FocusRegion } from '../../geo/mapFocus';
 import type { MapFocus } from '../../store/appStore';
 import { pinColor } from '../../theme';
 import styles from './BoreholeMap.module.css';
+import { addFocusLayers, fitMinZoom, fitOptions, focusMapOptions, regionBounds } from './focusLayers';
 import { depthText, GERMANY_BOUNDS, GERMANY_CENTER, initialBounds, isPlotted, PIN_RADIUS, popupCrsWarning } from './mapModel';
 import { buildPopup } from './mapPopup';
 
@@ -29,12 +35,17 @@ let savedView: { center: L.LatLngTuple; zoom: number } | null = null;
 let handledFocusNonce: number | null = null;
 
 interface Props {
+  /** The boreholes to draw (MapScreen passes only those inside the focus region). */
   boreholes: Borehole[];
   statuses: Map<string, BoreholeStatus>;
   /** Drawn with the larger radius and on top (the borehole open in Review). */
   highlightUid: string | null;
   focus: MapFocus | null;
+  /** Region the map is restricted to, or null for the whole world. Read once, when the map is created. */
+  region: FocusRegion | null;
   onOpen(uid: string): void;
+  /** Called once per search focus whose borehole this map doesn't draw. */
+  onFocusMissed?(uid: string): void;
 }
 
 function pinStyle(status: BoreholeStatus, highlight: boolean): L.CircleMarkerOptions {
@@ -47,32 +58,47 @@ function pinStyle(status: BoreholeStatus, highlight: boolean): L.CircleMarkerOpt
   };
 }
 
-export function BoreholeMap({ boreholes, statuses, highlightUid, focus, onOpen }: Props) {
+export function BoreholeMap({ boreholes, statuses, highlightUid, focus, region, onOpen, onFocusMissed }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef(new Map<string, L.CircleMarker>());
   /** Latest props for Leaflet callbacks, which outlive a render. */
-  const latest = useRef({ boreholes, statuses, onOpen });
+  const latest = useRef({ boreholes, statuses, region, onOpen, onFocusMissed });
   useEffect(() => {
-    latest.current = { boreholes, statuses, onOpen };
+    latest.current = { boreholes, statuses, region, onOpen, onFocusMissed };
   });
 
   // Create the map once; keep its view when the screen unmounts.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const map = L.map(el, { scrollWheelZoom: true, zoomSnap: 0.25 });
-    // Germany as in the prototype, or the pins' bounds when some lie outside it.
-    const bounds = initialBounds(latest.current.boreholes);
-    const germany = bounds === GERMANY_BOUNDS;
-    if (savedView) map.setView(savedView.center, savedView.zoom);
-    else if (el.clientWidth > 0 && el.clientHeight > 0) map.fitBounds(bounds, germany ? {} : { padding: [24, 24], maxZoom: 13 });
-    else map.setView(germany ? GERMANY_CENTER : L.latLngBounds(bounds).getCenter(), 6);
+    const { region } = latest.current;
+    const hasSize = el.clientWidth > 0 && el.clientHeight > 0;
+    const map = L.map(el, { scrollWheelZoom: true, zoomSnap: 0.25, ...(region ? focusMapOptions(region) : {}) });
+    if (region) {
+      // The focus region, the same view as the smallest zoom allowed.
+      if (savedView) map.setView(savedView.center, savedView.zoom);
+      else if (hasSize) map.fitBounds(regionBounds(region), fitOptions);
+      else map.setView(regionBounds(region).getCenter(), 6);
+      addFocusLayers(map, region);
+      fitMinZoom(map, region);
+    } else {
+      // Germany as in the prototype, or the pins' bounds when some lie outside it.
+      const bounds = initialBounds(latest.current.boreholes);
+      const germany = bounds === GERMANY_BOUNDS;
+      if (savedView) map.setView(savedView.center, savedView.zoom);
+      else if (hasSize) map.fitBounds(bounds, germany ? {} : { padding: [24, 24], maxZoom: 13 });
+      else map.setView(germany ? GERMANY_CENTER : L.latLngBounds(bounds).getCenter(), 6);
+    }
     osmTileLayer().addTo(map);
     mapRef.current = map;
 
-    // Recompute the map size whenever the container changes size (first layout, window resize).
-    const resize = new ResizeObserver(() => map.invalidateSize());
+    // Recompute the map size whenever the container changes size (first layout, window resize),
+    // and with it the smallest zoom at which the whole focus region still fits.
+    const resize = new ResizeObserver(() => {
+      map.invalidateSize();
+      if (region) fitMinZoom(map, region);
+    });
     resize.observe(el);
     const markers = markersRef.current;
 
@@ -144,6 +170,7 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, onOpen }
     const b = latest.current.boreholes.find((x) => x.uid === focus.uid);
     if (!b || !isPlotted(b)) {
       handledFocusNonce = focus.nonce;
+      latest.current.onFocusMissed?.(focus.uid);
       return;
     }
     const timers: ReturnType<typeof setTimeout>[] = [];

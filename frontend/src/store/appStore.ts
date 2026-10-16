@@ -144,6 +144,11 @@ export interface AppState {
   exportFile(kind: ExportKind): Promise<void>;
   setQuery(q: string): void;
   search(): void;
+  /**
+   * Shows the search popover's "Listed under Not on map" message for a borehole the map didn't
+   * place after all (MapScreen calls it when a search target lies outside the map focus).
+   */
+  showNotOnMap(id: string, reason: string): void;
   addFiles(files: FileList | File[]): Promise<void>;
   setDragActive(active: boolean): void;
   /** Escape closes, in order: editing → confirm clean → export menu → CRS dialog → side panel. */
@@ -177,6 +182,7 @@ const saves = new Map<string, ValueSaves>();
 const LEAVE_REVIEW = { editing: null, confirmCleanOpen: false } as const;
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const notOnMapMessage = (id: string, reason: string) => `${id}: ${reason}. Listed under Not on map.`;
 const pageKey = (documentId: string, page: number) => `${documentId}:${page}`;
 
 /** The layer the detail screen selects first: the first SPT refusal (the demo's "R"), else layer 1. */
@@ -609,7 +615,7 @@ export const useAppStore = create<AppState>()((set, get) => {
       }
       if (!b.onMap) {
         set({ ...LEAVE_REVIEW, screen: 'map' });
-        flashSearch(`${b.id}: ${b.unplottedReason ?? 'No usable coordinates'}. Listed under Not on map.`, SEARCH_NOT_ON_MAP_MS);
+        flashSearch(notOnMapMessage(b.id, b.unplottedReason ?? 'No usable coordinates'), SEARCH_NOT_ON_MAP_MS);
         return;
       }
       clearTimeout(searchTimer);
@@ -620,6 +626,10 @@ export const useAppStore = create<AppState>()((set, get) => {
         searchMessage: '',
         mapFocus: { uid: b.uid, zoom: projectSize > 1 && !exact ? 11 : 13, nonce: ++nonce },
       });
+    },
+
+    showNotOnMap(id, reason) {
+      flashSearch(notOnMapMessage(id, reason), SEARCH_NOT_ON_MAP_MS);
     },
 
     async addFiles(files) {

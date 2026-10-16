@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GERMANY } from '../../geo/mapFocus';
 import { makeBorehole, makeValue } from '../../test/fixtures';
 import { COL } from '../../theme';
 import {
@@ -9,6 +10,7 @@ import {
   isPlotted,
   legendEntries,
   notOnMapReason,
+  placeBoreholes,
   popupCrsWarning,
   resultsSummary,
   shortCrsName,
@@ -143,5 +145,35 @@ describe('initialBounds', () => {
       [48.8, 9.2],
       [59.9, 10.7],
     ]);
+  });
+});
+
+describe('placeBoreholes', () => {
+  const stuttgart = makeBorehole({ uid: 's', id: 'S-1', lat: 48.78, lng: 9.18 });
+  const paris = makeBorehole({ uid: 'p', id: 'P-1', lat: 48.8566, lng: 2.3522 });
+  const noCoords = makeBorehole({ uid: 'n', id: 'N-1', onMap: false, lat: null, lng: null, unplottedReason: 'No coordinates in source' });
+  const all = [paris, stuttgart, noCoords];
+
+  it('with the Germany focus, lists boreholes outside it under NOT ON MAP with the reason', () => {
+    const p = placeBoreholes(all, GERMANY);
+    expect(p.plotted.map((b) => b.uid)).toEqual(['s']);
+    expect(p.notOnMap.map((i) => [i.borehole.uid, i.reason])).toEqual([
+      ['p', { text: 'Outside map focus (Germany)', warn: true }],
+      ['n', { text: 'No coordinates in source', warn: false }],
+    ]);
+    expect(p.outsideFocus).toBe(1);
+  });
+
+  it('legend counts and NOT ON MAP add up to every borehole', () => {
+    const p = placeBoreholes(all, GERMANY);
+    const counted = legendEntries(p.plotted, statusByUid(all)).reduce((n, e) => n + e.count, 0);
+    expect(counted + p.notOnMap.length).toBe(all.length);
+  });
+
+  it('without a focus region (world) plots every borehole with coordinates, as before', () => {
+    const p = placeBoreholes(all, null);
+    expect(p.plotted.map((b) => b.uid)).toEqual(['p', 's']);
+    expect(p.notOnMap.map((i) => i.borehole.uid)).toEqual(['n']);
+    expect(p.outsideFocus).toBe(0);
   });
 });

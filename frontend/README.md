@@ -4,7 +4,7 @@ Bormisu turns messy geotechnical reports into reviewed borehole data for Herrenk
 
 - **Upload & queue:** drop PDFs, DOCX files or images. Watch each document go from *classifying* to *extracting* to *needs review*, with a page map and a completeness check (boreholes the report names but no log was found for).
 - **Review:** every extracted value sits next to the scanned page with its box highlighted, shown as printed and as normalised, with its method (Read, OCR, Derived, Guessed, Edited). You can approve, edit (the AI value stays visible, struck through), flag, mark "not in source" or "illegible", approve all clean values at once, and confirm the coordinate system once for the whole report on a map preview.
-- **Map:** boreholes coloured by review status. Boreholes without usable coordinates are listed under *Not on map* instead of being guessed onto it. Search by borehole ID or project.
+- **Map:** boreholes coloured by review status, on a map of Germany (everything else is masked out; see [Map focus](#map-focus)). Boreholes without usable coordinates, or outside Germany, are listed under *Not on map* instead of being guessed onto it. Search by borehole ID or project.
 - **Borehole detail:** the DIN 4023 profile (soil patterns, stratigraphy, groundwater, SPT refusals, rock head, the part of the hole that wasn't logged), metadata with provenance, layers, groundwater, a location map, and exports.
 
 React 19 + TypeScript + Vite, zustand for state, Leaflet for maps, exceljs for the xlsx export.
@@ -42,6 +42,19 @@ The data source is chosen once, in `src/data/createDataSource.ts`, from `VITE_DA
 
 Sample mode shows a *DEMO* banner that can't be dismissed. The sample data is made up: no file in this repo comes from the challenge dataset. Only `createDataSource.ts` imports `src/sample/`, lazily and behind the flag, so an API build contains no sample data at all. See [.env.example](.env.example) for the variables. The frontend holds no API keys.
 
+## Map focus
+
+The Map screen's map is restricted to one region, set once from `VITE_MAP_FOCUS` (`src/geo/mapFocus.ts`):
+
+| Value | Map screen |
+|---|---|
+| `DE` (default) | Opens on Germany and can't pan or zoom out beyond it. Everything outside Germany is masked in the map background colour, with a thin dark-green border. Boreholes outside Germany are listed under *Not on map* as *Outside map focus (Germany)*, and searching for one shows that message instead of flying there. |
+| `world` | No restriction: the whole world, every borehole with coordinates is plotted. |
+
+Any other value counts as `DE`. `.env.sample` sets `DE` explicitly; to try the other mode, run `VITE_MAP_FOCUS=world npm run dev:sample` (a variable from the shell wins over the env files). The CRS dialog and the detail mini-map are never restricted. The RESULTS table always lists every borehole.
+
+The Germany outline (`src/geo/germany.ts`) comes from [Natural Earth](https://www.naturalearthdata.com/) 1:50m admin-0 countries, public domain, coordinates rounded to 4 decimals. A point within 2 km outside the outline still counts as inside, because the 1:50m outline is generalised by up to about a kilometre (a borehole on the German bank of the Rhine must not drop off the map).
+
 ## Scripts
 
 | Script | What it does |
@@ -66,6 +79,7 @@ src/
   components/          shared UI: header, panels, scan page, chips, badges, Leaflet helpers
   screens/             map/, queue/, review/, detail/: one folder per screen
   export/              standard xlsx, tidy CSV, open-questions CSV
+  geo/                 map focus setting, Germany outline (Natural Earth), point-in-polygon
   styles/tokens.css    design tokens (colours, fonts) and global styles
 e2e/                   Playwright smoke tests
 ```
@@ -112,6 +126,7 @@ npm run e2e      # Playwright, sample mode, system Chrome (channel: 'chrome'); P
 The e2e suite starts `npm run dev:sample` itself and stops it afterwards. Map tiles are stubbed, so it runs offline, and every test fails on any console error. It covers:
 
 - **Map:** pins, legend counts, the *Not on map* list, a results row and a pin popup opening the detail, and search ("EQ-03" flies to the pin; "BK-13" explains why it isn't on the map).
+- **Map focus (DE):** the Germany mask and border sit between the tiles and the pins; neither the zoom-out button nor the wheel zooms out beyond Germany; all 45 sample pins are drawn and on top. A test moves one sample project to Brussels (by patching the sample module in the browser, not the repo): its boreholes leave the map for *Not on map*, the counts add up, and searching for one explains why. `VITE_MAP_FOCUS=world npm run e2e` runs the suite in world mode, where the DE tests are skipped and a world test checks the old behaviour.
 - **Detail:** the profile; the R marker opens the source panel with the highlighted box; the tidy CSV downloads; the standard xlsx downloads, and its sheets and row-1 field names are checked with exceljs.
 - **Queue:** three documents; the completeness panel lists BK-12 as missing; a `.txt` upload shows the red error; a `.pdf` upload adds a simulated document that goes through the steps.
 - **Review:** approve all clean updates the progress; an edit keeps the AI value struck through; flag and un-flag; state buttons toggle; confirming the CRS turns the Neckarbogen pins from amber.

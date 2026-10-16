@@ -40,11 +40,15 @@ frontend/
       generate.ts            deterministic generators (prototype PROJ, BHS, GEO, genBH, genPage, mulberry32)
       documents.ts           prototype DOCS0 + CRS candidates
       sampleSource.ts        DataSource implementation over the sample data (in-memory, simulated upload)
+    geo/
+      mapFocus.ts            VITE_MAP_FOCUS (DE | world), read once; focus region, inFocusRegion, reason text
+      germany.ts             generated: Germany outline (Natural Earth 1:50m, public domain) + bounding box
+      polygon.ts             pure geometry: point-in-(multi)polygon (ray casting), distance to outline, boxes
     store/appStore.ts        zustand store: all UI + data state and actions (API below)
     components/              shared: Header, Banner, Toast, MethodBadge, StatusChip, SourceIcon, ScanPage,
                              SidePanel (SourcePanel + CompletenessPanel), Popover, Toggle
     screens/
-      map/MapScreen.tsx (+ .module.css)
+      map/MapScreen.tsx (+ .module.css), map/focusLayers.ts (Leaflet mask, border, view limits of the map focus)
       queue/QueueScreen.tsx
       review/ReviewScreen.tsx, review/FieldRow.tsx, review/CrsDialog.tsx
       detail/DetailScreen.tsx, detail/ProfileColumn.tsx, detail/ExportMenu.tsx
@@ -243,6 +247,7 @@ openSource(uid, key)  openPage(documentId, page)  openCompleteness(documentId)  
 openCrsDialog()  pickCrs(i)  confirmCrs()  closeCrsDialog()
 toggleExport()  toggleIncludeUnreviewed()  exportFile(kind: 'xlsx' | 'csv' | 'questions')
 setQuery(q)  search()   // flyTo is signalled via a mapFocus: {uid, zoom, nonce} state field the MapScreen subscribes to
+showNotOnMap(id, reason)   // the search's "Listed under Not on map" message, for a target the map didn't place
 addFiles(files)  setDragActive(b)
 ```
 
@@ -334,5 +339,17 @@ Additive to the sections above. Each fix has a regression test that names the re
 - **Export:** `exportId(b, o)` is the one BoreholeID on every sheet and CSV row: the reviewed value once exported, else the ID as printed. `DepthFrom` is the layer's own start depth. A layer that continues the one above takes that layer's reviewed bottom. An edited SPT exports its new N, or `blows/penetration` for a refusal.
 - **API adapter:** `targets[key] = {paths, type}` replaces `paths[key]`. `type` decides how an edit is sent: numbers as numbers, IDs and dates as typed (leading zeros kept), SPT as N. X / Y has two paths (`local_x`/`local_y`, else `longitude`/`latitude`, easting first). Its provenance is combined from both, and an edit is split into one update per coordinate. Every groundwater reading is kept as `GW[i]`, and the legacy `water_table_m` keeps its own path. A missing final depth is `null`. Every backend lint finding lands on a review row: its own value, else the layer's bottom depth, the reading, X / Y, or the BoreholeID. `documentLint` fills the Completeness panel's LINT list.
 - **Profile:** groundwater, rock head and the SPT refusal marker are drawn only while their value isn't "not in source" / "illegible" (`isStated`).
-- **Map:** every RESULTS row and every NOT ON MAP item opens Detail, so a borehole without coordinates is never a dead end. The summary no longer says "in Germany". The first view is Germany unless a pin lies outside it; in that case it is the pins' bounds.
+- **Map:** every RESULTS row and every NOT ON MAP item opens Detail, so a borehole without coordinates is never a dead end. The summary no longer says "in Germany". With `VITE_MAP_FOCUS=world` the first view is Germany unless a pin lies outside it; in that case it is the pins' bounds. With the default `DE`, see "As built: map focus".
 - Vitest also runs `*.test.tsx` (component tests render with `react-dom/server`).
+
+## As built: map focus
+
+Additive to the sections above. Only the Map screen's map is restricted; the CRS dialog and the detail mini-map are not.
+
+- **Setting:** `src/geo/mapFocus.ts` reads `VITE_MAP_FOCUS` once: `DE` (default, also for unknown values) or `world`. `FOCUS_REGION` is the Germany region or `null`. With `null`, the map behaves exactly as before the setting existed. (The name clash is historical: the store's `mapFocus` is the search's fly-to signal.)
+- **Outline:** `src/geo/germany.ts` is generated from Natural Earth 1:50m admin-0 countries (`ADM0_A3 = DEU`, public domain): 6 polygons (mainland, Rügen, Usedom, Sylt, Fehmarn, Föhr), no holes, 556 points, `[lat, lng]`, 4 decimals, plus its bounding box. The raw download is not in the repo.
+- **Which boreholes are pins:** `placeBoreholes(boreholes, region)` in `mapModel.ts` splits them into `plotted` and `notOnMap` (with a reason). A borehole with coordinates outside the region (`inFocusRegion`: point-in-polygon, or within 2 km of the outline to absorb the 1:50m generalisation) is listed as "Outside map focus (Germany)" in amber. The legend counts `plotted`; the RESULTS table lists every borehole, and every row and list item still opens Detail. No sample, store or domain code knows about the focus.
+- **Search:** the store flies as before. When the target isn't among the map's pins, `BoreholeMap` calls `onFocusMissed(uid)` once per search, and MapScreen calls `showNotOnMap(id, reason)`, so the popover says "RB-02: Outside map focus (Germany). Listed under Not on map." instead of flying.
+- **Leaflet (`screens/map/focusLayers.ts`):** `maxBounds` = Germany's box + 0.5°, `maxBoundsViscosity: 1`; the first view is `fitBounds(Germany)` (12 px padding); `minZoom` = `getBoundsZoom(Germany)` with the same padding, recomputed whenever the container resizes, so the zoom-out button is disabled at the first view. The mask is one polygon (world rectangle with Germany's rings as holes, even-odd fill) in the pane `bormisuFocus` at z-index 350 (tiles 200, pins 400), filled with `COL.line` (= `--c-line`, the map background), no stroke, non-interactive; the border (`#003E25`, 1.5 px) is in the same pane. Their SVG renderer has `padding: 1`, so a pan never reveals unmasked tiles before the redraw.
+- **Tile seams:** Leaflet's `mix-blend-mode: plus-lighter` fix for fractional zoom drew white hairlines between tiles. `BoreholeMap.module.css` switches the main map's tiles to normal blending with half a pixel of overlap.
+

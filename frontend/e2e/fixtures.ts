@@ -51,6 +51,29 @@ export const pinFills = (page: Page) => pins(page).evaluateAll((ps) => ps.map((p
 
 export const AMBER = '#E39B00';
 
+/**
+ * True when the e2e server runs with VITE_MAP_FOCUS=world (the server inherits this process's env).
+ * The default is DE: the map is restricted to Germany.
+ */
+export const MAP_FOCUS_WORLD = (process.env.VITE_MAP_FOCUS ?? '').trim().toLowerCase() === 'world';
+
+/**
+ * Test-only: moves one fictional sample project (by ID prefix, e.g. "RB-") to another position by
+ * patching the sample generator module as the dev server serves it; src/sample/ stays untouched.
+ * The sample data never leaves Germany, so this is how the tests put boreholes outside the map focus.
+ * Call before openApp().
+ */
+export async function moveSampleProject(page: Page, prefix: string, lat: number, lng: number): Promise<void> {
+  await page.route(/\/src\/sample\/generate\.ts(\?.*)?$/, async (route) => {
+    const response = await route.fetch();
+    const p = JSON.stringify(prefix);
+    const patch =
+      `\n;{ const p = PROJECTS.find((x) => x.pre === ${p});` +
+      ` if (!p) throw new Error('e2e: no sample project ' + ${p}); p.lat = ${lat}; p.lng = ${lng}; }\n`;
+    await route.fulfill({ response, body: (await response.text()) + patch });
+  });
+}
+
 /** The count shown in one row of the REVIEW STATUS legend. */
 export const legendCount = (page: Page, status: 'reviewed' | 'unreviewed' | 'attention') =>
   page.getByRole('group', { name: 'Review status legend' }).locator(`li[data-status="${status}"] span`).last();
