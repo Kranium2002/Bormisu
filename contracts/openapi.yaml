@@ -1,0 +1,1268 @@
+openapi: 3.1.0
+info:
+  title: GeoMemory API
+  version: 1.0.0
+  description: |
+    Contract v1 between the backend session and the frontend session. This file is the single
+    source of truth for HTTP shapes. Streams (server-sent events and the chat stream) are specified
+    in contracts/realtime-and-chat.md.
+
+    Conventions
+    - Base path /api/v1. Health is also served at /api/health.
+    - JSON is snake_case. `null` means unknown or not in the source. Never send a default value
+      that is not printed in the source (no "Sand", no 0, no "WGS84" unless printed).
+    - Depths in metres below ground (or below the stated origin, see `depth_origin`); elevations in
+      metres in the datum named by `elevation_datum`; map coordinates in WGS84 decimal degrees.
+    - Page numbers are 1-based in this API. Boxes are normalised [x, y, w, h], 0-1, origin top-left
+      of the rendered page image.
+    - Ids are opaque strings: documents `doc_<ULID>`, boreholes `bh_<ULID>`, result sets
+      `rs_<ULID>`, clarifications `cl_<ULID>`. Never parse them.
+    - Every non-2xx JSON response is an `Error`: `{"detail": string, "code": string, "errors"?: [...]}`.
+      The UI branches on `code`, shows `detail`, and never parses `detail`. Unknown routes return
+      code `route_not_found`; a missing resource on a known route returns its own code
+      (`document_not_found`, `borehole_not_found`, ...), never the bare text "Not Found".
+    - Changes inside 1.x are additive only. Breaking changes need a new major version and an entry in
+      contracts/CHANGELOG.md agreed by both sessions.
+    - `x-priority` marks build order: P0 core flow, P1 needed for the demo, P2 stretch.
+servers:
+  - url: /
+tags:
+  - name: system
+  - name: documents
+  - name: boreholes
+  - name: map
+  - name: clarifications
+  - name: chat
+  - name: events
+
+paths:
+  /api/health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      x-priority: P0
+      summary: Liveness and mode. Also served at /api/v1/health.
+      responses:
+        "200":
+          description: Service is up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /api/v1/health:
+    get:
+      tags: [system]
+      operationId: getHealthV1
+      x-priority: P0
+      responses:
+        "200":
+          description: Same body as /api/health.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /api/v1/stats:
+    get:
+      tags: [system]
+      operationId: getStats
+      x-priority: P2
+      summary: Real counts only. No invented metrics.
+      responses:
+        "200":
+          description: Counts over accepted and unreviewed data.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Stats" }
+
+  /api/v1/documents:
+    get:
+      tags: [documents]
+      operationId: listDocuments
+      x-priority: P0
+      summary: All documents, newest first.
+      responses:
+        "200":
+          description: Document list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DocumentList" }
+    post:
+      tags: [documents]
+      operationId: uploadDocument
+      x-priority: P0
+      summary: Upload one file. Returns at once; processing runs in the background.
+      description: |
+        Accepted types: PDF, PNG, JPEG, WEBP, TIFF, DOCX, XLSX, CSV. The file is stored under a
+        generated name (never the client filename as a path). Identical bytes (same sha256) return the
+        existing document with `duplicate_of` set and status 200 instead of 202.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                project:
+                  type: [string, "null"]
+                  description: |
+                    Optional project label. Files dropped together carry the same label (the name
+                    the user typed, else the dropped folder's name). The backend groups CRS
+                    questions per project, so one answer can place a whole batch.
+      responses:
+        "202":
+          description: Accepted and queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadAccepted" }
+        "200":
+          description: Same bytes were uploaded before; nothing is reprocessed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadAccepted" }
+        "409":
+          description: Demo mode (no provider keys). code and detail are both exactly "demo_mode".
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413":
+          description: File larger than MAX_UPLOAD_MB.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "415":
+          description: Unsupported file type.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/documents/{document_id}:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [documents]
+      operationId: getDocument
+      x-priority: P0
+      responses:
+        "200":
+          description: The document with page map, counts and progress.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Document" }
+        "404":
+          description: Unknown id.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [documents]
+      operationId: deleteDocument
+      x-priority: P2
+      summary: Deletes the document, its artifacts and its boreholes.
+      responses:
+        "204":
+          description: Deleted.
+
+  /api/v1/documents/{document_id}/retry:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    post:
+      tags: [documents]
+      operationId: retryDocument
+      x-priority: P1
+      summary: Re-queue a failed document from its last successful stage. Stored OCR is reused.
+      responses:
+        "202":
+          description: Re-queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadAccepted" }
+        "409":
+          description: Document is not in status failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/documents/{document_id}/pages/{n}.png:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+      - name: n
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - name: w
+        in: query
+        required: false
+        description: Target width in px (default 1400, clamped to 200..2400). Aspect ratio is kept.
+        schema: { type: integer, minimum: 200, maximum: 2400 }
+    get:
+      tags: [documents]
+      operationId: getPageImage
+      x-priority: P0
+      summary: Rendered page image. Same page numbering and orientation as provenance boxes.
+      responses:
+        "200":
+          description: PNG image.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "404":
+          description: Unknown document or page.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/documents/{document_id}/boreholes:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [documents]
+      operationId: listDocumentBoreholes
+      x-priority: P0
+      responses:
+        "200":
+          description: All boreholes extracted from this document.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/BoreholeRecord" }
+
+  /api/v1/documents/{document_id}/approve-clean:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+      - name: dry_run
+        in: query
+        required: false
+        schema: { type: boolean, default: true }
+    post:
+      tags: [documents]
+      operationId: approveClean
+      x-priority: P1
+      summary: Approve every clean value of the document.
+      description: |
+        A value is clean when status is unreviewed, state is ok, it has no flag and no lint finding,
+        and either method is `read`, or method is `ocr` with confidence >= CLEAN_CONFIDENCE
+        (server setting, default 0.9). The server is the source of truth for this count.
+      responses:
+        "200":
+          description: Number of values approved (or that would be, when dry_run is true).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer, minimum: 0 }
+
+  /api/v1/documents/{document_id}/crs-candidates:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [documents]
+      operationId: listCrsCandidates
+      x-priority: P1
+      summary: Ranked coordinate-system candidates for the document's printed coordinates.
+      responses:
+        "200":
+          description: Candidates, best first. Empty when the document has no coordinates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CrsCandidate" }
+
+  /api/v1/documents/{document_id}/crs:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    post:
+      tags: [documents]
+      operationId: confirmCrs
+      x-priority: P1
+      summary: Confirm one coordinate system for every borehole of the document.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CrsConfirmRequest" }
+      responses:
+        "200":
+          description: Boreholes updated; they become plotted when the transform succeeds.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updated]
+                properties:
+                  updated: { type: integer, minimum: 0 }
+        "422":
+          description: CRS code unknown or transform failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/boreholes:
+    get:
+      tags: [boreholes]
+      operationId: listBoreholes
+      x-priority: P0
+      summary: Filtered list of borehole records.
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: country, in: query, schema: { type: string } }
+        - { name: min_depth_m, in: query, schema: { type: number, minimum: 0 } }
+        - { name: max_depth_m, in: query, schema: { type: number, minimum: 0 } }
+        - name: din4023_code
+          in: query
+          description: Repeatable. Matches any layer whose main component has this DIN code.
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+        - { name: document_id, in: query, schema: { type: string } }
+        - { name: result_set_id, in: query, schema: { type: string } }
+        - name: plotted
+          in: query
+          description: false lists the boreholes that are not on the map (the "Not on map" list).
+          schema: { type: boolean }
+        - name: include_unreviewed
+          in: query
+          description: Defaults to true for the review UI. Chat tools default to false.
+          schema: { type: boolean, default: true }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 5000, default: 5000 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Matching records.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoreholeList" }
+
+  /api/v1/boreholes/{uid}:
+    parameters:
+      - $ref: "#/components/parameters/Uid"
+    get:
+      tags: [boreholes]
+      operationId: getBorehole
+      x-priority: P0
+      summary: One borehole by exact uid (no substring matching).
+      responses:
+        "200":
+          description: The record at its latest revision.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoreholeRecord" }
+        "404":
+          description: Unknown uid.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/boreholes/{uid}/values:
+    parameters:
+      - $ref: "#/components/parameters/Uid"
+    patch:
+      tags: [boreholes]
+      operationId: patchValue
+      x-priority: P1
+      summary: One review action on one value. Creates a new revision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ValuePatch" }
+      responses:
+        "200":
+          description: The updated record.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BoreholeRecord" }
+        "404":
+          description: Unknown uid or path.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: if_revision did not match the current revision.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Value cannot be parsed for this path.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/map/boreholes.geojson:
+    get:
+      tags: [map]
+      operationId: getMapLayer
+      x-priority: P1
+      summary: Light map layer of plotted boreholes (no layers, no provenance).
+      parameters:
+        - name: include_unreviewed
+          in: query
+          schema: { type: boolean, default: true }
+        - { name: document_id, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Point features in WGS84.
+          content:
+            application/geo+json:
+              schema: { $ref: "#/components/schemas/BoreholeFeatureCollection" }
+
+  /api/v1/result-sets:
+    post:
+      tags: [map]
+      operationId: createResultSet
+      x-priority: P1
+      summary: Run a validated filter and store the result as a result set.
+      description: |
+        Used by the Explore filters, by area selection on the map and by chat tools, so all of them
+        share one id for the same selection. Result sets are immutable snapshots of uids.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BoreholeFilter" }
+      responses:
+        "201":
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResultSet" }
+        "422":
+          description: Invalid filter.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/result-sets/{result_set_id}:
+    parameters:
+      - name: result_set_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [map]
+      operationId: getResultSet
+      x-priority: P1
+      responses:
+        "200":
+          description: The stored result set.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResultSet" }
+        "404":
+          description: Unknown or expired id.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/result-sets/{result_set_id}/geojson:
+    parameters:
+      - name: result_set_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [map]
+      operationId: getResultSetGeojson
+      x-priority: P1
+      responses:
+        "200":
+          description: Plotted members of the set. Unplotted members are counted in ResultSet only.
+          content:
+            application/geo+json:
+              schema: { $ref: "#/components/schemas/BoreholeFeatureCollection" }
+
+  /api/v1/geocode:
+    get:
+      tags: [map]
+      operationId: geocode
+      x-priority: P1
+      summary: Place search for any town or address in the world.
+      description: |
+        Looks in place names extracted from uploaded documents first, then a server-side geocoder
+        (rate-limited and cached). Only the typed query leaves the server. No typeahead: call on
+        submit.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 200 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10, default: 5 }
+      responses:
+        "200":
+          description: Candidates, best first. May be empty.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlaceCandidate" }
+        "503":
+          description: External geocoder unavailable; uploaded-place results may still be empty.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/clarifications:
+    get:
+      tags: [clarifications]
+      operationId: listClarifications
+      x-priority: P1
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, answered, skipped], default: open }
+        - { name: document_id, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Clarification requests, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Clarification" }
+
+  /api/v1/clarifications/{clarification_id}/answer:
+    parameters:
+      - name: clarification_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [clarifications]
+      operationId: answerClarification
+      x-priority: P1
+      summary: Answer a clarification. Applies the change as a new revision of the affected records.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClarificationAnswer" }
+      responses:
+        "200":
+          description: The clarification, now answered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Clarification" }
+        "409":
+          description: Already answered or skipped.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Answer does not validate against the form.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/clarifications/{clarification_id}/skip:
+    parameters:
+      - name: clarification_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [clarifications]
+      operationId: skipClarification
+      x-priority: P1
+      summary: Leave the question open for later; affected records keep their uncertainty badge.
+      responses:
+        "200":
+          description: The clarification, now skipped.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Clarification" }
+
+  /api/v1/events:
+    get:
+      tags: [events]
+      operationId: streamEvents
+      x-priority: P1
+      summary: Server-sent events for live updates. See contracts/realtime-and-chat.md.
+      parameters:
+        - { name: document_id, in: query, schema: { type: string } }
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /api/v1/chat:
+    post:
+      tags: [chat]
+      operationId: chat
+      x-priority: P1
+      summary: Chat turn. Streams the AI SDK UI message stream (v1). See contracts/realtime-and-chat.md.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChatRequest" }
+      responses:
+        "200":
+          description: text/event-stream with header x-vercel-ai-ui-message-stream v1.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "409":
+          description: Chat model not configured (no OPENAI_API_KEY). code is "chat_unavailable".
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  parameters:
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema: { type: string }
+    Uid:
+      name: uid
+      in: path
+      required: true
+      description: Opaque borehole uid, URL-encoded.
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      required: [detail, code]
+      properties:
+        detail:
+          type: string
+          description: |
+            Human-readable message. Never contains exception text, stack traces, file paths, SQL
+            or provider responses.
+        code:
+          type: string
+          description: |
+            Stable machine code. Codes in v1: validation_error, route_not_found, document_not_found,
+            page_not_found, borehole_not_found, path_not_found, result_set_not_found,
+            clarification_not_found, demo_mode, too_large, unsupported_type, not_failed,
+            revision_conflict, unparseable_value, crs_invalid, already_resolved, answer_invalid,
+            chat_unavailable, geocoder_unavailable, rate_limited, internal_error.
+        errors:
+          type: [array, "null"]
+          description: Field errors, only with code validation_error.
+          items:
+            type: object
+            properties:
+              loc: { type: array, items: { type: [string, integer] } }
+              msg: { type: string }
+
+    Health:
+      type: object
+      required: [status, mode, version, providers, upload]
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        mode:
+          type: string
+          enum: [live, demo]
+          description: demo when the OCR or extraction providers are not configured.
+        version: { type: string }
+        providers:
+          type: object
+          required: [ocr, classifier, extractor, chat, geocoder]
+          properties:
+            ocr: { type: boolean }
+            classifier: { type: boolean }
+            extractor: { type: boolean }
+            chat: { type: boolean }
+            geocoder: { type: boolean }
+        upload:
+          type: object
+          required: [max_mb, extensions]
+          description: Server limits. The drop zone mirrors them instead of hard-coding its own list.
+          properties:
+            max_mb: { type: integer }
+            extensions: { type: array, items: { type: string }, description: 'Lower case with dot, e.g. ".pdf".' }
+
+    Stats:
+      type: object
+      required: [documents, boreholes, plotted_boreholes, layers]
+      properties:
+        documents: { type: integer }
+        boreholes: { type: integer }
+        plotted_boreholes: { type: integer }
+        layers: { type: integer }
+
+    UploadAccepted:
+      type: object
+      required: [document_id, status]
+      properties:
+        document_id: { type: string }
+        status: { $ref: "#/components/schemas/DocumentStatus" }
+        duplicate_of: { type: [string, "null"] }
+
+    DocumentStatus:
+      type: string
+      enum: [queued, classifying, extracting, needs_review, done, failed]
+      description: |
+        queued -> classifying (triage + page sorting) -> extracting (OCR on important pages,
+        extraction, checks) -> needs_review -> done (every borehole approved). failed is terminal
+        until retry. The UI maps classifying=step 0, extracting=1, needs_review=2, done=3.
+
+    PageType:
+      type: string
+      enum: [log, lab_table, text, drawing, photo, unknown]
+      description: Coarse page type for the UI legend. `role` carries the fine classifier label.
+
+    PageRole:
+      type: string
+      enum:
+        [log_sheet, log_continuation, summary_table, coordinate_table, lab_results, legend_or_key,
+         location_plan, cross_section, narrative, cover_or_toc, photos, blank, duplicate, other]
+
+    Page:
+      type: object
+      required: [n, type, used]
+      properties:
+        n: { type: integer, minimum: 1 }
+        type: { $ref: "#/components/schemas/PageType" }
+        role: { $ref: "#/components/schemas/PageRole" }
+        used: { type: boolean, description: 'True when the page fed extraction.' }
+        unused_reason: { type: [string, "null"] }
+        borehole_ids:
+          type: array
+          items: { type: string }
+          description: Borehole labels as printed on the page.
+        sheet_label: { type: [string, "null"], description: 'As printed, e.g. "SHEET 2 OF 6".' }
+        handwriting: { type: string, enum: [none, annotations, partial, full] }
+        language: { type: [string, "null"], description: 'BCP 47 code, e.g. de, pt-BR.' }
+        ocr: { type: string, enum: [pending, done, skipped, failed] }
+        duplicate_of:
+          type: [object, "null"]
+          properties:
+            document_id: { type: string }
+            n: { type: integer }
+
+    DocumentProgress:
+      type: object
+      required: [pages_total, pages_classified, pages_ocr_total, pages_ocr_done, boreholes_extracted]
+      properties:
+        pages_total: { type: integer }
+        pages_classified: { type: integer }
+        pages_ocr_total: { type: integer }
+        pages_ocr_done: { type: integer }
+        boreholes_extracted: { type: integer }
+
+    Completeness:
+      type: object
+      required: [expected_ids, found_ids, missing, unexpected]
+      properties:
+        expected_ids: { type: array, items: { type: string }, description: 'IDs the report lists, e.g. in a summary table.' }
+        found_ids: { type: array, items: { type: string } }
+        missing: { type: array, items: { type: string } }
+        unexpected: { type: array, items: { type: string } }
+
+    Document:
+      type: object
+      required: [document_id, file_name, status, page_count, pages, created_at, updated_at]
+      properties:
+        document_id: { type: string }
+        file_name: { type: string }
+        project: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/DocumentStatus" }
+        error: { type: [string, "null"] }
+        mime_type: { type: string }
+        size_bytes: { type: integer }
+        sha256: { type: string }
+        page_count: { type: [integer, "null"] }
+        found:
+          type: [object, "null"]
+          required: [boreholes, layers, spt, groundwater]
+          properties:
+            boreholes: { type: integer }
+            layers: { type: integer }
+            spt: { type: integer }
+            groundwater: { type: integer }
+        pages: { type: array, items: { $ref: "#/components/schemas/Page" } }
+        completeness: { oneOf: [{ $ref: "#/components/schemas/Completeness" }, { type: "null" }] }
+        progress: { oneOf: [{ $ref: "#/components/schemas/DocumentProgress" }, { type: "null" }] }
+        duplicate_of: { type: [string, "null"] }
+        open_clarifications: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DocumentList:
+      type: object
+      required: [documents]
+      properties:
+        documents: { type: array, items: { $ref: "#/components/schemas/Document" } }
+
+    Method:
+      type: string
+      enum: [read, ocr, derived, guessed, edited]
+      description: |
+        read = trustworthy PDF text layer; ocr = Mistral OCR or a vision re-read; derived = computed
+        (e.g. thickness, WGS84 from a confirmed CRS); guessed = inferred by a model, not printed;
+        edited = set by a person.
+
+    Provenance:
+      type: object
+      required: [page, box, raw, method, confidence, status, state]
+      properties:
+        document_id: { type: [string, "null"] }
+        page: { type: [integer, "null"] }
+        box:
+          description: "[x, y, w, h] normalised 0-1, top-left origin; null when no box was found."
+          oneOf:
+            - type: array
+              items: { type: number, minimum: 0, maximum: 1 }
+              minItems: 4
+              maxItems: 4
+            - type: "null"
+        raw: { type: [string, "null"], description: 'Text exactly as printed or written.' }
+        cell: { type: [string, "null"], description: 'Spreadsheet source cell, e.g. "Logdata!C5"; page and box are null then.' }
+        method: { $ref: "#/components/schemas/Method" }
+        confidence: { type: [number, "null"], minimum: 0, maximum: 1 }
+        status: { type: string, enum: [unreviewed, approved, flagged] }
+        state: { type: string, enum: [ok, not_in_source, illegible] }
+        ai_value: { description: 'The machine value before any human edit.' }
+        flag: { type: [string, "null"] }
+        readings:
+          type: array
+          description: Independent readings when two readers disagreed (handwriting).
+          items:
+            type: object
+            properties:
+              reader: { type: string }
+              text: { type: string }
+              confidence: { type: [number, "null"] }
+
+    Lint:
+      type: object
+      required: [path, rule, severity, message]
+      properties:
+        path: { type: string }
+        rule: { type: string }
+        severity: { type: string, enum: [warning, error] }
+        message: { type: string }
+
+    Coordinates:
+      type: object
+      properties:
+        latitude: { type: [number, "null"] }
+        longitude: { type: [number, "null"] }
+        local_x: { type: [number, "null"], description: 'Easting-like value in the source system.' }
+        local_y: { type: [number, "null"], description: 'Northing-like value in the source system.' }
+        coordinate_system: { type: [string, "null"], description: 'As printed, e.g. "55H MGA94".' }
+        crs_code: { type: [string, "null"], description: 'Confirmed or stated EPSG code, e.g. EPSG:28355.' }
+        x_raw: { type: [string, "null"], description: 'First coordinate exactly as printed.' }
+        y_raw: { type: [string, "null"] }
+        axis_labels_raw: { type: [string, "null"], description: 'Labels and order as printed, e.g. "N, E".' }
+
+    BoreholeMetadata:
+      type: object
+      required: [borehole_id]
+      properties:
+        borehole_id: { type: string, description: 'Label as printed. Not unique; use uid.' }
+        aliases: { type: array, items: { type: string } }
+        borehole_name: { type: [string, "null"] }
+        location_name: { type: [string, "null"] }
+        country: { type: [string, "null"] }
+        project_id: { type: [string, "null"] }
+        project_name: { type: [string, "null"] }
+        client: { type: [string, "null"] }
+        drilling_contractor: { type: [string, "null"] }
+        drilling_method: { type: [string, "null"] }
+        drilling_date: { type: [string, "null"], description: 'As printed or ISO date when unambiguous.' }
+        start_date: { type: [string, "null"], format: date }
+        end_date: { type: [string, "null"], format: date }
+        surface_elevation_mASL: { type: [number, "null"] }
+        elevation_datum: { type: [string, "null"], description: 'As printed, e.g. AHD, mOD, DVR90, COTA.' }
+        depth_origin: { type: [string, "null"], enum: [ground, mudline, seabed, relative, null] }
+        coordinates: { $ref: "#/components/schemas/Coordinates" }
+        borehole_depth_m: { type: [number, "null"], minimum: 0 }
+        borehole_depth_source: { type: [string, "null"], enum: [printed, end_note, last_layer, null] }
+        borehole_length_m: { type: [number, "null"], minimum: 0 }
+        inclination_deg: { type: [number, "null"] }
+        casing_info: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+
+    Layer:
+      type: object
+      required: [depth_from_m, depth_to_m]
+      properties:
+        depth_from_m: { type: number }
+        depth_to_m: { type: number }
+        thickness_m: { type: [number, "null"] }
+        original_description: { type: [string, "null"] }
+        english_lithology: { type: [string, "null"] }
+        description_language: { type: [string, "null"] }
+        din4023_code:
+          type: [string, "null"]
+          description: Main component as a key of assets/din4023_patterns/din_codes.json (case-sensitive), or null.
+        din4023_notation: { type: [string, "null"], description: 'Full DIN short form, e.g. "U, t, s''".' }
+        uscs_group: { type: [string, "null"] }
+        stratigraphic_name: { type: [string, "null"] }
+        engineering_soil_unit: { type: [string, "null"] }
+        geologic_age: { type: [string, "null"] }
+        colour: { type: [string, "null"] }
+        consistency_density: { type: [string, "null"] }
+        moisture: { type: [string, "null"] }
+        weathering: { type: [string, "null"] }
+        is_core: { type: [boolean, "null"] }
+        rqd_pct: { type: [number, "null"], minimum: 0, description: 'Values above 100 are kept and linted.' }
+        core_recovery_pct: { type: [number, "null"], minimum: 0 }
+        spt_n_value: { type: [integer, "null"], minimum: 0, description: 'Never set on refusal.' }
+        spt_raw: { type: [string, "null"] }
+        spt_refusal: { type: [boolean, "null"] }
+        spt_increments: { type: [array, "null"], items: { type: integer } }
+        spt_increment_mm: { type: [integer, "null"], description: 'Length of one increment, e.g. 150 or 75.' }
+        spt_penetration_cm: { type: [number, "null"] }
+        spt_depth_m: { type: [number, "null"] }
+        ucs_mpa: { type: [number, "null"] }
+
+    GroundwaterReading:
+      type: object
+      required: [type, depth_m]
+      properties:
+        type: { type: string, enum: [strike, rest, standpipe, other] }
+        depth_m: { type: [number, "null"] }
+        elevation_m: { type: [number, "null"] }
+        date: { type: [string, "null"] }
+        raw: { type: [string, "null"] }
+
+    Sample:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        type_code: { type: [string, "null"] }
+        depth_from_m: { type: [number, "null"] }
+        depth_to_m: { type: [number, "null"] }
+
+    TestResult:
+      type: object
+      required: [name, value]
+      description: One lab or in-situ result, named after a Test Results field of the target format.
+      properties:
+        name: { type: string, description: 'e.g. UCS, Watercontent, CAI, LiquidLimit.' }
+        value: { type: [number, "null"] }
+        qualifier: { type: [string, "null"], description: 'e.g. ">", "<", "R", "NIL".' }
+        unit: { type: [string, "null"] }
+        sample_name: { type: [string, "null"] }
+        depth_m: { type: [number, "null"] }
+
+    BoreholeRecord:
+      type: object
+      required: [uid, document_id, source_file, revision, review_status, crs_status, plotted, metadata, stratigraphy, groundwater, provenance, lint]
+      properties:
+        uid: { type: string }
+        document_id: { type: string }
+        source_file: { type: string }
+        pages: { type: array, items: { type: integer }, description: 'Pages this borehole was read from.' }
+        revision: { type: integer, minimum: 1 }
+        updated_at: { type: string, format: date-time }
+        review_status:
+          type: string
+          enum: [unreviewed, in_review, approved]
+          description: |
+            Computed by the backend. unreviewed = no value reviewed yet; in_review = some values
+            reviewed, others unreviewed or flagged; approved = every value with a provenance entry is
+            approved and none is flagged.
+        crs_status: { type: string, enum: [stated, inferred, confirmed, unknown] }
+        plotted: { type: boolean }
+        unplotted_reason: { type: [string, "null"], enum: [no_coordinates, crs_unknown, crs_unconfirmed, implausible, null] }
+        rock_head_m: { type: [number, "null"] }
+        metadata: { $ref: "#/components/schemas/BoreholeMetadata" }
+        stratigraphy: { type: array, items: { $ref: "#/components/schemas/Layer" } }
+        groundwater: { type: array, items: { $ref: "#/components/schemas/GroundwaterReading" } }
+        samples: { type: array, items: { $ref: "#/components/schemas/Sample" } }
+        test_results: { type: array, items: { $ref: "#/components/schemas/TestResult" } }
+        provenance:
+          type: object
+          description: Keyed by value path, e.g. metadata.borehole_depth_m, stratigraphy[2].spt_n_value, groundwater[0].depth_m.
+          additionalProperties: { $ref: "#/components/schemas/Provenance" }
+        lint: { type: array, items: { $ref: "#/components/schemas/Lint" } }
+        open_clarifications: { type: integer, minimum: 0 }
+
+    BoreholeList:
+      type: object
+      required: [count, boreholes]
+      properties:
+        count: { type: integer, description: 'Total matches, not just this page.' }
+        boreholes: { type: array, items: { $ref: "#/components/schemas/BoreholeRecord" } }
+        next_cursor: { type: [string, "null"] }
+
+    ValuePatch:
+      type: object
+      required: [path, action]
+      description: |
+        Path grammar: the keys of the record's `provenance` map are the only valid paths:
+        metadata.<BoreholeMetadata field>, metadata.coordinates.<Coordinates field>, rock_head_m,
+        stratigraphy[i].<Layer field>, groundwater[i].<GroundwaterReading field>,
+        samples[i].<Sample field>, test_results[i].value. Indices are 0-based positions in the
+        record at `revision`. Edits never reorder arrays (out-of-order depths are linted instead);
+        send `if_revision` with indexed paths. An unknown path returns 404 code path_not_found.
+        Actions: approve sets status approved; edit sets the value (parsed for the path's type),
+        method edited, keeps ai_value; flag sets status flagged with `reason`; set_state sets
+        `state`; reset sets status back to unreviewed and clears the flag (value, method and state
+        are unchanged; to undo an edit, send edit with the ai_value).
+      properties:
+        path: { type: string }
+        action: { type: string, enum: [approve, edit, flag, set_state, reset] }
+        value: { description: 'New value for edit. Numbers as numbers, ids and dates as strings.' }
+        reason: { type: [string, "null"], description: 'Flag reason.' }
+        state: { type: string, enum: [ok, not_in_source, illegible] }
+        if_revision: { type: [integer, "null"], description: 'Optional optimistic concurrency check.' }
+
+    CrsCandidate:
+      type: object
+      required: [crs, label, points]
+      properties:
+        crs: { type: string, description: 'EPSG code, e.g. EPSG:25832.' }
+        label: { type: string }
+        score: { type: number, minimum: 0, maximum: 1 }
+        verdict: { type: string, enum: [match, shifted, out_of_range] }
+        note: { type: [string, "null"], description: 'Why it ranks here, e.g. "zone printed as 55H".' }
+        swap_axes: { type: boolean, description: 'True when the printed X is the northing.' }
+        points:
+          type: array
+          items:
+            type: object
+            required: [uid, lat, lon]
+            properties:
+              uid: { type: string }
+              lat: { type: number }
+              lon: { type: number }
+
+    CrsConfirmRequest:
+      type: object
+      required: [crs]
+      properties:
+        crs: { type: string }
+        swap_axes: { type: boolean, default: false }
+        confirmed_by: { type: [string, "null"] }
+        note: { type: [string, "null"] }
+
+    BoreholeFilter:
+      type: object
+      properties:
+        search: { type: [string, "null"] }
+        country: { type: [string, "null"] }
+        project: { type: [string, "null"] }
+        document_id: { type: [string, "null"] }
+        min_depth_m: { type: [number, "null"] }
+        max_depth_m: { type: [number, "null"] }
+        din4023_codes: { type: array, items: { type: string } }
+        lithology_min_depth_m: { type: [number, "null"], description: 'With din4023_codes, the layer must reach below this depth.' }
+        has_spt: { type: [boolean, "null"] }
+        has_groundwater: { type: [boolean, "null"] }
+        review_status: { type: array, items: { type: string, enum: [unreviewed, in_review, approved] } }
+        include_unreviewed:
+          type: boolean
+          default: false
+          description: false keeps only boreholes whose review_status is approved.
+        area:
+          oneOf:
+            - { $ref: "#/components/schemas/AreaBbox" }
+            - { $ref: "#/components/schemas/AreaPolygon" }
+            - { $ref: "#/components/schemas/AreaCircle" }
+            - { type: "null" }
+
+    AreaBbox:
+      type: object
+      required: [type, bbox]
+      properties:
+        type: { const: bbox }
+        bbox: { type: array, items: { type: number }, minItems: 4, maxItems: 4, description: "[min_lon, min_lat, max_lon, max_lat]" }
+
+    AreaPolygon:
+      type: object
+      required: [type, polygon]
+      properties:
+        type: { const: polygon }
+        polygon: { type: object, description: 'GeoJSON Polygon in WGS84.' }
+
+    AreaCircle:
+      type: object
+      required: [type, center, radius_m]
+      properties:
+        type: { const: circle }
+        center: { type: array, items: { type: number }, minItems: 2, maxItems: 2, description: "[lon, lat]" }
+        radius_m: { type: number, exclusiveMinimum: 0 }
+
+    ResultSet:
+      type: object
+      required: [result_set_id, count, located_count, unlocated_count, uids, bbox, definition, created_at]
+      properties:
+        result_set_id: { type: string }
+        count: { type: integer }
+        located_count: { type: integer }
+        unlocated_count: { type: integer }
+        excluded_unreviewed: { type: integer, description: 'Matches left out because include_unreviewed was false.' }
+        uids: { type: array, items: { type: string } }
+        bbox:
+          description: "[min_lon, min_lat, max_lon, max_lat] of located members, or of the searched area when no member is located."
+          oneOf:
+            - type: array
+              items: { type: number }
+              minItems: 4
+              maxItems: 4
+            - type: "null"
+        area: { description: 'The area used, echoed for outlining on the map.' }
+        definition: { $ref: "#/components/schemas/BoreholeFilter" }
+        created_at: { type: string, format: date-time }
+
+    BoreholeFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type: { const: FeatureCollection }
+        features:
+          type: array
+          items:
+            type: object
+            required: [type, id, geometry, properties]
+            properties:
+              type: { const: Feature }
+              id: { type: string, description: 'The borehole uid.' }
+              geometry:
+                type: object
+                required: [type, coordinates]
+                properties:
+                  type: { const: Point }
+                  coordinates: { type: array, items: { type: number }, minItems: 2, maxItems: 2, description: "[lon, lat]" }
+              properties:
+                type: object
+                required: [uid, borehole_id, review_status, crs_status]
+                properties:
+                  uid: { type: string }
+                  borehole_id: { type: string }
+                  project_name: { type: [string, "null"] }
+                  document_id: { type: string }
+                  borehole_depth_m: { type: [number, "null"] }
+                  review_status: { type: string }
+                  crs_status: { type: string }
+                  revision: { type: integer }
+                  attention:
+                    type: boolean
+                    description: True when a value is flagged, a lint error exists or a clarification is open.
+                  open_clarifications: { type: integer }
+
+    PlaceCandidate:
+      type: object
+      required: [label, lat, lon, source]
+      properties:
+        label: { type: string }
+        lat: { type: number }
+        lon: { type: number }
+        bbox:
+          oneOf:
+            - type: array
+              items: { type: number }
+              minItems: 4
+              maxItems: 4
+            - type: "null"
+        source: { type: string, enum: [uploaded, geocoder] }
+        kind: { type: [string, "null"], description: 'e.g. city, district, address, project_site.' }
+        borehole_count: { type: [integer, "null"], description: 'Uploaded boreholes inside bbox, when known.' }
+
+    FormField:
+      type: object
+      required: [name, widget, label]
+      properties:
+        name: { type: string }
+        widget:
+          type: string
+          enum: [text, number_unit, select, boolean, map_point, choose_reading, page_range, crs_picker]
+        label: { type: string }
+        help: { type: [string, "null"] }
+        required: { type: boolean, default: false }
+        unit_options: { type: array, items: { type: string } }
+        options:
+          type: array
+          items:
+            type: object
+            required: [value, label]
+            properties:
+              value: {}
+              label: { type: string }
+              evidence: { $ref: "#/components/schemas/Evidence" }
+        default: {}
+
+    Evidence:
+      type: object
+      required: [document_id, page]
+      properties:
+        document_id: { type: string }
+        page: { type: integer }
+        box:
+          oneOf:
+            - type: array
+              items: { type: number }
+              minItems: 4
+              maxItems: 4
+            - type: "null"
+        snippet: { type: [string, "null"] }
+
+    Clarification:
+      type: object
+      required: [clarification_id, kind, status, document_id, question, fields, evidence, created_at]
+      properties:
+        clarification_id: { type: string }
+        kind:
+          type: string
+          enum: [crs_confirm, locate_borehole, choose_reading, datum_convention, unit_ambiguous, borehole_boundary, duplicate, conflicting_sources, chat_parameter]
+        status: { type: string, enum: [open, answered, skipped] }
+        document_id: { type: string }
+        borehole_uids: { type: array, items: { type: string } }
+        path: { type: [string, "null"] }
+        question: { type: string }
+        fields: { type: array, items: { $ref: "#/components/schemas/FormField" } }
+        evidence: { type: array, items: { $ref: "#/components/schemas/Evidence" } }
+        answer: {}
+        answered_by: { type: [string, "null"] }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: [string, "null"], format: date-time }
+
+    ClarificationAnswer:
+      type: object
+      required: [values]
+      properties:
+        values:
+          type: object
+          description: Field name to value, validated against the clarification's fields.
+        answered_by: { type: [string, "null"] }
+
+    ChatContext:
+      type: object
+      properties:
+        selected_uids: { type: array, items: { type: string } }
+        active_result_set_id: { type: [string, "null"] }
+        filters: { oneOf: [{ $ref: "#/components/schemas/BoreholeFilter" }, { type: "null" }] }
+        map_view:
+          type: [object, "null"]
+          description: Sent only when the user refers to the visible area ("here", "this area").
+          properties:
+            bbox: { type: array, items: { type: number }, minItems: 4, maxItems: 4 }
+            zoom: { type: number }
+        units: { type: string, enum: [m, ft], default: m }
+        ui_language: { type: [string, "null"] }
+        include_unreviewed: { type: boolean, default: false }
+
+    ChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        id: { type: string, description: 'Chat session id chosen by the client.' }
+        messages:
+          type: array
+          description: AI SDK UIMessage objects ({id, role, parts}). Only text parts of user messages are read.
+          items: { type: object }
+        context: { $ref: "#/components/schemas/ChatContext" }
