@@ -1,0 +1,124 @@
+# ==========================================
+# Environment & Sensitive Files (NEVER COMMIT)
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+
+# ==========================================
+# Executables & Compiled Binaries
+# ==========================================
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+*.out
+*.app
+*.msi
+*.dmg
+*.pdf
+# ==========================================
+# Build Directories & Package Artifacts
+# ==========================================
+dist/
+build/
+bin/
+obj/
+out/
+target/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+
+# Java / Kotlin
+*.class
+*.jar
+*.war
+*.ear
+
+# Go
+*.exe
+*.exe.log
+*.test
+*.prof
+
+# C / C++
+*.o
+*.obj
+*.a
+*.lib
+
+# ==========================================
+# Operating System Files
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# ==========================================
+# Editors & IDEs
+# ==========================================
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (IntelliJ, PyCharm, WebStorm, etc.)
+.idea/
+*.iml
+*.iws
+
+# Eclipse
+.metadata/
+bin/
+*.tmp
+*.bak
+*.swp
+*~
+
+# ==========================================
+# Logs & Databases
+# ==========================================
+*.log
+*.sqlite
+*.sqlite3
+*.db
