@@ -197,6 +197,38 @@ describe('F7: a document that reaches needs_review through events becomes review
     expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID);
   });
 
+  it('pins that arrive after the needs_review update still give the card its Review target', async () => {
+    // borehole.created only refreshes the document's pins (records stay on demand); that request is
+    // still running when the document reaches review.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const mapFeatures = vi.fn<DataSource['mapFeatures']>(async (id) => {
+      await held;
+      return id === NEW_DOC ? [featureOf(extracted)!] : [];
+    });
+    await ready({ mapFeatures }, [processing, doc], [extracted]);
+    live.emit({ type: 'borehole.created', uid: NEW_UID, documentId: NEW_DOC, revision: 1, plotted: true });
+    live.emit(updated({ ...processing, status: 'needs_review', step: 2 }));
+    await settle();
+    expect(docById(NEW_DOC)?.reviewBoreholeUid).toBeNull();
+    release();
+    await vi.waitFor(() => expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID));
+    expect(canOpenReview(docById(NEW_DOC)!)).toBe(true);
+  });
+
+  it('an unplotted borehole whose record arrives after the needs_review update gives the card its Review target', async () => {
+    // No pin will come for it: the borehole.created record is the only thing that names the document's borehole.
+    const unplotted = makeBorehole({ uid: NEW_UID, id: 'TB-21', documentId: NEW_DOC, lat: null, lng: null, onMap: false, unplottedReason: 'no_coordinates' });
+    const inReview = { ...processing, status: 'needs_review' as const, step: 2 as const };
+    await ready({ mapFeatures: async () => [] }, [inReview, doc], [unplotted]);
+    // The store has not heard of the borehole yet, so the card has no Review target.
+    useAppStore.setState({ documents: st().documents.map((d) => (d.id === NEW_DOC ? { ...d, reviewBoreholeUid: null } : d)) });
+    live.emit({ type: 'borehole.created', uid: NEW_UID, documentId: NEW_DOC, revision: 1, plotted: false });
+    await vi.waitFor(() => expect(st().unplottedUids).toContain(NEW_UID));
+    expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID);
+    expect(canOpenReview(docById(NEW_DOC)!)).toBe(true);
+  });
+
   it('a document seen for the first time at needs_review loads its pins too', async () => {
     const mapFeatures = vi.fn<DataSource['mapFeatures']>(async (id) => (id === NEW_DOC ? [featureOf(extracted)!] : []));
     await ready({ mapFeatures, getDocument: async () => ({ ...processing, status: 'needs_review', step: 2 }) });

@@ -107,7 +107,10 @@ export function createContext(set: StoreContext['set'], get: StoreContext['get']
         try {
           const fresh = await source.mapFeatures(documentId);
           if (get().source !== source || isDeleted(documentId)) break;
-          set((s) => ({ features: replaceDocumentFeatures(s.features, documentId, fresh) }));
+          set((s) => {
+            const features = replaceDocumentFeatures(s.features, documentId, fresh);
+            return { features, ...reviewTargetsFilled(s.documents, { boreholes: s.boreholes, features, unplottedUids: s.unplottedUids }) };
+          });
         } catch (e) {
           console.warn(`Map: refreshing the pins of document ${documentId} failed (${errorText(e)}).`);
         }
@@ -231,9 +234,11 @@ export function createContext(set: StoreContext['set'], get: StoreContext['get']
           unpinned.add(uid);
         }
       }
+      const unplottedUids = sameMembers(s.unplottedUids, unplotted) ? s.unplottedUids : [...unplotted];
       set({
         boreholes,
-        ...(sameMembers(s.unplottedUids, unplotted) ? {} : { unplottedUids: [...unplotted] }),
+        ...reviewTargetsFilled(s.documents, { boreholes, features: s.features, unplottedUids }),
+        ...(unplottedUids === s.unplottedUids ? {} : { unplottedUids }),
         ...(arrived.some((uid) => s.recordLoads[uid]) ? { recordLoads: withoutKeys(s.recordLoads, arrived) } : {}),
         ...([...unpinned].some((uid) => pinned.has(uid)) ? { features: s.features.filter((f) => !unpinned.has(f.uid)) } : {}),
       });
@@ -323,6 +328,22 @@ export function withReviewTarget(doc: DocumentSummary, prev: DocumentSummary | u
     null;
   const project = doc.project || pinned.find((f) => f.project)?.project || own.find((b) => b.project)?.project || '';
   return uid || project !== doc.project ? { ...doc, reviewBoreholeUid: uid, project } : doc;
+}
+
+/**
+ * Documents that reached review without a Review target get one once their boreholes are known (a
+ * borehole.created record or the document's pins can arrive after its document.updated). Returns
+ * the patch, or nothing when no document changed.
+ */
+function reviewTargetsFilled(documents: DocumentSummary[], known: KnownBoreholes): { documents?: DocumentSummary[] } {
+  let changed = false;
+  const next = documents.map((d) => {
+    if (d.reviewBoreholeUid) return d;
+    const filled = withReviewTarget(d, undefined, known);
+    if (filled !== d) changed = true;
+    return filled;
+  });
+  return changed ? { documents: next } : {};
 }
 
 /** True while the backend still works on a document (queued, classifying, extracting; not failed). */

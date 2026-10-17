@@ -1,7 +1,8 @@
 /**
  * Empty start in API mode: what a fresh clone shows before anything is uploaded (README section 5:
- * the database starts empty). The real backend answers health; the borehole list and the document
- * list are answered empty in the browser (route), so the seeded stack stays as it is.
+ * the database starts empty). The real backend answers health; what the app boots from (the map
+ * layer, the unplotted list, the documents, the questions) is answered empty in the browser (route),
+ * so the seeded stack stays as it is.
  *
  * Seed state needed: none (the lists are replaced). Read-only.
  */
@@ -9,7 +10,9 @@ import type { Page } from '@playwright/test';
 import { expect, loaded, nav, navLink, test } from './fixtures';
 
 async function emptyLists(page: Page): Promise<void> {
-  await page.route(/\/api\/v1\/boreholes\?limit=/, (route) => route.fulfill({ json: { count: 0, boreholes: [], next_cursor: null } }));
+  await page.route(/\/api\/v1\/map\/boreholes\.geojson/, (route) => route.fulfill({ json: { type: 'FeatureCollection', features: [] } }));
+  await page.route(/\/api\/v1\/boreholes\?/, (route) => route.fulfill({ json: { count: 0, boreholes: [], next_cursor: null } }));
+  await page.route(/\/api\/v1\/clarifications(\?|$)/, (route) => route.fulfill({ json: [] }));
   await page.route(/\/api\/v1\/documents$/, (route) =>
     route.request().method() === 'GET' ? route.fulfill({ json: { documents: [] } }) : route.continue(),
   );
