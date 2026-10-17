@@ -3,8 +3,9 @@
  * status steps, card hint, count chips, progress bars, page-strip tooltips. No React, unit-tested.
  */
 import { pageUsageText, PAGE_ROLE_LABELS } from '../../domain/pages';
-import type { Borehole, Clarification, DocumentPage, DocumentProgress, DocumentStep, DocumentSummary } from '../../domain/types';
+import type { Borehole, Clarification, Completeness, DocumentPage, DocumentProgress, DocumentStep, DocumentSummary } from '../../domain/types';
 import { pageMeta } from '../../theme';
+import { EN, fill, type Tr } from '../review/fill';
 
 export const STEP_LABELS = ['classifying', 'extracting', 'needs review', 'done'] as const;
 
@@ -39,6 +40,9 @@ export function canOpenReview(d: DocumentSummary): boolean {
   return !!d.reviewBoreholeUid && d.step >= 2 && !d.error;
 }
 
+/** The card's way into Review (frontend_din wording). */
+export const OPEN_IN_REVIEW = 'OPEN IN REVIEW ›';
+
 export type HintTone = 'action' | 'muted' | 'error';
 export interface HintView { text: string; tone: HintTone }
 
@@ -64,10 +68,10 @@ export const STAGE_LABELS: Record<string, string> = {
 };
 
 /** A failed stage in words; '' without a stage. */
-export function stageText(stage: string | null | undefined): string {
+export function stageText(stage: string | null | undefined, t: Tr = EN): string {
   const s = stage?.trim();
   if (!s) return '';
-  return Object.hasOwn(STAGE_LABELS, s) ? STAGE_LABELS[s] : s.replace(/_/g, ' ');
+  return Object.hasOwn(STAGE_LABELS, s) ? t(STAGE_LABELS[s]) : s.replace(/_/g, ' ');
 }
 
 /** "No boreholes found in this report" once extraction is through and the server counted none. */
@@ -78,20 +82,16 @@ export const NO_BOREHOLES_FOUND = 'No boreholes found in this report';
  * names its stage when the server reported one (live, or the document's failed_stage) and the
  * server's detail.
  */
-export function docHint(d: DocumentSummary, failure: JobFailure | null = null): HintView | null {
-  if (failure) {
-    const stage = stageText(failure.stage);
-    return { text: stage ? `Extraction failed at ${stage}: ${failure.detail}` : `Extraction failed: ${failure.detail}`, tone: 'error' };
-  }
-  if (d.error) {
-    const stage = stageText(d.failedStage);
-    return { text: stage ? `Extraction failed at ${stage}: ${d.error}` : `Extraction failed: ${d.error}`, tone: 'error' };
-  }
-  if (canOpenReview(d)) return { text: 'OPEN REVIEW ›', tone: 'action' };
-  if (d.step === 3) return { text: 'All boreholes reviewed', tone: 'muted' };
-  if (d.simulated && d.step === 2) return { text: 'Simulated: live extraction needs an API key', tone: 'muted' };
-  if (d.step < 2) return { text: 'Processing…', tone: 'muted' };
-  if (d.counts?.boreholes === 0) return { text: NO_BOREHOLES_FOUND, tone: 'muted' };
+export function docHint(d: DocumentSummary, failure: JobFailure | null = null, t: Tr = EN): HintView | null {
+  const failed = (stage: string, detail: string) =>
+    stage ? fill(t('Extraction failed at {stage}: {detail}'), { stage, detail }) : fill(t('Extraction failed: {detail}'), { detail });
+  if (failure) return { text: failed(stageText(failure.stage, t), failure.detail), tone: 'error' };
+  if (d.error) return { text: failed(stageText(d.failedStage, t), d.error), tone: 'error' };
+  if (canOpenReview(d)) return { text: t(OPEN_IN_REVIEW), tone: 'action' };
+  if (d.step === 3) return { text: t('All boreholes reviewed'), tone: 'muted' };
+  if (d.simulated && d.step === 2) return { text: t('Simulated: live extraction needs an API key'), tone: 'muted' };
+  if (d.step < 2) return { text: t('Processing…'), tone: 'muted' };
+  if (d.counts?.boreholes === 0) return { text: t(NO_BOREHOLES_FOUND), tone: 'muted' };
   return null;
 }
 
@@ -176,50 +176,52 @@ export function mapSteps(d: Pick<DocumentSummary, 'id' | 'step' | 'error' | 'sta
 }
 
 /** Button text of a map step. */
-export function mapStepText(s: MapStep): string {
-  const need = (n: number) => (n === 1 ? '1 borehole needs' : `${n} boreholes need`);
+export function mapStepText(s: MapStep, t: Tr = EN): string {
+  const n = { n: s.n };
   switch (s.kind) {
     case 'onMap':
-      return `${s.n} on the map · SHOW`;
+      return fill(t('{n} on the map · SHOW'), n);
     case 'crs':
-      return s.n > 0 ? `${need(s.n)} a coordinate system · CONFIRM` : 'Coordinate system needed · CONFIRM';
+      if (s.n <= 0) return t('Coordinate system needed · CONFIRM');
+      return fill(t(s.n === 1 ? '1 borehole needs a coordinate system · CONFIRM' : '{n} boreholes need a coordinate system · CONFIRM'), n);
     case 'locate':
-      return s.n > 0 ? `${need(s.n)} a position · PLACE` : 'Position needed · PLACE';
+      if (s.n <= 0) return t('Position needed · PLACE');
+      return fill(t(s.n === 1 ? '1 borehole needs a position · PLACE' : '{n} boreholes need a position · PLACE'), n);
     case 'notOnMap':
-      return `${s.n} not on the map · WHY`;
+      return fill(t('{n} not on the map · WHY'), n);
   }
 }
 
 /** Hover text of a map step's button. */
-export function mapStepTitle(s: MapStep): string {
+export function mapStepTitle(s: MapStep, t: Tr = EN): string {
   switch (s.kind) {
     case 'onMap':
-      return 'Open the map on the boreholes of this report';
+      return t('Open the map on the boreholes of this report');
     case 'crs':
       return s.questionId
-        ? 'Answer the coordinate-system question: the server then places these boreholes on the map'
-        : 'Choose the coordinate system of this report: the server then places its boreholes on the map';
+        ? t('Answer the coordinate-system question: the server then places these boreholes on the map')
+        : t('Choose the coordinate system of this report: the server then places its boreholes on the map');
     case 'locate':
-      return 'Answer the position question: click the map where the borehole was drilled';
+      return t('Answer the position question: click the map where the borehole was drilled');
     case 'notOnMap':
-      return 'Open the NOT ON MAP list under the map: it says why each borehole has no position';
+      return t('Open the NOT ON MAP list under the map: it says why each borehole has no position');
   }
 }
 
 /** "24 pages · Project name". Parts the backend has not delivered yet are left out. */
-export function docMeta(d: DocumentSummary): string {
+export function docMeta(d: DocumentSummary, t: Tr = EN): string {
   const n = d.pages.length;
-  const parts = [n ? `${n} ${n === 1 ? 'page' : 'pages'}` : '', d.project].filter(Boolean);
+  const parts = [n ? fill(t(n === 1 ? '{n} page' : '{n} pages'), { n }) : '', d.project].filter(Boolean);
   if (parts.length) return parts.join(' · ');
-  return d.uploaded ? 'Uploaded, waiting for page count' : '';
+  return d.uploaded ? t('Uploaded, waiting for page count') : '';
 }
 
 export interface CountChip { n: number; label: string }
 
 /** Found-count chips. A 0 is shown as 0: "0 found" differs from "not processed yet" (counts = null). */
-export function countChips(counts: DocumentSummary['counts']): CountChip[] | null {
+export function countChips(counts: DocumentSummary['counts'], t: Tr = EN): CountChip[] | null {
   if (!counts) return null;
-  const chip = (n: number, one: string, many: string) => ({ n, label: n === 1 ? one : many });
+  const chip = (n: number, one: string, many: string) => ({ n, label: t(n === 1 ? one : many) });
   return [
     chip(counts.boreholes, 'BH', 'BH'),
     chip(counts.layers, 'layer', 'layers'),
@@ -235,17 +237,17 @@ export interface ProgressView { bars: ProgressBar[]; boreholes: string }
  * Progress of a document the backend works on: bars for classified pages and OCR (only when there
  * are pages to OCR) and the count of extracted boreholes.
  */
-export function progressView(p: DocumentProgress): ProgressView {
+export function progressView(p: DocumentProgress, t: Tr = EN): ProgressView {
   const bar = (label: string, done: number, total: number): ProgressBar => ({
     label,
     done,
     total,
     pct: total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0,
   });
-  const bars = [bar('pages classified', p.pagesClassified, p.pagesTotal)];
+  const bars = [bar(t('pages classified'), p.pagesClassified, p.pagesTotal)];
   if (p.pagesOcrTotal > 0) bars.push(bar('OCR', p.pagesOcrDone, p.pagesOcrTotal));
   const n = p.boreholesExtracted;
-  return { bars, boreholes: `${n} borehole${n === 1 ? '' : 's'} extracted` };
+  return { bars, boreholes: fill(t(n === 1 ? '{n} borehole extracted' : '{n} boreholes extracted'), { n }) };
 }
 
 /**
@@ -253,11 +255,11 @@ export function progressView(p: DocumentProgress): ProgressView {
  * listed. The backend answers a duplicate upload with the existing document itself (document_id ==
  * duplicate_of): that card says it was uploaded again instead of pointing at itself.
  */
-export function duplicateText(d: DocumentSummary, all: DocumentSummary[]): string | null {
-  if (d.uploadedAgain || isSelfDuplicate(d)) return 'Already uploaded: same bytes as this document';
+export function duplicateText(d: DocumentSummary, all: DocumentSummary[], t: Tr = EN): string | null {
+  if (d.uploadedAgain || isSelfDuplicate(d)) return t('Already uploaded: same bytes as this document');
   if (!d.duplicateOf) return null;
   const original = all.find((x) => x.id === d.duplicateOf);
-  return original ? `Same file as ${original.name}` : 'Same file as an earlier upload';
+  return original ? fill(t('Same file as {name}'), { name: original.name }) : t('Same file as an earlier upload');
 }
 
 /** True when a duplicate answer names the document itself (the bytes were uploaded before as this document). */
@@ -266,9 +268,9 @@ export function isSelfDuplicate(d: Pick<DocumentSummary, 'id' | 'duplicateOf'>):
 }
 
 /** "3 open questions" badge text, or null when none are open. */
-export function questionsText(d: DocumentSummary): string | null {
+export function questionsText(d: DocumentSummary, t: Tr = EN): string | null {
   const n = d.openClarifications;
-  return n > 0 ? `${n} open question${n === 1 ? '' : 's'}` : null;
+  return n > 0 ? fill(t(n === 1 ? '{n} open question' : '{n} open questions'), { n }) : null;
 }
 
 /**
@@ -305,4 +307,14 @@ export function canOpenPage(p: DocumentPage): boolean {
 /** Alt text of a page thumbnail: its number and type, e.g. "Page 3, log". */
 export function thumbnailAlt(p: DocumentPage): string {
   return `Page ${p.n}, ${pageMeta(p).name}`;
+}
+
+/**
+ * The CHECKS chip text, "Report lists 14 · extracted 13 · ⚠ 1 missing" or "Report lists 9 ·
+ * extracted 9 ✓" (domain completenessSummary), in the UI language.
+ */
+export function completenessChipText(c: Pick<Completeness, 'listed' | 'missing'>, t: Tr = EN): string {
+  const m = c.missing.length;
+  const head = fill(t('Report lists {listed} · extracted {extracted}'), { listed: c.listed, extracted: c.listed - m });
+  return m ? `${head} · ${fill(t('⚠ {n} missing'), { n: m })}` : `${head} ✓`;
 }

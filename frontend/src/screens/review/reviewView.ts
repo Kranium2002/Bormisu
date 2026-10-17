@@ -11,11 +11,7 @@ import { fromOtherDocument } from '../../domain/review';
 import { sptDepthText } from '../../domain/spt';
 import { cleanKeys } from '../../domain/status';
 import { PAGE_W, type Borehole, type Box, type Clarification, type CrsCandidate, type ExtractedValue, type Reading } from '../../domain/types';
-import { fill } from './fill';
-
-/** A translator (src/i18n useT / tr); the view models default to English. */
-export type Tr = (en: string) => string;
-const EN: Tr = (x) => x;
+import { EN, fill, type Tr } from './fill';
 
 /** DOM id of the scan pane, the panel the sheet tabs control (aria-controls). */
 export const SCAN_PANE_ID = 'review-scan';

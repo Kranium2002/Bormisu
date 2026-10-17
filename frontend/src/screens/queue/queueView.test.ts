@@ -55,7 +55,7 @@ describe('stepViews', () => {
 
 describe('docHint', () => {
   it('offers review only when a review borehole exists and extraction is through', () => {
-    expect(docHint(doc({ reviewBoreholeUid: 'bh_1' }))).toEqual({ text: 'OPEN REVIEW ›', tone: 'action' });
+    expect(docHint(doc({ reviewBoreholeUid: 'bh_1' }))).toEqual({ text: 'OPEN IN REVIEW ›', tone: 'action' });
     expect(canOpenReview(doc({ reviewBoreholeUid: 'bh_1', step: 1 }))).toBe(false);
     expect(canOpenReview(doc({ reviewBoreholeUid: 'bh_1', error: 'boom' }))).toBe(false);
   });

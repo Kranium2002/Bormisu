@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LiveStatus } from '../../components/LiveStatus';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import { retryBlockedReason } from '../../store/uploads';
 import { PAGE_LEGEND } from '../../theme';
@@ -17,12 +18,13 @@ const HIGHLIGHT_MS = 2000;
  * without a type, and a page not classified yet.
  */
 function PageTypeLegend() {
+  const t = useT();
   return (
-    <ul className={styles.legend} aria-label="Page types">
+    <ul className={styles.legend} aria-label={t('Page types')}>
       {PAGE_LEGEND.map((m) => (
         <li key={m.name} className={styles.legendItem}>
           <span className={styles.swatch} style={{ background: m.color, borderColor: m.border }} aria-hidden="true" />
-          {m.name}
+          {t(m.name)}
         </li>
       ))}
     </ul>
@@ -58,6 +60,7 @@ const scrollBehavior = (): ScrollBehavior =>
  * and one card per document with status, progress, checks, counts and page map.
  */
 export function QueueScreen() {
+  const t = useT();
   const documents = useAppStore((s) => s.documents);
   const liveStatus = useAppStore((s) => s.liveStatus);
   const jobFailures = useAppStore((s) => s.jobFailures);
@@ -86,7 +89,7 @@ export function QueueScreen() {
       <div className={styles.page}>
         <div className={styles.titleRow}>
           <div className={styles.titleGroup}>
-            <h1 className={styles.title}>UPLOAD &amp; QUEUE</h1>
+            <h1 className={styles.title}>{t('UPLOAD & QUEUE')}</h1>
             <LiveStatus status={liveStatus} />
           </div>
           <PageTypeLegend />
@@ -94,11 +97,11 @@ export function QueueScreen() {
         <DropZone />
         <UploadList onShowDocument={showDocument} />
         <div className={styles.columns} aria-hidden="true">
-          <div>DOCUMENT</div>
-          <div>STATUS</div>
-          <div>CHECKS</div>
+          <div>{t('DOCUMENT')}</div>
+          <div>{t('STATUS')}</div>
+          <div>{t('CHECKS')}</div>
         </div>
-        <section className={styles.list} aria-label="Document queue">
+        <section className={styles.list} aria-label={t('Document queue')}>
           {documents.length ? (
             documents.map((d) => (
               <DocumentCard
@@ -112,7 +115,7 @@ export function QueueScreen() {
               />
             ))
           ) : (
-            <div className={styles.empty}>No documents yet. Drop a report above to extract its boreholes.</div>
+            <div className={styles.empty}>{t('No documents yet. Drop a report above to extract its boreholes.')}</div>
           )}
         </section>
       </div>

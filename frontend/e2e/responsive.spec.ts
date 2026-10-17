@@ -136,7 +136,7 @@ for (const size of SIZES) {
       await expectOnScreen(page.locator('label').filter({ hasText: 'DROP REPORTS HERE' }));
       await expectOnScreen(page.getByLabel('Project (optional)'));
       await expectOnScreen(page.getByRole('button', { name: 'Choose a folder to upload' }));
-      await expectOnScreen(page.getByRole('button', { name: 'OPEN REVIEW ›' }).first());
+      await expectOnScreen(page.getByRole('button', { name: 'OPEN IN REVIEW ›' }).first());
       await expectOnScreen(page.getByRole('button', { name: /^Report lists 14/ }));
       await expectNoSidewaysScroll(page);
       await shot(page, `queue-${size.width}`);

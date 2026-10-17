@@ -114,7 +114,7 @@ test.describe('upload & queue', () => {
   });
 
   test('the Neckarbogen card opens Review', async ({ page }) => {
-    await page.getByRole('article', { name: 'neckarbogen_BG_2019.pdf' }).getByRole('button', { name: 'OPEN REVIEW ›' }).click();
+    await page.getByRole('article', { name: 'neckarbogen_BG_2019.pdf' }).getByRole('button', { name: 'OPEN IN REVIEW ›' }).click();
     await expect(page.getByRole('heading', { name: 'REVIEW · BK-07' })).toBeVisible();
   });
 });

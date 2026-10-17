@@ -146,7 +146,7 @@ test.describe('every control works', () => {
 
     await nav(page, 'UPLOAD & QUEUE');
     await expect(nb.locator('[data-map-step="crs"]')).toHaveCount(0);
-    await nb.getByRole('button', { name: 'OPEN REVIEW ›' }).click();
+    await nb.getByRole('button', { name: 'OPEN IN REVIEW ›' }).click();
     await expect(page).toHaveURL(/\/review\//);
   });
 

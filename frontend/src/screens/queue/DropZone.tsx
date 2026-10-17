@@ -1,7 +1,9 @@
 import { useState, type ChangeEvent, type DragEvent } from 'react';
 import { errorText } from '../../data/errors';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
-import { acceptAttribute, uploadBlockedReason, uploadHint } from '../../store/uploads';
+import { acceptAttribute, uploadBlockedReason } from '../../store/uploads';
+import { fill } from '../review/fill';
 import { dropEntries, filesFromEntries, hasFolder, withoutHiddenFiles } from './dropEntries';
 import styles from './DropZone.module.css';
 
@@ -23,6 +25,7 @@ const folderPicker = (el: HTMLInputElement | null) => el?.setAttribute('webkitdi
  * disabled with that reason.
  */
 export function DropZone() {
+  const t = useT();
   const dragActive = useAppStore((s) => s.dragActive);
   const dropError = useAppStore((s) => s.dropError);
   const addFiles = useAppStore((s) => s.addFiles);
@@ -30,8 +33,16 @@ export function DropZone() {
   const project = useAppStore((s) => s.uploadProject);
   const setProject = useAppStore((s) => s.setUploadProject);
   const health = useAppStore((s) => s.health);
-  const blocked = uploadBlockedReason(health);
+  const blockedReason = uploadBlockedReason(health);
+  const blocked = blockedReason && t(blockedReason);
   const limits = health?.upload ?? null;
+  const off = blocked ? fill(t('Uploading is off: {reason}.'), { reason: blocked }) : '';
+  const hint = limits
+    ? fill(t('or click to choose files · {types} · up to {mb} MB each'), {
+        types: limits.extensions.map((e) => e.replace(/^./, '').toUpperCase()).join(', '),
+        mb: limits.maxMb,
+      })
+    : t('or click to choose files');
   /** A dropped folder that could not be read. */
   const [readError, setReadError] = useState('');
   /** Folders still being read after a drop. */
@@ -65,7 +76,7 @@ export function DropZone() {
     filesFromEntries(entries)
       .then(
         ({ files, folder }) => addFiles(files, { folder }),
-        (err: unknown) => setReadError(`Could not read the dropped folder: ${errorText(err)}`),
+        (err: unknown) => setReadError(`${t('Could not read the dropped folder')}: ${errorText(err)}`),
       )
       .finally(() => setReading((n) => n - 1));
   };
@@ -105,11 +116,11 @@ export function DropZone() {
           className={styles.input}
           onChange={onFiles}
         />
-        <span className={styles.title}>DROP REPORTS HERE</span>
-        <span className={styles.sub}>{blocked ? `Uploading is off: ${blocked}.` : uploadHint(limits)}</span>
+        <span className={styles.title}>{t('DROP REPORTS HERE')}</span>
+        <span className={styles.sub}>{blocked ? off : hint}</span>
         {reading > 0 && (
           <span className={styles.reading} role="status">
-            Reading the dropped folder…
+            {t('Reading the dropped folder…')}
           </span>
         )}
         {(dropError || readError) && (
@@ -120,7 +131,7 @@ export function DropZone() {
       </label>
       <div className={styles.side}>
         <label className={styles.fieldLabel} htmlFor={PROJECT_ID}>
-          Project (optional)
+          {t('Project (optional)')}
         </label>
         <input
           id={PROJECT_ID}
@@ -134,21 +145,19 @@ export function DropZone() {
           onChange={(e) => setProject(e.target.value)}
         />
         <span id={PROJECT_HINT_ID} className={styles.fieldHint}>
-          {blocked
-            ? `Uploading is off: ${blocked}.`
-            : 'Sent with the files you add next. Left empty, a dropped folder’s name is used.'}
+          {blocked ? off : t('Sent with the files you add next. Left empty, a dropped folder’s name is used.')}
         </span>
-        <label className={`${styles.folder} ${blocked ? styles.folderDisabled : ''}`} title={blocked ?? 'Upload every file of a folder'}>
+        <label className={`${styles.folder} ${blocked ? styles.folderDisabled : ''}`} title={blocked || t('Upload every file of a folder')}>
           <input
             ref={folderPicker}
             type="file"
             multiple
             disabled={!!blocked}
             className={styles.input}
-            aria-label="Choose a folder to upload"
+            aria-label={t('Choose a folder to upload')}
             onChange={onFolder}
           />
-          CHOOSE A FOLDER
+          {t('CHOOSE A FOLDER')}
         </label>
       </div>
     </div>

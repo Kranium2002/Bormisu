@@ -1,3 +1,7 @@
+/** A translator (src/i18n useT / tr); the view models default to English. */
+export type Tr = (en: string) => string;
+export const EN: Tr = (x) => x;
+
 /**
  * Fills the {placeholders} of a translated text: `fill(t('{n} of {total} values reviewed'), { n, total })`.
  * The English template is the translation key (src/i18n), so a German text can move the numbers around.

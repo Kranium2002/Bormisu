@@ -24,7 +24,7 @@
 }
 
 .title:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -59,7 +59,7 @@
 .clear:focus-visible,
 .action:focus-visible,
 .remove:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -126,7 +126,7 @@
 
 .fill {
   height: 4px;
-  background: var(--c-green);
+  background: var(--c-accent);
   transition: width 0.25s ease;
 }
 

@@ -136,7 +136,7 @@ test('OPEN REVIEW on a document waiting for review opens one of its boreholes', 
   const own = (await (await request.get(`/api/v1/documents/${d!.document_id}/boreholes`)).json()) as { metadata: { borehole_id: string } }[];
   await openApp(page);
   await nav(page, 'UPLOAD & QUEUE');
-  await card(page, d!).getByRole('button', { name: 'OPEN REVIEW ›' }).click();
+  await card(page, d!).getByRole('button', { name: 'OPEN IN REVIEW ›' }).click();
   const title = page.getByRole('heading', { level: 1, name: /^REVIEW · / });
   await expect(title).toBeVisible();
   const id = (await title.textContent())!.replace('REVIEW · ', '');
