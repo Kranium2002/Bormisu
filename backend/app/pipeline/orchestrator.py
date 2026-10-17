@@ -9,8 +9,10 @@ The `extract` stage plans the page groups, then extracts and finalises each grou
 CONCURRENCY_EXTRACT). Every group commits its borehole separately, so a crash after some groups resumes with
 the groups that have no borehole yet; a group extracted but not finalised reuses its stored extraction run.
 A group is extracted only once all of its pages and the document's context pages have OCR text, because a
-finished group is never extracted again. Groups held back that way fail the document with a readable reason
-and rewind it to before OCR, so a retry reads the missing pages again (finished OCR runs are reused).
+finished group is never extracted again. Groups held back that way do not stop the rest: the document is
+finalised with what was read (pins, questions) and goes to review with a warning naming the unread pages
+(Document.warnings); a retry reads only those pages again (finished OCR runs and boreholes are kept). Only
+when nothing at all could be extracted does the document fail, with a readable reason, rewound to before OCR.
 
 The `reread` stage (app.pipeline.reread) reads handwritten and low-confidence values a second time. It does
 nothing when there are none, never fails the document and leaves its status and progress as they are.
@@ -248,6 +250,7 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
             continue
         todo.append(group)
     held: list[str] = []
+    empty_pages: set[int] = set()  # pages of groups with no readable text at all
     if unread_pages:
         held.append(
             f"Text could not be read on page(s) {_numbers(sorted(unread_pages))}, so the boreholes on them "
@@ -269,6 +272,7 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
                 uid = await finalize_module.finalize_group(document_id, group, outcome)
             except extract_module.NothingToExtractError as exc:
                 held.append(str(exc))
+                empty_pages.update(group.pages)
                 return
             except Exception:
                 stopped = True
@@ -281,9 +285,32 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     if errors:
         provider_errors = [e for e in errors if isinstance(e, ProviderError)]
         raise (provider_errors or errors)[0]
+    if empty_pages:
+        await _mark_unread(document_id, empty_pages)
     if held:
-        raise StageError(" ".join(dict.fromkeys(held)), retryable=True, rewind_to="classify")
+        if not await _has_boreholes(document_id):
+            raise StageError(" ".join(dict.fromkeys(held)), retryable=True, rewind_to="classify")
+        # Keep what was read: the document goes to review with the unread pages named in its warnings.
+        logger.warning(
+            "document %s finalised without pages %s", document_id, sorted(unread_pages | empty_pages)
+        )
     await finalize_module.finalize_document(document_id)
+
+
+async def _has_boreholes(document_id: str) -> bool:
+    async with get_sessionmaker()() as session:
+        found = await session.scalar(select(Borehole.uid).where(Borehole.document_id == document_id).limit(1))
+    return found is not None
+
+
+async def _mark_unread(document_id: str, pages: set[int]) -> None:
+    """Pages whose text gave nothing to extract count as not read, so a retry reads them again."""
+    async with get_sessionmaker()() as session:
+        for n in sorted(pages):
+            page = await session.get(Page, (document_id, n))
+            if page is not None and page.used:
+                page.ocr_status = "failed"
+        await session.commit()
 
 
 async def _extract(document_id: str) -> None:

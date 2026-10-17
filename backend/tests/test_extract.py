@@ -619,3 +619,30 @@ def test_page_without_blocks_cites_paragraphs_of_its_markdown() -> None:
         8, role=None, blocks=None, tables=None, markdown=None, text_quality=None, handwriting=None
     )
     assert empty.text.splitlines() == ["=== page 8 ===", "(no OCR text for this page)"] and empty.blocks == ()
+
+
+def test_text_only_ocr_pages_also_send_the_page_image() -> None:
+    """Without block positions (OpenRouter and OpenAI OCR) the layout, e.g. a depth column, is only in the
+    image; with positions and good confidence the text is enough."""
+    text_only = extract_module.page_segment(
+        3,
+        role="log_sheet",
+        blocks=[],
+        tables=None,
+        markdown="FICTIONAL LOG ZZ-4\n\n6.00\n\nSandy CLAY",
+        text_quality=0.99,
+        handwriting="none",
+    )
+    assert extract_module.needs_image(text_only, "none", 0.75) is True
+    positioned = extract_module.page_segment(
+        3,
+        role="log_sheet",
+        blocks=[
+            {"id": "p3.b0", "type": "text", "text": "6.00", "box": [0.1, 0.2, 0.05, 0.02], "confidence": 0.98}
+        ],
+        tables=None,
+        markdown=None,
+        text_quality=0.99,
+        handwriting="none",
+    )
+    assert extract_module.needs_image(positioned, "none", 0.75) is False

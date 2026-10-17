@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import itertools
 import json
 from typing import Any
 
@@ -211,3 +212,84 @@ async def test_auto_falls_back_to_openrouter_when_the_mistral_key_is_refused(
             assert done == 2
     finally:
         get_settings.cache_clear()
+
+
+# ----------------------------------------------------------------------------------------------
+# Rate limits (429): waited out with Retry-After, never counted as a failed attempt
+# ----------------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def pauses(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    import app.providers.base as base
+
+    waited: list[float] = []
+
+    async def no_wait(seconds: float) -> None:
+        waited.append(seconds)
+
+    monkeypatch.setattr(base, "pause", no_wait)
+    return waited
+
+
+async def test_429_with_retry_after_is_waited_out(
+    db: None, openrouter_only: Any, pauses: list[float]
+) -> None:
+    pdf = fictional_report()
+    limited = {"retry-after": "7"}
+    date = {"retry-after": "Wed, 21 Oct 2015 07:28:00 GMT"}  # in the past: retry at once
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(
+            side_effect=[
+                httpx.Response(429, headers=limited),
+                httpx.Response(429, headers=limited),
+                httpx.Response(429, headers=date),
+                httpx.Response(429, headers={"retry-after-ms": "2500"}),
+                httpx.Response(429, headers=limited),
+                httpx.Response(200, json=parsed("BOREHOLE LOG FX-1")),
+            ]
+        )
+        response = await OpenRouterOcrClient().ocr(pdf, "application/pdf", document_id=None, page_count=1)
+    # Five 429s in a row are more than the 4 attempts other errors get: a rate limit is not a failure.
+    assert route.call_count == 6 and pauses == [7.0, 7.0, 0.0, 2.5, 7.0]
+    assert response.raw["pages"][0]["markdown"] == "BOREHOLE LOG FX-1"
+
+
+async def test_429_without_retry_after_backs_off_until_the_wait_budget_is_used(
+    db: None, openrouter_only: Any, pauses: list[float], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RATE_LIMIT_WAIT_S", "40")
+    get_settings.cache_clear()
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(return_value=httpx.Response(429))
+        with pytest.raises(ProviderError) as refused:
+            await OpenRouterOcrClient().ocr(
+                fictional_report(), "application/pdf", document_id=None, page_count=1
+            )
+    assert refused.value.status == 429 and refused.value.retryable is True
+    assert "rate-limited" in str(refused.value) and "sk-or" not in str(refused.value)
+    assert sum(pauses) == pytest.approx(40.0)  # the whole budget, never more
+    assert all(b >= a for a, b in itertools.pairwise(pauses[:-1]))  # growing backoff; the last is the rest
+    assert route.call_count == len(pauses) + 1
+
+
+async def test_openrouter_ocr_requests_are_capped_in_flight(openrouter_only: Any) -> None:
+    import asyncio
+
+    from app.pipeline.ocr import route_limit
+
+    inside = peak = 0
+
+    async def request(route: str) -> None:
+        nonlocal inside, peak
+        async with route_limit(route):
+            inside += 1
+            peak = max(peak, inside)
+            await asyncio.sleep(0.01)
+            inside -= 1
+
+    await asyncio.gather(*(request("openrouter") for _ in range(4)))
+    assert peak == 1  # OCR_OPENROUTER_CONCURRENCY defaults to 1
+    inside = peak = 0
+    await asyncio.gather(*(request("mistral") for _ in range(4)))
+    assert peak == 4  # other routes are not capped here
