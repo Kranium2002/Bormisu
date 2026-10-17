@@ -115,47 +115,74 @@ def fx2() -> Any:
 
 
 class FakeBridge(ModuleType):
-    def __init__(self, *, fail: set[int] | None = None, cost: float = 0.0015) -> None:
+    """app.bh3.bridge's interface: make_vlm / make_llm / read_pages / build / BudgetExceeded."""
+
+    def __init__(
+        self, *, fail: set[int] | None = None, unread: set[int] | None = None, cost: float = 0.0015
+    ) -> None:
         super().__init__("app.bh3.bridge")
         self.BudgetExceeded = FakeBudgetExceeded
         self.fail = fail or set()
+        self.unread = unread or set()
         self.cost = cost
         self.read: list[int] = []
         self.vlm_args: tuple[str, str] | None = None
+        self.llm_model: str | None = None
         self.on_call: Any = None
+        self.guard: Any = None
+        self.built_with: dict[str, Any] = {}
 
-    def make_vlm(self, base_url: str, api_key: str, model: str, on_call: Any) -> Any:
-        self.vlm_args, self.on_call = (base_url, model), on_call
+    def make_vlm(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        on_call: Any = None,
+        *,
+        cache_dir: Path,
+        guard: Any = None,
+    ) -> Any:
+        self.vlm_args, self.on_call, self.guard = (base_url, model), on_call, guard
+        return SimpleNamespace(model=model)
+
+    def make_llm(
+        self, base_url: str, api_key: str, model: str, *, cache_dir: Path, on_call: Any = None
+    ) -> Any:
+        self.llm_model = model
         return SimpleNamespace(model=model)
 
     def read_pages(
         self,
-        pdf_path: Path | None,
-        image_path: Path | None,
-        pages: list[int],
         source_file: str,
+        *,
         vlm: Any,
         workdir: Path,
+        pdf_path: Path | None = None,
+        image_paths: dict[int, Path] | None = None,
+        pages: list[int] | None = None,
+        doc_id: str | None = None,
     ) -> list[Any]:
-        assert pdf_path is not None and pdf_path.exists() and image_path is None and workdir.is_dir()
-        assert source_file == "fictional-report.pdf" and len(pages) == 1
+        assert pdf_path is not None and pdf_path.exists() and image_paths is None and workdir.is_dir()
+        assert source_file == str(pdf_path) and pages is not None and len(pages) == 1 and doc_id
         n = pages[0]
         self.read.append(n)
         if n in self.fail:
             raise RuntimeError("fictional tile failure")
-        self.on_call(
-            {
-                "purpose": "tile",
-                "model": vlm.model,
-                "input_tokens": 2400,
-                "output_tokens": 300,
-                "cost_usd": self.cost,
-                "pages": 1,
-            }
-        )
-        return [SimpleNamespace(page_no=n, language="de", page_type="log")]
+        if n in self.unread:
+            return [
+                SimpleNamespace(
+                    page_no=n, language="", page_type="unread", route="error", issues=["fictional"]
+                )
+            ]
+        self.guard()  # before every paid call
+        call = {"purpose": "tile", "model": vlm.model, "ok": True, "input_tokens": 2400, "output_tokens": 300}
+        self.on_call({**call, "cost_usd": self.cost})
+        return [SimpleNamespace(page_no=n, language="de", page_type="log", route="vlm")]
 
-    def build(self, page_results: list[Any], source_file: str, llm: Any = None) -> list[Any]:
+    def build(
+        self, page_results: list[Any], source_file: str, *, doc_id: str | None = None, llm: Any = None
+    ) -> list[Any]:
+        self.built_with = {"doc_id": doc_id, "llm": llm}
         pages = {r.page_no for r in page_results}
         return [hole for hole, needs in ((fx1(), {2, 3}), (fx2(), {4})) if needs <= pages]
 
@@ -198,7 +225,9 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     await work(queue, doc_id)
 
     assert bridge.read == [2, 3, 4]  # the log pages, one at a time
-    assert bridge.vlm_args == ("https://openrouter.ai/api/v1", "mistralai/mistral-medium-3.1")
+    assert bridge.vlm_args == ("https://openrouter.ai/api/v1", "mistralai/mistral-large-4-0")
+    assert bridge.llm_model == "mistralai/mistral-small-2603"  # the classifier model normalises layers
+    assert bridge.built_with["doc_id"] == doc_id and bridge.built_with["llm"] is not None
     assert fakes.extractor.calls == 0  # bh3 covered every log page
     doc = await document(client, doc_id)
     assert doc["status"] == "needs_review" and doc["warnings"] == []
@@ -216,7 +245,7 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     assert evidence["page"] == 2 and evidence["box"] is not None
     # bh3's row band, tightened to the printed words: the page has a text layer, so it counts as read.
     x, y, w, h = evidence["box"]
-    assert 0.0 < x and w < 1.0 and 0.0 < y < 1.0 and 0.0 < h < 0.1 and evidence["method"] == "read"
+    assert x > 0.0 and w < 1.0 and 0.0 < y < 1.0 and 0.0 < h < 0.1 and evidence["method"] == "read"
     # Printed degrees without a system: asked, never plotted on a guess.
     assert hole["crs_status"] == "inferred" and hole["plotted"] is False
     questions = await call(client, "GET", "/api/v1/clarifications", expect=200)
@@ -233,10 +262,11 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     assert sorted(await records(client, doc_id)) == ["FX-1", "FX-2"]
 
 
+@pytest.mark.parametrize("how", ["raises", "unread"])
 async def test_a_page_bh3_cannot_read_goes_to_the_classic_extractor(
-    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any, how: str
 ) -> None:
-    bh3(FakeBridge(fail={4}))
+    bh3(FakeBridge(fail={4}) if how == "raises" else FakeBridge(unread={4}))
     doc_id = await upload(client, fictional_report())
     await work(queue, doc_id)
 
@@ -278,10 +308,13 @@ def test_spt_label_and_depth_text() -> None:
     assert bh3_adapter._spt_parts(24, "24 [2,3/4,6,6,8]") == ("24", "2,3/4,6,6,8")
     assert bh3_adapter._spt_parts(None, "R [50/120]") == ("R", "50/120")
     assert bh3_adapter._spt_parts(31, None) == ("31", None)
-    assert [bh3_adapter._depth_text(v) for v in (6.0, 10.46, 1.255, math.nan, None)] == [
+    assert [bh3_adapter._depth_text(v) for v in (6.0, 10.46, 1.255, -0.12, math.nan, None)] == [
         "6.00",
         "10.46",
         "1.255",
+        "0.00",  # anchoring a hair above the top is the top
         None,
         None,
     ]
+    assert bh3_adapter._printed_uscs("Sandy CLAY (CL), stiff", "CL") == "CL"
+    assert bh3_adapter._printed_uscs("Sandy clay, stiff", "CL") is None  # the model's class, not printed

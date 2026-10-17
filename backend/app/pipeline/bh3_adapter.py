@@ -8,14 +8,19 @@ boreholes into this pipeline's `ExtractionResult` + cited blocks, so finalisatio
 questions, lint, second reads and word-level evidence boxes work exactly as for the classic extractor.
 
 - Pages: the used pages the classifier calls log sheets (or continuations). Each page is read on its own,
-  so a page bh3 cannot read falls back to the classic extractor alone; bh3 caches every page in
-  `pages/{document}/bh3/`, so a retry repeats no paid call.
+  and a page bh3 cannot read (an exception, or a result of type "unread") falls back to the classic
+  extractor alone. bh3 caches renders and model answers in `pages/{document}/bh3/`, so a retry repeats no
+  paid call. Image uploads are read from this pipeline's page renders, one image per page.
 - Values stay as text: depths are bh3's metres written as numbers (the depth unit is metres), header
   values are the printed strings when the bridge keeps them (else bh3's coerced value as text).
 - Evidence: every value cites a block made from its bh3 provenance (page, box in PDF points scaled to the
   page render, confidence); a row band without x extent spans the page width, no box at all is the page.
-- Cost: every model call bh3 makes is written to the provider ledger through `on_call`, which stops bh3
-  with its BudgetExceeded once PROVIDER_BUDGET_USD is used up.
+- Cost: every model call bh3 makes is written to the provider ledger through `on_call` (OpenRouter reports
+  the cost; OpenAI calls are priced from data/prices.yaml), and `guard`, run before every paid call, stops
+  bh3 with its BudgetExceeded once PROVIDER_BUDGET_USD would be passed.
+- bh3's text model (CLASSIFIER_MODEL) normalises layer descriptions for the DIN code; its output (lithology
+  class, colour, consistency) feeds the DIN code and the English lithology only and is never cited as
+  printed text.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -50,7 +56,7 @@ from app.pipeline.schemas import (
     RawValue,
 )
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
-from app.providers.base import BudgetExceededError, Usage, record_usage, spent_usd
+from app.providers.base import BudgetExceededError, Usage, record_usage, spent_usd, token_cost
 from app.storage import get_storage
 
 logger = logging.getLogger("geomemory.pipeline.bh3")
@@ -60,8 +66,10 @@ LOG_ROLES = frozenset({"log_sheet", "log_continuation"})
 IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"})
 OFFICE_EXTENSIONS = frozenset({".docx", ".doc", ".odt", ".pptx"})
 A4_LONG_PT = 842.0  # bh3 scales an image page so its long side is an A4 page's long side in points
-# Budget estimate of one page before bh3 reads it (a few tile calls of a vision model).
-PAGE_ESTIMATE_USD = 0.02
+# Budget estimate of one model call before bh3 makes it (a page tile of a vision model).
+CALL_ESTIMATE_USD = 0.01
+# Anchoring to the depth scale can put a top a little above 0; such a depth is 0.
+NEGATIVE_TOLERANCE_M = 0.5
 UNLABELLED = "unlabelled p{page}"  # a hole bh3 could not name: says so, never a made-up printed label
 _SPT_LABEL = re.compile(r"^\s*(?P<n>[^\[\]]*?)\s*\[(?P<blows>[^\]]*)\]\s*$")
 _USCS = re.compile(r"^(?:[GSMCO][WPMCLH]?(?:-[GSMCO][WPMCLH])?|[MCO][LH](?:-[MCO][LH])?|Pt|PT)$")
@@ -82,15 +90,27 @@ def active(settings: Settings | None = None) -> bool:
     return settings.extractor == "bh3" and bool(settings.llm_routes) and load_bridge() is not None
 
 
-def vision_route(settings: Settings) -> tuple[str, str, str, str] | None:
-    """(provider, base URL, API key, model) of the vision model bh3 reads pages with."""
+@dataclass(frozen=True)
+class VisionRoute:
+    provider: str
+    base_url: str
+    api_key: str
+    model: str  # the vision model that reads pages
+    text_model: str  # the text model that normalises layer descriptions
+
+
+def vision_route(settings: Settings) -> VisionRoute | None:
+    """Provider, key and models bh3 runs on: the first configured LLM route."""
     for route in settings.llm_routes:
         if route == "openrouter" and settings.openrouter_api_key is not None:
             key = settings.openrouter_api_key.get_secret_value()
-            return route, settings.openrouter_base_url, key, settings.bh3_model
+            text_model = settings.llm_model("classifier", route)
+            return VisionRoute(route, settings.openrouter_base_url, key, settings.bh3_model, text_model)
         if route == "openai" and settings.openai_api_key is not None:
+            key = settings.openai_api_key.get_secret_value()
             model = settings.openai_bh3_model or settings.chat_model
-            return route, settings.openai_base_url, settings.openai_api_key.get_secret_value(), model
+            text_model = settings.llm_model("classifier", route)
+            return VisionRoute(route, settings.openai_base_url, key, model, text_model)
     return None
 
 
@@ -136,67 +156,98 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         ).all()
         file_name, storage_key = doc.file_name, doc.storage_key
         log_pages = [p.n for p in pages if p.role in LOG_ROLES]
+        render_keys = {p.n: p.render_key for p in pages}
         infos = {
             p.n: _PageInfo(p.n, p.width_px or 0, p.height_px or 0, p.text_layer_quality, p.handwriting)
             for p in pages
         }
-    sources = _sources(document_id, storage_key)
+    sources = _sources(document_id, storage_key, render_keys)
     if sources is None or not log_pages:
         return None if sources is None else Bh3Read()
-    pdf_path, image_path = sources
-    provider, base_url, api_key, model = route
+    pdf_path, image_paths = sources
     budget = settings.provider_budget_usd
     loop = asyncio.get_running_loop()
 
+    def wait(coroutine: Any) -> Any:
+        return asyncio.run_coroutine_threadsafe(coroutine, loop).result(timeout=60)
+
     def on_call(call: dict[str, Any]) -> None:
-        """bh3 made a model call: write it to the ledger, stop bh3 when the budget is used up."""
-        cost = float(call.get("cost_usd") or 0.0)
-        usage = Usage(
-            provider,
-            f"bh3:{call.get('purpose') or 'read'}",
-            str(call.get("model") or model),
-            _int(call.get("input_tokens")),
-            _int(call.get("output_tokens")),
-            _int(call.get("pages")),
-            cost,
+        """bh3 made a model call: write it to the provider ledger."""
+        called = str(call.get("model") or route.model)
+        tokens_in, tokens_out = _int(call.get("input_tokens")), _int(call.get("output_tokens"))
+        reported = call.get("cost_usd")
+        cost = (
+            float(reported)
+            if isinstance(reported, int | float)
+            else token_cost(called, tokens_in, tokens_out)
         )
-        asyncio.run_coroutine_threadsafe(record_usage(usage, document_id), loop).result(timeout=60)
+        purpose = f"bh3:{call.get('purpose') or 'read'}"
+        usage = Usage(
+            route.provider, purpose, called, tokens_in, tokens_out, None, cost, call.get("ok") is not False
+        )
+        wait(record_usage(usage, document_id))
+
+    def guard() -> None:
+        """Before every paid call: stop bh3 when the next call would pass the budget."""
         if budget is not None:
-            spent = asyncio.run_coroutine_threadsafe(spent_usd(), loop).result(timeout=60)
-            if spent >= budget:
+            spent = wait(spent_usd())
+            if spent + CALL_ESTIMATE_USD > budget:
                 raise bridge.BudgetExceeded(f"provider budget of {budget:.2f} USD used up ({spent:.2f} USD)")
 
-    vlm = bridge.make_vlm(base_url, api_key, model, on_call)
     workdir = get_storage().path(f"pages/{document_id}/bh3")
     workdir.mkdir(parents=True, exist_ok=True)
+    cache = workdir / "llm"
+    vlm = bridge.make_vlm(route.base_url, route.api_key, route.model, on_call, cache_dir=cache, guard=guard)
+    llm = bridge.make_llm(route.base_url, route.api_key, route.text_model, cache_dir=cache, on_call=on_call)
+    source = str(pdf_path if pdf_path is not None else file_name)
 
-    async def budget_left() -> None:
-        if budget is not None:
-            spent = await spent_usd()
-            if spent + PAGE_ESTIMATE_USD > budget:
-                raise BudgetExceededError(spent, budget)
+    async def stopped(exc: BaseException) -> BudgetExceededError:
+        logger.warning("bh3 stopped at the provider budget for %s: %s", document_id, exc)
+        return BudgetExceededError(await spent_usd(), budget or 0.0)
 
     results: list[Any] = []
     failed: list[int] = []
     for n in log_pages:
-        await budget_left()
+        images = {n: image_paths[n]} if image_paths is not None and n in image_paths else None
+        if image_paths is not None and images is None:
+            failed.append(n)  # an image page without a render: nothing for bh3 to read
+            continue
+        read_one = partial(
+            bridge.read_pages,
+            source,
+            vlm=vlm,
+            workdir=workdir,
+            pdf_path=pdf_path,
+            image_paths=images,
+            pages=[n],
+            doc_id=document_id,
+        )
         try:
-            read = await asyncio.to_thread(
-                bridge.read_pages, pdf_path, image_path, [n], file_name, vlm, workdir
-            )
+            read = await asyncio.to_thread(read_one)
         except bridge.BudgetExceeded as exc:
-            raise BudgetExceededError(await spent_usd(), budget or 0.0) from exc
+            raise await stopped(exc) from exc
         except Exception:
             logger.exception(
                 "bh3 could not read page %s of %s; the classic extractor takes it", n, document_id
             )
             failed.append(n)
             continue
-        results.extend(read)
+        for page_result in read:
+            if (
+                getattr(page_result, "page_type", None) == "unread"
+                or getattr(page_result, "route", "") == "error"
+            ):
+                logger.warning(
+                    "bh3 left page %s of %s unread: %s", n, document_id, getattr(page_result, "issues", "")
+                )
+                failed.append(n)
+            else:
+                results.append(page_result)
+    build = partial(bridge.build, results, source, doc_id=document_id, llm=llm)
     try:
-        built = await asyncio.to_thread(bridge.build, results, file_name, None) if results else []
+        built = await asyncio.to_thread(build) if results else []
     except bridge.BudgetExceeded as exc:
-        raise BudgetExceededError(await spent_usd(), budget or 0.0) from exc
+        raise await stopped(exc) from exc
     except Exception:
         logger.exception(
             "bh3 could not assemble the boreholes of %s; the classic extractor takes them", document_id
@@ -206,7 +257,7 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
     long_side = _long_sides(pdf_path, infos)
     out = Bh3Read(failed=failed)
     for bh in built:
-        mapped = map_borehole(bh, infos=infos, languages=languages, long_side=long_side, model=model)
+        mapped = map_borehole(bh, infos=infos, languages=languages, long_side=long_side, model=route.model)
         if mapped is None:
             continue
         out.boreholes.append(mapped)
@@ -218,8 +269,11 @@ def _int(value: Any) -> int | None:
     return int(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
 
 
-def _sources(document_id: str, storage_key: str) -> tuple[Path | None, Path | None] | None:
-    """(pdf, image) bh3 reads: the original PDF, the converted PDF of an Office file, or the image."""
+def _sources(
+    document_id: str, storage_key: str, render_keys: dict[int, str | None]
+) -> tuple[Path | None, dict[int, Path] | None] | None:
+    """(pdf, page images) bh3 reads: the original PDF, the converted PDF of an Office file, or the page
+    renders of an image upload (one per page, so every frame of a multi-page image is a page)."""
     storage = get_storage()
     original = storage.path(storage_key)
     suffix = original.suffix.lower()
@@ -229,7 +283,7 @@ def _sources(document_id: str, storage_key: str) -> tuple[Path | None, Path | No
         converted = storage.path(f"pages/{document_id}/converted.pdf")
         return (converted, None) if converted.exists() else None
     if suffix in IMAGE_EXTENSIONS:
-        return None, original
+        return None, {n: storage.path(key) for n, key in render_keys.items() if key}
     return None
 
 
@@ -263,6 +317,8 @@ def _depth_text(value: Any) -> str | None:
         or math.isinf(value)
     ):
         return None
+    if -NEGATIVE_TOLERANCE_M < value < 0:
+        value = 0.0
     return (
         f"{round(float(value), 3):.2f}"
         if round(float(value), 2) == round(float(value), 3)
@@ -447,26 +503,36 @@ def _layers(bh: Any, blocks: _Blocks, languages: dict[int, str | None]) -> list[
         page = int(getattr(prov, "page", 0) or 0)
         language = languages.get(page)
         din = _text(getattr(layer, "din_code", None))
-        din_main = din.split(",")[0].strip() if din else None
-        soil_unit = _text(getattr(layer, "soil_unit", None))
+        din_main = _text(getattr(layer, "din_main", None)) or (din.split(",")[0].strip() if din else None)
         out.append(
             ExtractedLayer(
                 from_raw=blocks.cite(top, prov),
                 to_raw=blocks.cite(bottom, prov),
                 description_raw=blocks.cite(description, prov),
                 description_language=language,
-                english_lithology=description if language == "en" else None,
-                din4023_code=din_main or None,
+                english_lithology=description
+                if language == "en"
+                else _text(getattr(layer, "lithology", None)),
+                din4023_code=din_main,
                 din4023_notation=din,
-                uscs_raw=blocks.cite(soil_unit if soil_unit and _USCS.match(soil_unit) else None, prov),
-                colour_raw=blocks.cite(_text(getattr(layer, "color", None)), prov),
-                consistency_raw=blocks.cite(_text(getattr(layer, "consistency", None)), prov),
-                moisture_raw=blocks.cite(_text(getattr(layer, "moisture", None)), prov),
+                # only a USCS group the description prints, e.g. "(CL)": the text model's class is not printed
+                uscs_raw=blocks.cite(_printed_uscs(description, getattr(layer, "soil_unit", None)), prov),
+                colour_raw=RawValue.absent(),
+                consistency_raw=RawValue.absent(),
+                moisture_raw=RawValue.absent(),
                 weathering_raw=RawValue.absent(),
-                stratigraphic_name_raw=blocks.cite(_text(getattr(layer, "stratigraphic_name", None)), prov),
+                stratigraphic_name_raw=RawValue.absent(),
             )
         )
     return out
+
+
+def _printed_uscs(description: str | None, soil_unit: Any) -> str | None:
+    """bh3's USCS group when it is a USCS code the description itself prints."""
+    unit = _text(soil_unit)
+    if not unit or not description or not _USCS.match(unit):
+        return None
+    return unit if re.search(rf"(?<![A-Za-z]){re.escape(unit)}(?![A-Za-z])", description) else None
 
 
 def _points(

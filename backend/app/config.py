@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # bh3 hands a page it cannot read to classic, and every page when app.bh3 is not installed.
     extractor: Literal["bh3", "classic"] = "bh3"
     # Vision model bh3 reads pages with: on OpenRouter, and on OpenAI (unset or blank: CHAT_MODEL).
-    bh3_model: str = "mistralai/mistral-medium-3.1"
+    bh3_model: str = "mistralai/mistral-large-4-0"
     openai_bh3_model: str | None = None
     openai_ocr_model: str | None = None
     mistral_ocr_model: str = "mistral-ocr-latest"
