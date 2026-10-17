@@ -341,9 +341,9 @@ def test_sideways_check_flags_vertical_text_lines(tmp_path: Path) -> None:
 
     im = Image.new("RGB", (1240, 1754), "white")
     d = ImageDraw.Draw(im)
-    for y in range(120, 1650, 36):  # lines of "words" across the page, like printed text
+    for y in range(120, 1650, 36):  # lines of "words" across the page, about a third ink like printed text
         for x in range(80, 1100, 70):
-            d.rectangle([x, y, x + 50, y + 14], fill="black")
+            d.rectangle([x, y, x + 28, y + 12], fill="black")
     upright = tmp_path / "upright.png"
     im.save(upright)
     sideways = tmp_path / "sideways.png"
