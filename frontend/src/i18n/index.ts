@@ -7,6 +7,7 @@ import { queue } from './de/queue';
 import { review } from './de/review';
 import { sheet } from './de/sheet';
 import { shell } from './de/shell';
+import { verify } from './de/verify';
 
 /**
  * UI language: English (default) or German, switched in the header and remembered in this browser.
@@ -22,7 +23,7 @@ export const LANGS: readonly Lang[] = ['en', 'de'];
 
 const STORAGE_KEY = 'bormisu.lang';
 
-const DE: Record<string, string> = { ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue };
+const DE: Record<string, string> = { ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue, ...verify };
 
 function storedLang(): Lang {
   try {

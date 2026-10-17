@@ -25,6 +25,7 @@ const SCREEN_LABEL: Record<RouteKind, string> = {
   inbox: 'Questions inbox',
   list: 'Borehole list',
   sheet: 'Borehole sheet',
+  verify: 'Side-by-side verification',
   notFound: 'Not found',
 };
 
@@ -84,7 +85,8 @@ export function App() {
   const crsDialogOpen = useAppStore((s) => s.crsDialogOpen);
   const route = useLocationRoute();
   const mainRef = useRef<HTMLElement>(null);
-  const screenPath = route.kind === 'review' || route.kind === 'detail' || route.kind === 'sheet' ? `${route.kind}/${route.uid}` : route.kind;
+  const withUid = route.kind === 'review' || route.kind === 'detail' || route.kind === 'sheet' || route.kind === 'verify';
+  const screenPath = withUid ? `${route.kind}/${route.uid}` : route.kind;
   useScreenFocus(mainRef, screenPath);
 
   useEffect(() => {
