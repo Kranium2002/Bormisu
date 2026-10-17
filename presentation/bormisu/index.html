@@ -130,11 +130,10 @@
   .demo .dot { display: inline-block; width: 44px; height: 44px; border-radius: 50%; background: #e5484d; margin-right: 36px; vertical-align: middle; animation: rec 1.4s ease-in-out infinite; }
   @keyframes rec { 50% { opacity: 0.25; } }
 
-  /* 08 Key features: a bento grid full of features; each click grows one key tile and pushes others out (bento.js) */
+  /* 08 Key features: a bento grid; three fixed 2×2 key tiles fill in one per click (bento.js) */
   .bento-slide { padding: 70px 80px; justify-content: center; }
   .bento { display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(4, 1fr); grid-auto-flow: dense; gap: 18px; height: 940px; }
   .tile { background: #fff; border-radius: 28px; display: flex; flex-direction: column; overflow: hidden; will-change: transform; position: relative; }
-  .tile.out { display: none; }
   /* small tiles: icon in the top half, the feature in the bottom half */
   .tile .half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 14px; }
   .tile .half.top { background: var(--line); flex: 0 0 40%; }
@@ -150,25 +149,21 @@
     background: linear-gradient(115deg, #3B2418 0%, #8B5A3C 40%, #C9502E 72%, #E6BE78 100%);
     -webkit-background-clip: text; background-clip: text; color: transparent; }
   .tile.word .c { font-size: 19px; margin-top: 2px; }
-  /* key tiles: text on the left, a picture from the product on the right */
-  .tile.key { grid-column: span 2; color: var(--cream); flex-direction: row; }
-  .tile.key .txt { flex: 1 0 auto; max-width: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 28px 32px; z-index: 1; }
-  .tile.key .ic { width: 58px; height: 58px; margin-bottom: auto; }
-  .tile.key .t { font: 700 44px/1.05 var(--display); letter-spacing: -0.025em; }
-  .tile.key .more { font-size: 26px; line-height: 1.35; max-width: 18ch; display: none; margin-top: 14px; }
-  .tile.key .shot { position: absolute; right: -40px; top: 22px; bottom: -30px; width: 46%; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); transform: rotate(-3deg); opacity: .45; }
+  /* key tiles: 2×2 from the start, only the icon at first; .open fills them (title, text, product shot) */
+  .tile.key { color: var(--cream); justify-content: flex-end; padding: 32px 36px; }
+  .tile.key .ic { position: absolute; width: 150px; height: 150px; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    transition: transform .9s cubic-bezier(.22,1,.36,1), width .9s cubic-bezier(.22,1,.36,1), height .9s cubic-bezier(.22,1,.36,1), left .9s cubic-bezier(.22,1,.36,1), top .9s cubic-bezier(.22,1,.36,1); }
+  .tile.key .txt { position: relative; z-index: 1; opacity: 0; transform: translateY(24px); transition: opacity .6s ease .35s, transform .7s cubic-bezier(.22,1,.36,1) .35s; }
+  .tile.key .t { font: 700 52px/1.04 var(--display); letter-spacing: -0.025em; }
+  .tile.key .more { font-size: 23px; line-height: 1.35; margin-top: 10px; max-width: 30ch; }
+  .tile.key .shot { position: absolute; right: 30px; top: 30px; width: 58%; height: 52%; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 18px 44px rgba(0,0,0,.35); opacity: 0; transform: translateY(30px) rotate(-2deg) scale(.94);
+    transition: opacity .6s ease .15s, transform .9s cubic-bezier(.22,1,.36,1) .15s; }
   .tile.key .shot img { width: 100%; height: 100%; object-fit: cover; object-position: left top; display: block; }
   .tile.key .shot .sel { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .tile.key.big { grid-column: span 3; grid-row: span 2; }
-  /* where each key tile lands when it grows; the rest flow around it */
-  .tile.k1.big { grid-column: 1 / span 3; grid-row: 1 / span 2; }
-  .tile.k2.big { grid-column: 3 / span 3; grid-row: 2 / span 2; }
-  .tile.k3.big { grid-column: 4 / span 3; grid-row: 3 / span 2; }
-  .tile.key.big .t { font-size: 72px; }
-  .tile.key.big .ic { width: 92px; height: 92px; }
-  .tile.key.big .more { display: block; }
-  .tile.key.big .txt { flex: 0 0 44%; }
-  .tile.key.big .shot { position: relative; right: auto; top: auto; bottom: auto; flex: 1; margin: 34px 34px 34px 0; width: auto; transform: rotate(-1.5deg); opacity: 1; }
+  .tile.key.open .ic { width: 70px; height: 70px; left: 36px; top: 32px; transform: none; }
+  .tile.key.open .txt { opacity: 1; transform: none; }
+  .tile.key.open .shot { opacity: 1; transform: rotate(-2deg); }
   .tile.k1 { background: linear-gradient(140deg, #3B2418, #6B4226); }
   .tile.k2 { background: linear-gradient(140deg, #8B5A3C, #C9502E); }
   .tile.k3 { background: linear-gradient(140deg, #C78A2E, #E6BE78); color: var(--espresso); }
@@ -305,30 +300,24 @@
     <div class="big"><span class="dot"></span>Demo</div>
   </section>
 
-  <!-- 08 KEY FEATURES — bento grid; 3 clicks: each grows one key tile (Reads any report, Area scraping, Export) and pushes the tiles marked data-out off the grid -->
+  <!-- 08 KEY FEATURES — bento grid; the three key tiles are 2×2 and start as an icon; click n fills key tile n (title, text, product shot) -->
   <section class="light bento-slide" data-label="08 Key features" data-steps="3">
     <div class="bento">
-      <div class="tile key k1" data-key="1"><div class="txt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21H11"/><path d="M13 3l5 5v2.5"/><path d="M13 3v5h5"/><path d="M8 12h4M8 15h2.5"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg><div class="t">Reads any report</div><div class="more">Scans, handwriting, any language. Edge cases are flagged for manual verification.</div></div><div class="shot"><img src="img/feat-source.jpg" alt="" /></div></div>
-      <div class="tile word" data-name="a"><div class="half"><div class="v">Any file</div><div class="c">PDF, scan, photo, Word, Excel</div></div></div>
-      <div class="tile" data-name="b"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2.5" width="8" height="19" rx="1"/><path d="M8 7h8M8 12.5h8M8 17h8"/><path d="M5 2.5v19M3.5 7H5M3.5 12.5H5M3.5 17H5"/></svg></div><div class="half"><div class="v">DIN 4023</div><div class="c">borehole profiles</div></div></div>
-      <div class="tile word" data-name="c"><div class="half"><div class="v">✓ ? ! –</div><div class="c">certainty on every value</div></div></div>
-      <div class="tile" data-name="d"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/><path d="M19 3.5a3 3 0 0 1 1.5 2.6M17.5 2.5"/></svg></div><div class="half"><div class="v">Read twice</div><div class="c">handwriting and low confidence</div></div></div>
-      <div class="tile word" data-name="e"><div class="half"><div class="v">One grid</div><div class="c">every coordinate system standardised</div></div></div>
-      <div class="tile" data-name="f"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="8.5" height="16" rx="1.5"/><rect x="13" y="4" width="8.5" height="16" rx="1.5"/><path d="M5 9h3.5M5 12h3.5M15.5 9h3.5M15.5 12h3.5"/></svg></div><div class="half"><div class="v">Side by side</div><div class="c">scan next to the data</div></div></div>
-      <div class="tile key k2" data-key="2"><div class="txt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z" opacity=".55"/><rect x="6.5" y="8" width="11" height="8" rx="1.5" stroke-dasharray="2 1.6"/><circle cx="9.5" cy="11" r="1" fill="currentColor"/><circle cx="13.5" cy="12.5" r="1" fill="currentColor"/><circle cx="11" cy="14" r="1" fill="currentColor"/></svg><div class="t">Area scraping</div><div class="more">Draw an area or a planned line and get an overview of many soil samples at once.</div></div><div class="shot"><img src="img/feat-map.jpg" alt="" /><svg class="sel" viewBox="0 0 1500 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><path d="M480 120 L1010 140 L990 720 L520 700 Z" fill="rgba(230,190,120,.22)" stroke="#E6BE78" stroke-width="6" stroke-dasharray="22 14"/></svg></div></div>
-      <div class="tile" data-name="g"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18c4-1 5-9 9-9s5 6 9 4" stroke-dasharray="2.5 2"/><circle cx="3" cy="18" r="1.6" fill="currentColor"/><circle cx="21" cy="13" r="1.6" fill="currentColor"/><circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="16" r="1.2" fill="currentColor"/></svg></div><div class="half"><div class="v">Planned line</div><div class="c">boreholes along the route</div></div></div>
-      <div class="tile word" data-name="h"><div class="half"><div class="v" style="font-size: 40px;">Lint checks</div><div class="c">gaps, overlaps, RQD over 100</div></div></div>
-      <div class="tile" data-name="i"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h9M7.5 3v2M5 5c.5 3 3 6 6 7.5M10 5c-.5 3-3 6-6 7.5"/><path d="M12.5 21l4-10 4 10M14 17.5h5"/></svg></div><div class="half"><div class="v">EN | DE</div><div class="c">interface</div></div></div>
-      <div class="tile word" data-name="j"><div class="half"><div class="v" style="font-size: 40px;">Groundwater</div><div class="c">levels in every profile</div></div></div>
-      <div class="tile" data-name="k"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3"/><path d="M7 15h10"/></svg></div><div class="half"><div class="v">Lab tests</div><div class="c">SPT, RQD, UCS per layer</div></div></div>
-      <div class="tile word" data-name="l"><div class="half"><div class="v">Printable</div><div class="c">borehole sheet</div></div></div>
-      <div class="tile key k3" data-key="3"><div class="txt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6.5A2 2 0 0 0 4.5 5v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5z"/><path d="M14 3v5.5h5.5"/><path d="M12 11.5v6M9.5 15l2.5 2.5 2.5-2.5"/></svg><div class="t">Export</div><div class="more">Your data in your format: PDF, JPEG or CSV.</div></div><div class="shot"><img src="img/feat-export.jpg" alt="" /></div></div>
-      <div class="tile" data-name="m"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="1.5"/><path d="M16 8V4.5A1.5 1.5 0 0 0 14.5 3h-9A1.5 1.5 0 0 0 4 4.5v11A1.5 1.5 0 0 0 5.5 17H8"/></svg></div><div class="half"><div class="v">Duplicates</div><div class="c">caught automatically</div></div></div>
-      <div class="tile word" data-name="n"><div class="half"><div class="v">Filters</div><div class="c">on map and list</div></div></div>
-      <div class="tile" data-name="o" data-out><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 21h11a2 2 0 0 0 2-2V8"/><path d="M6 12l3-3 2.5 2.5L14 9"/></svg></div><div class="half"><div class="v">Copy</div><div class="c">the profile as an image</div></div></div>
-      <div class="tile word" data-name="p" data-out><div class="half"><div class="v">1 command</div><div class="c">Docker Compose</div></div></div>
-      <div class="tile" data-name="q" data-out><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/></svg></div><div class="half"><div class="v">Audit trail</div><div class="c">every correction kept</div></div></div>
-      <div class="tile word" data-name="r" data-out><div class="half"><div class="v">World map</div><div class="c">every borehole, every country</div></div></div>
+      <div class="tile key k1" data-key="1" style="grid-column: 1 / span 2; grid-row: 1 / span 2;"><div class="shot"><img src="img/feat-source.jpg" alt="" /></div><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21H11"/><path d="M13 3l5 5v2.5"/><path d="M13 3v5h5"/><path d="M8 12h4M8 15h2.5"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg><div class="txt"><div class="t">Reads any report</div><div class="more">Scans, handwriting, any language. Edge cases are flagged for manual verification.</div></div></div>
+      <div class="tile" style="grid-column: 3; grid-row: 1;"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2.5" width="8" height="19" rx="1"/><path d="M8 7h8M8 12.5h8M8 17h8"/><path d="M5 2.5v19M3.5 7H5M3.5 12.5H5M3.5 17H5"/></svg></div><div class="half"><div class="v">DIN 4023</div><div class="c">borehole profiles</div></div></div>
+      <div class="tile word" style="grid-column: 4; grid-row: 1;"><div class="half"><div class="v">Any file</div><div class="c">PDF, scan, photo, Word, Excel</div></div></div>
+      <div class="tile word" style="grid-column: 3; grid-row: 2;"><div class="half"><div class="v">One grid</div><div class="c">every coordinate system standardised</div></div></div>
+      <div class="tile" style="grid-column: 4; grid-row: 2;"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="8.5" height="16" rx="1.5"/><rect x="13" y="4" width="8.5" height="16" rx="1.5"/><path d="M5 9h3.5M5 12h3.5M15.5 9h3.5M15.5 12h3.5"/></svg></div><div class="half"><div class="v">Side by side</div><div class="c">scan next to the data</div></div></div>
+      <div class="tile key k3" data-key="3" style="grid-column: 5 / span 2; grid-row: 1 / span 2;"><div class="shot"><img src="img/feat-export.jpg" alt="" /></div><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6.5A2 2 0 0 0 4.5 5v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5z"/><path d="M14 3v5.5h5.5"/><path d="M12 11.5v6M9.5 15l2.5 2.5 2.5-2.5"/></svg><div class="txt"><div class="t">Export</div><div class="more">Your data in your format: PDF, JPEG or CSV.</div></div></div>
+      <div class="tile word" style="grid-column: 1; grid-row: 3;"><div class="half"><div class="v">Read twice</div><div class="c">handwriting and low confidence</div></div></div>
+      <div class="tile" style="grid-column: 2; grid-row: 3;"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18c4-1 5-9 9-9s5 6 9 4" stroke-dasharray="2.5 2"/><circle cx="3" cy="18" r="1.6" fill="currentColor"/><circle cx="21" cy="13" r="1.6" fill="currentColor"/><circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="16" r="1.2" fill="currentColor"/></svg></div><div class="half"><div class="v">Planned line</div><div class="c">boreholes along the route</div></div></div>
+      <div class="tile" style="grid-column: 1; grid-row: 4;"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2.2h12.4a1.5 1.5 0 0 0 1.3-2.2L14 9V3"/><path d="M7 15h10"/></svg></div><div class="half"><div class="v">Lab tests</div><div class="c">SPT, RQD, UCS per layer</div></div></div>
+      <div class="tile word" style="grid-column: 2; grid-row: 4;"><div class="half"><div class="v" style="font-size: 40px;">Groundwater</div><div class="c">levels in every profile</div></div></div>
+      <div class="tile key k2" data-key="2" style="grid-column: 3 / span 2; grid-row: 3 / span 2;"><div class="shot"><img src="img/feat-map.jpg" alt="" /><svg class="sel" viewBox="0 0 1500 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><path d="M480 120 L1010 140 L990 720 L520 700 Z" fill="rgba(230,190,120,.22)" stroke="#E6BE78" stroke-width="6" stroke-dasharray="22 14"/></svg></div><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z" opacity=".55"/><rect x="6.5" y="8" width="11" height="8" rx="1.5" stroke-dasharray="2 1.6"/><circle cx="9.5" cy="11" r="1" fill="currentColor"/><circle cx="13.5" cy="12.5" r="1" fill="currentColor"/><circle cx="11" cy="14" r="1" fill="currentColor"/></svg><div class="txt"><div class="t">Area scraping</div><div class="more">Draw an area or a planned line and get an overview of many soil samples at once.</div></div></div>
+      <div class="tile" style="grid-column: 5; grid-row: 3;"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/></svg></div><div class="half"><div class="v">Audit trail</div><div class="c">every correction kept</div></div></div>
+      <div class="tile word" style="grid-column: 6; grid-row: 3;"><div class="half"><div class="v">Printable</div><div class="c">sheet, profile as image</div></div></div>
+      <div class="tile word" style="grid-column: 5; grid-row: 4;"><div class="half"><div class="v">EN | DE</div><div class="c">interface</div></div></div>
+      <div class="tile" style="grid-column: 6; grid-row: 4;"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="1.5"/><path d="M16 8V4.5A1.5 1.5 0 0 0 14.5 3h-9A1.5 1.5 0 0 0 4 4.5v11A1.5 1.5 0 0 0 5.5 17H8"/></svg></div><div class="half"><div class="v">Duplicates</div><div class="c">caught automatically</div></div></div>
     </div>
   </section>
 
