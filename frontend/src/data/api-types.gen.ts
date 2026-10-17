@@ -107,7 +107,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Re-queue a failed document from its last successful stage. Stored OCR is reused. */
+        /**
+         * Re-queue a failed document from its last successful stage. Stored OCR is reused.
+         * @description Also accepted (1.2.1) for a document in `needs_review` or `done` whose `warnings` name pages that
+         *     were not read (a used page with `ocr` failed or pending): only those pages are read again, the
+         *     boreholes on them extracted and the document finalised again. Boreholes, answers and the OCR of the
+         *     other pages are kept; the document shows `queued`/`extracting` meanwhile and returns to review.
+         */
         post: operations["retryDocument"];
         delete?: never;
         options?: never;
@@ -650,6 +656,15 @@ export interface components {
             duplicate_of?: string | null;
             /** @description Unresolved questions about this document (status open or skipped). */
             open_clarifications?: number;
+            /**
+             * @description Readable notes on a document in review that is not complete (1.2.1), shown as they are, e.g.
+             *     "Page 1 was not read; boreholes on it are missing. Retry the document to read it." Set when a
+             *     page that carries borehole data could not be read (provider refused it, also after waiting out
+             *     rate limits): the rest of the document is finalised (pins, questions) instead of failing it,
+             *     and `POST /documents/{id}/retry` reads the missing pages. Empty or absent otherwise; always
+             *     empty unless `status` is needs_review or done.
+             */
+            warnings?: string[];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -1347,8 +1362,8 @@ export interface operations {
                 };
             };
             /**
-             * @description Document is not in status failed (code not_failed), or the server is in demo mode (code and
-             *     detail both exactly "demo_mode"; the document is not touched).
+             * @description Document is not in status failed and has no unread pages (code not_failed), or the server is in
+             *     demo mode (code and detail both exactly "demo_mode"; the document is not touched).
              */
             409: {
                 headers: {
