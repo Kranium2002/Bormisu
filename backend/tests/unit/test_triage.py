@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from app.pipeline.triage import dhash, hamming, text_quality, triage_image, triage_pdf
+from app.pipeline.triage import changed_share, dhash, hamming, text_quality, triage_image, triage_pdf
+from app.validate.document import section
+from tests.form_factory import encoded, filled_form
 from tests.pdf_factory import A4, TextItem, make_pdf
 
 
@@ -84,6 +86,34 @@ def test_hash_is_stable_and_close_for_near_duplicates() -> None:
     assert dhash(base) == dhash(base.copy())
     assert hamming(dhash(base), dhash(shifted)) <= 6
     assert hamming(dhash(base), dhash(other)) > 6
+
+
+def _scan_rule() -> tuple[int, int, int, float]:
+    cfg = section("page_duplicates")
+    return (
+        int(cfg["max_hamming"]),
+        int(cfg["scan_compare_edge"]),
+        int(cfg["scan_min_step"]),
+        float(cfg["scan_max_changed_share"]),
+    )
+
+
+def test_one_form_filled_in_by_other_hands_is_not_one_scan() -> None:
+    """The layout hash cannot tell two sheets of one form pad apart; the pixel comparison can."""
+    max_hamming, edge, step, max_share = _scan_rule()
+    first, second = filled_form(1), filled_form(2)
+    assert hamming(dhash(first), dhash(second)) <= max_hamming  # the hash alone calls them copies
+    assert changed_share(first, second, long_edge=edge, min_step=step) > max_share
+
+
+def test_copies_of_one_scan_change_almost_no_pixel() -> None:
+    max_hamming, edge, step, max_share = _scan_rule()
+    scan = filled_form(3)
+    jpeg = Image.open(io.BytesIO(encoded(scan, "JPEG", quality=50))).convert("RGB")
+    rescaled = scan.resize((scan.width // 2, scan.height // 2)).resize(scan.size)
+    for copy in (scan.copy(), jpeg, rescaled):
+        assert hamming(dhash(scan), dhash(copy)) <= max_hamming
+        assert changed_share(scan, copy, long_edge=edge, min_step=step) <= max_share
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,9 @@
 Each page is labelled and committed on its own, so a retry resumes with the pages still unlabelled and never
 pays twice. Labels below CLASSIFIER_MIN_CONFIDENCE are asked again with the extractor model.
 
-Duplicate thresholds live in data/document_checks.yaml (`page_duplicates`). Once every page is labelled, a
+Duplicate thresholds live in data/document_checks.yaml (`page_duplicates`). A scan (no trustworthy text
+layer on both pages) is a copy only when its render is near identical too, never on the hash alone: the same
+printed form filled in by another hand hashes as close as a copy. Once every page is labelled, a
 document whose borehole pages all copy pages of one other document gets `documents.duplicate_of`
 (app.clarify.duplicates; finalisation asks the `duplicate` question).
 """
@@ -26,7 +28,7 @@ from app.config import get_settings
 from app.db.models import Document, Page
 from app.db.session import get_sessionmaker
 from app.pipeline.schemas import PageLabel
-from app.pipeline.triage import hamming
+from app.pipeline.triage import changed_share, hamming
 from app.providers.llm import image_part, text_part
 from app.services.documents import emit_document_updated, page_type_for, unused_reason_for
 from app.storage import get_storage
@@ -194,6 +196,7 @@ async def _find_duplicate(page: Page) -> tuple[str, int] | None:
                     Page.height_px,
                     Page.text_layer_key,
                     Page.text_layer_quality,
+                    Page.render_key,
                 ).where(
                     Page.document_id != page.document_id,
                     Page.phash.is_not(None),
@@ -202,9 +205,9 @@ async def _find_duplicate(page: Page) -> tuple[str, int] | None:
                 )
             )
         ).all()
-    best: tuple[int, str, int] | None = None
+    candidates: list[tuple[int, str, int, str | None]] = []  # distance, document, page, render to compare
     own_text = _normalised_text(page)
-    for doc_id, n, phash, width, height, text_key, text_quality in rows:
+    for doc_id, n, phash, width, height, text_key, text_quality, render_key in rows:
         if phash is None or not width or not height:
             continue
         if abs(width / height - aspect) > aspect_tolerance * aspect:
@@ -214,11 +217,32 @@ async def _find_duplicate(page: Page) -> tuple[str, int] | None:
             continue
         # Same printed form, other values: with trustworthy text layers on both pages the text must match too.
         other_text = _normalised_text_of(text_key, text_quality)
-        if own_text is not None and other_text is not None and own_text != other_text:
+        if own_text is not None and other_text is not None:
+            if own_text == other_text:
+                candidates.append((distance, doc_id, n, None))
             continue
-        if best is None or distance < best[0]:
-            best = (distance, doc_id, n)
-    return None if best is None else (best[1], best[2])
+        # A scan: the hash alone cannot tell the same form filled in by another hand from a copy.
+        candidates.append((distance, doc_id, n, render_key or ""))
+    for _distance, doc_id, n, render_key in sorted(candidates):
+        if render_key is None or await asyncio.to_thread(_same_scan, page.render_key, render_key):
+            return doc_id, n
+    return None
+
+
+def _same_scan(own_key: str | None, other_key: str) -> bool:
+    """The two stored renders are copies of one scan (data/document_checks.yaml page_duplicates scan_*)."""
+    cfg = section("page_duplicates")
+    storage = get_storage()
+    if not own_key or not other_key or not storage.exists(own_key) or not storage.exists(other_key):
+        return False  # nothing to compare: never drop a page on the hash alone
+    with (
+        Image.open(io.BytesIO(storage.get_bytes(own_key))) as own,
+        Image.open(io.BytesIO(storage.get_bytes(other_key))) as other,
+    ):
+        share = changed_share(
+            own, other, long_edge=int(cfg["scan_compare_edge"]), min_step=int(cfg["scan_min_step"])
+        )
+    return share <= float(cfg["scan_max_changed_share"])
 
 
 def apply_label(page: Page, label: PageLabel) -> None:

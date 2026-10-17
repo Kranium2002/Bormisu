@@ -7,6 +7,13 @@ page_duplicates:
   max_hamming: 8 # of 256 phash bits
   aspect_tolerance: 0.02 # relative difference of width / height
   min_hash_bits: 16 # near-uniform renders (blank pages) hash to few set bits and are never duplicates
+  # Without a trustworthy text layer on both pages (scans), the hash only says "same layout": the same printed
+  # form filled in by another hand hashes a few bits apart. The two renders must then be near identical too
+  # (app.pipeline.triage.changed_share): copies of one scan change about 0.0001 of the pixels, the same form
+  # with other handwriting 0.0015 and more.
+  scan_compare_edge: 400 # long edge in pixels at which the renders are compared
+  scan_min_step: 64 # grey levels a pixel must differ from its whole neighbourhood in the other render
+  scan_max_changed_share: 0.0003 # share of pixels that may differ that much in a copy
 
 # Boreholes of a later document that repeat boreholes of an earlier one (same canonical label and the same
 # printed coordinates).
