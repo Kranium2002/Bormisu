@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { formatSpt, parseSptText, refusalText, refusalTitle, sptLint } from './spt';
+import { formatSpt, parseSptText, refusalText, refusalTitle, sptDepthText, sptLint } from './spt';
+
+describe('sptDepthText', () => {
+  it('prints a stated depth and never invents one', () => {
+    expect(sptDepthText({ depth: 10.5 })).toBe('10.50 m');
+    expect(sptDepthText({ depth: null })).toBe('depth not stated');
+  });
+});
 
 describe('sptLint', () => {
-  it('flags increments that do not add up to N', () => {
+  it('flags increments that do not add up to N, as a check of the client (never server attention)', () => {
     expect(sptLint({ raw: '3,4,5 = 8', depth: 1.5, refusal: false, increments: [3, 4, 5], n: 8 })).toEqual({
       severity: 'error',
       message: 'Increments 4 + 5 = 9 ≠ N 8',
+      client: true,
     });
   });
 
@@ -46,6 +54,11 @@ describe('parseSptText', () => {
     expect(parseSptText('50/30', prev)).toMatchObject({ refusal: true, blows: 50, penetrationCm: 30 });
     expect(parseSptText('refusal · 50 blows / 12 cm', prev)).toMatchObject({ refusal: true, blows: 50, penetrationCm: 12 });
     expect(parseSptText('see note', prev)).toBeNull();
+  });
+
+  it('keeps an unstated depth unstated and the increment length', () => {
+    const noDepth = { raw: '50/7.5', depth: null, refusal: true, blows: 50, penetrationCm: 7.5, incrementMm: 75 };
+    expect(parseSptText('N = 12', noDepth)).toEqual({ raw: '50/7.5', depth: null, incrementMm: 75, refusal: false, n: 12 });
   });
 
   it('formats an edited refusal for the export', () => {

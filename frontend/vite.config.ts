@@ -1,6 +1,10 @@
 /// <reference types="vitest/config" />
-import { defineConfig, loadEnv } from 'vite';
+import { fileURLToPath } from 'node:url';
+import { defineConfig, loadEnv, searchForWorkspaceRoot } from 'vite';
 import react from '@vitejs/plugin-react';
+
+/** DIN 4023 pattern assets at the repository root, shared with the backend (imported as `@din/...`). */
+const DIN_DIR = fileURLToPath(new URL('../assets/din4023_patterns', import.meta.url));
 
 /**
  * Vite config. `/api` is proxied to the FastAPI backend (default http://127.0.0.1:8000),
@@ -11,18 +15,26 @@ export default defineConfig(({ mode }) => {
   const apiTarget = env.VITE_API_PROXY || 'http://127.0.0.1:8000';
   return {
     plugins: [react()],
+    resolve: {
+      alias: { '@din': DIN_DIR },
+    },
     build: {
       // exceljs (~930 kB) is its own chunk, loaded only when someone exports an xlsx.
       chunkSizeWarningLimit: 1000,
     },
     server: {
+      // The dev server may read the shared DIN assets outside frontend/.
+      fs: { allow: [searchForWorkspaceRoot(process.cwd()), DIN_DIR] },
       proxy: {
+        // SSE (/api/v1/events) and the chat stream pass through unbuffered: the proxy streams by default.
         '/api': { target: apiTarget, changeOrigin: true },
       },
     },
     test: {
       include: ['src/**/*.test.{ts,tsx}'],
       environment: 'node',
+      // Cold runs on slow machines (the xlsx export test loads exceljs) can pass the 5 s default.
+      testTimeout: 30_000,
     },
   };
 });

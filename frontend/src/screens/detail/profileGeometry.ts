@@ -1,8 +1,9 @@
 /**
  * Geometry of the DIN 4023 profile column (prototype detail section of renderVals):
  * a 378 x 660 SVG whose depth axis runs from y = 28 (0 m) over 576 px down to the final depth.
+ * DIN patterns repeat at their native tile size (scale 1 for the whole profile), never stretched.
  */
-import { decimalComma } from '../../domain/format';
+import { decimal } from '../../domain/format';
 import type { Borehole, Layer } from '../../domain/types';
 
 export const PROFILE_W = 378;
@@ -30,6 +31,9 @@ export const X = {
   rockTo: 300,
   refusalX: 288,
 } as const;
+
+/** Font size of the layer label (DIN code or notation), px. */
+export const LABEL_FONT = 11;
 
 export interface DepthScale {
   /** Depth the axis covers, m (the final depth, or the log bottom if that is deeper). */
@@ -60,17 +64,41 @@ export function depthTicks(depth: number): number[] {
   return out;
 }
 
-export interface StratBlock { code: string; from: number; to: number }
+/** One block of the Strat. column; `name` is null where the source states no stratigraphic name. */
+export interface StratBlock { name: string | null; from: number; to: number }
 
-/** Strat. column: consecutive layers with the same stratigraphy code merge into one block. */
+/** Strat. column: consecutive layers with the same stratigraphic name merge into one block. */
 export function stratBlocks(layers: Layer[]): StratBlock[] {
   const out: StratBlock[] = [];
   for (const l of layers) {
+    const name = l.stratigraphicName?.trim() || null;
     const last = out[out.length - 1];
-    if (last && last.code === l.strat) last.to = l.to;
-    else out.push({ code: l.strat, from: l.from, to: l.to });
+    if (last && last.name === name) last.to = l.to;
+    else out.push({ name, from: l.from, to: l.to });
   }
   return out;
+}
+
+/** Rough width of a text in the profile's sans font (px): enough to decide whether a label fits. */
+export function textWidth(text: string, fontSize: number): number {
+  return text.length * fontSize * 0.62;
+}
+
+/** The text cut to fit maxPx, with an ellipsis; '' when not even two characters fit. */
+export function fitText(text: string, maxPx: number, fontSize: number): string {
+  if (textWidth(text, fontSize) <= maxPx) return text;
+  const chars = Math.floor(maxPx / (fontSize * 0.62)) - 1;
+  return chars >= 2 ? `${text.slice(0, chars).trimEnd()}…` : '';
+}
+
+/**
+ * Label next to a layer: its DIN 4023 notation ("U, t, s'") when that fits maxPx, else its DIN code,
+ * else '' (nothing stated, nothing shown).
+ */
+export function layerLabel(l: Pick<Layer, 'din' | 'dinNotation'>, maxPx: number): string {
+  const notation = l.dinNotation?.trim();
+  if (notation && textWidth(notation, LABEL_FONT) <= maxPx) return notation;
+  return l.din ?? '';
 }
 
 /** "Not logged" band when the log stops above the final depth (e.g. a missing sheet). */
@@ -79,7 +107,7 @@ export function notLogged(b: Pick<Borehole, 'finalDepth' | 'logBottom' | 'layers
   return {
     from: b.logBottom,
     to: b.finalDepth,
-    label: `log ends ${decimalComma(b.logBottom)} ≠ ET ${decimalComma(b.finalDepth)}`,
+    label: `log ends ${decimal(b.logBottom)} ≠ ET ${decimal(b.finalDepth)}`,
   };
 }
 
@@ -95,10 +123,21 @@ export function isStated(b: Pick<Borehole, 'values'>, key: string): boolean {
   return !v || v.state === 'ok';
 }
 
+/** The first SPT refusal from the top: the profile's amber R marker. `depth` is null when the source doesn't state it. */
+export interface Refusal { layer: Layer; depth: number | null; raw: string }
+
 /** First SPT refusal from the top: the profile's amber R marker. */
-export function firstRefusal(layers: Layer[]): { layer: Layer; depth: number; raw: string } | null {
+export function firstRefusal(layers: Layer[]): Refusal | null {
   for (const l of layers) {
     if (l.spt?.refusal) return { layer: l, depth: l.spt.depth, raw: l.spt.raw };
   }
   return null;
+}
+
+/**
+ * Where the R marker sits, in metres. A stated test depth places it exactly; without one it sits in
+ * the middle of its layer as a position only, and `stated` is false so nothing prints that depth.
+ */
+export function refusalMarkerDepth(r: Refusal): { at: number; stated: boolean } {
+  return r.depth != null ? { at: r.depth, stated: true } : { at: (r.layer.from + r.layer.to) / 2, stated: false };
 }

@@ -1,0 +1,40 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "array:ValuePatch",
+  "example": [
+    {
+      "path": "metadata.borehole_depth_m",
+      "action": "set_state",
+      "state": "ok",
+      "if_revision": 4
+    },
+    {
+      "path": "metadata.borehole_depth_m",
+      "action": "edit",
+      "value": 15.6,
+      "if_revision": 5
+    },
+    {
+      "path": "metadata.borehole_id",
+      "action": "edit",
+      "value": "0007",
+      "if_revision": 6
+    },
+    {
+      "path": "metadata.borehole_depth_m",
+      "action": "approve",
+      "if_revision": 7
+    },
+    {
+      "path": "stratigraphy[1].english_lithology",
+      "action": "flag",
+      "reason": "Colour unclear on the scan",
+      "if_revision": 8
+    },
+    {
+      "path": "stratigraphy[1].english_lithology",
+      "action": "reset",
+      "if_revision": 9
+    }
+  ]
+}

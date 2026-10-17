@@ -1,8 +1,9 @@
 /**
- * TS mirror of the colours that are computed at runtime (pins, chips, badges, page types,
- * profile fills). Static styling lives in CSS modules + src/styles/tokens.css.
+ * TS mirror of the colours that are computed at runtime (pins, chips, badges, page types).
+ * Static styling lives in CSS modules + src/styles/tokens.css.
  */
-import type { BoreholeStatus, Method, PageType, PatternId } from './domain/types';
+import { PAGE_ROLE_LABELS } from './domain/pages';
+import type { BoreholeStatus, DocumentPage, Method, PageType } from './domain/types';
 
 /** Core palette (same names as the prototype's COL, plus text tones used in computed styles). */
 export const COL = {
@@ -34,60 +35,64 @@ export const METHOD_COLORS: Record<Method, { bg: string; fg: string }> = {
   Edited: { bg: '#E4E4E4', fg: '#181818' },
 };
 
-/** Fill of the stratigraphy column per stratigraphy code. Unknown codes use STRAT_FALLBACK. */
-export const STRAT_COLORS: Record<string, string> = {
-  qh: '#FFF3C4',
-  y: '#E0E0E0',
-  qp: '#FBE3A8',
-  kmS: '#EBC2A6',
-  qw: '#FFF0B3',
-  tm: '#D7E8F5',
-  kro: '#DCEBC8',
-};
-export const STRAT_FALLBACK = '#EEEEEE';
+/** A page swatch: its name, its CSS background (a colour, or the hatch below) and its border colour. */
+export interface PageMeta { name: string; color: string; border: string }
 
-/** Pastel DIN 4023 fill per hatching pattern (the hatching itself is drawn on top). */
-export const PATTERN_FILLS: Record<PatternId, string> = {
-  topsoil: '#E8D9C4',
-  fill: '#EFEFEF',
-  clay: '#DCD2EA',
-  silt: '#E1EAB8',
-  gravel: '#FFFACD',
-  sst: '#FFD08A',
-  sand: '#FFF5B0',
-  lst: '#B7D7F0',
-  marl: '#D9E3C4',
+/**
+ * Page-type legend: display name, swatch colour and border. Usage text comes from domain/pages.ts.
+ * `unknown` is the white swatch of a page the backend hasn't classified yet (see pageMeta).
+ */
+export const PAGE_TYPE_META: Record<PageType, PageMeta> = {
+  log: { name: 'log', color: '#003E25', border: '#003E25' },
+  lab_table: { name: 'lab table', color: '#6E8FB5', border: '#6E8FB5' },
+  text: { name: 'text', color: '#C9C9C8', border: '#C9C9C8' },
+  drawing: { name: 'drawing', color: '#C9A36B', border: '#C9A36B' },
+  photo: { name: 'photo', color: '#6F6F6E', border: '#6F6F6E' },
+  unknown: { name: 'not classified yet', color: '#FFFFFF', border: '#C9C9C8' },
 };
 
-/** Page-type legend: display name, swatch colour, border and default usage note. */
-export const PAGE_TYPE_META: Record<PageType, { name: string; color: string; border: string; usage: string }> = {
-  log: { name: 'log', color: '#003E25', border: '#003E25', usage: 'used: borehole log' },
-  lab_table: { name: 'lab table', color: '#6E8FB5', border: '#6E8FB5', usage: 'unused: lab table (roadmap)' },
-  text: { name: 'text', color: '#C9C9C8', border: '#C9C9C8', usage: 'unused: text' },
-  drawing: { name: 'drawing', color: '#C9A36B', border: '#C9A36B', usage: 'unused: drawing' },
-  photo: { name: 'photo', color: '#6F6F6E', border: '#6F6F6E', usage: 'unused: photo' },
-  unknown: { name: 'not classified yet', color: '#FFFFFF', border: '#C9C9C8', usage: 'not classified yet' },
+/**
+ * A page the backend classified without a type (blank, duplicate …): a neutral grey hatch with a
+ * darker border. It stays distinct from the plain white of a page not classified yet and from the
+ * text grey, also when drawn faded as an unused page.
+ */
+export const CLASSIFIED_UNKNOWN_PAGE: PageMeta = {
+  name: 'type unknown',
+  color: 'repeating-linear-gradient(135deg, #FFFFFF 0 2px, #868685 2px 3px)',
+  border: '#868685',
 };
 
-/** Page types shown in the queue legend, in prototype order. */
-export const PAGE_TYPE_LEGEND: PageType[] = ['log', 'lab_table', 'text', 'drawing', 'photo'];
-
-/** Usage note for a page: the first two text pages carry the project metadata. */
-export function pageUsage(type: PageType, page: number): string {
-  if (type === 'text' && page <= 2) return 'used: project metadata';
-  return PAGE_TYPE_META[type].usage;
+/**
+ * Name and swatch of one document page. A page not classified yet is white; a classified page of
+ * unknown type is the neutral grey, named by its role ("duplicate page", "blank page") when it has one.
+ */
+export function pageMeta(p: Pick<DocumentPage, 'type' | 'role' | 'classified'>): PageMeta {
+  if (!p.classified) return PAGE_TYPE_META.unknown;
+  if (p.type !== 'unknown') return PAGE_TYPE_META[p.type];
+  return p.role ? { ...CLASSIFIED_UNKNOWN_PAGE, name: PAGE_ROLE_LABELS[p.role] } : CLASSIFIED_UNKNOWN_PAGE;
 }
 
-/** Review status chip label and colours. */
+/** Swatches of the queue legend, in prototype order, then the classified page without a type and the unclassified one. */
+export const PAGE_LEGEND: PageMeta[] = [
+  ...(['log', 'lab_table', 'text', 'drawing', 'photo'] as const).map((t) => PAGE_TYPE_META[t]),
+  CLASSIFIED_UNKNOWN_PAGE,
+  PAGE_TYPE_META.unknown,
+];
+
+/**
+ * Status chip label and colours: approved green, unreviewed and in review grey (each with its own
+ * label), attention amber.
+ */
 export function statusChip(s: BoreholeStatus): { label: string; bg: string; fg: string } {
-  if (s === 'reviewed') return { label: 'Reviewed', bg: COL.greenBg, fg: COL.greenText };
+  if (s === 'approved') return { label: 'Approved', bg: COL.greenBg, fg: COL.greenText };
   if (s === 'attention') return { label: 'Needs attention', bg: COL.amberBg, fg: COL.amberText };
+  if (s === 'in_review') return { label: 'In review', bg: COL.line, fg: COL.muted };
   return { label: 'Unreviewed', bg: COL.line, fg: COL.muted };
 }
 
-/** Map pin colour by review status: green = reviewed, amber = attention, grey = unreviewed. */
+/** Map pin colour by status: green = approved, amber = attention, grey = unreviewed or in review. */
 export function pinColor(s: BoreholeStatus): string {
-  if (s === 'reviewed') return COL.green;
+  if (s === 'approved') return COL.green;
   if (s === 'attention') return COL.amber;
   return COL.grey;
 }

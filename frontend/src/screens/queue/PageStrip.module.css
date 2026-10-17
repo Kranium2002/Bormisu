@@ -29,6 +29,11 @@
   cursor: default;
 }
 
+/* Classified but not used for extraction (cover, narrative, duplicate …). */
+.unused {
+  opacity: 0.45;
+}
+
 /* The page currently shown in the Source panel. */
 .current {
   outline: 2px solid var(--c-dark);

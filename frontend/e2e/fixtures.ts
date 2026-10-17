@@ -1,5 +1,5 @@
 /**
- * Shared Playwright fixtures for the sample-mode smoke tests:
+ * Shared Playwright fixtures for the sample-mode smoke tests (fictional sample data only):
  * - OSM tiles are answered with a blank PNG, so the tests run offline and fast.
  * - Console errors and page errors are collected and must be empty at the end of every test.
  */
@@ -10,6 +10,9 @@ const BLANK_TILE = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC',
   'base64',
 );
+
+/** The product name the app shows (VITE_APP_NAME, default as in src/config.ts). */
+export const APP_NAME = process.env.VITE_APP_NAME?.trim() || 'Bormisu';
 
 export const test = base.extend<{ errors: string[] }>({
   errors: [
@@ -51,6 +54,17 @@ export const pinFills = (page: Page) => pins(page).evaluateAll((ps) => ps.map((p
 
 export const AMBER = '#E39B00';
 
-/** The count shown in one row of the REVIEW STATUS legend. */
-export const legendCount = (page: Page, status: 'reviewed' | 'unreviewed' | 'attention') =>
+export type LegendStatus = 'approved' | 'in_review' | 'unreviewed' | 'attention';
+
+/** The count shown in one row of the status legend. */
+export const legendCount = (page: Page, status: LegendStatus) =>
   page.getByRole('group', { name: 'Review status legend' }).locator(`li[data-status="${status}"] span`).last();
+
+/** The count of one legend row as a number. */
+export async function legendNumber(page: Page, status: LegendStatus): Promise<number> {
+  return Number(await legendCount(page, status).textContent());
+}
+
+/** A RESULTS row by its borehole ID as printed (uids are opaque). */
+export const resultRow = (page: Page, id: string) =>
+  page.locator('[role="table"] [role="row"][data-uid]').filter({ has: page.getByText(id, { exact: true }) }).first();

@@ -1,0 +1,35 @@
+# Build context filter for frontend/Dockerfile (BuildKit reads <Dockerfile>.dockerignore next to it).
+# The context is the repository root, but the image needs only frontend/ and the DIN 4023 assets:
+# everything else is left out first, then those two are let back in.
+*
+!frontend/
+!assets/din4023_patterns/
+
+# Never sent, even from inside the folders above.
+**/.git
+**/node_modules
+**/dist
+**/dist-*
+**/test-results
+**/playwright-report
+**/blob-report
+**/coverage
+**/.vite
+**/*.tsbuildinfo
+**/*.log
+frontend/docs/
+
+# Env files (also .env.sample and .env.local): a stray frontend/.env must never switch the build to
+# sample mode or carry a value into the image. The Dockerfile sets the build's env itself.
+**/.env
+**/.env.*
+
+# Data, uploads and runtime folders: never part of an image (already outside the folders above,
+# listed so a wider rule later cannot let them in).
+backend/
+local/
+storage/
+uploads/
+HKBoreholeChallenge*
+**/HKBoreholeChallenge*
+**/*.zip

@@ -11,8 +11,13 @@
   cursor: pointer;
 }
 
-.icon:hover {
+.icon:hover:not(:disabled) {
   background: var(--c-line);
+}
+
+/* Nothing to open (e.g. a value the source doesn't state): shown faded, not clickable. */
+.icon:disabled {
+  cursor: default;
 }
 
 .dim {

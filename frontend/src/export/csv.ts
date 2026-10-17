@@ -1,10 +1,15 @@
 /** Tidy CSV (one row per value) and the open-questions CSV (the client RFI list), as in the prototype. */
-import type { Borehole, DocumentSummary } from '../domain/types';
+import type { Borehole, DocumentSummary, ExtractedValue } from '../domain/types';
 import { exportId, isExported, type Cell, type ExportOptions } from './standardXlsx';
 
+/** Where a value is in its source: the page, the spreadsheet cell, or null. */
+const whereOf = (v: ExtractedValue): Cell => v.page ?? v.cell ?? null;
+
 /**
- * One row per exported value. Values that aren't "ok" (not in source, illegible) have a blank value.
- * The borehole column is the same ID the xlsx export uses (a corrected BoreholeID once approved).
+ * One row per exported value (every field the source states, samples and test results included).
+ * Values that aren't "ok" (not in source, illegible) have a blank value. The borehole column is the
+ * same ID the xlsx export uses (a corrected BoreholeID once approved). The page column holds the
+ * spreadsheet cell ("Sheet!C5") for a spreadsheet value.
  */
 export function tidyRows(boreholes: Borehole[], o: ExportOptions): Cell[][] {
   const rows: Cell[][] = [['borehole', 'field', 'layer', 'raw', 'value', 'unit', 'page', 'method', 'status', 'state']];
@@ -12,7 +17,7 @@ export function tidyRows(boreholes: Borehole[], o: ExportOptions): Cell[][] {
     const id = exportId(b, o);
     for (const v of b.values) {
       if (!isExported(v, o)) continue;
-      rows.push([id, v.label, v.layer ?? '', v.raw, v.state === 'ok' ? v.value : '', v.unit, v.page, v.method, v.status, v.state]);
+      rows.push([id, v.label, v.layer ?? '', v.raw, v.state === 'ok' ? v.value : '', v.unit, whereOf(v), v.method, v.status, v.state]);
     }
   }
   return rows;
@@ -20,7 +25,8 @@ export function tidyRows(boreholes: Borehole[], o: ExportOptions): Cell[][] {
 
 /**
  * Questions for the client: missing borehole IDs, CRS not stated or unknown, lint findings,
- * flags and illegible values.
+ * flags and illegible values. The page column stays blank where the source names no page
+ * (a borehole read from a spreadsheet has none).
  */
 export function openQuestionRows(
   boreholes: Borehole[],
@@ -33,19 +39,22 @@ export function openQuestionRows(
   }
   const inferred = boreholes.find((b) => b.crs.status === 'inferred');
   if (inferred) {
-    const crsPage = inferred.values.find((v) => v.kind === 'crs')?.page ?? inferred.primaryPage;
+    // The CRS value's page or cell, else the borehole's first page; blank for a borehole without pages.
+    const crs = inferred.values.find((v) => v.kind === 'crs');
     const guess = inferred.crs.name ? ` (we infer ${inferred.crs.name})` : '';
-    rows.push(['all', crsPage, `Coordinate system not stated. Please confirm${guess}.`]);
+    rows.push(['all', (crs && whereOf(crs)) ?? inferred.primaryPage, `Coordinate system not stated. Please confirm${guess}.`]);
   }
   for (const b of boreholes) {
     const id = exportId(b, o);
     if (b.crs.status === 'unknown') {
-      rows.push([id, b.primaryPage, 'Coordinate system unknown (local grid). Please supply the transformation.']);
+      rows.push([id, b.primaryPage, 'Coordinate system unknown. Please supply it, or the transformation to a known one.']);
     }
     for (const v of b.values) {
-      if (v.lint) rows.push([id, v.page, v.lint.message]);
-      if (v.flag) rows.push([id, v.page, `${v.label}: ${v.flag}`]);
-      if (v.state === 'illegible') rows.push([id, v.page, `${v.label} is illegible in the scan.`]);
+      const where = whereOf(v);
+      // A lint the app added itself (SPT increments) doesn't name its value: the question does.
+      if (v.lint) rows.push([id, where, v.lint.client ? `${v.label}: ${v.lint.message}` : v.lint.message]);
+      if (v.flag) rows.push([id, where, `${v.label}: ${v.flag}`]);
+      if (v.state === 'illegible') rows.push([id, where, `${v.label} is illegible in the source.`]);
     }
   }
   return rows;

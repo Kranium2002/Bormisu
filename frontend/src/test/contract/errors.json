@@ -1,0 +1,71 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "array:Error",
+  "example": [
+    {
+      "detail": "Request body is not valid.",
+      "code": "validation_error",
+      "errors": [
+        {
+          "loc": [
+            "body",
+            "path"
+          ],
+          "msg": "Field required"
+        }
+      ]
+    },
+    {
+      "detail": "No such endpoint.",
+      "code": "route_not_found"
+    },
+    {
+      "detail": "Document not found.",
+      "code": "document_not_found"
+    },
+    {
+      "detail": "Page not found.",
+      "code": "page_not_found"
+    },
+    {
+      "detail": "Borehole not found.",
+      "code": "borehole_not_found"
+    },
+    {
+      "detail": "Unknown value path.",
+      "code": "path_not_found"
+    },
+    {
+      "detail": "demo_mode",
+      "code": "demo_mode"
+    },
+    {
+      "detail": "The file is larger than 200 MB.",
+      "code": "too_large"
+    },
+    {
+      "detail": "This file type is not supported.",
+      "code": "unsupported_type"
+    },
+    {
+      "detail": "Only failed documents can be retried.",
+      "code": "not_failed"
+    },
+    {
+      "detail": "The record changed since you loaded it.",
+      "code": "revision_conflict"
+    },
+    {
+      "detail": "The value could not be read as a number.",
+      "code": "unparseable_value"
+    },
+    {
+      "detail": "This coordinate system cannot place the boreholes.",
+      "code": "crs_invalid"
+    },
+    {
+      "detail": "Something went wrong on the server.",
+      "code": "internal_error"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ export interface FieldDef {
   unit: string;
   note?: string;
   /** Log-data fields that are filled from a layer property rather than from an extracted value. */
-  layerProp?: keyof Pick<Layer, 'strat' | 'din'>;
+  layerProp?: keyof Pick<Layer, 'din'>;
 }
 
 export type SectionId = 'metadata' | 'logdata' | 'testResults';
@@ -46,7 +46,7 @@ const METADATA = [
 ] as const satisfies readonly FieldDef[];
 
 const LOGDATA = [
-  { name: 'StratigraphicName', format: 'alphanumeric', unit: '-', layerProp: 'strat' },
+  { name: 'StratigraphicName', format: 'alphanumeric', unit: '-' },
   { name: 'EngineeringSoilUnit', format: 'alphanumeric', unit: '-' },
   { name: 'GeologicAge', format: 'alphanumeric', unit: '-' },
   { name: 'Lithology/SoilName', format: 'alphanumeric', unit: '-' },
@@ -119,6 +119,19 @@ export const EXTRA_FIELDS = {
   depthTo: 'DepthTo',
   drillingMethod: 'DrillingMethod',
   rockHead: 'RockHead',
+  drillingDate: 'DrillingDate',
+  country: 'Country',
+  client: 'Client',
+  contractor: 'DrillingContractor',
+  elevationDatum: 'ElevationDatum',
+  depthOrigin: 'DepthOrigin',
+  inclination: 'Inclination',
+  casing: 'Casing',
+  colour: 'Colour',
+  consistency: 'Consistency',
+  moisture: 'Moisture',
+  weathering: 'Weathering',
+  sampleDepthTo: 'SampleDepthTo',
 } as const;
 
 /** Any name allowed in ExtractedValue.field. */

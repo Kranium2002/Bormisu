@@ -1,9 +1,12 @@
-import { expect, nav, test } from './fixtures';
+import { APP_NAME, expect, nav, test } from './fixtures';
 
 // Console errors fail the test via the shared fixture.
 test('shell renders in sample mode without console errors', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('BORMISU', { exact: true })).toBeVisible();
+  // The header shows the configured product name (upper case by CSS) and a tagline without a customer name.
+  const banner = page.getByRole('banner');
+  await expect(banner.getByText(APP_NAME, { exact: true })).toBeVisible();
+  await expect(banner.getByText('Borehole Intelligence', { exact: true })).toBeVisible();
   await expect(page.getByText('Demo mode: fictional sample loaded. Live extraction needs an API key.')).toBeVisible();
   const main = page.getByRole('navigation', { name: 'Main' });
   await expect(main.getByRole('button', { name: /^UPLOAD & QUEUE/ })).toContainText('1');
@@ -22,4 +25,21 @@ test('shell renders in sample mode without console errors', async ({ page }) => 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Completeness' })).toHaveCount(0);
   await expect(page.getByText('Demo mode: fictional sample loaded.', { exact: false })).toBeVisible();
+});
+
+test('your name is kept in this browser and can be cleared', async ({ page }) => {
+  await page.goto('/');
+  const button = page.getByRole('banner').getByRole('button', { name: 'YOUR NAME' });
+  await button.click();
+  const form = page.getByRole('dialog', { name: 'Your name' });
+  await form.getByLabel('YOUR NAME').fill('A. Reviewer (fictional)');
+  await form.getByRole('button', { name: 'SAVE' }).click();
+  await expect(page.getByRole('banner').getByRole('button', { name: 'A. Reviewer (fictional)' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('bormisu.reviewerName'))).toBe('A. Reviewer (fictional)');
+
+  await page.reload();
+  await page.getByRole('banner').getByRole('button', { name: 'A. Reviewer (fictional)' }).click();
+  await page.getByRole('dialog', { name: 'Your name' }).getByRole('button', { name: 'Clear name' }).click();
+  await expect(page.getByRole('banner').getByRole('button', { name: 'YOUR NAME' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('bormisu.reviewerName'))).toBeNull();
 });
