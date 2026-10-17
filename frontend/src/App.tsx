@@ -7,14 +7,17 @@ import { SidePanel } from './components/SidePanel';
 import { Toast } from './components/Toast';
 import type { Screen } from './domain/types';
 import { DetailScreen } from './screens/detail/DetailScreen';
+import { ListScreen } from './screens/map/ListScreen';
 import { MapScreen } from './screens/map/MapScreen';
 import { QueueScreen } from './screens/queue/QueueScreen';
 import { CrsDialog } from './screens/review/CrsDialog';
 import { ReviewScreen } from './screens/review/ReviewScreen';
 import { useAppStore } from './store/appStore';
+import { syncBrowserHistory } from './store/history';
 
 const SCREENS: Record<Screen, ComponentType> = {
   map: MapScreen,
+  list: ListScreen,
   queue: QueueScreen,
   review: ReviewScreen,
   detail: DetailScreen,
@@ -52,6 +55,9 @@ export function App() {
   useEffect(() => {
     void init();
   }, [init]);
+
+  // Browser back / forward step through the app's screens.
+  useEffect(() => syncBrowserHistory(), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

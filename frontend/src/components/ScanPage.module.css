@@ -91,8 +91,8 @@ button.box:focus-visible {
 }
 
 .focus {
-  border: 3px solid var(--c-green);
-  background: color-mix(in srgb, var(--c-green) 16%, transparent);
+  border: 3px solid var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
 }
 
 .flagged {
@@ -112,7 +112,7 @@ button.box:focus-visible {
 }
 
 .highlight {
-  border: 3px solid var(--c-green);
-  background: color-mix(in srgb, var(--c-green) 16%, transparent);
+  border: 3px solid var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
   box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.12);
 }

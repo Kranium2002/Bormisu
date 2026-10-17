@@ -17,7 +17,7 @@
 
 .focused {
   background: var(--c-selected);
-  box-shadow: inset 3px 0 0 var(--c-green);
+  box-shadow: inset 3px 0 0 var(--c-accent);
 }
 
 .labelCell {
@@ -289,7 +289,7 @@
   transform: translateY(1px);
 }
 
-/* approved: green fill with dark-green text (never white on green) */
+/* approved: status green with white text (5.3:1) */
 .actApproved,
 .actApproved:hover {
   background: var(--c-green);

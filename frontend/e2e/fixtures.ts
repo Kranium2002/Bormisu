@@ -31,14 +31,14 @@ export const test = base.extend<{ errors: string[] }>({
 
 export { expect };
 
-/** Opens the app (optionally with a query, e.g. '?focus=DE') and waits for the sample data to load (map screen). */
+/** Opens the app (optionally with a query) and waits for the sample data to load (map screen). */
 export async function openApp(page: Page, query = ''): Promise<void> {
   await page.goto(`/${query}`);
-  await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Review status legend' }).locator('li[data-status="reviewed"]')).toBeVisible();
 }
 
 /** Goes to one of the three main screens through the header nav. */
-export async function nav(page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
+export async function nav(page: Page, name: 'MAP' | 'LIST' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: new RegExp(`^${name}`) }).click();
 }
 
@@ -49,31 +49,6 @@ export const pins = (page: Page) => page.locator('.leaflet-overlay-pane path.lea
 export const pinFills = (page: Page) => pins(page).evaluateAll((ps) => ps.map((p) => p.getAttribute('fill')));
 
 export const AMBER = '#E39B00';
-
-/** The map focus dropdown (MAP FOCUS). */
-export const focusSelect = (page: Page) => page.getByLabel('MAP FOCUS');
-
-/** Picks a focus in the dropdown, e.g. 'DE' or 'world', and waits until the map shows it. */
-export async function chooseFocus(page: Page, value: string): Promise<void> {
-  await focusSelect(page).selectOption(value);
-  await expect(page).toHaveURL(new RegExp(`[?&]focus=${value}(&|#|$)`));
-}
-
-/**
- * Test-only: moves one fictional sample project (by ID prefix, e.g. "RB-") to another position by
- * patching the sample generator module as the dev server serves it; src/sample/ stays untouched.
- * The tests use it to put boreholes where no country is (offshore). Call before openApp().
- */
-export async function moveSampleProject(page: Page, prefix: string, lat: number, lng: number): Promise<void> {
-  await page.route(/\/src\/sample\/generate\.ts(\?.*)?$/, async (route) => {
-    const response = await route.fetch();
-    const p = JSON.stringify(prefix);
-    const patch =
-      `\n;{ const p = PROJECTS.find((x) => x.pre === ${p});` +
-      ` if (!p) throw new Error('e2e: no sample project ' + ${p}); p.lat = ${lat}; p.lng = ${lng}; }\n`;
-    await route.fulfill({ response, body: (await response.text()) + patch });
-  });
-}
 
 /** The count shown in one row of the REVIEW STATUS legend. */
 export const legendCount = (page: Page, status: 'reviewed' | 'unreviewed' | 'attention') =>

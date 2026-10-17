@@ -5,7 +5,7 @@ import { K } from '../../domain/keys';
 import { applyValuePatch } from '../../domain/review';
 import type { Borehole } from '../../domain/types';
 import { makeBorehole, makeLayer, makeValue } from '../../test/fixtures';
-import { ProfileColumn, ProfileLegend } from './ProfileColumn';
+import { ProfileColumn } from './ProfileColumn';
 import { isStated } from './profileGeometry';
 
 const refusal = { raw: '50/30', depth: 4, refusal: true, blows: 50, penetrationCm: 30 };
@@ -81,46 +81,6 @@ describe('ProfileColumn', () => {
 });
 
 // X07: the legend explained symbols the profile didn't draw.
-describe('ProfileLegend', () => {
-  const legend = (b: Borehole) => renderToStaticMarkup(<ProfileLegend borehole={b} selectedLayer={1} />);
-
-  it('explains every symbol, fill and line the profile draws', () => {
-    const html = legend(borehole());
-    for (const text of ['S · sand', 'qh · stratigraphic unit', 'groundwater strike', 'rock head',
-      'SPT refusal: click for source', 'selected layer', 'final depth (Endteufe)']) {
-      expect(html).toContain(text);
-    }
-    expect(html).not.toContain('groundwater rest level');
-  });
-
-  it('names secondary components and DIN 4023 extras', () => {
-    const b = makeBorehole({ layers: [makeLayer({ n: 1, from: 0, to: 3, din: 'T, u', props: { consistencyDensity: 'steif', core: true } })] });
-    const html = legend(b);
-    for (const text of ['T · clay', 'u · silty (secondary, right half)', 'firm', 'cored section']) expect(html).toContain(text);
-  });
-
-  it('leaves out the SPT refusal for a borehole without one', () => {
-    const b = borehole();
-    const html = legend({ ...b, layers: b.layers.map((l) => ({ ...l, spt: undefined })) });
-    expect(html).toContain('groundwater strike');
-    expect(html).not.toContain('SPT refusal');
-  });
-
-  it('names each groundwater symbol after its reading', () => {
-    const b = borehole();
-    const groundwater = [...b.groundwater, { type: 'rest' as const, depth: 1.2, key: K.gwRest }];
-    expect(legend({ ...b, groundwater })).toContain('groundwater rest level');
-  });
-
-  it('leaves out marks the reviewer took out of the profile', () => {
-    const b = applyValuePatch(borehole(), K.spt(2), { state: 'not in source', status: 'approved' });
-    const html = legend({ ...b, groundwater: [] });
-    expect(html).not.toContain('groundwater');
-    expect(html).not.toContain('SPT refusal');
-    expect(html).toContain('final depth (Endteufe)');
-  });
-});
-
 describe('isStated', () => {
   it('is true without a value, and for a value in state ok only', () => {
     const b = borehole();

@@ -4,6 +4,7 @@
  */
 import { K } from '../domain/keys';
 import { formatSpt, sptLint } from '../domain/spt';
+import { testResultFromApi } from '../domain/testResults';
 import type {
   Borehole,
   Box,
@@ -89,6 +90,8 @@ export interface ApiBoreholeRecord {
   stratigraphy?: ApiLayer[] | null;
   groundwater?: { type: string; depth_m: number | null; date?: string | null }[] | null;
   geotechnical_tests?: { water_table_m?: number | null } | null;
+  /** One entry per sample (API contract §5.5). */
+  test_results?: Record<string, unknown>[] | null;
   provenance?: Record<string, ApiProvenance> | null;
   lint?: { path: string; rule?: string; severity: 'warning' | 'error'; message: string }[] | null;
 }
@@ -385,6 +388,7 @@ export function adaptBorehole(rec: ApiBoreholeRecord): AdaptedBorehole {
       },
       layers,
       groundwater,
+      ...(rec.test_results?.length ? { testResults: rec.test_results.map(testResultFromApi) } : {}),
       rockHead,
       values,
       primaryPage: firstPage,

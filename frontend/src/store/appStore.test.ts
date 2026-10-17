@@ -131,7 +131,7 @@ describe('search', () => {
   it('explains boreholes that are not on the map', () => {
     useAppStore.setState({ query: 'TB-02' });
     st().search();
-    expect(st().searchMessage).toBe('TB-02: No coordinates in source. Listed under Not on map.');
+    expect(st().searchMessage).toBe('TB-02: No coordinates in source. Shown in LIST as not on map.');
   });
 
   it('reports no results', () => {
@@ -142,7 +142,7 @@ describe('search', () => {
 
   it('showNotOnMap explains a search target the map could not place after all', () => {
     st().showNotOnMap('TB-09', 'No usable coordinates');
-    expect(st().searchMessage).toBe('TB-09: No usable coordinates. Listed under Not on map.');
+    expect(st().searchMessage).toBe('TB-09: No usable coordinates. Shown in LIST as not on map.');
   });
 });
 

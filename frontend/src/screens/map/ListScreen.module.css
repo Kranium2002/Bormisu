@@ -1,0 +1,7 @@
+/* The table over the whole screen; it scrolls, its header sticks to the top. */
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--c-surface);
+}

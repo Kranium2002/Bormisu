@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layerFill, MISSING_PATTERN, patternDefs, propertySymbols } from './dinPatterns';
+import { explainLayer, explainProperty, layerFill, MISSING_PATTERN, patternDefs, propertySymbols } from './dinPatterns';
 
 const layer = (din: string, lithology = '', pattern = 'sand' as const) => ({ din, lithology, pattern });
 const ids = (din: string) => layerFill(layer(din)).map((f) => f.patternId);
@@ -50,4 +50,16 @@ it('patternDefs embeds each used pattern once', () => {
   const defs = patternDefs(['din-soil_T', 'din-soil_T', 'din-sym-soil_U', null]);
   expect(defs.match(/<pattern /g)).toHaveLength(2);
   expect(defs).toContain('id="din-sym-soil_U"');
+});
+
+describe('explanations shown on click', () => {
+  it('says what the lithology fill shows', () => {
+    expect(explainLayer(layer('T, u'))).toBe('T · clay; u · silty, symbol in the right half');
+    expect(explainLayer(layer('Clay'))).toBe('No DIN 4023 pattern for "Clay": drawn red.');
+    expect(explainLayer(layer(''))).toBe('No lithology in the source: plain grey.');
+    expect(explainLayer({ din: '', lithology: 'silty clay', pattern: 'clay' })).toContain('guessed from the description');
+  });
+  it('names the Table 6 group of a symbol', () => {
+    expect(explainProperty(propertySymbols({ consistencyDensity: 'steif' })[0])).toBe('consistency: firm (DIN 4023 Table 6)');
+  });
 });

@@ -1,0 +1,37 @@
+.cols {
+  grid-template-columns: 110px 90px 90px minmax(0, 1fr);
+}
+
+.header {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  color: var(--c-muted);
+  background: var(--c-line);
+}
+
+.cell {
+  padding: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+
+.name {
+  font-weight: 700;
+}
+
+/* "soil" / "water" after the sample name */
+.type {
+  margin-left: var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+
+.value {
+  white-space: nowrap;
+}

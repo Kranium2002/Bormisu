@@ -31,7 +31,7 @@
 
 .drag,
 .drag:hover {
-  border-color: var(--c-green);
+  border-color: var(--c-accent);
   background: var(--c-drop);
 }
 

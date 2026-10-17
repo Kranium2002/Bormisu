@@ -1,41 +1,24 @@
 .results {
-  grid-column: 1 / span 2;
-  border-top: 1px solid var(--c-border);
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  flex: none;
   background: var(--c-surface);
 }
 
-.head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-5) var(--space-2);
-}
 
-.title {
-  margin: 0;
-  font: 800 var(--fs-sm) var(--font-sans);
-  letter-spacing: var(--ls-head);
-}
 
-.summary {
-  font-size: var(--fs-sm);
-  color: var(--c-muted);
-}
 
-/* The column header sits inside the scroll box (sticky), so it lines up with the rows even when a
-   scrollbar takes width. Its negative margin stretches the grey band over the box padding. */
+
+
+
+/* No own scroll box: the LIST screen scrolls, the header sticks to its top. Its negative margin
+   stretches the grey band over the box padding. */
 .scroll {
-  overflow: auto;
-  flex: 1;
   padding: 0 var(--space-3);
 }
 
 .row {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1.3fr) 110px 150px minmax(0, 1fr) 130px;
+  display: grid; /* columns: inline style, they depend on the chosen columns */
   align-items: center;
 }
 
@@ -75,6 +58,45 @@
   background: var(--c-hover);
 }
 
+/* The row a search points to. */
+.active,
+.active:hover {
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-text);
+}
+
+
+
+/* STATUS: the review chip, and NOT ON MAP with its reason under it. */
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+/* "NOT ON MAP": red for missing coordinates, amber when the CRS is the problem. */
+.notOnMap {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px var(--space-2);
+  border-radius: 3px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  background: var(--c-red-bg);
+  color: var(--c-red);
+}
+
+.notOnMapWarn {
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+}
+
+
+
 .id {
   font-family: var(--font-mono);
   font-weight: 600;
@@ -107,28 +129,76 @@
   color: var(--c-muted);
 }
 
-.focus {
-  color: var(--c-dark);
-}
-
-/* Boreholes outside the focus country: one line under the table, always visible, with SHOW WORLD. */
-.footer {
+/* × after an optional column's name; + at the end of the header row adds one. */
+.optionalHead {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-5);
-  border-top: 1px solid var(--c-border);
-  font-size: var(--fs-sm);
-  font-weight: 700;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.removeColumn {
+  composes: quiet from '../../styles/buttons.module.css';
+  padding: 0 var(--space-1);
+  font-size: var(--fs-md);
+  line-height: 1;
+  color: var(--c-faint);
+}
+
+.removeColumn:hover {
+  color: var(--c-text);
+}
+
+.addCell {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.addMenu {
+  position: relative;
+}
+
+.addButton {
+  list-style: none;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 4px;
   background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-md);
+  font-weight: 700;
 }
 
-.footerDetail {
-  font-weight: 400;
-  color: var(--c-muted);
+.addButton::-webkit-details-marker {
+  display: none;
 }
 
-.showWorld {
-  composes: quiet link from '../../styles/buttons.module.css';
-  margin-left: auto;
+.addList {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 2;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  min-width: 170px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.addItem {
+  composes: quiet from '../../styles/buttons.module.css';
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+}
+
+.addItem:hover {
+  background: var(--c-hover);
 }

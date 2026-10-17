@@ -5,7 +5,7 @@
   bottom: var(--space-5);
   transform: none;
   background: var(--c-dark);
-  border-left: 3px solid var(--c-gold);
+  border-left: 3px solid var(--c-on-dark-accent);
   color: var(--c-surface);
   font-size: var(--fs-md);
   padding: var(--space-3) var(--space-4);

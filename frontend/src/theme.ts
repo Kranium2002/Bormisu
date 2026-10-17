@@ -6,23 +6,24 @@ import type { BoreholeStatus, Method, PageType, PatternId } from './domain/types
 
 /** Core palette (same names as the prototype's COL, plus text tones used in computed styles). */
 export const COL = {
-  green: '#8B5A3C', // cocoa (= --c-green)
-  dark: '#3B2418', // espresso
+  green: '#1E7B34', // status green (= --c-green)
+  dark: '#111111',
+  accent: '#111111', // UI accent (= --c-accent): selection
   amber: '#E39B00',
   red: '#C8102E',
   grey: '#A3A3A2',
   gw: '#1F5FA8',
-  text: '#2A1D16',
-  muted: '#5C4B40',
-  faint: '#72625A', // = --c-faint: lightest text tone (5.8:1 on white)
-  border: '#DDCFBE',
-  line: '#F0E6D9',
-  greenText: '#6B4226',
+  text: '#111111',
+  muted: '#555555',
+  faint: '#6B6B6B', // = --c-faint: lightest text tone (5.3:1 on white)
+  border: '#D4D4D4',
+  line: '#EEEEEE',
+  greenText: '#1A6B2D',
   amberText: '#8A5300',
-  greenBg: '#EFDFCC',
+  greenBg: '#E3F4E6',
   amberBg: '#FFEFCC',
   redBg: '#FDE7EA',
-  selected: '#F6ECDF',
+  selected: '#F0F0F0',
 } as const;
 
 /** Method badge colours. None of them is green: green must never imply "correct". */
@@ -61,7 +62,7 @@ export const PATTERN_FILLS: Record<PatternId, string> = {
 
 /** Page-type legend: display name, swatch colour, border and default usage note. */
 export const PAGE_TYPE_META: Record<PageType, { name: string; color: string; border: string; usage: string }> = {
-  log: { name: 'log', color: '#3B2418', border: '#3B2418', usage: 'used: borehole log' },
+  log: { name: 'log', color: '#111111', border: '#111111', usage: 'used: borehole log' },
   lab_table: { name: 'lab table', color: '#6E8FB5', border: '#6E8FB5', usage: 'unused: lab table (roadmap)' },
   text: { name: 'text', color: '#C9C9C8', border: '#C9C9C8', usage: 'unused: text' },
   drawing: { name: 'drawing', color: '#C9A36B', border: '#C9A36B', usage: 'unused: drawing' },

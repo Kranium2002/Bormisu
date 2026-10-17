@@ -103,7 +103,7 @@ export function firstRefusal(layers: Layer[]): { layer: Layer; depth: number; ra
   return null;
 }
 
-/** Markers the profile draws: only measurements the source states. The legend lists the same ones. */
+/** Markers the profile draws: only measurements the source states. */
 export interface DrawnMarks {
   groundwater: GroundwaterReading[];
   rockHead: number | null;

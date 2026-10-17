@@ -21,7 +21,7 @@
 .selected,
 .selected:hover {
   background: var(--c-selected);
-  box-shadow: inset 3px 0 0 var(--c-green);
+  box-shadow: inset 3px 0 0 var(--c-accent);
 }
 
 .cell {

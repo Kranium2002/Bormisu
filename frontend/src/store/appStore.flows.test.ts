@@ -244,7 +244,7 @@ describe('search ranking', () => {
     useAppStore.setState({ query: 'TB-13' });
     st().search();
     expect(st().flyTarget).toBeNull();
-    expect(st().searchMessage).toBe('TB-13: No coordinates in the log. Listed under Not on map.');
+    expect(st().searchMessage).toBe('TB-13: No coordinates in the log. Shown in LIST as not on map.');
   });
 
   it('ignores an empty query', () => {

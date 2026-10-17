@@ -2,11 +2,12 @@ import ExcelJS from 'exceljs';
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import { EXTRA_FIELDS, section } from '../src/schema/targetFormat';
-import { expect, openApp, test } from './fixtures';
+import { expect, nav, openApp, test } from './fixtures';
 
 /** Opens BK-07 (the hand-made Neckarbogen borehole) on the detail screen. */
 async function openBk07(page: Page) {
   await openApp(page);
+  await nav(page, 'LIST');
   await page.locator('[data-uid="nb:BK-07"]').click();
   await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
 }

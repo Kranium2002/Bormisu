@@ -8,6 +8,7 @@ import { locationInfo, metadataRows } from './detailModel';
 import { LocationMap } from './LocationMap';
 import card from './cards.module.css';
 import styles from './MetadataCard.module.css';
+import { useT } from '../../i18n';
 
 interface Props {
   borehole: Borehole;
@@ -19,13 +20,14 @@ const TONE_CLASS = { muted: styles.locMuted, amber: styles.locAmber, red: styles
 /** METADATA rows (value, chips, method badge, source icon) next to the LOCATION mini map. */
 export function MetadataCard({ borehole: b, onOpenSource }: Props) {
   const rows = metadataRows(b);
+  const t = useT();
   const loc = locationInfo(b);
   const pin = b.onMap && b.lat != null && b.lng != null ? { lat: b.lat, lng: b.lng } : null;
 
   return (
     <section className={`${card.card} ${styles.grid}`} aria-label="Metadata">
       <div className={styles.meta}>
-        <div className={card.head}>METADATA</div>
+        <div className={card.head}>{t('METADATA')}</div>
         {rows.map((r) => {
           const key = r.key;
           // Numbers in the mono face; words and "not in source" stay in the sans.
@@ -50,7 +52,7 @@ export function MetadataCard({ borehole: b, onOpenSource }: Props) {
         })}
       </div>
       <div className={styles.location}>
-        <div className={card.head}>LOCATION</div>
+        <div className={card.head}>{t('LOCATION')}</div>
         {pin ? (
           <LocationMap
             lat={pin.lat}

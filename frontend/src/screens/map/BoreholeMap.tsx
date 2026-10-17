@@ -40,6 +40,7 @@ import {
 } from './focusLayers';
 import { depthText, PIN_RADIUS, popupCrsWarning, type PlottedBorehole } from './mapModel';
 import { buildPopup } from './mapPopup';
+import { smoothWheelZoom } from './smoothWheelZoom';
 
 /** Prototype timings: fly 60 ms after the request, open the popup once the 0.8 s flight is over. */
 const FLY_DELAY_MS = 60;
@@ -81,8 +82,8 @@ interface Props {
   /** The pins of the current focus. */
   boreholes: PlottedBorehole[];
   statuses: Map<string, BoreholeStatus>;
-  /** Drawn with the larger radius and on top (the borehole open in Review). */
-  highlightUid: string | null;
+  /** Drawn with the larger radius and on top (search matches, else the borehole open in Review). */
+  highlightUids: ReadonlySet<string>;
   view: MapView;
   /** Search target among `boreholes`, else null. */
   fly: FlyTarget | null;
@@ -153,7 +154,7 @@ function createControl(map: L.Map): HTMLElement {
 export function BoreholeMap({
   boreholes,
   statuses,
-  highlightUid,
+  highlightUids,
   view,
   fly,
   closePopupNonce,
@@ -179,7 +180,9 @@ export function BoreholeMap({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const map = L.map(el, { scrollWheelZoom: true, zoomSnap: 0.25, maxBoundsViscosity: 1 });
+    // Wheel zoom is our own smooth one (smoothWheelZoom); zoomSnap 0 lets it stop at any zoom.
+    const map = L.map(el, { scrollWheelZoom: false, zoomSnap: 0, maxBoundsViscosity: 1 });
+    const stopWheelZoom = smoothWheelZoom(map);
     map.setView([30, 10], 2, { animate: false }); // replaced by the focus effect right below
     osmTileLayer().addTo(map);
     focusRef.current = { layers: L.layerGroup().addTo(map), renderer: createFocusRenderer(map), applied: null };
@@ -198,6 +201,7 @@ export function BoreholeMap({
     const markers = markersRef.current;
 
     return () => {
+      stopWheelZoom();
       resize.disconnect();
       const v = latest.current.view;
       const c = map.getCenter();
@@ -268,7 +272,7 @@ export function BoreholeMap({
     const seen = new Set<string>();
     for (const b of boreholes) {
       seen.add(b.uid);
-      const style = pinStyle(statuses.get(b.uid) ?? 'unreviewed', b.uid === highlightUid);
+      const style = pinStyle(statuses.get(b.uid) ?? 'unreviewed', highlightUids.has(b.uid));
       const existing = markers.get(b.uid);
       if (existing) {
         existing.setLatLng([b.lat, b.lng]);
@@ -287,8 +291,8 @@ export function BoreholeMap({
         markers.delete(uid);
       }
     }
-    if (highlightUid) markers.get(highlightUid)?.bringToFront();
-  }, [boreholes, statuses, highlightUid]);
+    for (const uid of highlightUids) markers.get(uid)?.bringToFront();
+  }, [boreholes, statuses, highlightUids]);
 
   // Fly to a searched borehole and open its popup (prototype fly()).
   useEffect(() => {

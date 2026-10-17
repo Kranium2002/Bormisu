@@ -17,7 +17,7 @@
 }
 
 .openable:hover {
-  border-color: var(--c-green);
+  border-color: var(--c-accent);
 }
 
 .failedCard {

@@ -101,6 +101,7 @@ test.describe('review', () => {
     // BK-07 keeps its open lints.
     await expect(legendCount(page, 'attention')).toHaveText('7');
     expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(7);
+    await nav(page, 'LIST');
     await expect(page.locator('[data-uid="nb:BK-01"]')).toContainText('confirmed · DHDN / GK3');
   });
 });

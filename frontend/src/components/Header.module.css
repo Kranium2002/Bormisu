@@ -40,6 +40,7 @@
   font-size: var(--fs-sm);
   font-weight: 300;
   color: var(--c-nav-idle);
+  white-space: nowrap;
 }
 
 /* Items are padded so the focus ring clears the label; gap + padding keep 28 px between labels. */
@@ -63,6 +64,7 @@
   border: 0;
   border-top: 3px solid transparent;
   border-bottom: 3px solid transparent;
+  white-space: nowrap;
 }
 
 .navItem:hover {
@@ -77,7 +79,7 @@
 
 .active {
   color: var(--c-surface);
-  border-bottom-color: var(--c-gold);
+  border-bottom-color: var(--c-on-dark-accent);
 }
 
 .badge {
@@ -123,4 +125,33 @@
   box-shadow: var(--shadow-search);
   z-index: var(--z-search);
   white-space: nowrap;
+}
+
+/* EN | DE switch right of the search box. */
+.lang {
+  display: flex;
+  align-items: center;
+  margin-left: var(--space-3);
+  border: 1px solid var(--c-nav-idle);
+  border-radius: 2px;
+  align-self: center;
+}
+
+.langButton {
+  border: 0;
+  background: none;
+  color: var(--c-nav-idle);
+  font: 700 var(--fs-xs) var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  padding: 7px var(--space-2);
+  cursor: pointer;
+}
+
+.langActive {
+  background: var(--c-surface);
+  color: var(--c-text);
+}
+
+.langButton:focus-visible {
+  outline: var(--focus-ring-on-dark);
 }

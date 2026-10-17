@@ -1,4 +1,4 @@
-import { expect, nav, test } from './fixtures';
+import { expect, nav, openApp, test } from './fixtures';
 
 // Console errors fail the test via the shared fixture.
 test('shell renders in sample mode without console errors', async ({ page }) => {
@@ -51,4 +51,23 @@ test('Tab reaches the side panel scroller, which scrolls with the arrow keys', a
   await expect.poll(() => scan.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
   await page.keyboard.press('Shift+Tab');
   await expect(close).toBeFocused();
+});
+
+test('browser back and forward step through the app instead of leaving it', async ({ page }) => {
+  await openApp(page);
+  const screen = (label: string) => page.locator(`[data-screen-label="${label}"]`);
+  await nav(page, 'LIST');
+  await page.getByRole('button', { name: 'Open detail of BK-07' }).click();
+  await expect(screen('Borehole detail')).toBeVisible();
+  await nav(page, 'UPLOAD & QUEUE');
+  await page.goBack();
+  await expect(screen('Borehole detail')).toBeVisible();
+  await page.goBack();
+  await expect(screen('List')).toBeVisible();
+  await page.goBack();
+  await expect(screen('Map')).toBeVisible();
+  await page.goForward();
+  await expect(screen('List')).toBeVisible();
+  await page.goForward();
+  await expect(screen('Borehole detail')).toBeVisible();
 });

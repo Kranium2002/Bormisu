@@ -172,7 +172,7 @@ export interface AppState {
   simulateLocation(lat: number, lng: number): void;
   closeNearYou(): void;
   /**
-   * Shows the search popover's "Listed under Not on map" message for a borehole the map didn't
+   * Shows the search popover's "Shown in LIST as not on map" message for a borehole the map didn't
    * place after all (MapScreen calls it for a target flagged as on the map but without usable coordinates).
    */
   showNotOnMap(id: string, reason: string): void;
@@ -216,7 +216,7 @@ const saves = new Map<string, ValueSaves>();
 const LEAVE_REVIEW = { editing: null, confirmCleanOpen: false } as const;
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
-const notOnMapMessage = (id: string, reason: string) => `${id}: ${reason}. Listed under Not on map.`;
+const notOnMapMessage = (id: string, reason: string) => `${id}: ${reason}. Shown in LIST as not on map.`;
 const pageKey = (documentId: string, page: number) => `${documentId}:${page}`;
 
 /** The backend's mode from its optional health check. No check, no answer or an error = unknown (null). */
@@ -650,9 +650,10 @@ export const useAppStore = create<AppState>()((set, get) => {
     },
 
     search() {
-      const { query, boreholes } = get();
+      const { query, boreholes, screen } = get();
       const q = query.trim().toLowerCase();
-      if (!q) return;
+      // On LIST the box only filters the rows (the user picks one); Enter doesn't leave it.
+      if (!q || screen === 'list') return;
       const flat = (id: string) => id.toLowerCase().replace(/[-\s]/g, '');
       const flatQ = flat(q);
       const exact = boreholes.find((x) => x.id.toLowerCase() === q);
@@ -668,7 +669,7 @@ export const useAppStore = create<AppState>()((set, get) => {
       }
       if (!b.onMap) {
         // Drop an earlier result's target, so the map doesn't keep pointing at that borehole.
-        set({ ...LEAVE_REVIEW, screen: 'map', flyTarget: null });
+        set({ ...LEAVE_REVIEW, screen: 'list', flyTarget: null });
         flashSearch(notOnMapMessage(b.id, b.unplottedReason ?? 'No usable coordinates'), SEARCH_NOT_ON_MAP_MS);
         return;
       }

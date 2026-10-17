@@ -6,7 +6,8 @@
 import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
 import { formatSpt } from '../domain/spt';
-import type { Borehole, ExtractedValue, Layer, LayerProps, Method, PageItem, PatternId, Spt } from '../domain/types';
+import { TEST_FIELDS } from '../domain/testResults';
+import type { Borehole, ExtractedValue, Layer, LayerProps, Method, PageItem, PatternId, Spt, TestResult } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
 import { Ln, sampleValue, T, textWidth, type SampleValueInput } from './helpers';
 import { NB_CRS, NB_PROJECT } from './neckarbogen';
@@ -336,6 +337,7 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
       { type: 'strike', depth: gwS, key: K.gwStrike },
       { type: 'rest', depth: gwR, key: K.gwRest },
     ],
+    testResults: labTests(seed.id, layers),
     rockHead: rockLayer ? rockLayer.from : null,
     values,
     primaryPage: page,
@@ -361,6 +363,36 @@ function applyBase(base: string, values: ExtractedValue[]): ExtractedValue[] {
     );
   }
   return values;
+}
+
+/**
+ * Fictional lab tests: one sample in the middle of each of the first layers below the fill, with the
+ * tests that fit the material (fine soil: water content and Atterberg limits; coarse soil: fines and
+ * friction angle; rock core: UCS, tensile strength, CAI, E-modulus). Own RNG, so the log stays the same.
+ */
+function labTests(id: string, layers: GenLayer[]): TestResult[] {
+  const rnd = mulberry32(hashS(`${id}:lab`));
+  const r = (a: number, b: number, d = 1) => Math.round((a + (b - a) * rnd()) * 10 ** d) / 10 ** d;
+  const v = (key: string, value: number) => {
+    const f = TEST_FIELDS.find((x) => x.key === key)!;
+    return { key, label: f.label, unit: f.unit, value };
+  };
+  let soil = 0;
+  let core = 0;
+  return layers.filter((l) => l.pat !== 'fill' && l.pat !== 'topsoil').slice(0, 3).map((l) => {
+    const depth = Math.round(((l.from + l.to) / 2) * 10) / 10;
+    if (l.rock) {
+      return { sampleName: `K${++core}`, sampleType: 'soil', depth,
+        values: [v('ucs_mpa', r(8, 60)), v('tensile_strength_mpa', r(0.8, 5)), v('cai_cerchar_abrasivity', r(0.5, 3.5)), v('e_modulus_mpa', r(2000, 20000, 0))] };
+    }
+    const fine = l.pat === 'clay' || l.pat === 'silt' || l.pat === 'marl';
+    const ll = r(28, 55, 0);
+    const pl = r(14, 24, 0);
+    return { sampleName: `P${++soil}`, sampleType: 'soil', depth, values: fine
+      ? [v('water_content_pct', r(14, 32)), v('density_kn_m3', r(18.5, 21)), v('liquid_limit_pct', ll), v('plastic_limit_pct', pl),
+        v('plasticity_index_pct', ll - pl), v('consistency_index', r(0.6, 1.2, 2))]
+      : [v('density_kn_m3', r(19, 22)), v('fines_pct', r(2, 15)), v('friction_angle_deg', r(30, 38, 0))] };
+  });
 }
 
 function toLayer(l: GenLayer): Layer {

@@ -294,8 +294,8 @@ export function searchStep(b: Borehole, placement: MapPlacement, hits: CountryHi
   return { kind: 'switch', focus: hits.get(b.uid)?.country ?? WORLD };
 }
 
-/** End of the store's search message for a borehole the map can't place ("BK-13: … Listed under Not on map."). */
-const NOT_ON_MAP_MESSAGE_END = 'Listed under Not on map.';
+/** End of the store's search message for a borehole the map can't place ("BK-13: … Shown in LIST as not on map."). */
+const NOT_ON_MAP_MESSAGE_END = 'Shown in LIST as not on map.';
 
 /**
  * The NOT ON MAP item a search points to, while the search message says so: among the listed

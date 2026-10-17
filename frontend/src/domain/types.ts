@@ -1,6 +1,6 @@
 /** All domain types of the Bormisu frontend (see ARCHITECTURE.md). */
 
-export type Screen = 'map' | 'queue' | 'review' | 'detail';
+export type Screen = 'map' | 'list' | 'queue' | 'review' | 'detail';
 export type Method = 'Read' | 'OCR' | 'Derived' | 'Guessed' | 'Edited';
 export type ReviewStatus = 'unreviewed' | 'approved' | 'flagged';
 export type FieldState = 'ok' | 'not in source' | 'illegible';
@@ -62,6 +62,16 @@ export interface Layer {
   spt?: Spt; tcr?: number; rqd?: number;
   props?: LayerProps;
 }
+/** One measured value of a lab test, e.g. water content 21.5 %. */
+export interface TestValue { key: string; label: string; value: number; unit: string }
+/** One sample / test depth with the values measured on it (only those the source states). */
+export interface TestResult {
+  sampleName: string | null;
+  /** soil (box in DIN 4023) or water (open triangle); null = not stated. */
+  sampleType: 'soil' | 'water' | null;
+  depth: number | null;
+  values: TestValue[];
+}
 /** strike = first water struck, rest = rest level; the API also reports standpipe and other readings. */
 export type GroundwaterType = 'strike' | 'rest' | 'standpipe' | 'other';
 export interface GroundwaterReading { type: GroundwaterType; depth: number; key: string }
@@ -80,6 +90,8 @@ export interface Borehole {
   crs: { name: string | null; code: string | null; status: CrsStatus };
   layers: Layer[];
   groundwater: GroundwaterReading[];
+  /** Lab tests, one per sample / test depth (API test_results[]); absent = none in the source. */
+  testResults?: TestResult[];
   rockHead: number | null;
   values: ExtractedValue[];
   primaryPage: number;

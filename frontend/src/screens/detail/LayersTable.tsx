@@ -5,6 +5,7 @@ import type { Borehole } from '../../domain/types';
 import { layerLint, layerRows, type SptCell } from './detailModel';
 import card from './cards.module.css';
 import styles from './LayersTable.module.css';
+import { useT } from '../../i18n';
 
 interface Props {
   borehole: Borehole;
@@ -56,9 +57,10 @@ export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenS
     }
   };
 
+  const t = useT();
   return (
     <section className={card.card} aria-label="Layers">
-      <div className={card.head}>LAYERS</div>
+      <div className={card.head}>{t('LAYERS')}</div>
       <div role="table" aria-label="Layers">
         <div role="row" className={`${card.thead} ${styles.cols}`}>
           {HEADERS.map((h, i) => (

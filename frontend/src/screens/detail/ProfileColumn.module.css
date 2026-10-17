@@ -17,39 +17,21 @@
   pointer-events: none;
 }
 
-.legend {
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--c-line);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
+.wrap {
+  position: relative;
+}
+
+/* What a clicked part of the profile means: a small espresso bubble under it. */
+.tip {
+  position: absolute;
+  transform: translateX(-50%);
+  max-width: 220px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--c-dark);
+  color: var(--c-on-accent);
   font-size: var(--fs-xs);
-  color: var(--c-muted);
-}
-
-.legendHead {
-  flex-basis: 100%;
-  margin-top: var(--space-1);
-  font-weight: 600;
-  color: var(--c-muted);
-}
-
-.legendCode {
-  font-weight: 700;
-  font-size: var(--fs-2xs);
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.rBadge {
-  background: var(--c-amber);
-  color: var(--c-text);
-  font-weight: 800;
-  font-size: var(--fs-2xs);
-  padding: 0 var(--space-1);
-  border-radius: 2px;
+  line-height: 1.4;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
 }

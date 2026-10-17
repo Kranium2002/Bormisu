@@ -9,18 +9,18 @@
  * the end of the bundle. The states (:hover, :active, :disabled, :focus-visible) keep their
  * specificity, so they still win over a plain override.
  *
- * primary     green fill, dark-green text (never white on green). At most one per region.
+ * primary     black fill, white text. At most one per region.
  * secondary   outlined.
  * quiet       text button, e.g. CANCEL.
- * link        colour modifier: link green for quiet navigation (`composes: quiet link from ...`).
+ * link        colour modifier for quiet navigation text (`composes: quiet link from ...`).
  * small       size modifier for inline controls: `composes: secondary small from ...`.
  * iconButton  32x32, for every × close.
  */
 
 :where(.primary) {
   cursor: pointer;
-  background: var(--c-green);
-  color: var(--c-on-green);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
   border: 0;
   border-radius: 4px;
   font: 700 var(--fs-sm) / 1 var(--font-sans);
@@ -29,11 +29,11 @@
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--c-green-hover);
+  background: var(--c-accent-hover);
 }
 
 .primary:active:not(:disabled) {
-  box-shadow: inset 0 2px 0 rgba(0, 62, 37, 0.25);
+  box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.25);
 }
 
 .primary:disabled {
@@ -96,7 +96,7 @@
 
 /* Colour modifier for quiet navigation text buttons (OPEN DETAIL ›, SHOW WORLD ›): `composes: quiet link from ...`. */
 :where(.link) {
-  color: var(--c-green-text);
+  color: var(--c-text);
 }
 
 /* Size modifier. Declared after the variants so its padding and size win when composed together. */

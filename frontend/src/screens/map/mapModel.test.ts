@@ -302,7 +302,7 @@ describe('notOnMapSearchTarget', () => {
   };
   // Two reports with a BK-13 each: the search step's uid decides, else the first listed.
   const unplaced = [item('a:BK-13'), item('b:BK-13')];
-  const message = 'BK-13: No usable coordinates. Listed under Not on map.';
+  const message = 'BK-13: No usable coordinates. Shown in LIST as not on map.';
 
   it('points at the listed borehole the not-on-map search message names', () => {
     expect(notOnMapSearchTarget(message, unplaced, null)).toBe('a:BK-13');
@@ -312,7 +312,7 @@ describe('notOnMapSearchTarget', () => {
   it('points at nothing without that message', () => {
     expect(notOnMapSearchTarget('', unplaced, 'b:BK-13')).toBeNull();
     expect(notOnMapSearchTarget('No results for “BK-13”', unplaced, null)).toBeNull();
-    expect(notOnMapSearchTarget('SK-99: CRS unknown. Listed under Not on map.', unplaced, null)).toBeNull();
+    expect(notOnMapSearchTarget('SK-99: CRS unknown. Shown in LIST as not on map.', unplaced, null)).toBeNull();
   });
 
   // F4: searching an off-map B after a missing A kept A's uid; the map highlighted A under B's message.
@@ -320,6 +320,6 @@ describe('notOnMapSearchTarget', () => {
     const a = { borehole: makeBorehole({ uid: 'x:TB-02', id: 'TB-02', lat: null, lng: null }), reason: notOnMapReason(makeBorehole()) };
     const list = [a, ...unplaced];
     expect(notOnMapSearchTarget(message, list, 'x:TB-02')).toBe('a:BK-13');
-    expect(notOnMapSearchTarget('TB-02: No usable coordinates. Listed under Not on map.', list, 'x:TB-02')).toBe('x:TB-02');
+    expect(notOnMapSearchTarget('TB-02: No usable coordinates. Shown in LIST as not on map.', list, 'x:TB-02')).toBe('x:TB-02');
   });
 });

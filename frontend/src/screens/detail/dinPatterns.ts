@@ -152,28 +152,22 @@ const coredSymbol = parse(cored);
 tilePattern(CORED_PATTERN, coredSymbol, CORED_K);
 export const CORED_W = coredSymbol.w * CORED_K;
 
-/* ---------- legend ---------- */
-
-/** One legend swatch: a rect filled with `fill`, and what it means. */
-export interface LegendEntry { key: string; label: string; fill: string }
+/* ---------- explanations (shown when a symbol is clicked) ---------- */
 
 const TILE_LABEL = new Map(Object.entries(codes).map(([c, v]) => [v.pattern_id, `${c} · ${v.name_en.toLowerCase()}`]));
 const SYMBOL_LABEL = new Map(Object.entries(codes).map(([c, v]) => [v.symbol_pattern_id, `${c} · ${v.name_en.toLowerCase()}`]));
 const SECONDARY_LABEL = new Map(Object.entries(secondaryCodes).map(([c, v]) => [v.symbol_pattern_id, `${c} · ${v.name_en}`]));
 
-/** Every lithology fill the profile draws, once each: main codes, secondary components, missing and empty. */
-export function lithologyLegend(layers: Pick<Layer, 'din' | 'lithology' | 'pattern'>[]): LegendEntry[] {
-  const out = new Map<string, LegendEntry>();
-  for (const l of layers) {
-    const parts = layerFill(l);
-    if (!parts.length) out.set('none', { key: 'none', label: 'no lithology in source', fill: '#E0E0E0' });
-    for (const f of parts) {
-      if (!f.patternId || out.has(f.patternId)) continue;  // colour halves of "S/G" are explained by their symbols
-      const label = f.patternId === MISSING_PATTERN ? 'no DIN 4023 pattern for this code'
-        : f.x0 === 0.5 ? `${SECONDARY_LABEL.get(f.patternId)} (secondary, right half)`
-          : TILE_LABEL.get(f.patternId) ?? SYMBOL_LABEL.get(f.patternId) ?? f.patternId;
-      out.set(f.patternId, { key: f.patternId, label, fill: f.fill });
-    }
-  }
-  return [...out.values()];
+/** What the lithology fill of a layer shows, in one line (DIN 4023 §4.2). */
+export function explainLayer(l: Pick<Layer, 'din' | 'lithology' | 'pattern'>): string {
+  const parts = layerFill(l).filter((f) => f.patternId);
+  if (!parts.length) return 'No lithology in the source: plain grey.';
+  if (parts[0].patternId === MISSING_PATTERN) return `No DIN 4023 pattern for "${l.din}": drawn red.`;
+  const text = parts.map((f) => (f.x0 === 0.5
+    ? `${SECONDARY_LABEL.get(f.patternId!)}, symbol in the right half`
+    : TILE_LABEL.get(f.patternId!) ?? SYMBOL_LABEL.get(f.patternId!))).join('; ');
+  return l.din.trim() ? text : `${text} (guessed from the description, no DIN code in the source)`;
 }
+
+/** What a Table 6 symbol means: "consistency: firm". */
+export const explainProperty = (p: PropertySymbol) => `${p.key.split('_')[0]}: ${p.label} (DIN 4023 Table 6)`;

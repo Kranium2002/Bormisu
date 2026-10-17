@@ -4,6 +4,7 @@ import type { Borehole } from '../../domain/types';
 import { groundwaterRows } from './detailModel';
 import card from './cards.module.css';
 import styles from './GroundwaterTable.module.css';
+import { useT } from '../../i18n';
 
 interface Props {
   borehole: Borehole;
@@ -13,9 +14,10 @@ interface Props {
 /** GROUNDWATER table: one row per reading (type, depth, raw as printed, method, source). */
 export function GroundwaterTable({ borehole: b, onOpenSource }: Props) {
   const rows = groundwaterRows(b);
+  const t = useT();
   return (
     <section className={card.card} aria-label="Groundwater">
-      <div className={card.head}>GROUNDWATER</div>
+      <div className={card.head}>{t('GROUNDWATER')}</div>
       {rows.map((g) => (
         <div key={g.key} className={`${card.trow} ${styles.cols}`}>
           <div className={styles.type}>{g.type}</div>
