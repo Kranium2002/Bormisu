@@ -83,6 +83,8 @@ export function App() {
 
   useEffect(() => {
     void init();
+    // init subscribes to live updates after loading; close the stream when the app goes away.
+    return () => useAppStore.getState().stopLive();
   }, [init]);
 
   useEffect(() => {

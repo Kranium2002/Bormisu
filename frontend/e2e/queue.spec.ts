@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, nav, openApp, test } from './fixtures';
+import { expect, nav, navLink, openApp, test } from './fixtures';
 
 /** The drop zone's file input (the folder picker has its own). */
 const fileInput = (page: Page) => page.locator('label').filter({ hasText: 'DROP REPORTS HERE' }).locator('input[type=file]');
@@ -81,7 +81,7 @@ test.describe('upload & queue', () => {
     const current = card.locator('li[aria-current="step"]');
     await expect(current).toContainText('needs review', { timeout: 15_000 });
     // The header badge counts documents waiting for review.
-    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /^UPLOAD & QUEUE/ })).toContainText('2');
+    await expect(navLink(page, 'UPLOAD & QUEUE')).toContainText('2');
     // A finished upload can be removed from the list; the card stays.
     await row.getByRole('button', { name: 'Remove test_upload.pdf from the list' }).click();
     await expect(uploads(page)).toHaveCount(0);
