@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dinPatternId, patternDefs } from './dinPatterns';
+import { dinPatternId, MISSING_PATTERN, patternDefs } from './dinPatterns';
 
 const layer = (din: string, lithology = '', pattern = 'sand' as const) => ({ din, lithology, pattern });
 
@@ -10,8 +10,12 @@ describe('dinPatternId', () => {
     expect(dinPatternId(layer('Mg'))).toBe('din-geological_Mg');
     expect(dinPatternId(layer('Kst'))).toBe('din-rock_Kst');
   });
-  it('falls back to the lithology guess, and to nothing when the source names nothing', () => {
-    expect(dinPatternId({ din: 'Clay', lithology: 'silty clay', pattern: 'clay' })).toBe('din-soil_T');
+  it('marks a DIN code without a pattern as missing (red), never guesses over it', () => {
+    expect(dinPatternId({ din: 'Clay', lithology: 'silty clay', pattern: 'clay' })).toBe(MISSING_PATTERN);
+    expect(patternDefs([MISSING_PATTERN])).toContain('fill="#C8102E"');
+  });
+  it('without a DIN code, uses the lithology guess, or nothing when the source names nothing', () => {
+    expect(dinPatternId({ din: '', lithology: 'silty clay', pattern: 'clay' })).toBe('din-soil_T');
     expect(dinPatternId(layer(''))).toBeNull();
   });
 });

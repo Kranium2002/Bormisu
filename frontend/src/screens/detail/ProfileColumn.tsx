@@ -3,7 +3,7 @@ import { K } from '../../domain/keys';
 import type { Borehole, Layer } from '../../domain/types';
 import { COL, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
 import { GW_LABEL } from './detailModel';
-import { dinPatternId, patternDefs } from './dinPatterns';
+import { dinPatternId, MISSING_PATTERN, patternDefs } from './dinPatterns';
 import {
   depthScale,
   depthTicks,
@@ -125,7 +125,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             onClick={select}
             onKeyDown={onKeyActivate(select)}
           >
-            <title>{`Layer ${l.n} · ${l.din} · ${l.lithology}`}</title>
+            <title>{`Layer ${l.n} · ${l.din} · ${l.lithology}${dinId === MISSING_PATTERN ? ` · no DIN 4023 pattern for "${l.din}"` : ''}`}</title>
             {/* white under the tile: "A" (fill) has no DIN colour; unknown code: plain #E0E0E0 (README) */}
             <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={dinId ? '#fff' : '#E0E0E0'} />
             {dinId && <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={`url(#${dinId})`} />}
