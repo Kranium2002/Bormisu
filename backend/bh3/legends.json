@@ -1,0 +1,40 @@
+{
+  "_comment": "Per-document phrase tables (key = basename of the source file). Value: a DIN 4023 main code, 'marker' (the row is not a stratum) or 'ditto' (repeats the previous layer). A phrase starting with ^ is a regex matched at the start of the description; any other phrase matches as whole words, case-insensitively. Used only when the lithology enum gives nothing (except marker / ditto, which always apply).",
+  "_default": {
+    "ditto": "ditto",
+    "^-+\\s*ditto\\s*-+": "ditto",
+    "^(do\\.|\"|same as above|as above|strata as previous page|strata as above)\\s*$": "ditto",
+    "^ground surface\\s*$": "marker",
+    "^(cota|nivel|nível|level|elevation)\\s*[:=]?\\s*[+-]?\\d": "marker",
+    "^end of (bore ?hole|hole|boring|log)": "marker",
+    "^(fin de(l)? sondeo|fin de(l)? sondaje|fim da sondagem)": "marker",
+    "^(no recovery|core loss|sin recuperaci[oó]n|sem recupera[cç][aã]o)\\s*$": "marker"
+  },
+  "EUR01.pdf": {
+    "kalk": "Kst", "kalksten": "Kst", "kalkskaller": "Kst", "flint": "Kst",
+    "sand": "S", "ler": "T", "silt": "U", "grus": "G", "sten": "X",
+    "fyld": "A", "muld": "Mu", "muldlag": "Mu", "tørv": "H", "gytje": "F", "moræneler": "Lg", "moraeneler": "Lg", "morænesand": "S"
+  },
+  "SAM01.pdf": {
+    "arcilla": "T", "arcillas": "T", "limo": "U", "limos": "U", "arena": "S", "arenas": "S", "grava": "G", "gravas": "G",
+    "relleno": "A", "tosca": "Kst", "^nivel de boca": "marker"
+  },
+  "SAM02.docx": {
+    "aterro": "A", "solo de aterro": "A", "areia": "S", "argila": "T", "silte": "U", "pedregulho": "G", "cascalho": "G",
+    "turfa": "H", "rocha": "Kst", "^cota\\s*[+-]?\\d": "marker", "^(fim|final) da sondagem": "marker", "^imp(enetr[aá]vel)?\\b": "marker"
+  },
+  "AF02.pdf": {
+    "caliza": "Kst", "calizas": "Kst", "margocaliza": "Mst", "margocalizas": "Mst", "marga": "Mst", "margas": "Mst",
+    "arcilla": "T", "arena": "S", "arenas": "S", "grava": "G", "gravas": "G", "limo": "U", "terreno vegetal": "Mu",
+    "relleno": "A", "sustrato rocoso": "Kst"
+  },
+  "BoreholeData": {
+    "sorra": "S", "sorres": "S", "argila": "T", "argiles": "T", "llim": "U", "llims": "U", "grava": "G", "graves": "G",
+    "rebliment": "A", "terra vegetal": "Mu"
+  },
+  "ToughOne2.pdf": {"ditto": "ditto", "^hard\\.?\\s*ditto": "ditto", "^firm\\.?\\s*ditto": "ditto", "^(stiff|soft|dense|loose)\\.?\\s*ditto": "ditto"},
+  "NAM02.pdf": {"^ground surface": "marker", "^end of (bore ?hole|hole)": "marker"},
+  "Report01.pdf": {"^ground surface": "marker", "^[A-Z]{2,4}\\d{1,3}\\s*$": "marker"},
+  "SEA01.pdf": {"tuff breccia": "Vu", "tuff": "Vu", "andesite": "Vu", "granite": "Pl", "gneiss": "Mem", "shale": "Tst", "weathered rock": "Pl", "soft rock": "Pl", "medium rock": "Pl", "hard rock": "Pl"},
+  "SEA02.pdf": {"shell": "S"}
+}

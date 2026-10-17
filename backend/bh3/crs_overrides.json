@@ -1,0 +1,17 @@
+{
+  "_comment": "Per-document coordinate systems for holes whose pages do not print a parseable system. Every entry is an ASSUMPTION (crs_status = assumed) with its evidence; the map must say so. epsg may be a list: the first candidate whose transform lands inside its area of use is used. axis: xy | yx | auto.",
+  "AF01.PDF": {"epsg": 4326, "axis": "yx", "evidence": "prints WGS84 with latitude in the X column (Zwelitsha, South Africa: -32.93, 27.44)"},
+  "AF02.pdf": {"epsg": 32629, "axis": "xy", "evidence": "location 'MARRUECOS' (Morocco), UTM-sized numbers; zone 29N puts the holes on the Atlantic coast near Agadir at the printed 11-19 m elevation"},
+  "AUS01.pdf": {"epsg": 28355, "axis": "xy", "evidence": "prints '55H MGA94' (Essendon / Aberfeldie, Melbourne)"},
+  "EUR01.pdf": {"epsg": [10250, 25832], "axis": "xy", "evidence": "Damhusaaen, Valby (Copenhagen): pages print either S34S (System 34 Sjaelland, west-orientated) or UTM32E89 (ETRS89 / UTM 32N); pages without the label use whichever candidate places the point on Zealand"},
+  "EUR02.pdf": {"epsg": 27700, "axis": "xy", "evidence": "'Preston Bathing Waters' for United Utilities (Fugro); 'mE/mN' six-digit pairs are British National Grid and land in Preston"},
+  "FullReport02.pdf": {"epsg": 2193, "axis": "auto", "evidence": "Hunua 4 watermain, Auckland; pages print NZTM / NZGD2000 with northing first, some print 'N/A'"},
+  "MEA01.pdf": {"epsg": 20439, "axis": "xy", "evidence": "Arad Fort / Hidd, Bahrain; Ain el Abd / UTM 39N is the Bahrain grid; the numbers land on Muharraq at the printed 2-3 m elevation"},
+  "NAM02.pdf": {"epsg": 26910, "axis": "xy", "evidence": "Coquitlam and Surrey, BC (Golder); 'Ground UTM' = NAD83 / UTM 10N, which puts the holes in Coquitlam"},
+  "Report01.pdf": {"epsg": 2105, "axis": "xy", "evidence": "Artillery Drive, Papakura (Auckland Council); the six-digit pairs are the Mount Eden 2000 circuit and land on Artillery Drive"},
+  "SAM02.docx": {"epsg": 31983, "axis": "xy", "evidence": "Praca Sete, Belo Horizonte MG (Portuguese SPT logs); SIRGAS 2000 / UTM 23S puts the holes in central Belo Horizonte at the printed 850 m elevation"},
+  "SEA01.pdf": {"epsg": 5187, "axis": "yx", "evidence": "KOGAS Jinhae-Geoje pipeline (Korean); Korea 2000 / East Belt 2010 with northing printed first puts the marine holes between Jinhae and Geoje"},
+  "FullReport01.pdf": {"epsg": null, "evidence": "Al Kuwayfiyah, Benghazi (Libya): six-digit pairs are a local site grid (northing 321239 cannot be UTM at 32 N); the project grid definition is needed"},
+  "SAM01.pdf": {"epsg": null, "evidence": "Colector Margen Izquierda, Buenos Aires: 44559 / 24600 is a local city grid, not Gauss-Krueger; the project grid definition is needed"},
+  "ToughOne1.pdf": {"epsg": null, "evidence": "Grefsen, Oslo: 'Geoido' local grid (4893 / 4892); the project grid definition is needed"}
+}
