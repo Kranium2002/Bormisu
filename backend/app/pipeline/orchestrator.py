@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -51,6 +52,7 @@ from app.pipeline.triage import TriagedPage, triage_image, triage_pdf
 from app.providers.base import ProviderError
 from app.queue import queue_app
 from app.services.documents import emit_document_updated
+from app.services.page_images import prewarm_page
 from app.storage import FileStorage, get_storage, page_render_key, page_thumb_key
 
 if TYPE_CHECKING:
@@ -122,7 +124,14 @@ def _store_page(storage: FileStorage, document_id: str, page: TriagedPage) -> di
 
 def _triage_files(storage: FileStorage, document_id: str, source: Path, kind: str) -> list[dict[str, object]]:
     pages = triage_pdf(source) if kind == "pdf" else triage_image(source)
-    return [_store_page(storage, document_id, page) for page in pages]
+    rows: list[dict[str, object]] = []
+    # The review screens show the original scan at once, not after a resize on first view (best effort:
+    # a width that is missing is made on request).
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for page in pages:
+            rows.append(_store_page(storage, document_id, page))
+            pool.submit(prewarm_page, storage, document_id, page.n, page.png)
+    return rows
 
 
 async def stage_triage(session: AsyncSession, doc: Document) -> None:

@@ -12,7 +12,8 @@ from sqlalchemy import select
 from app.db.models import Document, Event, Page
 from app.db.session import get_sessionmaker
 from app.pipeline.orchestrator import run_pipeline
-from app.storage import get_storage, original_key
+from app.services.page_images import PREWARM_WIDTHS
+from app.storage import get_storage, original_key, page_resized_key
 from tests.pdf_factory import TextItem, make_pdf
 
 pytestmark = pytest.mark.db
@@ -62,6 +63,8 @@ async def test_triage_vector_pdf_and_rerun_is_noop(db: None) -> None:
     assert [p.n for p in pages] == [1, 2, 3]
     storage = get_storage()
     assert all(storage.exists(p.render_key or "") and storage.exists(p.thumb_key or "") for p in pages)
+    # the widths the review screens ask for are ready before anyone opens the page
+    assert all(storage.exists(page_resized_key(doc_id, p.n, w)) for p in pages for w in PREWARM_WIDTHS)
     assert all(p.text_layer_key and p.text_layer_quality and p.text_layer_quality > 0.9 for p in pages)
     assert all(p.ocr_status == "pending" and p.used is False and p.role is None for p in pages)
     async with get_sessionmaker()() as session:

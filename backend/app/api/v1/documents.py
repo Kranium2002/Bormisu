@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse
-from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +37,7 @@ from app.schemas.documents import (
     UploadAccepted,
 )
 from app.services.documents import document_out, documents_out, emit_document_updated, unread_pages
+from app.services.page_images import DEFAULT_PAGE_WIDTH, MAX_PAGE_WIDTH, MIN_PAGE_WIDTH, resize_png
 from app.storage import document_prefix, get_storage, original_key, page_resized_key
 from app.upload import display_name, receive
 
@@ -48,8 +47,6 @@ router = APIRouter(tags=["documents"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 # Multipart framing around the file is small; anything far above the limit is refused before parsing.
 _MULTIPART_SLACK = 1024 * 1024
-DEFAULT_PAGE_WIDTH = 1400
-MIN_PAGE_WIDTH, MAX_PAGE_WIDTH = 200, 2400
 ACTOR_API = "api"
 
 
@@ -235,17 +232,6 @@ async def retry_document(document_id: str, session: SessionDep) -> UploadAccepte
     return UploadAccepted(document_id=doc.id, status="queued", duplicate_of=None)
 
 
-def _resize(source: bytes, width: int) -> bytes:
-    with Image.open(io.BytesIO(source)) as img:
-        if img.width <= width:
-            return source
-        height = max(1, round(img.height * width / img.width))
-        resized = img.resize((width, height), Image.Resampling.LANCZOS)
-        out = io.BytesIO()
-        resized.save(out, format="PNG", optimize=True)
-        return out.getvalue()
-
-
 @router.get(
     "/documents/{document_id}/pages/{n}.png",
     operation_id="getPageImage",
@@ -269,7 +255,7 @@ async def get_page_image(
         data = await asyncio.to_thread(storage.get_bytes, cache_key)
     else:
         source = await asyncio.to_thread(storage.get_bytes, page.render_key)
-        data = await asyncio.to_thread(_resize, source, width)
+        data = await asyncio.to_thread(resize_png, source, width)
         await asyncio.to_thread(storage.put_bytes, cache_key, data)
     return Response(content=data, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
