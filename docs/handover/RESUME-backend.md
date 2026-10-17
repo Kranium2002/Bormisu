@@ -5,7 +5,7 @@
 |---|---|---|---|
 | `main` / `integration` | `5b6c37e` | contract 1.2.1 and the upload→pin fixes (2b1c0a9, merged as 7324039) | full suite green at 2b1c0a9 (1140 passed) |
 | `feat/bh3-adapter` (worktree D:\Bormisu-backend, checked out) | `3ce1f5c` | bh3 adapter on top of main, **no auth** | ruff, mypy, `tests/test_bh3_adapter.py` 6 passed (fake bridge); full suite last green at `eb2a790` (1146 passed), **not re-run after 3ce1f5c** |
-| `feat/bh3` (supervisor, worktree D:\Bormisu-bh3) | `66d302c` | bh3 vendored into `backend/app/bh3` (pypdfium2 port, bridge.py, numpy + opencv-python-headless) | ruff, mypy, 6 bh3 tests; its full suite was still running at commit time |
+| `feat/bh3` (supervisor, worktree D:\Bormisu-bh3) | `a944bf0` | bh3 vendored into `backend/app/bh3` (pypdfium2 port, bridge.py, numpy + opencv-python-headless); a944bf0 = 66d302c + read_pages closes each PDF | ruff, mypy; full suite on 66d302c: 923 passed, 1 skipped, contract 223 passed |
 | `feat/d2-textlayer` (agent worktree) | `5d89829` (wip) | D2: text-layer pages skip OCR (OcrPage built from the text layer under an OcrRun with provider `textlayer`) | ruff, mypy; **not green**: new tests never run, ~11 existing tests that expect vector pages to be OCR'd still need `fictional_report(scanned=...)` (see below) |
 | `feat/d6-crs` (agent worktree) | `6b6611e` (wip) | D6: System 34 (EPSG:10250/10160, west-orientated flag), NZGD2000/NZTM wordings, stated axis order by area of use (`Borehole.swap_axes`), 100 km outlier ceiling | ruff, mypy, 183 targeted tests passed; full suite not run |
 | `feat/backend` | `179272c` | minimal auth (contract 1.3.0) + five extra fields + locate question + 2b1c0a9 merged in | full suite green (1215 passed) |
