@@ -152,3 +152,9 @@ HKBoreholeChallenge*
 *.env
 .env.local
 .env.*.local
+
+# ==========================================
+# Local demo data and notes (never committed)
+# ==========================================
+demo-data/
+GeoMemory_Product_and_Build_Plan.md
