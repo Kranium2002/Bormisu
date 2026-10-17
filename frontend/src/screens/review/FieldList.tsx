@@ -4,7 +4,7 @@ import type { Borehole } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import { FieldRow } from './FieldRow';
 import styles from './ReviewScreen.module.css';
-import { crsActionKey, fieldNote, normalisedText, reviewRows } from './reviewView';
+import { crsActionKey, fieldNote, normalisedText, questionKeys, reviewRows } from './reviewView';
 
 /** Space kept above a row scrolled into view (prototype: offsetTop - 60), clears the sticky column header. */
 const ROW_OFFSET = 60;
@@ -26,6 +26,7 @@ export function FieldList({ b }: { b: Borehole }) {
   const focusKey = useAppStore((s) => s.focusKey);
   const editing = useAppStore((s) => s.editing);
   const listScroll = useAppStore((s) => s.listScroll);
+  const clarifications = useAppStore((s) => s.clarifications);
   const ref = useRef<HTMLDivElement>(null);
   const shownUid = useRef<string | null>(null);
 
@@ -40,6 +41,8 @@ export function FieldList({ b }: { b: Borehole }) {
   );
   // CHOOSE CRS… sits on the CRS value, or on X / Y when the log printed no system.
   const crsKey = useMemo(() => crsActionKey(b), [b]);
+  // A value an unresolved question is about gets a Question button.
+  const questions = useMemo(() => questionKeys(b, clarifications), [b, clarifications]);
 
   // A new borehole starts at the top with its focused row in view; a list-scroll signal reveals its row.
   useEffect(() => {
@@ -79,6 +82,7 @@ export function FieldList({ b }: { b: Borehole }) {
             note={r.note}
             canChooseCrs={r.value.key === crsKey}
             elsewhere={r.elsewhere}
+            questionId={questions[r.value.key] ?? null}
           />
         ),
       )}

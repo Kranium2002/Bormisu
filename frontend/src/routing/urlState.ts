@@ -8,6 +8,7 @@
  *   /review                         the review target, else "nothing to review"
  *   /review/:uid?key=<value key>
  *   /boreholes/:uid?layer=<n>
+ *   /inbox?q=<clarification id>     the questions, with the open one's dialog
  *   anything else                   not found
  *
  * The path names the screen (a new history entry); the query holds state within the screen (the map
@@ -22,6 +23,7 @@ export const ROUTE = {
   reviewIndex: 'review',
   review: 'review/:uid',
   detail: 'boreholes/:uid',
+  inbox: 'inbox',
 } as const;
 
 /** Centre and zoom of the map. */
@@ -44,6 +46,8 @@ export type AppRoute =
   | { kind: 'reviewIndex' }
   | { kind: 'review'; uid: string; key: string | null }
   | { kind: 'detail'; uid: string; layer: number | null }
+  /** The inbox; `q` is the question whose dialog is open (FRONTEND.md F12). */
+  | { kind: 'inbox'; q: string | null }
   | { kind: 'notFound'; path: string };
 
 export type RouteKind = AppRoute['kind'];
@@ -119,6 +123,7 @@ export function parseLocation(pathname: string, search: string): AppRoute {
   if (head === 'queue' && uid === undefined) return { kind: 'queue' };
   if (head === 'review') return uid ? { kind: 'review', uid, key: param(q, 'key') } : { kind: 'reviewIndex' };
   if (head === 'boreholes' && uid) return { kind: 'detail', uid, layer: positiveInt(param(q, 'layer')) };
+  if (head === 'inbox' && uid === undefined) return { kind: 'inbox', q: param(q, 'q') };
   return notFound;
 }
 
@@ -150,6 +155,11 @@ export function boreholePath(uid: string, layer?: number | null): string {
   return `/boreholes/${enc(uid)}${query([['layer', layer != null ? String(layer) : null]])}`;
 }
 
+/** /inbox, with the question whose dialog is open when given. */
+export function inboxPath(q?: string | null): string {
+  return `/${ROUTE.inbox}${query([['q', q ? enc(q) : null]])}`;
+}
+
 /** The URL of a route. */
 export function routePath(r: AppRoute): string {
   switch (r.kind) {
@@ -163,6 +173,8 @@ export function routePath(r: AppRoute): string {
       return reviewPath(r.uid, r.key);
     case 'detail':
       return boreholePath(r.uid, r.layer);
+    case 'inbox':
+      return inboxPath(r.q);
     case 'notFound':
       return r.path;
   }

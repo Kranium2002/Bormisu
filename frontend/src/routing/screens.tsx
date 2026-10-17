@@ -6,6 +6,8 @@
 import { Navigate, useRouteError } from 'react-router';
 import { EmptyState } from '../components/EmptyState';
 import { DetailScreen } from '../screens/detail/DetailScreen';
+import { InboxScreen } from '../screens/inbox/InboxScreen';
+import { useInboxQuery } from '../screens/inbox/useInboxQuery';
 import { MapScreen } from '../screens/map/MapScreen';
 import { QueueScreen } from '../screens/queue/QueueScreen';
 import { ReviewScreen } from '../screens/review/ReviewScreen';
@@ -57,6 +59,13 @@ export function BoreholeRoute() {
   const shown = useShown();
   if (!borehole) return <NotFound title={BOREHOLE_NOT_FOUND} message={BOREHOLE_NOT_FOUND_TEXT} />;
   return shown ? <DetailScreen /> : null;
+}
+
+/** /inbox: the questions; ?q= opens one in the dialog, and the open dialog writes ?q= (history replace). */
+export function InboxRoute() {
+  const route = useLocationRoute();
+  const { notOpen } = useInboxQuery(route.kind === 'inbox' ? route.q : null);
+  return <InboxScreen notOpen={notOpen} />;
 }
 
 export function NotFoundRoute() {

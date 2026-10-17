@@ -1,10 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
+import { crsQuestionFor } from '../../components/clarify/clarifyModel';
+import { CrsPreviewMap } from '../../components/clarify/CrsPreviewMap';
+import { SWAP_TEXT, SWAP_TITLE, verdictColor, verdictText } from '../../components/clarify/crsView';
 import { useFocusTrap } from '../../components/useFocusTrap';
 import type { CrsVerdict } from '../../domain/types';
 import { useAppStore, useReviewBorehole } from '../../store/appStore';
 import styles from './CrsDialog.module.css';
 import { CrsMap } from './CrsMap';
-import { crsIntro, scoreText, VERDICT_LABEL } from './reviewView';
+import { crsIntro, scoreText } from './reviewView';
 
 const NOTE_CLASS: Record<CrsVerdict, string> = {
   match: styles.noteMatch,
@@ -13,12 +16,15 @@ const NOTE_CLASS: Record<CrsVerdict, string> = {
 };
 
 /**
- * Confirm the CRS once for the whole document (prototype template lines 341–355): the backend's
- * candidates on the left (label, code, verdict in colour with the backend's note and score, a
- * swap-axes mark), a map preview of the picked candidate's pins on the right, "out of range"
- * overlay, and CONFIRM FOR WHOLE DOCUMENT (disabled for an out-of-range candidate). The store sends
- * the candidate's swap-axes flag and your name, then reloads the document's boreholes. App renders it
- * while crsDialogOpen is true; Escape closes it via the store.
+ * Confirm the CRS once for the whole document (FRONTEND.md F13; prototype template lines 341–355):
+ * the backend's candidates on the left (label, code, verdict colour with the backend's note and score,
+ * a swap-axes mark, and a mini-map of where the candidate puts the boreholes), the picked candidate
+ * large on the right (same basemap), "out of range" overlay, and CONFIRM FOR WHOLE DOCUMENT (POST
+ * /documents/{id}/crs; disabled for an out-of-range candidate). When an unresolved CRS question
+ * covers the document, a link answers that question instead (it can cover the whole project). The
+ * store sends the candidate's swap-axes flag and your name, then reloads the document's boreholes.
+ * App renders it while crsDialogOpen is true; Escape closes it via the store. Only the backend's
+ * labels and notes are shown: nothing is inferred from a code.
  */
 export function CrsDialog() {
   const candidates = useAppStore((s) => s.crsCandidates);
@@ -29,6 +35,8 @@ export function CrsDialog() {
   const boreholes = useAppStore((s) => s.boreholes);
   const loading = useAppStore((s) => s.crsLoading);
   const reviewerName = useAppStore((s) => s.reviewerName);
+  const clarifications = useAppStore((s) => s.clarifications);
+  const openClarification = useAppStore((s) => s.openClarification);
   const b = useReviewBorehole();
   const [busy, setBusy] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
@@ -36,6 +44,12 @@ export function CrsDialog() {
   const downOnScrim = useRef(false);
 
   const labels = useMemo(() => Object.fromEntries(boreholes.map((x) => [x.uid, x.id])), [boreholes]);
+  const documentId = b?.documentId ?? null;
+  const question = useMemo(() => {
+    if (!documentId) return null;
+    const uids = boreholes.filter((x) => x.documentId === documentId).map((x) => x.uid);
+    return crsQuestionFor(clarifications, documentId, uids);
+  }, [clarifications, boreholes, documentId]);
   const current = candidates[pick];
   const outOfRange = current?.verdict === 'out_of_range';
   const canConfirm = !!current && !outOfRange && !busy;
@@ -100,28 +114,30 @@ export function CrsDialog() {
               {candidates.map((c, i) => {
                 const score = scoreText(c);
                 return (
-                  <button
-                    key={`${c.code}:${c.swapAxes}`}
-                    type="button"
-                    role="radio"
-                    aria-checked={i === pick}
-                    className={`${styles.cand} ${i === pick ? styles.candPicked : ''}`}
-                    onClick={() => pickCrs(i)}
-                  >
-                    <span className={styles.candName}>{c.name}</span>
-                    <span className={styles.candCode}>
-                      {c.code}
-                      {score && ` · ${score}`}
-                    </span>
-                    {c.swapAxes && (
-                      <span className={styles.swap} title="The printed X is the northing: X and Y are swapped for this candidate">
-                        ⇄ X / Y swapped
+                  <div key={`${c.code}:${c.swapAxes}`} className={styles.candRow}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={i === pick}
+                      className={`${styles.cand} ${i === pick ? styles.candPicked : ''}`}
+                      style={{ borderLeftColor: verdictColor(c.verdict) }}
+                      data-verdict={c.verdict ?? 'none'}
+                      onClick={() => pickCrs(i)}
+                    >
+                      <span className={styles.candName}>{c.name}</span>
+                      <span className={styles.candCode}>
+                        {c.code}
+                        {score && ` · ${score}`}
                       </span>
-                    )}
-                    <span className={c.verdict ? NOTE_CLASS[c.verdict] : styles.noteNeutral}>
-                      {[c.verdict ? VERDICT_LABEL[c.verdict] : '', c.note ?? ''].filter(Boolean).join(' · ') || 'No verdict from the backend'}
-                    </span>
-                  </button>
+                      {c.swapAxes && (
+                        <span className={styles.swap} title={SWAP_TITLE}>
+                          {SWAP_TEXT}
+                        </span>
+                      )}
+                      <span className={c.verdict ? NOTE_CLASS[c.verdict] : styles.noteNeutral}>{verdictText(c)}</span>
+                    </button>
+                    <CrsPreviewMap candidate={c} size="small" />
+                  </div>
                 );
               })}
               {!candidates.length && (
@@ -138,6 +154,25 @@ export function CrsDialog() {
             )}
           </div>
         </div>
+
+        {question && (
+          <div className={styles.question}>
+            <span className={styles.questionText}>
+              An open question asks for this coordinate system ({question.boreholeUids.length} borehole
+              {question.boreholeUids.length === 1 ? '' : 's'}, possibly in other reports of the project).
+            </span>
+            <button
+              type="button"
+              className={styles.questionLink}
+              onClick={() => {
+                close();
+                openClarification(question.id);
+              }}
+            >
+              Answer it for the whole project instead
+            </button>
+          </div>
+        )}
 
         <div className={styles.foot}>
           <button

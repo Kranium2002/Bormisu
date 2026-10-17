@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { questionsOfBorehole } from '../../components/clarify/clarifyModel';
+import { QuestionsButton } from '../../components/clarify/QuestionsButton';
 import { Popover } from '../../components/Popover';
 import { progress } from '../../domain/review';
 import { CLEAN_CONFIDENCE } from '../../domain/status';
@@ -8,9 +10,23 @@ import styles from './ReviewScreen.module.css';
 import { sheetPages, siblings } from './reviewView';
 
 /**
- * Review header: title + file / project, borehole switcher, sheet tabs, progress,
- * › BOREHOLE DETAIL and APPROVE ALL CLEAN with its confirm popover. The source counts the clean
- * values of the whole document (a dry run) before anything is approved.
+ * The borehole's unresolved questions as a badge that opens the first one: from the loaded list, else
+ * the count on the record (then the badge opens the inbox). Nothing when there is none.
+ */
+function BoreholeQuestions({ b }: { b: Borehole }) {
+  const list = useAppStore((s) => s.clarifications);
+  const listed = useMemo(() => questionsOfBorehole(list, b.uid), [list, b.uid]);
+  const n = listed.length || b.openClarifications;
+  if (n <= 0) return null;
+  // Open questions before skipped ones, like the document cards.
+  const first = (listed.find((c) => c.status === 'open') ?? listed[0])?.id ?? null;
+  return <QuestionsButton text={`${n} open question${n === 1 ? '' : 's'}`} questionId={first} about="this borehole" />;
+}
+
+/**
+ * Review header: title + file / project, borehole switcher, sheet tabs, progress, the borehole's
+ * open questions, › BOREHOLE DETAIL and APPROVE ALL CLEAN with its confirm popover. The source counts
+ * the clean values of the whole document (a dry run) before anything is approved.
  */
 export function ReviewHeader({ b }: { b: Borehole }) {
   const doc = useDocument(b.documentId);
@@ -129,6 +145,8 @@ export function ReviewHeader({ b }: { b: Borehole }) {
           <div className={styles.progressFill} style={{ width: `${pct}%` }} />
         </div>
       </div>
+
+      <BoreholeQuestions b={b} />
 
       <button type="button" className={styles.detailBtn} onClick={() => openBorehole(b.uid)}>
         › BOREHOLE DETAIL

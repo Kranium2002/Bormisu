@@ -2,12 +2,13 @@
  * Pure view helpers of the Review screen (prototype `rows`, `scanBoxes`, `scanCaption`, CRS note).
  * No React, no store: unit-tested in reviewView.test.ts.
  */
+import { questionsOfBorehole, valueKeyForPath } from '../../components/clarify/clarifyModel';
 import type { ScanBox, ScanBoxVariant } from '../../components/ScanPage';
 import { crsLabel, printedCoordinates } from '../../domain/format';
 import { K } from '../../domain/keys';
 import { fromOtherDocument } from '../../domain/review';
 import { sptDepthText } from '../../domain/spt';
-import type { Borehole, Box, CrsCandidate, CrsVerdict, ExtractedValue, Reading } from '../../domain/types';
+import type { Borehole, Box, Clarification, CrsCandidate, ExtractedValue, Reading } from '../../domain/types';
 
 /** One line of the field list: a group heading or a value. */
 export type ReviewRow =
@@ -254,16 +255,21 @@ export function crsIntro(b: Borehole | undefined, candidates: CrsCandidate[]): s
   return `Source prints “${printed}” ${statedRaw ? `with CRS “${statedRaw}”` : 'with no CRS'}. ${places}`;
 }
 
-/** Short text of a candidate's verdict (the backend's own note is shown next to it). */
-export const VERDICT_LABEL: Record<CrsVerdict, string> = {
-  match: 'pins on site',
-  shifted: 'shifted from the site',
-  out_of_range: 'out of range',
-};
+/** Verdict texts and score of a CRS candidate: shared with the crs_picker widget (components/clarify/crsView). */
+export { scoreText, VERDICT_LABEL } from '../../components/clarify/crsView';
 
-/** Score of a candidate as text, e.g. "score 0.92"; '' when the backend sent none. */
-export function scoreText(c: CrsCandidate): string {
-  return c.score == null ? '' : `score ${c.score.toFixed(2)}`;
+/**
+ * The unresolved question per value key of a borehole: a question about one value (its `path`) puts
+ * a Question button on that value's row. The oldest open question wins over a skipped one.
+ */
+export function questionKeys(b: Borehole, list: readonly Clarification[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  const mine = questionsOfBorehole(list, b.uid);
+  for (const c of [...mine.filter((x) => x.status === 'open'), ...mine.filter((x) => x.status !== 'open')]) {
+    const key = valueKeyForPath(b.values, c.path);
+    if (key && !(key in out)) out[key] = c.id;
+  }
+  return out;
 }
 
 /** Centre of the "site per report text" circle: the centroid of the matching candidate's points. */
