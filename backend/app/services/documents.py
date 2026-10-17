@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from typing import Any
 
@@ -71,6 +71,24 @@ def page_out(page: Page, *, duplicate_file: str | None = None) -> PageOut:
     )
 
 
+UNREAD_OCR = ("pending", "failed")
+
+
+def unread_pages(pages: Iterable[Page]) -> list[int]:
+    """Pages that feed extraction but whose text was not read."""
+    return sorted(p.n for p in pages if p.used and p.ocr_status in UNREAD_OCR)
+
+
+def document_warnings(doc: Document, unread: Sequence[int]) -> list[str]:
+    """Readable notes on a document in review that is not complete (Document.warnings)."""
+    if doc.status not in ("needs_review", "done") or not unread:
+        return []
+    numbers = ", ".join(str(n) for n in unread)
+    if len(unread) == 1:
+        return [f"Page {numbers} was not read; boreholes on it are missing. Retry the document to read it."]
+    return [f"Pages {numbers} were not read; boreholes on them are missing. Retry the document to read them."]
+
+
 async def documents_out(session: AsyncSession, docs: Sequence[Document]) -> list[DocumentOut]:
     """Contract documents with pages, counts and open clarifications, in a fixed number of queries."""
     if not docs:
@@ -87,9 +105,11 @@ async def documents_out(session: AsyncSession, docs: Sequence[Document]) -> list
         rows = await session.execute(select(Document.id, Document.file_name).where(Document.id.in_(dup_docs)))
         dup_names = {str(i): str(n) for i, n in rows.all()}
     by_doc: dict[str, list[PageOut]] = {}
+    pages_of: dict[str, list[Page]] = {}
     for p in pages:
         dup_file = dup_names.get(p.duplicate_of_doc or "")
         by_doc.setdefault(p.document_id, []).append(page_out(p, duplicate_file=dup_file))
+        pages_of.setdefault(p.document_id, []).append(p)
 
     bh_rows = await session.execute(
         select(Borehole.document_id, func.count())
@@ -155,6 +175,7 @@ async def documents_out(session: AsyncSession, docs: Sequence[Document]) -> list
                     "progress": doc.progress,
                     "duplicate_of": doc.duplicate_of,
                     "open_clarifications": open_clar.get(doc.id, 0),
+                    "warnings": document_warnings(doc, unread_pages(pages_of.get(doc.id, []))),
                     "created_at": doc.created_at,
                     "updated_at": doc.updated_at,
                 }

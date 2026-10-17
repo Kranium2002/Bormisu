@@ -98,6 +98,14 @@ class Settings(BaseSettings):
     concurrency_classify: int = 8
     concurrency_ocr: int = 4
     concurrency_extract: int = 4
+    # Rate limits (429): a provider call waits (honouring Retry-After, else backing off) until this many
+    # seconds of waiting are used. OCR pages still refused then are tried again later in the same job, after
+    # a cooldown, up to OCR_RATE_LIMIT_ROUNDS more times; only then is a page left unread (retry reads it).
+    rate_limit_wait_s: float = 150.0
+    ocr_rate_limit_rounds: int = 2
+    ocr_rate_limit_cooldown_s: float = 30.0
+    # OCR requests in flight at once on the OpenRouter route, per worker process.
+    ocr_openrouter_concurrency: int = 1
 
     # Geocoding and office conversion
     geocoder: Literal["nominatim", "none"] = "nominatim"

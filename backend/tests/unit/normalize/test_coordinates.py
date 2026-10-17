@@ -100,7 +100,6 @@ UNREADABLE = [
     ("0.0", "0,000", "E N", "placeholder"),
     ("foo", "bar", None, "unrecognised"),
     ("52.52", "13.40", None, "local grid"),  # few decimals, no marks: degrees or a site grid
-    ("52.5163", "13.3777", None, "axis order"),  # degrees, but which is the latitude?
     ("1,234", "5,678", None, "decimal or as thousands"),
     ("13 O", "52 N", None, "east or west"),
     ("45.1234", "200.5", "Lat, Long", "longitude"),
@@ -117,6 +116,19 @@ def test_unreadable_pairs_say_why(x_raw: str | None, y_raw: str | None, labels: 
     result = parse_coordinates(x_raw, y_raw, labels)
     assert result.latitude is None and result.local_x is None
     assert result.reason is not None and why in result.reason
+
+
+def test_degrees_without_an_axis_order_read_latitude_first_and_say_so() -> None:
+    result = parse_coordinates("52.5163", "13.3777")
+    assert (result.latitude, result.longitude, result.order_assumed) == (52.5163, 13.3777, True)
+    # X/Y labels do not state the order of degrees either (geodetic X is often the latitude): X is read as the
+    # longitude, but the order stays to be confirmed.
+    labelled = parse_coordinates("-32.929816", "27.437978", "X, Y")
+    assert (labelled.latitude, labelled.longitude, labelled.order_assumed) == (27.437978, -32.929816, True)
+    # Labels, marks and value ranges do state it.
+    assert not parse_coordinates("52.5163", "13.3777", "Lat Long").order_assumed
+    assert not parse_coordinates("52.5163 N", "13.3777 E").order_assumed
+    assert not parse_coordinates("151.2093", "-33.8688").order_assumed
 
 
 def test_labelled_latitude_above_90_is_a_suspected_swap() -> None:

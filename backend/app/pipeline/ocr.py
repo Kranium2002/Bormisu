@@ -8,16 +8,23 @@ Routes (Settings.ocr_routes): mistral (direct, chunks of pages, boxes and confid
 through the file-parser plugin) and openai (a vision model transcribes the page render); the last two are
 text only and take one page per request. In auto mode a 401/403 moves the rest of the run to the next
 configured route, and later runs of this process try the refused route last.
+
+Rate limits: a provider call already waits out a 429 (app.providers.base.post_with_retries). A page still
+refused after that is deferred to the end of the run and tried again after a cooldown, up to
+OCR_RATE_LIMIT_ROUNDS more rounds, so a burst of 429s never leaves a page unread. Requests on the OpenRouter
+route are capped at OCR_OPENROUTER_CONCURRENCY in flight per worker process.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import io
 import json
 import logging
-from collections.abc import Sequence
+import weakref
+from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
 from typing import Protocol
 
@@ -30,7 +37,8 @@ from app.db.models import Document, OcrPage, OcrRun, Page
 from app.db.session import get_sessionmaker
 from app.ids import new_id
 from app.pipeline.classify import update_progress
-from app.providers.base import ProviderError
+from app.providers import base as providers
+from app.providers.base import RATE_LIMITED, ProviderError
 from app.providers.ocr_mistral import OcrResponse, normalise_page
 from app.storage import get_storage
 
@@ -182,7 +190,20 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
     queue = plan(todo)
     attempted = 0
     failures: list[ProviderError] = []
-    while queue:
+    deferred: list[list[int]] = []  # chunks refused for a rate limit: tried again after a cooldown
+    rounds = 0
+    while queue or deferred:
+        if not queue:
+            rounds += 1
+            wait = settings.ocr_rate_limit_cooldown_s * rounds
+            logger.info(
+                "OCR of %s: %d chunk(s) rate-limited; trying again in %.0f s",
+                document_id,
+                len(deferred),
+                wait,
+            )
+            await providers.pause(wait)
+            queue, deferred = deferred, []
         chunk = queue.pop(0)
         key = params_hash(model, sha256, chunk)
         async with get_sessionmaker()() as session:
@@ -215,9 +236,14 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
                 data, mime = await asyncio.to_thread(request_data, route, [render_keys[n] for n in chunk])
                 if hasattr(engine, "current_pages"):
                     engine.current_pages = list(chunk)  # test doubles read the original's text layer
-                response = await engine.ocr(data, mime, document_id=document_id, page_count=len(chunk))
+                async with route_limit(route):
+                    response = await engine.ocr(data, mime, document_id=document_id, page_count=len(chunk))
                 _REFUSED_ROUTES.discard(route)  # reading again: back to its place in the order
             except ProviderError as exc:
+                if exc.status == RATE_LIMITED and rounds < settings.ocr_rate_limit_rounds:
+                    logger.warning("OCR of %s pages %s rate-limited; deferred", document_id, chunk)
+                    deferred.append(chunk)
+                    continue
                 await _mark_failed(document_id, run.id, chunk, str(exc))
                 following = _next_route(chain, route, exc)
                 if following is not None:
@@ -233,7 +259,8 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
                     _REFUSED_ROUTES.add(route)
                     route = following
                     engine, model, provider = _engine_for(route, None)
-                    queue = plan(sorted({n for c in [chunk, *queue] for n in c}))
+                    queue = plan(sorted({n for c in [chunk, *queue, *deferred] for n in c}))
+                    deferred = []
                     continue
                 attempted += 1
                 logger.warning("OCR failed for %s pages %s: %s", document_id, chunk, exc)
@@ -269,6 +296,26 @@ def _engine_for(route: str, engine: OcrEngine | None) -> tuple[OcrEngine, str, s
 # OCR routes whose key was refused (401/403) in this process: auto mode tries them last, until one reads a
 # page again.
 _REFUSED_ROUTES: set[str] = set()
+# In-flight caps per event loop and route; asyncio semaphores belong to one loop.
+_LIMITS: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[str, asyncio.Semaphore]] = (
+    weakref.WeakKeyDictionary()
+)
+
+
+@contextlib.asynccontextmanager
+async def route_limit(route: str) -> AsyncIterator[None]:
+    """Hold one of the route's in-flight slots (only the OpenRouter route is capped)."""
+    if route != "openrouter":
+        yield
+        return
+    limits = _LIMITS.setdefault(asyncio.get_running_loop(), {})
+    limit = limits.get(route)
+    if limit is None:
+        limit = limits[route] = asyncio.Semaphore(max(1, get_settings().ocr_openrouter_concurrency))
+    async with limit:
+        yield
+
+
 # Text-only routes: one page per request, so every text maps to its page.
 ONE_PAGE_ROUTES = frozenset({"openrouter", "openai"})
 OCR_PDF_DPI = 150.0  # page size of the rebuilt PDF; the pixels are the stored render's

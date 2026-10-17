@@ -38,7 +38,7 @@ from app.schemas.documents import (
     DocumentOut,
     UploadAccepted,
 )
-from app.services.documents import document_out, documents_out, emit_document_updated
+from app.services.documents import document_out, documents_out, emit_document_updated, unread_pages
 from app.storage import document_prefix, get_storage, original_key, page_resized_key
 from app.upload import display_name, receive
 
@@ -202,11 +202,23 @@ async def delete_document(document_id: str, session: SessionDep) -> Response:
 )
 async def retry_document(document_id: str, session: SessionDep) -> UploadAccepted:
     doc = await _document(session, document_id)
-    if doc.status != "failed":
-        raise ApiError(409, "not_failed", "Only failed documents can be retried.")
+    # A document in review whose pages were not all read can be retried too: only those pages are read again.
+    partial = doc.status in ("needs_review", "done") and bool(
+        unread_pages(
+            (await session.scalars(select(Page).where(Page.document_id == doc.id, Page.used.is_(True)))).all()
+        )
+    )
+    if doc.status != "failed" and not partial:
+        raise ApiError(
+            409, "not_failed", "Only failed documents, or documents with pages not read, can be retried."
+        )
     if get_settings().mode != "live":
         # Like upload: without provider keys no page can be read, so the document is left as it is.
         raise ApiError(409, "demo_mode", "demo_mode")
+    if partial:
+        # Back to before OCR: the unread pages are read, the groups without a borehole extracted and the
+        # document finalised again; finished OCR runs, boreholes and answers are kept.
+        doc.stage = "classify"
     doc.status = "queued"
     doc.error = None
     await emit_document_updated(session, doc)

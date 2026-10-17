@@ -21,6 +21,8 @@ from app.geo.crs_candidates import (
     ranking_config,
     reference_queries,
 )
+from app.geo.land import near_land
+from app.normalize.coordinates import parse_coordinates
 from app.schemas.documents import CrsCandidate
 
 # (system the points are printed in, fictional place near which they lie: lat, lon)
@@ -76,11 +78,33 @@ def test_without_reference_ties_are_ordered_by_area_then_code(case: str) -> None
     for a, b in itertools.pairwise(ranked):
         assert _key(a) <= _key(b)
         if _key(a) == _key(b):
+            land_a, land_b = _ashore(a), _ashore(b)
+            assert land_a >= land_b, (a.crs, b.crs)
             area_a, area_b = area_of_use_km2(a.crs) or math.inf, area_of_use_km2(b.crs) or math.inf
-            assert area_a <= area_b, (a.crs, b.crs)
-            if area_a == area_b and a.crs != b.crs:
+            if land_a == land_b:
+                assert area_a <= area_b, (a.crs, b.crs)
+            if land_a == land_b and area_a == area_b and a.crs != b.crs:
                 assert int(a.crs.split(":")[1]) < int(b.crs.split(":")[1])
     assert all("no reference place found" in (c.note or "") for c in ranked)
+
+
+def _ashore(candidate: CrsCandidate) -> float:
+    margin = ranking_config().land_margin_km
+    points = candidate.points
+    return sum(near_land(round(p.lat, 2), round(p.lon, 2), margin) for p in points) / len(points)
+
+
+@pytest.mark.parametrize(("labels", "swap"), [(None, False), ("X, Y", True), ("Y, X", False)])
+def test_degrees_without_an_axis_order_put_the_reading_on_land_first(labels: str | None, swap: bool) -> None:
+    """Without a reference place the two axis orders of degrees tie; the one on land comes first."""
+    parsed = parse_coordinates("-32.929816", "27.437978", labels)  # fictional point inland, southern Africa
+    assert parsed.order_assumed and parsed.latitude is not None and parsed.longitude is not None
+    ranked = rank_candidates([("bh_fictional_1", parsed.longitude, parsed.latitude)])
+    best = ranked[0]
+    assert (best.crs, best.swap_axes, best.verdict) == ("EPSG:4326", swap, "match")
+    assert (best.points[0].lat, best.points[0].lon) == (-32.929816, 27.437978)
+    other = next(c for c in ranked if c.crs == "EPSG:4326" and c.swap_axes is not swap)
+    assert other.score == best.score and "from land" in (other.note or "")
 
 
 def test_ties_between_datums_of_one_zone_go_to_the_smaller_area() -> None:

@@ -70,3 +70,4 @@ ranking:
   dropped_codes_listed: 10      # how many dropped codes that note names
   utm_from_reference: true      # also try the WGS 84 UTM zone of the reference place
   geocode: { max_external_queries: 3, budget_s: 10 }   # external geocoder calls per ranking; total time budget
+  land: { margin_km: 100, sample: 25 }   # tie-break: readings on or within margin_km of land first (data/land_110m.json); points checked per candidate
