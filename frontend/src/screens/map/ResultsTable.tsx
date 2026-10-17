@@ -1,12 +1,11 @@
 import type { KeyboardEvent } from 'react';
 import { StatusChip } from '../../components/StatusChip';
-import type { Borehole, BoreholeStatus } from '../../domain/types';
-import { crsCell, depthText, resultsSummary } from './mapModel';
+import { crsCell, depthText, resultsSummary, type MapRow } from './mapModel';
 import styles from './ResultsTable.module.css';
 
 interface Props {
-  boreholes: Borehole[];
-  statuses: Map<string, BoreholeStatus>;
+  /** Plotted boreholes and the ones not on the map (mapRows). */
+  rows: MapRow[];
   onOpen(uid: string): void;
 }
 
@@ -17,7 +16,7 @@ const COLUMNS = ['BOREHOLE', 'PROJECT', 'FINAL DEPTH', 'STATUS', 'CRS'] as const
  * Every row opens the borehole's detail (click, Enter or Space), also for boreholes not on the map:
  * those are the ones whose coordinates need a look.
  */
-export function ResultsTable({ boreholes, statuses, onOpen }: Props) {
+export function ResultsTable({ rows, onOpen }: Props) {
   return (
     <section className={styles.results} aria-labelledby="results-title">
       <div className={styles.head}>
@@ -26,7 +25,7 @@ export function ResultsTable({ boreholes, statuses, onOpen }: Props) {
         </h2>
         {/* The count changes as documents finish extraction: screen readers hear it (FRONTEND.md section 6). */}
         <div className={styles.summary} aria-live="polite">
-          {resultsSummary(boreholes)}
+          {resultsSummary(rows)}
         </div>
       </div>
       <div className={styles.scroll} role="table" aria-labelledby="results-title">
@@ -38,20 +37,20 @@ export function ResultsTable({ boreholes, statuses, onOpen }: Props) {
           ))}
           <div className={styles.cell} role="columnheader" aria-label="Action" />
         </div>
-        {boreholes.length === 0 && (
+        {rows.length === 0 && (
           <div className={styles.empty} role="row">
             <div role="cell">No boreholes yet. Upload a report under UPLOAD &amp; QUEUE.</div>
           </div>
         )}
-        {boreholes.map((b) => (
-          <ResultRow key={b.uid} borehole={b} status={statuses.get(b.uid) ?? 'unreviewed'} onOpen={onOpen} />
+        {rows.map((r) => (
+          <ResultRow key={r.uid} row={r} onOpen={onOpen} />
         ))}
       </div>
     </section>
   );
 }
 
-function ResultRow({ borehole: b, status, onOpen }: { borehole: Borehole; status: BoreholeStatus; onOpen(uid: string): void }) {
+function ResultRow({ row: b, onOpen }: { row: MapRow; onOpen(uid: string): void }) {
   const crs = crsCell(b.crs);
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -75,10 +74,10 @@ function ResultRow({ borehole: b, status, onOpen }: { borehole: Borehole; status
         {b.project}
       </div>
       <div className={`${styles.cell} ${styles.mono}`} role="cell">
-        {depthText(b)}
+        {depthText(b.depth)}
       </div>
       <div className={styles.cell} role="cell">
-        <StatusChip status={status} />
+        <StatusChip status={b.status} />
       </div>
       <div className={`${styles.cell} ${crs.warn ? styles.warn : styles.muted}`} role="cell" title={crs.title}>
         {crs.text}

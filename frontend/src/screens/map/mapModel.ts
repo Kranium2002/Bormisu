@@ -1,10 +1,11 @@
 /**
- * Pure presentation logic of the Map screen: which boreholes are plotted, legend counts,
- * the CRS column text, the NOT ON MAP reasons and the RESULTS summary line. Unit-tested.
+ * Pure presentation logic of the Map screen: the rows and pins it shows (light map features of the
+ * plotted boreholes plus the full records of the unplotted ones), legend counts, the CRS column
+ * text, the NOT ON MAP reasons and the RESULTS summary line. Unit-tested.
  */
 import { crsLabel, metres, unplottedText } from '../../domain/format';
 import { displayStatus } from '../../domain/status';
-import type { Borehole, BoreholeStatus } from '../../domain/types';
+import type { Borehole, BoreholeStatus, MapFeature } from '../../domain/types';
 import { pinColor } from '../../theme';
 
 type Bounds = [[number, number], [number, number]];
@@ -34,6 +35,75 @@ export function statusByUid(boreholes: Borehole[]): Map<string, BoreholeStatus> 
   return new Map(boreholes.map((b) => [b.uid, displayStatus(b)]));
 }
 
+/** Display status of a map feature: the server's attention wins over its review status. */
+export function featureStatus(f: Pick<MapFeature, 'attention' | 'reviewStatus'>): BoreholeStatus {
+  return f.attention ? 'attention' : f.reviewStatus;
+}
+
+/**
+ * One borehole as the Map screen shows it: a pin with its RESULTS row (a plotted feature), or a
+ * RESULTS row listed under NOT ON MAP (an unplotted record).
+ */
+export interface MapRow {
+  uid: string;
+  /** BoreholeID as printed. */
+  id: string;
+  /** Project name; '' when the server has none. */
+  project: string;
+  /** Final depth in m; null when not stated. */
+  depth: number | null;
+  status: BoreholeStatus;
+  /** The CRS as far as the store knows it: the full record's, else only the feature's status. */
+  crs: Borehole['crs'];
+  /** Where the pin goes; null for a borehole that is not on the map. */
+  pin: { lat: number; lng: number } | null;
+}
+
+/** A row with a pin. */
+export type PinRow = MapRow & { pin: { lat: number; lng: number } };
+
+/**
+ * True when a full record in the store is at least as new as the feature: it then shows its own
+ * state (e.g. a review change the map layer doesn't know yet, or an optimistic one).
+ */
+function newerRecord(b: Borehole | undefined, f: MapFeature): b is Borehole {
+  return !!b && (f.revision == null || b.revision >= f.revision);
+}
+
+/** RESULTS row and pin of a plotted feature; its full record, when loaded and as new, gives the status. */
+export function featureRow(f: MapFeature, record?: Borehole): PinRow {
+  const b = newerRecord(record, f) ? record : undefined;
+  return {
+    uid: f.uid,
+    id: b?.id ?? f.id,
+    project: b?.project ?? f.project ?? '',
+    depth: b ? b.finalDepth : f.depth,
+    status: b ? displayStatus(b) : featureStatus(f),
+    crs: b?.crs ?? { name: null, code: null, status: f.crsStatus },
+    pin: { lat: f.lat, lng: f.lng },
+  };
+}
+
+/** RESULTS row of a borehole that is not on the map (a full record). */
+export function recordRow(b: Borehole): MapRow {
+  return { uid: b.uid, id: b.id, project: b.project, depth: b.finalDepth, status: displayStatus(b), crs: b.crs, pin: null };
+}
+
+/**
+ * What the Map screen lists: every plotted feature (with a pin) and every unplotted record the store
+ * holds (NOT ON MAP), each borehole once. `boreholes` is the store's cache of full records.
+ */
+export function mapRows(features: MapFeature[], boreholes: Borehole[], unplottedUids: string[]): { rows: MapRow[]; pins: PinRow[]; notOnMap: Borehole[] } {
+  const byUid = new Map(boreholes.map((b) => [b.uid, b]));
+  const pins = features.map((f) => featureRow(f, byUid.get(f.uid)));
+  const plotted = new Set(pins.map((p) => p.uid));
+  const notOnMap = unplottedUids
+    .filter((uid) => !plotted.has(uid))
+    .map((uid) => byUid.get(uid))
+    .filter((b): b is Borehole => !!b);
+  return { rows: [...pins, ...notOnMap.map(recordRow)], pins, notOnMap };
+}
+
 export interface LegendEntry {
   status: BoreholeStatus;
   label: string;
@@ -49,10 +119,10 @@ const LEGEND_ORDER: { status: BoreholeStatus; label: string }[] = [
 ];
 
 /** STATUS legend: one entry per status with its pin colour, counting only the boreholes drawn on the map. */
-export function legendEntries(boreholes: Borehole[], statuses: Map<string, BoreholeStatus>): LegendEntry[] {
+export function legendEntries(rows: MapRow[]): LegendEntry[] {
   const counts: Record<BoreholeStatus, number> = { approved: 0, in_review: 0, unreviewed: 0, attention: 0 };
-  for (const b of boreholes) {
-    if (isPlotted(b)) counts[statuses.get(b.uid) ?? displayStatus(b)] += 1;
+  for (const r of rows) {
+    if (r.pin) counts[r.status] += 1;
   }
   return LEGEND_ORDER.map(({ status, label }) => ({ status, label, color: pinColor(status), count: counts[status] }));
 }
@@ -103,14 +173,14 @@ export function notOnMapReason(b: Borehole): NotOnMapReason {
 }
 
 /** Final depth as "18.00 m", or "–" when no depth was extracted (a blank never means 0). */
-export function depthText(b: Borehole): string {
-  return b.finalDepth != null && Number.isFinite(b.finalDepth) && b.finalDepth > 0 ? metres(b.finalDepth) : '–';
+export function depthText(depth: number | null): string {
+  return depth != null && Number.isFinite(depth) && depth > 0 ? metres(depth) : '–';
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** RESULTS summary, e.g. "48 boreholes · 7 projects". No country: projects can be anywhere. */
-export function resultsSummary(boreholes: Borehole[]): string {
+export function resultsSummary(boreholes: Pick<MapRow, 'project'>[]): string {
   const projects = new Set(boreholes.map((b) => b.project)).size;
   return `${plural(boreholes.length, 'borehole', 'boreholes')} · ${plural(projects, 'project', 'projects')}`;
 }
@@ -155,11 +225,11 @@ export function fitPadding(map: Size, legend: Size): FitPadding {
  * First view of the map: the bounds of all pins, wherever they are, so none starts off-screen; the
  * whole world while nothing is plotted (the empty start). No country is built in.
  */
-export function initialBounds(boreholes: Borehole[]): Bounds {
-  const pins = boreholes.filter(isPlotted);
+export function initialBounds(rows: MapRow[]): Bounds {
+  const pins = rows.flatMap((r) => (r.pin ? [r.pin] : []));
   if (!pins.length) return WORLD_BOUNDS;
-  const lats = pins.map((b) => b.lat);
-  const lngs = pins.map((b) => b.lng);
+  const lats = pins.map((p) => p.lat);
+  const lngs = pins.map((p) => p.lng);
   return [
     [Math.min(...lats), Math.min(...lngs)],
     [Math.max(...lats), Math.max(...lngs)],

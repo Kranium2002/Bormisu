@@ -1,19 +1,23 @@
 /**
  * The app store (zustand): one store combined from slices, plus the selectors screens use.
- * - dataSlice: data source, health, load, page cache
+ * - dataSlice: data source, health, boot load, page cache
  * - reviewSlice: Review screen, saves, approve all clean, CRS dialog
- * - mapSlice: Detail selection, search, map focus
+ * - mapSlice: Detail selection, header search, map focus
+ * - mapDataSlice: map features, NOT ON MAP, full records on demand, filters, result sets, places
  * - uploadSlice: drop zone, upload queue, retries, document updates
  * - panelSlice: navigation, side panel, export menu, toast, Escape
  * - settingsSlice: the reviewer's name
  * - eventsSlice: live updates (transport status, event handlers, job failures)
+ * - clarificationsSlice: the questions (inbox, badge, dialog), answers and skips
  */
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import type { Borehole, DocumentSummary, ExtractedValue, Health } from '../domain/types';
+import { createClarificationsSlice } from './clarificationsSlice';
 import { createContext, isReviewable, pageKey } from './context';
 import { createDataSlice } from './dataSlice';
 import { createEventsSlice } from './eventsSlice';
+import { createMapDataSlice } from './mapDataSlice';
 import { createMapSlice } from './mapSlice';
 import { createPanelSlice } from './panelSlice';
 import { createReviewSlice } from './reviewSlice';
@@ -22,6 +26,7 @@ import type { AppState, PageLoad } from './types';
 import { createUploadSlice } from './uploadSlice';
 
 export type {
+  AnswerResult,
   AppState,
   CompletenessPanel,
   EditingState,
@@ -43,10 +48,12 @@ export const useAppStore = create<AppState>()((set, get) => {
     ...createDataSlice(ctx),
     ...createReviewSlice(ctx),
     ...createMapSlice(ctx),
+    ...createMapDataSlice(ctx),
     ...createUploadSlice(ctx),
     ...createPanelSlice(ctx),
     ...createSettingsSlice(ctx),
     ...createEventsSlice(ctx),
+    ...createClarificationsSlice(ctx),
   };
 });
 

@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import type { Borehole, MapFeature } from '../../domain/types';
+import { featureOf } from '../../store/testing';
 import { makeBorehole, makeValue } from '../../test/fixtures';
 import { COL, pinColor, statusChip } from '../../theme';
 import {
   crsCell,
   depthText,
+  featureRow,
   fitPadding,
   initialBounds,
   isPlotted,
   LEGEND_EXTENT,
   legendEntries,
   legendExtent,
+  mapRows,
   notOnMapReason,
   popupCrsWarning,
+  recordRow,
   resultsSummary,
   statusByUid,
   WORLD_BOUNDS,
@@ -19,6 +24,13 @@ import {
 
 const approved = (uid: string, project = 'Test Project (fictional)') =>
   makeBorehole({ uid, id: uid, project, reviewStatus: 'approved' });
+
+/** The map rows of fictional records as the store holds them: features of the plotted ones, records of the rest. */
+function rowsOf(bs: Borehole[], cached: Borehole[] = []) {
+  const features = bs.map(featureOf).filter((f): f is MapFeature => !!f);
+  const off = bs.filter((b) => !isPlotted(b));
+  return mapRows(features, [...off, ...cached], off.map((b) => b.uid));
+}
 
 describe('isPlotted', () => {
   it('needs onMap and both coordinates', () => {
@@ -40,7 +52,7 @@ describe('legendEntries', () => {
       makeBorehole({ uid: 'e', openClarifications: 1, reviewStatus: 'approved' }),
       makeBorehole({ uid: 'f', onMap: false, lat: null, lng: null }),
     ];
-    const entries = legendEntries(bs, statusByUid(bs));
+    const entries = legendEntries(rowsOf(bs).rows);
     expect(entries.map((e) => [e.label, e.count])).toEqual([
       ['Approved', 2],
       ['In review', 1],
@@ -53,7 +65,18 @@ describe('legendEntries', () => {
   it('follows status changes: a flagged value makes the pin amber', () => {
     const b = makeBorehole();
     const flagged = { ...b, values: [...b.values, makeValue({ key: 'Notes', status: 'flagged', flag: 'check' })] };
-    expect(legendEntries([flagged], statusByUid([flagged]))[3].count).toBe(1);
+    expect(legendEntries(rowsOf([flagged]).rows)[3].count).toBe(1);
+  });
+
+  it('a cached record as new as the pin gives its status (e.g. an approval the map layer has not seen yet)', () => {
+    const b = makeBorehole();
+    const pin = featureOf(b)!;
+    const approvedNow = { ...b, reviewStatus: 'approved' as const };
+    expect(featureRow(pin, approvedNow).status).toBe('approved');
+    // An older record than the pin does not: the pin is newer.
+    expect(featureRow({ ...pin, revision: 2 }, approvedNow).status).toBe('unreviewed');
+    // The server's attention wins over its review status on a pin without a record.
+    expect(featureRow({ ...pin, reviewStatus: 'approved', attention: true }).status).toBe('attention');
   });
 
   it('an inferred CRS alone is not attention: the server opens a question for it', () => {
@@ -155,10 +178,36 @@ describe('notOnMapReason', () => {
 
 describe('depthText', () => {
   it('formats metres and never shows a missing depth as 0', () => {
-    expect(depthText(makeBorehole({ finalDepth: 17.5 }))).toBe('17.50 m');
-    expect(depthText(makeBorehole({ finalDepth: 0 }))).toBe('–');
-    expect(depthText(makeBorehole({ finalDepth: null }))).toBe('–');
-    expect(depthText(makeBorehole({ finalDepth: Number.NaN }))).toBe('–');
+    expect(depthText(17.5)).toBe('17.50 m');
+    expect(depthText(0)).toBe('–');
+    expect(depthText(null)).toBe('–');
+    expect(depthText(Number.NaN)).toBe('–');
+  });
+});
+
+describe('mapRows', () => {
+  it('lists every pin and every NOT ON MAP record once, the pins first', () => {
+    const off = makeBorehole({ uid: 'off', id: 'TB-09', onMap: false, lat: null, lng: null, unplottedReason: 'no_coordinates' });
+    const { rows, pins, notOnMap } = rowsOf([makeBorehole({ uid: 'a', id: 'TB-01' }), off, makeBorehole({ uid: 'b', id: 'TB-02' })]);
+    expect(rows.map((r) => r.id)).toEqual(['TB-01', 'TB-02', 'TB-09']);
+    expect(pins.map((p) => p.uid)).toEqual(['a', 'b']);
+    expect(notOnMap.map((b) => b.uid)).toEqual(['off']);
+    expect(rows[2]).toEqual(recordRow(off));
+    expect(rows[2].pin).toBeNull();
+  });
+
+  it('a pin without its full record shows the feature: CRS status only, its depth, no label made up', () => {
+    const pin = featureOf(makeBorehole({ crs: { name: 'Fictional grid', code: 'EPSG:0001', status: 'inferred' }, finalDepth: null }))!;
+    const row = featureRow(pin);
+    expect(row.crs).toEqual({ name: null, code: null, status: 'inferred' });
+    expect(crsCell(row.crs).text).toBe('inferred');
+    expect(depthText(row.depth)).toBe('–');
+    expect(row.project).toBe('Test Project (fictional)');
+    expect(featureRow({ ...pin, project: null }).project).toBe('');
+  });
+
+  it('an unplotted uid whose record is not cached is left out (nothing is made up for it)', () => {
+    expect(mapRows([], [], ['bh_unknown']).rows).toEqual([]);
   });
 });
 
@@ -175,7 +224,7 @@ describe('resultsSummary', () => {
 describe('initialBounds', () => {
   it('covers every pin, so none starts off-screen', () => {
     const bs = [makeBorehole({ uid: 'a', lat: 48.8, lng: 9.2 }), makeBorehole({ uid: 'b', lat: -36.8, lng: 174.7 })];
-    expect(initialBounds(bs)).toEqual([
+    expect(initialBounds(rowsOf(bs).rows)).toEqual([
       [-36.8, 9.2],
       [48.8, 174.7],
     ]);
@@ -192,7 +241,7 @@ describe('uiv-5: the first map view hard-codes no country', () => {
   });
 
   it('fits the pins wherever they are', () => {
-    expect(initialBounds([makeBorehole({ lat: 48.8, lng: 9.2 })])).toEqual([
+    expect(initialBounds(rowsOf([makeBorehole({ lat: 48.8, lng: 9.2 })]).rows)).toEqual([
       [48.8, 9.2],
       [48.8, 9.2],
     ]);
