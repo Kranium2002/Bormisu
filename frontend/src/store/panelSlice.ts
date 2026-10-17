@@ -90,6 +90,8 @@ function routePatch(s: AppState, route: AppRoute, entering: boolean): Partial<Ap
         : { selectedLayer: layer };
     }
     case 'inbox':
+    case 'list':
+    case 'sheet':
     case 'notFound':
       return {};
   }

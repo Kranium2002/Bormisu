@@ -2,12 +2,21 @@
 
 Seamless SVG fill patterns for soil and rock layers according to **DIN 4023:2023** (colour + hatch symbol).
 Everything is keyed by the **DIN code** (e.g. `T` = clay, `Kst` = limestone): the code gives you the colour **and** the shape.
+Which data field picks which symbol, with an example per group: [DATA_MAPPING.md](DATA_MAPPING.md).
 
 ```
-assets/din4023_patterns/
+frontend/src/assets/din4023_patterns/
+├── DATA_MAPPING.md  # which record field draws which symbol, one example per group
 ├── din_codes.json   # DIN code → colour, symbol colour, svg file, pattern id, tile size
 ├── patterns.svg     # all 49 patterns as <pattern> definitions (for SVG)
-└── svg/<file>.svg   # one seamless tile per DIN code (for CSS / images)
+├── svg/<file>.svg   # one seamless tile per DIN code (for CSS / images)
+├── symbols.svg      # the same 49 tiles without colour (black symbol, transparent), id din-sym-<file>
+├── symbols/<file>.svg  # for drawing a symbol over another fill (secondary components)
+├── secondary_codes.json  # Table 1 secondary components: s, u, g, fs … → their symbol
+├── properties.json  # Table 6: property symbols drawn right of the column
+├── properties/<group>_<key>.svg  # vertical tiles (repeat in y)
+├── left_symbols.json  # Table 5: samples, groundwater, joints drawn left of the column
+└── left_symbols/<group>_<key>.svg
 ```
 
 ## Look up a DIN code
@@ -53,7 +62,7 @@ Copy the needed `<pattern>` from `patterns.svg` into the `<defs>` of your SVG (e
 
 ### HTML / CSS
 ```html
-<div style="background-image:url('assets/din4023_patterns/svg/rock_Kst.svg');
+<div style="background-image:url('frontend/src/assets/din4023_patterns/svg/rock_Kst.svg');
             background-repeat:repeat;
             background-size:50.395px 11.265px;   /* tile_width tile_height, both × the same factor */
             width:100%; height:240px"></div>
@@ -63,7 +72,7 @@ Never use `background-size: cover / contain / 100%` — that stretches the tile.
 ### Python (find what to draw)
 ```python
 import json
-codes = json.load(open("assets/din4023_patterns/din_codes.json", encoding="utf-8"))
+codes = json.load(open("frontend/src/assets/din4023_patterns/din_codes.json", encoding="utf-8"))
 c = codes.get(layer["din_code"])          # None -> plain #E0E0E0
 svg_file, w, h = c["svg"], c["tile_width"], c["tile_height"]
 ```
@@ -79,5 +88,92 @@ File names are `<kind>_<code>` with `ö` → `oe` (e.g. `geological_Loe.svg`), b
 
 Sparse symbols are intended: `Mu` (topsoil), `A` (fill) and `Stk` (hard coal) show one symbol per tile, as in the norm.
 
+## Secondary components and mixed layers (DIN 4023 §4.2, §4.3)
+A layer code like `U, s` (silt, sandy) has a **main component** (capital, first: `U`) and **secondary components** (lowercase, after commas: `s`).
+`secondary_codes.json` is keyed by the lowercase code and points to the main code's symbol:
+```json
+"s": { "main": "S", "name_de": "sandig", "name_en": "sandy", "colour": "#C6542F",
+       "symbol_svg": "symbols/soil_S.svg", "symbol_pattern_id": "din-sym-soil_S",
+       "tile_width": 59.053, "tile_height": 19.882 }
+```
+Every DIN code also has `symbol_svg` / `symbol_pattern_id` in `din_codes.json`: its tile without the colour, to draw over another fill. Same tile size and the same tiling rules as the coloured tiles.
+
+| case | how to draw the column |
+|---|---|
+| `U, s` (main + secondary) | main tile (`svg/`) over the full width; secondary **symbol** (`symbols/`) over it in the **right half** only |
+| `U, s` in colour | main colour on the left; secondary colour on the right, width = its share of the mass; main symbol full width, secondary symbol right half |
+| `S/G` (two parts, about equal) | each colour on one half; **both** symbols (`symbols/`) over the full width |
+| very thin layer | main tile in the left half, secondary symbol in the right half |
+| made ground (`A, …`), decomposed rock (`Pl (S, g)`) | left half: made ground / parent rock; right half: the soil |
+
+- Only the first secondary component is drawn; a second only when it matters geotechnically (Table 6), third never.
+- Weak / strong marks (`u'` slightly silty, `fs̄` or `fs*` strongly fine sandy) are text only: strip `'`, `̄`, `*` before the lookup.
+- Rock: secondary component in lower density (§4.3.3). Cross-sections and maps: one secondary component, lower density (§4.2.9).
+- Symbols are black. On a dark fill (e.g. `H` peat) they are hard to read; the coloured tiles switch those to white (`symbol_colour`).
+
+## Property symbols (Table 6, right of the column)
+Black vector symbols on transparent, drawn in a strip **next to** the layer, right of the column, over the layer's full height.
+`properties.json` is an array, one entry per symbol:
+```json
+{
+  "group": "density", "key": "dense",
+  "name_de": "dicht", "name_en": "dense",
+  "svg": "properties/density_dense.svg",
+  "tile_width": 47, "tile_height": 47,   // size of ONE tile in user units
+  "repeat_y": true,                      // repeat vertically to the layer height (false only for "wet")
+  "frame": null                          // weathering only: thickness of the top / bottom edge to draw yourself
+}
+```
+**Vertical scaling = repeat, never stretch.** Keep the width fixed and repeat the tile in y to any height (same rules as the fill patterns: one scale factor for both tile sides).
+- CSS: `background:url(properties/density_dense.svg) repeat-y; background-size:<tile_width>px <tile_height>px`. `background-repeat: no-repeat round` instead fits a whole number of tiles (no cut-off dot at the bottom, tile height changes slightly).
+- SVG: `<pattern patternUnits="userSpaceOnUse" width=tile_width height=tile_height>` with the tile inside, `fill="url(#…)"` on a rect as tall as the layer.
+- **Weathering** (`frame` = 7): the tile has the side bars only; draw a top and bottom edge of that thickness at the layer boundaries (e.g. `border-top/bottom: 7px solid #000` at scale 1) to close the box.
+- **`wet`** is a single mark, not a strip: draw it once at its size.
+
+| group | key (DIN term) |
+|---|---|
+| moisture | `wet` (nass) |
+| consistency | `liquid` (flüssig) · `very_soft` (breiig/sehr weich) · `soft` (weich) · `firm` (steif) · `stiff` (halbfest) · `hard` (fest) |
+| density | `loose` (locker bis sehr locker) · `medium_dense` (mitteldicht) · `dense` (dicht) · `very_dense` (sehr dicht) |
+| weathering | `w0` (frisch) · `w1` (schwach) · `w2_3` (mäßig bis stark) · `w4` (vollständig) · `w5` (zersetzt) |
+| jointing | `jointed` (klüftig) · `highly_jointed` (stark klüftig) |
+
+## Samples, groundwater, joints (Table 5, left of the column)
+DIN 4023 §5.6: depth numbers and these symbols go **left** of the column, soil codes and Table 6 symbols right.
+`left_symbols.json` is an array, one entry per symbol. Black vector symbols on transparent, same units as Table 6:
+```json
+{
+  "group": "groundwater", "key": "struck",
+  "name_de": "Grundwasseroberfläche (beim Aufschluss angetroffen)", "name_en": "groundwater struck",
+  "svg": "left_symbols/groundwater_struck.svg",
+  "width": 72, "height": 66,
+  "anchor": [36, 66],     // this point of the SVG sits on the depth line (null: see the symbol below)
+  "repeat_y": false
+}
+```
+The symbols only: the horizontal depth line (stroke width 5 at scale 1), numbers, dates and hours are text you draw (§5.7, §5.8).
+
+| group | key | how to draw (DIN 4023 §5.7 / §5.8) |
+|---|---|---|
+| sample | `sample` | filled box, **bottom edge at the sample's bottom depth**; line from there right to the column, on it the top and bottom depth of the sample; before the box the sampling category and sample number: `A2` = category A, sample 2 |
+| sample | `water_sample` | open triangle, base on the sample depth line; before it `W` and the sample number: `W8` |
+| sample | `cored` | double line left of the column over the cored depth range; `repeat_y` tile (fixed width, repeat in y, never stretch) |
+| groundwater | `struck` | open triangle on its tip, tip on the line at the depth where water was struck; depth above the line, date `(YYYY-MM-DD)` below it in brackets |
+| groundwater | `after_drilling` | half-filled triangle: level after drilling, or after the water level changed; date in brackets plus hours since drilling stopped / paused: `(2021-09-30) 3 h` |
+| groundwater | `rest` | filled triangle: rest water level in an observation well; date **without** brackets |
+| groundwater | `rise` | arrow up from the struck level to the risen level, stretchable in y (see below). `top` = arrowhead, its top edge on the risen level; `bottom` = foot, its bottom edge on the struck level. `svg` is a preview at the norm's length |
+| groundwater | `fall` | arrow down: `top` = V, its top edge on the struck level; `bottom` = arrowhead at the end of the arrow |
+| joints | `dip` | drawn for dip direction 0° (arrow up). Rotate clockwise by the dip direction around `anchor` (135 → arrow to SE); write `dip direction / dip` along the line, e.g. `135 / 25` |
+
+**Stretchable arrows (`rise`, `fall`).** `parts` has three files, all 70 wide with the shaft at x = 35:
+```
+top     groundwater_<rise|fall>_top.svg      62 high, fixed
+middle  groundwater_arrow_middle.svg         10 high, repeat in y for any length
+bottom  groundwater_<rise|fall>_bottom.svg   62 high, fixed
+```
+Stack them: top at the upper level, bottom ending at the lower level, the middle tile repeated in the gap (gap = distance − 124 at scale 1; a partly cut last tile is fine, it is a straight line). Gap below 0: the levels are too close for an arrow, draw only the triangles. Browsers can show a hairline where two images meet: overlap the parts by 1 unit.
+
+Scale like the rest: one uniform factor for the whole drawing, never stretch a symbol.
+
 ## Source
-Symbols traced from the tables of DIN 4023:2023-02 (Tables 1–3), colours from its Annex A. The norm itself is published and copyrighted by DIN Media.
+Symbols traced from the tables of DIN 4023:2023-02 (Tables 1–3), colours from its Annex A; Table 5 and Table 6 symbols redrawn as vectors from the norm's measurements. The norm itself is published and copyrighted by DIN Media.

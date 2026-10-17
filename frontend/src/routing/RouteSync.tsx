@@ -46,7 +46,8 @@ export function RouteSync() {
   const uid = routeUid(route);
   const known = useAppStore((s) => uid !== null && s.boreholes.some((b) => b.uid === uid));
   const applyRoute = useAppStore((s) => s.applyRoute);
-  const recordKind = route.kind === 'review' || route.kind === 'detail' ? route.kind : null;
+  // The generated sheet needs the same full record as the detail.
+  const recordKind = route.kind === 'review' || route.kind === 'detail' ? route.kind : route.kind === 'sheet' ? 'detail' : null;
   const rs = route.kind === 'map' ? route.rs : null;
   const fit = route.kind === 'map' && route.at === null;
 

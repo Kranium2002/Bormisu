@@ -20,6 +20,8 @@ const SECTION: Record<RouteKind, Section | null> = {
   reviewIndex: 'review',
   review: 'review',
   inbox: 'inbox',
+  list: 'map',
+  sheet: 'map',
   notFound: null,
 };
 

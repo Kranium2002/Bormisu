@@ -1,34 +1,38 @@
-/* Design tokens (Herrenknecht brand + prototype palette) and global resets. */
+/* Design tokens (black and white, classic status colours: green ok, amber attention, red error) and global resets. */
 :root {
-  /* brand + status */
-  --c-green: #7DB713;
-  --c-dark: #003E25;
+  /* UI is black and white; colour only means status */
+  --c-accent: #111111; /* primary buttons, selection, active tab */
+  --c-accent-hover: #333333;
+  --c-on-accent: #FFFFFF; /* 18.9:1 */
+  --c-on-dark-accent: #FFFFFF; /* accents on the black header: active tab underline, focus ring, toast */
+  --c-green: #1E7B34; /* status: reviewed, approved, done */
+  --c-on-green: #FFFFFF; /* white on green: 5.3:1 */
+  --c-dark: #111111; /* header, headings */
+  --c-dark-hover: #2B2B2B;
   --c-amber: #E39B00;
   --c-red: #C8102E;
   --c-grey: #A3A3A2;
   --c-gw: #1F5FA8;
 
   /* text */
-  --c-text: #181818;
+  --c-text: #111111;
   --c-muted: #555555;
-  --c-faint: #868685;
-  --c-nav-idle: #CFE0C8;
-  --c-green-text: #3F6A00;
+  --c-faint: #6B6B6B; /* lightest text tone: 5.3:1 on white, 4.7:1 on --c-selected. Not for borders. */
+  --c-nav-idle: #C8C8C8;
+  --c-green-text: #1A6B2D;
   --c-amber-text: #8A5300;
-  /* Text on a green (--c-green) button: white reaches only 2.4:1 there, the dark brand green 5:1. */
-  --c-on-green: #003E25;
 
   /* surfaces + lines */
-  --c-bg: #FCFCFC;
+  --c-bg: #FAFAFA;
   --c-surface: #FFFFFF;
-  --c-line: #EFEFEF;
-  --c-border: #D6D6D6;
-  --c-border-strong: #C9C9C8;
-  --c-ok-border: #BFD98F;
-  --c-hover: #F6F9F0;
-  --c-selected: #F5F9EC;
-  --c-drop: #F2F8E6;
-  --c-green-bg: #E6F1D2;
+  --c-line: #EEEEEE;
+  --c-border: #D4D4D4;
+  --c-border-strong: #BDBDBD;
+  --c-ok-border: #A8D5B1;
+  --c-hover: #F5F5F5;
+  --c-selected: #F0F0F0;
+  --c-drop: #F2F2F2;
+  --c-green-bg: #E3F4E6;
   --c-amber-bg: #FFEFCC;
   --c-red-bg: #FDE7EA;
   --c-red-bg-soft: #FDF0F2;
@@ -38,11 +42,35 @@
   --c-paper: #FCFBF7;
   --c-ink: #2B2B2B;
 
+  /* focus: black ring on light surfaces, white ring on the black header */
+  --focus-ring: 2px solid var(--c-dark);
+  --focus-ring-on-dark: 2px solid var(--c-on-dark-accent);
+
   /* fonts */
-  /* After the Latin faces: CJK and Devanagari fallbacks for reports printed in those scripts. */
-  --font-sans: Univers, 'Helvetica Neue', Helvetica, Arial, 'Noto Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans Devanagari', 'Nirmala UI', sans-serif;
+  --font-sans: Univers, 'Univers LT Std', Inter, 'Helvetica Neue', Helvetica, Arial, 'Noto Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans Devanagari', 'Nirmala UI', sans-serif;
   --font-mono: 'IBM Plex Mono', 'Noto Sans Mono', 'Noto Sans SC', 'Microsoft YaHei', 'Noto Sans Devanagari', 'Nirmala UI', monospace;
   --font-scan: 'Courier Prime', monospace;
+
+  /* type scale: 2xs chips · xs column headers + meta · sm headings + buttons · md body · lg lead · title screen titles */
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-title: 20px;
+
+  /* letter-spacing: caps = buttons, column headers, chips' caps tag · head = card/panel headings · title = screen titles */
+  --ls-caps: 0.06em;
+  --ls-head: 0.07em;
+  --ls-title: 0.03em;
+
+  /* spacing scale (4/8/12/16/24/32) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
 
   /* shadows */
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.18);
@@ -70,6 +98,11 @@ body,
   height: 100%;
 }
 
+/*
+ * No global tabular-nums: Inter's tabular figures also widen the hyphen, so "grey-brown" or
+ * "Spree-Kabeltunnel" would read "grey - brown". Columns of figures (depths, counts, distances)
+ * use --font-mono, whose figures are tabular anyway.
+ */
 body {
   margin: 0;
   background: var(--c-bg);
@@ -77,12 +110,19 @@ body {
   color: var(--c-text);
 }
 
+/* Every interactive element shows this ring unless its module sets a token-based one. */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
 a {
   color: var(--c-dark);
 }
 
+/* Green text on white is 2.4:1: links darken to the accessible green tone instead. */
 a:hover {
-  color: var(--c-green);
+  color: var(--c-green-text);
 }
 
 button {
@@ -103,7 +143,58 @@ button {
 }
 
 .leaflet-popup-content {
-  margin: 12px 14px;
+  margin: var(--space-3) var(--space-4);
+}
+
+/*
+ * Leaflet chrome in the app's look (zoom buttons, attribution). `.leaflet-control-container` lifts these
+ * above Leaflet's own `.leaflet-touch …` rules, which load first; the buttons keep their names (Zoom in / Zoom out).
+ */
+.leaflet-control-container .leaflet-bar {
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: var(--shadow-card);
+}
+
+.leaflet-control-container .leaflet-bar a {
+  width: 32px;
+  height: 32px;
+  color: var(--c-dark);
+  background-color: var(--c-surface);
+  font: 700 18px / 32px var(--font-sans);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.leaflet-control-container .leaflet-bar a:first-child,
+.leaflet-control-container .leaflet-bar a:last-child {
+  border-radius: 0;
+}
+
+.leaflet-control-container .leaflet-bar a:last-child {
+  border-bottom: 0;
+}
+
+.leaflet-control-container .leaflet-bar a:hover {
+  background-color: var(--c-hover);
+}
+
+.leaflet-control-container .leaflet-bar a.leaflet-disabled {
+  color: var(--c-border-strong);
+  background-color: var(--c-surface);
+}
+
+.leaflet-container .leaflet-control-attribution {
+  font-size: var(--fs-2xs);
+  color: var(--c-muted);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--c-muted);
+}
+
+.leaflet-container .leaflet-control-attribution a:hover {
+  color: var(--c-text);
 }
 
 @keyframes bpulse {

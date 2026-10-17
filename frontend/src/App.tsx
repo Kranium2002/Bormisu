@@ -23,6 +23,8 @@ const SCREEN_LABEL: Record<RouteKind, string> = {
   review: 'Extraction review',
   detail: 'Borehole detail',
   inbox: 'Questions inbox',
+  list: 'Borehole list',
+  sheet: 'Borehole sheet',
   notFound: 'Not found',
 };
 
@@ -82,7 +84,7 @@ export function App() {
   const crsDialogOpen = useAppStore((s) => s.crsDialogOpen);
   const route = useLocationRoute();
   const mainRef = useRef<HTMLElement>(null);
-  const screenPath = route.kind === 'review' || route.kind === 'detail' ? `${route.kind}/${route.uid}` : route.kind;
+  const screenPath = route.kind === 'review' || route.kind === 'detail' || route.kind === 'sheet' ? `${route.kind}/${route.uid}` : route.kind;
   useScreenFocus(mainRef, screenPath);
 
   useEffect(() => {

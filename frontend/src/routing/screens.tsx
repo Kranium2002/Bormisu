@@ -7,10 +7,12 @@ import { Navigate, useRouteError } from 'react-router';
 import { EmptyState } from '../components/EmptyState';
 import { DetailScreen } from '../screens/detail/DetailScreen';
 import { InboxScreen } from '../screens/inbox/InboxScreen';
+import { ListScreen } from '../screens/list/ListScreen';
 import { useInboxQuery } from '../screens/inbox/useInboxQuery';
 import { MapScreen } from '../screens/map/MapScreen';
 import { QueueScreen } from '../screens/queue/QueueScreen';
 import { ReviewScreen } from '../screens/review/ReviewScreen';
+import { SheetScreen } from '../screens/sheet/SheetScreen';
 import { useAppStore, useBorehole } from '../store/appStore';
 import { reviewHref } from './navLinks';
 import { NotFound } from './NotFound';
@@ -73,6 +75,19 @@ export function BoreholeRoute() {
   const shown = useShown();
   if (!borehole) return <MissingRecord uid={uid} />;
   return shown ? <DetailScreen /> : null;
+}
+
+/** /list: every borehole as a table. */
+export function ListRoute() {
+  return <ListScreen />;
+}
+
+/** /sheet/:uid: the generated sheet of a record (its full record loads like the detail's). */
+export function SheetRoute() {
+  const uid = routeUid(useLocationRoute());
+  const borehole = useBorehole(uid);
+  if (!borehole) return <MissingRecord uid={uid} />;
+  return <SheetScreen />;
 }
 
 /** /inbox: the questions; ?q= opens one in the dialog, and the open dialog writes ?q= (history replace). */

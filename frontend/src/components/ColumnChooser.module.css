@@ -1,0 +1,88 @@
+/* × after an optional column's name; + at the end of a header row adds one (LIST, LAYERS, TEST RESULTS). */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.remove {
+  composes: quiet from '../styles/buttons.module.css';
+  padding: 0 var(--space-1);
+  font-size: var(--fs-md);
+  line-height: 1;
+  color: var(--c-faint);
+}
+
+.remove:hover {
+  color: var(--c-text);
+}
+
+.menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.plus {
+  list-style: none;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-md);
+  font-weight: 700;
+}
+
+.plus::-webkit-details-marker {
+  display: none;
+}
+
+.list {
+  position: fixed; /* top / right set at the + button when it opens */
+  z-index: 50;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  min-width: 220px;
+  max-height: 60vh;
+  overflow: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  text-align: left;
+}
+
+/* data-model table name above its fields */
+.group {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  color: var(--c-faint);
+  text-transform: uppercase;
+  border-top: 1px solid var(--c-line);
+}
+
+.groupList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  composes: quiet from '../styles/buttons.module.css';
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  white-space: nowrap;
+}
+
+.item:hover {
+  background: var(--c-hover);
+}

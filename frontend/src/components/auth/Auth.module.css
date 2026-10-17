@@ -33,7 +33,7 @@
   height: 34px;
   flex: none;
   background: var(--c-green);
-  color: var(--c-dark);
+  color: var(--c-on-green);
   display: flex;
   align-items: center;
   justify-content: center;
