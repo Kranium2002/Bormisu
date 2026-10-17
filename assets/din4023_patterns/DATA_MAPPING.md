@@ -126,7 +126,7 @@ Rules:
 - `depth_m` places the line (tip of the triangle on it), `date` goes under the line.
 - One symbol per reading; a borehole can have several.
 - The hours since drilling stopped (half-filled triangle, e.g. `3 h`) have **no field yet**.
-- `rest` ↔ half-filled and `standpipe` ↔ filled is our reading of DIN 4023 §5.8 (filled = rest level in a built observation well); check with the team.
+- `rest` → half-filled (level after drilling), `standpipe` → filled (DIN 4023 §5.8: rest level in a built observation well).
 
 | `type` | symbol | DIN 4023 | file |
 |---|---|---|---|
