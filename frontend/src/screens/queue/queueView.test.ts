@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentSummary } from '../../domain/types';
-import { canOpenPage, canOpenReview, countChips, docHint, docMeta, dropErrorText, pageTitle, stepViews } from './queueView';
+import { canOpenReview, docHint, docMeta, dropErrorText, stepViews } from './queueView';
 
 const doc = (over: Partial<DocumentSummary> = {}): DocumentSummary => ({
   id: 'd1', name: 'report.pdf', project: 'Test project',
@@ -56,29 +56,6 @@ describe('docMeta', () => {
     expect(docMeta(doc())).toBe('3 pages · Test project');
     expect(docMeta(doc({ pageTypes: ['log'], project: '' }))).toBe('1 page');
     expect(docMeta(doc({ pageTypes: [], project: '', uploaded: true }))).toBe('Uploaded, waiting for page count');
-  });
-});
-
-describe('countChips', () => {
-  it('keeps 0 as 0 and null as not processed', () => {
-    expect(countChips(null)).toBeNull();
-    expect(countChips({ boreholes: 13, layers: 1, spt: 0, groundwater: 9 })?.map(({ n, label }) => ({ n, label }))).toEqual([
-      { n: 13, label: 'BH' }, { n: 1, label: 'layer' }, { n: 0, label: 'SPT' }, { n: 9, label: 'GW readings' },
-    ]);
-  });
-});
-
-describe('page strip', () => {
-  it('titles pages with type and usage', () => {
-    expect(pageTitle('text', 1)).toBe('p.1 · text · used: project metadata');
-    expect(pageTitle('text', 5)).toBe('p.5 · text · unused: text');
-    expect(pageTitle('log', 7)).toBe('p.7 · log · used: borehole log');
-    expect(pageTitle('unknown', 30)).toBe('p.30 · not classified yet');
-  });
-
-  it('only opens classified pages', () => {
-    expect(canOpenPage('unknown')).toBe(false);
-    expect(canOpenPage('photo')).toBe(true);
   });
 });
 

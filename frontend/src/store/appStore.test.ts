@@ -74,6 +74,13 @@ describe('review actions', () => {
     expect(st().editing).toBeNull();
   });
 
+  it('corrects or confirms a value from the document view, outside the Review page', () => {
+    st().correctValue('doc:TB-01', K.finalDepth, '6.00');
+    expect(value(K.finalDepth)).toMatchObject({ value: '6.00', status: 'approved' });
+    st().correctValue('doc:TB-01', K.finalDepth, '6.40');
+    expect(value(K.finalDepth)).toMatchObject({ value: '6.40', method: 'Edited', status: 'approved' });
+  });
+
   it('flags with a reason and unflags', () => {
     st().toggleFlag(K.finalDepth);
     expect(st().editing?.mode).toBe('flag');

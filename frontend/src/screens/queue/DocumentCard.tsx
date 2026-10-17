@@ -3,8 +3,7 @@ import { completenessSummary } from '../../domain/review';
 import type { DocumentSummary } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import styles from './DocumentCard.module.css';
-import { PageStrip } from './PageStrip';
-import { canOpenReview, countChips, docHint, docMeta } from './queueView';
+import { canOpenReview, docHint, docMeta } from './queueView';
 import { StatusSteps } from './StatusSteps';
 
 /** Completeness chip ("Report lists 14 · extracted 13 · ⚠ 1 missing") that opens the Completeness panel. */
@@ -25,21 +24,6 @@ function CompletenessChip({ doc }: { doc: DocumentSummary }) {
     >
       {summary.chipText}
     </button>
-  );
-}
-
-/** Found counts ("13 BH · 63 layers · …"), or "Not processed yet" before extraction. */
-function CountChips({ counts }: { counts: DocumentSummary['counts'] }) {
-  const chips = countChips(counts);
-  if (!chips) return <span className={styles.muted}>Not processed yet</span>;
-  return (
-    <ul className={styles.counts} aria-label="Found">
-      {chips.map((c) => (
-        <li key={c.label} className={styles.count} title={c.hint}>
-          <b>{c.n}</b> {c.label}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -73,9 +57,7 @@ export function DocumentCard({ doc }: { doc: DocumentSummary }) {
           <CompletenessChip doc={doc} />
         </div>
       </div>
-      <CountChips counts={doc.counts} />
       <div className={styles.bottom}>
-        <PageStrip doc={doc} />
         {hint?.tone === 'action' && (
           <button type="button" className={styles.hintAction} onClick={onHint}>
             {hint.text}

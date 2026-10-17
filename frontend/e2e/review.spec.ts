@@ -1,9 +1,9 @@
 import type { Page } from '@playwright/test';
-import { AMBER, expect, legendCount, nav, openApp, pinFills, test } from './fixtures';
+import { AMBER, expect, legendCount, nav, openApp, openReviewPage, pinFills, test } from './fixtures';
 
 async function openReview(page: Page) {
   await openApp(page);
-  await nav(page, 'REVIEW');
+  await openReviewPage(page);
   await expect(page.getByRole('heading', { name: 'REVIEW · BK-07' })).toBeVisible();
 }
 
@@ -82,7 +82,7 @@ test.describe('review', () => {
     await expect(legendCount(page, 'attention')).toHaveText('17');
     expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(17);
 
-    await nav(page, 'REVIEW');
+    await openReviewPage(page);
     await row(page, 'CoordinateSystem').click();
     await page.getByRole('button', { name: 'CHOOSE CRS…' }).click();
     const dialog = page.getByRole('dialog', { name: 'CONFIRM CRS FOR THE WHOLE DOCUMENT' });

@@ -144,6 +144,11 @@ export interface AppState {
   setEditText(text: string): void;
   saveEdit(): void;
   cancelEdit(): void;
+  /**
+   * Corrects a value from anywhere (the document view on the detail page): a changed text becomes the
+   * value (method Edited), the same text confirms it; either way it counts as reviewed.
+   */
+  correctValue(uid: string, key: string, text: string): void;
   toggleApprove(key: string): void;
   toggleFlag(key: string): void;
   /** Sets "not in source" / "illegible" (and approves); the same state again resets it to ok + unreviewed. */
@@ -495,6 +500,11 @@ export const useAppStore = create<AppState>()((set, get) => {
 
     cancelEdit() {
       set({ editing: null });
+    },
+
+    correctValue(uid, key, text) {
+      const v = find(uid)?.values.find((x) => x.key === key);
+      if (v) void patchValues(uid, [key], editPatch(v, text));
     },
 
     toggleApprove(key) {

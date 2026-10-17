@@ -1,4 +1,4 @@
-import { expect, nav, openApp, test } from './fixtures';
+import { expect, nav, openApp, openReviewPage, test } from './fixtures';
 
 // Console errors fail the test via the shared fixture.
 test('shell renders in sample mode without console errors', async ({ page }) => {
@@ -7,8 +7,11 @@ test('shell renders in sample mode without console errors', async ({ page }) => 
   const main = page.getByRole('navigation', { name: 'Main' });
   await expect(main.getByRole('button', { name: /^UPLOAD & QUEUE/ })).toContainText('1');
 
-  await nav(page, 'REVIEW');
-  await expect(main.getByRole('button', { name: 'REVIEW', exact: true })).toHaveAttribute('aria-current', 'page');
+  // Review is no tab of its own: it opens from a document, and UPLOAD & QUEUE stays marked.
+  await expect(main.getByRole('button', { name: 'REVIEW', exact: true })).toHaveCount(0);
+  await openReviewPage(page);
+  await expect(page.getByRole('heading', { name: 'REVIEW · BK-07' })).toBeVisible();
+  await expect(main.getByRole('button', { name: /^UPLOAD & QUEUE/ })).toHaveAttribute('aria-current', 'page');
 
   await page.getByLabel('Search project or borehole ID').fill('nothing-here');
   await page.keyboard.press('Enter');
@@ -39,18 +42,6 @@ test('Tab reaches the side panel scroller, which scrolls with the arrow keys', a
   await page.keyboard.press('Shift+Tab');
   await expect(checks).toBeFocused();
   await page.keyboard.press('Escape');
-
-  // A page opened from the page map has no OPEN IN REVIEW: × and the page are the only stops.
-  await page.getByRole('group', { name: 'Page map of neckarbogen_BG_2019.pdf' }).getByRole('button').nth(6).click();
-  const scan = page.getByRole('dialog', { name: 'Source' }).getByRole('region', { name: 'Source page' });
-  await expect(scan.getByRole('group')).toBeVisible();
-  await page.keyboard.press('Tab');
-  await expect(scan).toBeFocused();
-  await scan.evaluate((el) => (el.scrollTop = 0));
-  await page.keyboard.press('PageDown');
-  await expect.poll(() => scan.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-  await page.keyboard.press('Shift+Tab');
-  await expect(close).toBeFocused();
 });
 
 test('browser back and forward step through the app instead of leaving it', async ({ page }) => {

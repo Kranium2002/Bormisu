@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useAppStore, useIsReviewable, usePage, useValue, type SourcePanel as SourcePanelState } from '../store/appStore';
 import { PAGE_TYPE_META } from '../theme';
 import { certaintyOf } from '../domain/certainty';
@@ -11,8 +11,29 @@ import styles from './SidePanel.module.css';
 const SCALE = 0.92;
 
 /**
+ * A small field to correct the value right next to its scan: a changed text becomes the value, the same
+ * text confirms it; both count as reviewed (its dot turns green).
+ */
+function CorrectValue({ uid, valueKey, label, value }: { uid: string; valueKey: string; label: string; value: string }) {
+  const correctValue = useAppStore((s) => s.correctValue);
+  const [text, setText] = useState(value);
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    correctValue(uid, valueKey, text);
+  };
+  return (
+    <form className={styles.correct} onSubmit={save}>
+      <input className={styles.correctInput} value={text} onChange={(e) => setText(e.target.value)}
+        aria-label={`Corrected value for ${label}`} />
+      <button type="submit" className={styles.correctSave}>{text.trim() === value ? 'CONFIRM' : 'SAVE'}</button>
+    </form>
+  );
+}
+
+/**
  * Source panel: the value's page with its box highlighted, the raw text and the method.
- * "Box not found: page shown" when the value has no box. OPEN IN REVIEW for reviewable values.
+ * "Box not found: page shown" when the value has no box. A field corrects or confirms the value right here;
+ * OPEN FULL REVIEW goes to the document's Review page (under UPLOAD & QUEUE) for reviewable values.
  */
 export function SourcePanel({ panel }: { panel: SourcePanelState }) {
   const value = useValue(panel.uid, panel.key);
@@ -71,6 +92,9 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
           {detail && <span className={styles.raw}>{detail}</span>}
         </div>
         {value && !box && <div className={styles.noBox}>Box not found: page shown</div>}
+        {value && panel.uid && panel.key && (
+          <CorrectValue key={`${panel.uid}:${panel.key}`} uid={panel.uid} valueKey={panel.key} label={value.label} value={value.value} />
+        )}
       </PanelHeader>
       {/* A tab stop of its own, so the panel's focus trap includes it and arrow keys scroll the page. */}
       <div ref={scrollRef} className={styles.scroll} role="region" aria-label="Source page" tabIndex={0}>
@@ -87,7 +111,7 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
       {value && reviewable && (
         <div className={styles.foot}>
           <button type="button" className={styles.primary} onClick={openInReview}>
-            OPEN IN REVIEW ›
+            OPEN FULL REVIEW ›
           </button>
         </div>
       )}

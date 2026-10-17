@@ -61,8 +61,6 @@ export const PAGE_TYPE_META: Record<PageType, { name: string; color: string; bor
   unknown: { name: 'not classified yet', color: '#FFFFFF', border: '#C9C9C8', usage: 'not classified yet' },
 };
 
-/** Page types shown in the queue legend, in prototype order. */
-export const PAGE_TYPE_LEGEND: PageType[] = ['log', 'lab_table', 'text', 'drawing', 'photo'];
 
 /** Usage note for a page: the first two text pages carry the project metadata. */
 export function pageUsage(type: PageType, page: number): string {

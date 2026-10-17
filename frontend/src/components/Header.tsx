@@ -7,7 +7,6 @@ const NAV: { screen: Screen; label: string }[] = [
   { screen: 'map', label: 'MAP' },
   { screen: 'list', label: 'LIST' },
   { screen: 'queue', label: 'UPLOAD & QUEUE' },
-  { screen: 'review', label: 'REVIEW' },
 ];
 
 /** App bar: brand, navigation (amber badge = documents waiting for review), search with a message popover. */
@@ -32,7 +31,8 @@ export function Header() {
       </button>
       <nav className={styles.nav} aria-label="Main">
         {NAV.map((n) => {
-          const active = screen === n.screen || (n.screen === 'map' && screen === 'detail');
+          // Detail belongs to MAP, the Review page to UPLOAD & QUEUE (it opens from a document there).
+          const active = screen === n.screen || (n.screen === 'map' && screen === 'detail') || (n.screen === 'queue' && screen === 'review');
           return (
             <button
               key={n.screen}

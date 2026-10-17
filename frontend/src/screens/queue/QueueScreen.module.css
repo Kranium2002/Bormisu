@@ -31,29 +31,6 @@
   letter-spacing: var(--ls-title);
 }
 
-.legend {
-  display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--fs-sm);
-  color: var(--c-muted);
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.swatch {
-  width: 10px;
-  height: 14px;
-  border: 1px solid transparent;
-}
-
 /* The backend can't list documents (API mode): boreholes still load, the queue stays empty. */
 .notice {
   margin: 0;

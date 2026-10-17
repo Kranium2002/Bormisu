@@ -3,8 +3,7 @@
  * status steps, card hint, count chips, page-strip tooltips, the drop zone's error line. No React,
  * unit-tested.
  */
-import type { DocumentStep, DocumentSummary, PageType } from '../../domain/types';
-import { PAGE_TYPE_META, pageUsage } from '../../theme';
+import type { DocumentStep, DocumentSummary } from '../../domain/types';
 
 export const STEP_LABELS = ['classifying', 'extracting', 'needs review', 'done'] as const;
 
@@ -58,31 +57,6 @@ export function docMeta(d: DocumentSummary): string {
   const parts = [n ? `${n} ${n === 1 ? 'page' : 'pages'}` : '', d.project].filter(Boolean);
   if (parts.length) return parts.join(' · ');
   return d.uploaded ? 'Uploaded, waiting for page count' : '';
-}
-
-export interface CountChip { n: number; label: string; hint: string }
-
-/** Found-count chips with a plain-language tooltip. A 0 is shown as 0: "0 found" differs from "not processed yet" (counts = null). */
-export function countChips(counts: DocumentSummary['counts']): CountChip[] | null {
-  if (!counts) return null;
-  const chip = (n: number, one: string, many: string, hint: string) => ({ n, label: n === 1 ? one : many, hint });
-  return [
-    chip(counts.boreholes, 'BH', 'BH', 'Boreholes: drilled holes with their own log in this document'),
-    chip(counts.layers, 'layer', 'layers', 'Soil/rock layers described in the logs, summed over all boreholes'),
-    chip(counts.spt, 'SPT', 'SPT', 'Standard Penetration Tests: blow counts (N) at a depth, incl. refusals'),
-    chip(counts.groundwater, 'GW reading', 'GW readings', 'Groundwater levels recorded (strike, rest level, standpipe…)'),
-  ];
-}
-
-/** Page-strip tooltip, e.g. "p.7 · log · used: borehole log". `page` is 1-based. */
-export function pageTitle(type: PageType, page: number): string {
-  if (type === 'unknown') return `p.${page} · ${PAGE_TYPE_META.unknown.name}`;
-  return `p.${page} · ${PAGE_TYPE_META[type].name} · ${pageUsage(type, page)}`;
-}
-
-/** Pages that are not classified yet can't be opened in the Source panel. */
-export function canOpenPage(type: PageType): boolean {
-  return type !== 'unknown';
 }
 
 /** Start of the store's message for dropped files of another type ("File type not supported: notes.txt"). */

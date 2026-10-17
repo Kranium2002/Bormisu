@@ -1,27 +1,9 @@
 import { useEffect } from 'react';
 import { withInlineCode } from '../../components/EmptyState';
 import { useAppStore } from '../../store/appStore';
-import { PAGE_TYPE_LEGEND, PAGE_TYPE_META } from '../../theme';
 import { DocumentCard } from './DocumentCard';
 import { DropZone } from './DropZone';
 import styles from './QueueScreen.module.css';
-
-/** Page-type colour key for the page strips (log, lab table, text, drawing, photo). */
-function PageTypeLegend() {
-  return (
-    <ul className={styles.legend} aria-label="Page types">
-      {PAGE_TYPE_LEGEND.map((t) => {
-        const m = PAGE_TYPE_META[t];
-        return (
-          <li key={t} className={styles.legendItem}>
-            <span className={styles.swatch} style={{ background: m.color, borderColor: m.border }} aria-hidden="true" />
-            {m.name}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 /**
  * Files dropped next to the drop zone would make the browser open them and leave the app.
@@ -44,7 +26,7 @@ function useRefuseStrayDrops() {
 }
 
 /**
- * Upload & queue: drop zone plus one card per document with status, checks, counts and page map. When
+ * Upload & queue: drop zone plus one card per document with status, and checks. When
  * the backend has boreholes but no document list (API mode), an amber notice says so above the queue.
  */
 export function QueueScreen() {
@@ -60,7 +42,6 @@ export function QueueScreen() {
       <div className={styles.page}>
         <div className={styles.titleRow}>
           <h1 className={styles.title}>UPLOAD &amp; QUEUE</h1>
-          <PageTypeLegend />
         </div>
         <DropZone />
         {documentsUnavailable && (

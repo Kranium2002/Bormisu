@@ -38,7 +38,13 @@ export async function openApp(page: Page, query = ''): Promise<void> {
 }
 
 /** Goes to one of the three main screens through the header nav. */
-export async function nav(page: Page, name: 'MAP' | 'LIST' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
+/** Opens the Review page the way users do: from the Neckarbogen document in UPLOAD & QUEUE. */
+export async function openReviewPage(page: Page): Promise<void> {
+  await nav(page, 'UPLOAD & QUEUE');
+  await page.getByRole('article', { name: 'neckarbogen_BG_2019.pdf' }).getByRole('button', { name: 'OPEN IN REVIEW ›' }).click();
+}
+
+export async function nav(page: Page, name: 'MAP' | 'LIST' | 'UPLOAD & QUEUE'): Promise<void> {
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: new RegExp(`^${name}`) }).click();
 }
 

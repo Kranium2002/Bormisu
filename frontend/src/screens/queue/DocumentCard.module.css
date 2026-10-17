@@ -103,27 +103,6 @@
   color: var(--c-faint);
 }
 
-.counts {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  flex-wrap: wrap;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.count {
-  font-size: var(--fs-sm);
-  padding: 3px var(--space-2);
-  background: var(--c-line);
-  border-radius: 2px;
-}
-
-.count b {
-  font-family: var(--font-mono);
-}
-
 .bottom {
   display: flex;
   align-items: flex-end;
