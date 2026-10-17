@@ -220,6 +220,10 @@ async def apply_grid_answer(
         grid = grid_point(bh.record) if bh is not None else None
         if bh is None or grid is None:
             raise _invalid("That borehole has no grid coordinates to place it by.", "anchor_1")
+        if anchors and math.dist(anchors[0][0], grid) == 0:
+            raise _invalid(
+                "The two boreholes have the same grid coordinates; choose another second one.", "anchor_2"
+            )
         anchors.append((grid, to_metric.transform(float(point["lon"]), float(point["lat"]))))
         labels.append(bh.label_raw)
     x_north = values.get("axes", X_NORTH) == X_NORTH

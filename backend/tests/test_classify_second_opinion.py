@@ -61,6 +61,14 @@ def test_outliers_are_capped_and_asked_once() -> None:
     assert outliers(pages)[0] == 4
 
 
+def test_the_cap_counts_pages_asked_by_an_earlier_run() -> None:
+    """The cap is per document: a retry of classification never asks another batch of pages."""
+    pages = [_page(n, "log_sheet" if n % 2 else "other") for n in range(1, 22)]
+    for n in (2, 4, 6):
+        pages[n - 1].classifier = {"second_opinion": {"first_role": "other"}}
+    assert outliers(pages) == []
+
+
 class TwoModels:
     """The cheap model calls the hand-filled form a cover page; the extractor model sees the log."""
 

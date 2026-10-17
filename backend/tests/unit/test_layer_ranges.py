@@ -77,3 +77,19 @@ def test_a_note_outside_the_heading_range_stays_a_stratum() -> None:
         _layer("3.0", "4.5", "3.0~4.5m : Weathered rock", 20),
     ]
     assert merge_declared_ranges(layers) == layers
+
+
+def test_a_thin_stratum_below_the_heading_range_is_not_a_note() -> None:
+    """A stratum that starts where the heading's range ends (and prints no range of its own) is the next
+    stratum, even when it is thinner than the tolerance."""
+    layers = [
+        _layer("0.00", "4.00", "*Weathered rock Depth : 0.0 ~ 4.0 m - brown", 10),
+        _layer("4.00", "4.20", "Clay seam, soft", 20),
+        _layer("4.20", "9.00", "*Soft rock Depth : 4.2 ~ 9.0 m - grey", 30),
+    ]
+    merged = merge_declared_ranges(layers)
+    assert [(m.from_raw.raw, m.to_raw.raw) for m in merged] == [
+        ("0.00", "4.00"),
+        ("4.00", "4.20"),
+        ("4.20", "9.00"),
+    ]

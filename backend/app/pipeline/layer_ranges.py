@@ -81,7 +81,10 @@ def merge_declared_ranges(layers: list[ExtractedLayer]) -> list[ExtractedLayer]:
         # a worded range is the stratum's own heading only when it holds the stratum's top: "lenses 2-3 m
         # thick" in a 0-5 m stratum, or "infilling: calcite, 61.7~62.0m" in a row from 51 m, are not
         heading = worded and own is not None and (top is None or _inside(own, top, None, None))
-        if span is not None and not heading and out and _inside(span, top, base, own):
+        # a row printing no range of its own that starts where the heading's range ends is the next stratum
+        # (a seam thinner than the tolerance), not a note
+        starts_inside = own is not None or top is None or (span is not None and top < span[1])
+        if span is not None and starts_inside and not heading and out and _inside(span, top, base, own):
             host = out[-1]
             host_base = _depth(host.to_raw)
             to_raw = (

@@ -156,6 +156,8 @@ def outliers(pages: list[Page]) -> list[int]:
         return []
     important = get_settings().important_roles
     by_n = {p.n: p for p in pages}
+    # the cap is per document: pages asked by an earlier run (a retry) count against it
+    asked = sum(1 for p in pages if (p.classifier or {}).get("second_opinion"))
     found: list[int] = []
     for page in sorted(pages, key=lambda p: p.n):
         if page.role is None or page.role in important or page.role in rule.skip_roles:
@@ -171,7 +173,7 @@ def outliers(pages: list[Page]) -> list[int]:
         if alike and (page.handwriting in rule.handwriting or len(logs) == 2):
             found.append(page.n)
     cap = min(rule.max_pages, max(1, math.ceil(rule.max_share * len(pages))))
-    return found[:cap]
+    return found[: max(0, cap - asked)]
 
 
 async def second_opinion(document_id: str, classifier: Classifier) -> list[int]:

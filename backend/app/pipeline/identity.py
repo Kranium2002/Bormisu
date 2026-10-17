@@ -85,10 +85,11 @@ def ids_from_labels(labels: Iterable[str]) -> dict[str, str]:
 
 
 def _id_pattern(canonical: str) -> re.Pattern[str]:
-    """The ID as printed: its letter and digit runs, optionally split by a space, dash, dot or slash."""
+    """The ID as printed: its letter and digit runs, optionally split by a space, dash, dot or slash. Never
+    a part of a longer number: a decimal ("703,5 m") or a date ("12.05.2004") does not print the ID."""
     runs = re.findall(r"[0-9]+|[A-Z]+", canonical)
     body = r"[\s\-_./]?".join(re.escape(run) for run in runs)
-    return re.compile(rf"(?<![0-9A-Za-z]){body}(?![0-9A-Za-z])", re.IGNORECASE)
+    return re.compile(rf"(?<![0-9A-Za-z])(?<![0-9][.,/]){body}(?![0-9A-Za-z])(?![.,/][0-9])", re.IGNORECASE)
 
 
 def _prefixed(text: str, start: int) -> bool:

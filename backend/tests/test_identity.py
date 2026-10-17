@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+import pytest
+
 from app.pipeline.identity import Tables, find_listed, ids_from_labels, reconcile
 from app.pipeline.schemas import ExtractionResult, RawValue
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
@@ -236,3 +238,37 @@ def test_without_coordinates_logs_of_one_label_that_each_start_at_the_top_stay_a
     items = reconcile(parts, {})
     assert [i.group.key for i in items] == ["HA-1:p3-p4", "HA-1:p9", "HA-1:p14"]
     assert [layer.from_raw.raw for layer in items[0].outcome.result.layers] == ["0.00", "0.80", "3.00"]
+
+
+def test_a_decimal_depth_or_a_date_is_never_a_bare_listed_id() -> None:
+    """ "703,5 m" is a depth and "12.05.2004" a date, not the IDs 703 or 2004."""
+    depth = pair("Driller AS", (6,), [block(6, 1, "Br Drlr"), block(6, 2, "Rørbrudd ved 703,5 m")])
+    (item,) = reconcile([depth], Tables(LISTED, frozenset({1})))
+    assert item.group.label_raw == "Driller AS"
+    years = ids_from_labels(["2004", "2005"])
+    dated = pair("Driller AS", (6,), [block(6, 1, "Boret 12.05.2004"), block(6, 2, "Dybde 2004.5")])
+    (item,) = reconcile([dated], Tables(years, frozenset({1})))
+    assert item.group.label_raw == "Driller AS"
+    assert find_listed([block(6, 3, "Hull nr 703.")], [6], LISTED) is not None  # a full stop ends the ID
+
+
+@pytest.mark.xfail(
+    strict=True, reason="review/toughone: a listed ID merges all its parts whatever they print"
+)
+def test_two_projects_listing_the_same_id_with_different_coordinates_stay_apart() -> None:
+    """Two projects bound in one report, each with its own table listing "701": their logs print other
+    coordinates and are two boreholes."""
+
+    def placed(page: int, x: str, y: str) -> tuple[PageGroup, ExtractionOutcome]:
+        group, out = pair("701", (page,), [block(page, 1, "Hull nr 701")], [("0.0", "5.0", "Sand")])
+        coords = out.result.header.coordinates.model_copy(
+            update={
+                "x_raw": RawValue(raw=x, block_ids=[f"p{page}.b1"], state="ok"),
+                "y_raw": RawValue(raw=y, block_ids=[f"p{page}.b1"], state="ok"),
+            }
+        )
+        header = out.result.header.model_copy(update={"coordinates": coords})
+        return group, replace(out, result=out.result.model_copy(update={"header": header}))
+
+    items = reconcile([placed(3, "6612345", "598765"), placed(9, "6698100", "571200")], Tables(LISTED))
+    assert [i.group.key for i in items] == ["701:p3", "701:p9"]
