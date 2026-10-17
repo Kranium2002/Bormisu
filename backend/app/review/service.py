@@ -401,8 +401,10 @@ async def create_borehole(
     swap_axes: bool = False,
     pages: Sequence[int] = (),
     actor: str = "pipeline",
+    notes: Sequence[str] = (),
 ) -> Borehole:
-    """Insert a new borehole at revision 1 with its provenance; emits `borehole.created`.
+    """Insert a new borehole at revision 1 with its provenance; emits `borehole.created`. `notes` (how the
+    pipeline read what a person might wonder about) are kept in revision 1.
 
     Every provenance key must be a valid path that exists in `body`, and every non-null value needs a
     provenance entry (except values the server computes); `ai_value` defaults to the value.
@@ -464,7 +466,8 @@ async def create_borehole(
         fvs[path] = fv
     await session.flush()
     await _apply_recompute(session, bh, fvs)
-    session.add(Revision(uid=bh.uid, revision=1, actor=actor, action="create", changes={}))
+    changes: dict[str, Any] = {"notes": list(notes)} if notes else {}
+    session.add(Revision(uid=bh.uid, revision=1, actor=actor, action="create", changes=changes))
     await emit(
         session,
         "borehole.created",

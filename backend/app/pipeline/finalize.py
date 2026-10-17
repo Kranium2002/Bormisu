@@ -31,6 +31,7 @@ import hashlib
 import json
 import logging
 import re
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -46,15 +47,17 @@ from app.clarify.service import clarification_out, create_clarification
 from app.db.models import Borehole, Clarification, Document, FieldValue, Page
 from app.db.session import get_sessionmaker
 from app.events.writer import emit
-from app.geo.crs_candidates import area_of_use, candidates_for_boreholes, offerable, ranking_config
+from app.geo.crs_candidates import candidates_for_boreholes, inside_area_of_use, offerable, ranking_config
 from app.geo.land import near_land
 from app.geo.plotting import to_wgs84
+from app.geo.project_crs import apply_project_crs, prints_no_system
 from app.normalize import coordinates as coordinates_parser
 from app.normalize import crs as crs_parser
 from app.normalize import dates, datums, lithology, numbers, units
 from app.normalize import spt as spt_parser
 from app.normalize.api import CoordinateResult
 from app.pipeline import textlayer
+from app.pipeline.group import LOG_ROLES
 from app.pipeline.layer_ranges import merge_declared_ranges
 from app.pipeline.provenance import Citations, MethodLiteral, method_of, printed, union_box
 from app.pipeline.schemas import ExtractedLayer, ExtractionResult, RawValue
@@ -200,6 +203,8 @@ class RecordDraft:
     datum_finding: DatumFinding | None = None
     datum_origin: str | None = None
     datum_evidence: list[EvidenceEntry] = field(default_factory=list)
+    # Why the record was read as it was where a person might wonder (revision 1 of the borehole keeps them).
+    notes: list[str] = field(default_factory=list)
 
 
 def _swap_on_land(code: str, x: float, y: float) -> bool:
@@ -215,20 +220,7 @@ def _swap_on_land(code: str, x: float, y: float) -> bool:
 
 def _inside_area(code: str, x: float, y: float, *, swap_axes: bool = False) -> bool:
     """The point transforms with `code` and lies inside its area of use (plus the ranking margin)."""
-    point = to_wgs84(code, x, y, swap_axes=swap_axes)
-    if point is None:
-        return False
-    bounds = area_of_use(code)
-    if bounds is None:
-        return True
-    lat, lon = point
-    west, south, east, north = bounds
-    margin = ranking_config().shift_margin_deg
-    if west <= east:
-        lon_ok = west - margin <= lon <= east + margin
-    else:  # area crosses the antimeridian
-        lon_ok = lon >= west - margin or lon <= east + margin
-    return lon_ok and south - margin <= lat <= north + margin
+    return inside_area_of_use(code, x, y, swap_axes=swap_axes)
 
 
 _BLOCK_INDEX = re.compile(r"\.b(\d+)$")
@@ -246,8 +238,10 @@ class _Builder:
         group: PageGroup,
         outcome: ExtractionOutcome,
         text_layers: Mapping[int, PageText] | None = None,
+        language: str | None = None,
     ) -> None:
         self.document_id = document_id
+        self.language = language
         self.group = group
         self.result = outcome.result
         self.cite = Citations(
@@ -259,6 +253,7 @@ class _Builder:
         self.style = numbers.learn_style(_number_raws(self.result))
         self.prov: dict[str, ProvenanceIn] = {}
         self.warnings: list[str] = []
+        self.notes: list[str] = []
         self.guessed: list[GuessedDepth] = []
         h = self.result.header
         # Known before any depth is read: a printed sign note changes the depth order of the rows.
@@ -518,6 +513,22 @@ class _Builder:
         for key, number in (("local_x", point[0]), ("local_y", point[1])):
             self.prov[f"metadata.coordinates.{key}"] = self._axis_entry(number, c.x_raw, c.y_raw)
         system = coords["coordinate_system"]
+        if crs_parser.map_sheet(system):
+            self.notes.append(f"'{system}' names a map sheet, not a coordinate system: no system printed")
+            system = None
+        joined = crs_parser.km_prefixed_point(system, parsed)
+        if joined is not None:
+            # "34 53" with "22 925" / "70 335": the kilometre prefixes printed apart from the values
+            self.notes.append(
+                f"the coordinate-system field '{system}' holds the kilometre prefixes of the printed values: "
+                f"read as {joined[0]:.0f} / {joined[1]:.0f}, no system printed"
+            )
+            coords["local_x"], coords["local_y"] = joined
+            for key in ("local_x", "local_y"):
+                self.prov[f"metadata.coordinates.{key}"].method = "derived"
+            point = joined
+            parsed = CoordinateResult("projected", local_x=joined[0], local_y=joined[1])
+            system = None
         grid = crs_parser.local_grid(system, parsed)
         if grid is not None:
             # A local or site grid: no world system can place it, so none is ranked; the borehole is asked
@@ -902,6 +913,7 @@ class _Builder:
                 for key, entry in item.prov.items():
                     self.prov[f"{section}[{i}].{key}"] = entry
         finding, origin, evidence = self.datum_check()
+        self.unitless_depths(meta)
         return RecordDraft(
             body=body,
             provenance=self.prov,
@@ -917,7 +929,27 @@ class _Builder:
             datum_finding=finding,
             datum_origin=origin,
             datum_evidence=evidence,
+            notes=self.notes,
         )
+
+    def unitless_depths(self, meta: dict[str, Any]) -> None:
+        """Depths printed without any unit are metres, without a question, where the document's language
+        (or a country it prints) logs boreholes in metres and every such depth is plausible in metres
+        (data/units.yaml unitless_depths): method derived and a note. Otherwise they stay guessed (asked)."""
+        if not self.guessed:
+            return
+        printed_texts = [meta.get(k) for k in ("location_name", "project_name", "client")]
+        values = [g.value for g in self.guessed]
+        reason = units.unitless_depths_in_metres(self.language, printed_texts, values)
+        if reason is None:
+            return
+        for guess in self.guessed:
+            guess.provenance.method = "derived"
+        example = max(self.guessed, key=lambda g: abs(g.value))
+        self.notes.append(
+            f"depths printed without a unit (for example '{example.raw}') are read as metres: {reason}"
+        )
+        self.guessed = []
 
     def datum_check(self) -> tuple[DatumFinding | None, str | None, list[EvidenceEntry]]:
         """Does the printed depth note contradict the printed layer depths (sign kept, printed order)?"""
@@ -956,13 +988,15 @@ def build_record(
     outcome: ExtractionOutcome,
     *,
     text_layers: Mapping[int, PageText] | None = None,
+    language: str | None = None,
 ) -> RecordDraft:
     """Normalise one group's extraction into a record body with provenance (no database access).
 
     `text_layers`: trustworthy text layers of the cited pages by page number; values printed in them get
-    the box of their words and method `read`.
+    the box of their words and method `read`. `language`: the BCP 47 code of the group's pages (decides
+    how depths printed without a unit are read).
     """
-    return _Builder(document_id, group, outcome, text_layers).build()
+    return _Builder(document_id, group, outcome, text_layers, language).build()
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1159,8 +1193,39 @@ async def add_label_aliases(uid: str, aliases: Sequence[str]) -> None:
         await session.commit()
 
 
-async def finalize_group(document_id: str, group: PageGroup, outcome: ExtractionOutcome) -> str | None:
+async def _group_language(session: AsyncSession, document_id: str, pages: Sequence[int]) -> str | None:
+    """The language the classifier read most often on the group's pages."""
+    languages = [
+        lang.strip()
+        for lang in (
+            await session.scalars(
+                select(Page.language).where(Page.document_id == document_id, Page.n.in_(list(pages)))
+            )
+        ).all()
+        if isinstance(lang, str) and lang.strip()
+    ]
+    return Counter(languages).most_common(1)[0][0] if languages else None
+
+
+async def _covers_every_log_page(session: AsyncSession, document_id: str, group: PageGroup) -> bool:
+    log_pages = (
+        await session.scalars(
+            select(Page.n).where(
+                Page.document_id == document_id, Page.used.is_(True), Page.role.in_(LOG_ROLES)
+            )
+        )
+    ).all()
+    return set(log_pages) <= set(group.pages)
+
+
+async def finalize_group(
+    document_id: str, group: PageGroup, outcome: ExtractionOutcome, *, alone: bool = False
+) -> str | None:
     """Create the borehole of one page group; returns its uid (the existing one on a rerun).
+
+    `alone`: this is the document's only borehole. Its uncertain page grouping is then not asked about when
+    it covers every log page of the document (the other sheet is in another file, page 1 is a cover sheet);
+    the reasons are kept as a note on the record.
 
     Returns None when the document is gone or the group has no label to create a borehole under.
     """
@@ -1173,7 +1238,16 @@ async def finalize_group(document_id: str, group: PageGroup, outcome: Extraction
             return existing
         cited_pages = {block.page for block in outcome.blocks.values()}
         layers = await load_text_layers(session, document_id, cited_pages)
-        draft = build_record(document_id, group, outcome, text_layers=layers)
+        language = await _group_language(session, document_id, group.pages)
+        draft = build_record(document_id, group, outcome, text_layers=layers, language=language)
+        ask_boundary = bool(group.uncertain)
+        if ask_boundary and alone and await _covers_every_log_page(session, document_id, group):
+            ask_boundary = False
+            reasons = "; ".join(r.strip() for r in group.uncertain if r.strip())
+            draft.notes.append(
+                f"page grouping not asked about ({reasons}): the document's only borehole covers all of its "
+                "log pages"
+            )
         for warning in draft.warnings:
             logger.warning("document %s group %s: %s", document_id, group.key, warning)
         if draft.body is None:
@@ -1190,6 +1264,7 @@ async def finalize_group(document_id: str, group: PageGroup, outcome: Extraction
                 swap_axes=draft.swap_axes,
                 pages=group.pages,
                 actor=ACTOR,
+                notes=draft.notes,
             )
         except IntegrityError:
             # Created by a concurrent run between our check and insert: that one stands.
@@ -1197,7 +1272,7 @@ async def finalize_group(document_id: str, group: PageGroup, outcome: Extraction
             return await _existing_uid(session, document_id, group.key)
         if draft.guessed_depths:
             await _ask_depth_unit(session, doc, bh.uid, draft)
-        if group.uncertain:
+        if ask_boundary:
             await _ask_boundary(session, doc, bh.uid, group, draft)
         if draft.datum_finding is not None:
             await ask_datum_convention(
@@ -1282,8 +1357,13 @@ async def _crs_question_parts(
     for bh in boreholes:
         fvs = by_uid.get(bh.uid, {})
         x, y, system = fvs.get(X_RAW), fvs.get(Y_RAW), fvs.get(SYSTEM_RAW)
-        if system is not None and isinstance(system.value, str) and system.value not in systems:
-            systems.append(system.value)
+        printed_system = system.value if system is not None else None
+        if (
+            isinstance(printed_system, str)
+            and not prints_no_system({"coordinate_system": printed_system})
+            and printed_system not in systems
+        ):
+            systems.append(printed_system)
         if x is None or x.page is None:
             continue
         snippet = " ".join(str(v.value) for v in (x, y) if v is not None and v.value is not None) or None
@@ -1386,7 +1466,7 @@ async def _ask_crs(session: AsyncSession, doc: Document) -> None:
         if not targets:
             continue
         target_uids = [bh.uid for bh in targets]
-        if open_question is not None and set(target_uids) <= set(open_question.borehole_uids or []):
+        if open_question is not None and set(target_uids) == set(open_question.borehole_uids or []):
             continue
         parts = await _crs_question_parts(session, doc, targets, project)
         if not parts["fields"][0]["options"]:
@@ -1414,10 +1494,13 @@ async def _ask_crs(session: AsyncSession, doc: Document) -> None:
 
 
 def _system_group(record: dict[str, Any]) -> str:
-    """The printed coordinate system of a record, normalised (letters and digits, lower case; "" if none)."""
+    """The printed coordinate system of a record, normalised (letters and digits, lower case; "" if none,
+    and for a map sheet or kilometre prefixes printed where the system belongs)."""
     coords = (record.get("metadata") or {}).get("coordinates") or {}
     system = coords.get("coordinate_system")
-    return "".join(ch for ch in system.casefold() if ch.isalnum()) if isinstance(system, str) else ""
+    if not isinstance(system, str) or prints_no_system(coords):
+        return ""
+    return "".join(ch for ch in system.casefold() if ch.isalnum())
 
 
 async def finalize_document(document_id: str) -> None:
@@ -1430,6 +1513,8 @@ async def finalize_document(document_id: str) -> None:
         doc.completeness = await _completeness(session, doc)
         await refresh_duplicate_of(session, doc)
         await ask_duplicates(session, doc)
+        # a system the project already confirmed places the boreholes it fits before anything is asked
+        await apply_project_crs(session, project=doc.project, document_id=doc.id, actor=ACTOR)
         await _ask_crs(session, doc)
         await ask_locate_boreholes(session, doc)
         await refresh_document_checks(session, doc.id, actor=ACTOR)

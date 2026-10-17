@@ -25,8 +25,8 @@ from sqlalchemy import select
 from app.db.models import Page
 from app.db.session import get_sessionmaker
 from app.normalize.numbers import parse_number
-from app.pipeline.extract import merge_results
-from app.pipeline.group import clean_label, group_key, label_prefix_words
+from app.pipeline.extract import _depth_order, _fill_header, merge_results
+from app.pipeline.group import DUPLICATE_ROLE, clean_label, group_key, label_prefix_words
 from app.pipeline.provenance import printed
 from app.pipeline.schemas import ExtractionResult, RawValue
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
@@ -54,24 +54,43 @@ class Reconciled:
 
 @dataclass(frozen=True)
 class Tables:
-    """The IDs a document's summary and coordinate tables list (canonical -> as listed) and their pages."""
+    """The IDs a document's summary and coordinate tables list (canonical -> as listed) and their pages, and
+    the document's own identifiers (`document_ids`)."""
 
     ids: dict[str, str]
     pages: frozenset[int] = frozenset()
+    document_ids: frozenset[str] = frozenset()
 
 
 async def document_tables(document_id: str) -> Tables:
-    """The IDs the classifier read on the document's table pages, and those pages."""
+    """The IDs the classifier read on the document's table pages, those pages, and the document's own
+    identifiers (`document_identifiers`)."""
     async with get_sessionmaker()() as session:
         rows = (
             await session.execute(
-                select(Page.n, Page.borehole_labels).where(
-                    Page.document_id == document_id, Page.role.in_(TABLE_ROLES)
+                select(Page.n, Page.role, Page.used, Page.borehole_labels).where(
+                    Page.document_id == document_id
                 )
             )
         ).all()
-    labels = (label for _, labels in rows for label in (labels or []))
-    return Tables(ids_from_labels(labels), frozenset(int(n) for n, _ in rows))
+    tables = [(n, labels) for n, role, _, labels in rows if role in TABLE_ROLES]
+    labels = (label for _, labels in tables for label in (labels or []))
+    used = [labels or [] for _, role, used, labels in rows if used and role != DUPLICATE_ROLE]
+    return Tables(ids_from_labels(labels), frozenset(int(n) for n, _ in tables), document_identifiers(used))
+
+
+def document_identifiers(page_labels: Sequence[Sequence[str]]) -> frozenset[str]:
+    """Labels printed on every page of a document (an archive or file number stamped on each page, "BO
+    7513/324") while its pages also name another borehole: the document's identifier, not a borehole name.
+    `page_labels`: the classifier's labels of each used page. Needs two pages at least."""
+    if len(page_labels) < 2:
+        return frozenset()
+    per_page = [
+        {canonical_label(clean_label(str(label))) for label in labels} - {""} for labels in page_labels
+    ]
+    common = set.intersection(*per_page)
+    others = set().union(*per_page) - common
+    return frozenset(common) if common and others else frozenset()
 
 
 def ids_from_labels(labels: Iterable[str]) -> dict[str, str]:
@@ -289,8 +308,10 @@ def _rekey(result: ExtractionResult, mapping: dict[str, str]) -> ExtractionResul
     return ExtractionResult.model_validate(walk(result.model_dump(mode="json")))
 
 
-def _merge(items: Sequence[Reconciled]) -> Reconciled:
-    """Parts of one borehole (in page order) as one group and one outcome."""
+def _merge(items: Sequence[Reconciled], *, base: int | None = None) -> Reconciled:
+    """Parts of one borehole as one group and one outcome. The first part names the borehole. Without `base`
+    the parts are sheets in page order (their rows are joined); with it, items[base] is the most complete
+    reading and the others only fill what it lacks (`_fill_into`), and their names become aliases."""
     blocks: dict[str, BlockRef] = {}
     results: list[ExtractionResult] = []
     for item in items:
@@ -315,16 +336,31 @@ def _merge(items: Sequence[Reconciled]) -> Reconciled:
         context_pages=context,
         uncertain=uncertain,
     )
+    if base is None:
+        merged_result = merge_results(results)
+    else:
+        merged_result = _fill_into(results[base], [r for i, r in enumerate(results) if i != base])
+        label = results[0].header.borehole_label
+        if label.raw is None:
+            label = RawValue(raw=None, block_ids=[], state="not_in_source")  # the group's label names it
+        merged_result = merged_result.model_copy(
+            update={"header": merged_result.header.model_copy(update={"borehole_label": label})}
+        )
     outcome = ExtractionOutcome(
-        result=merge_results(results),
+        result=merged_result,
         blocks=blocks,
         run_id=first.outcome.run_id,
         model=first.outcome.model,
         cost_usd=sum(item.outcome.cost_usd for item in items),
         warnings=tuple(w for item in items for w in item.outcome.warnings),
     )
-    aliases = list(dict.fromkeys(a for item in items for a in item.aliases))
     names = [_label_of(item) for item in items]
+    others = (
+        []
+        if base is None
+        else [n for n in names[1:] if n and canonical_label(n) != first.group.label_canonical]
+    )
+    aliases = list(dict.fromkeys([*(a for item in items for a in item.aliases), *others]))
     logger.info("pages %s are one borehole %r (parts %s)", pages, group.label_raw, names)
     return Reconciled(group, outcome, aliases)
 
@@ -385,11 +421,173 @@ def _holes(parts: Sequence[Reconciled], listed: dict[str, str]) -> list[list[Rec
     return holes
 
 
+# Parts of one document with different labels (a stamp read as a name, a misread name on a further sheet,
+# the typed transcription of a handwritten log) are merged by `_one_hole` / `_merge_across`.
+FRAGMENT_LAYERS = 2  # a part with at most this many layers is a fragment of a log, not a log of its own
+DEPTH_TOLERANCE_M = 0.05  # depths closer than this (or 1 %) are the same printed depth
+BOUNDARY_SHARE = 0.5  # two full logs over the same depths are one only if this share of boundaries agree
+SECTIONS = ("layers", "spt", "core_runs", "groundwater", "samples", "tests")
+
+
+def _same_depth(a: float, b: float) -> bool:
+    return abs(a - b) <= max(DEPTH_TOLERANCE_M, 0.01 * max(abs(a), abs(b)))
+
+
+def _total_depth(item: Reconciled) -> float | None:
+    value = parse_number(printed(item.outcome.result.header.total_depth)).value
+    return value if value is not None and value > 0 else None
+
+
+def _boundaries(item: Reconciled) -> list[float]:
+    raws = (v for layer in item.outcome.result.layers for v in (layer.from_raw, layer.to_raw))
+    values = {
+        d for raw in raws if (t := printed(raw)) is not None and (d := parse_number(t).value) is not None
+    }
+    return sorted(values)
+
+
+def _boundaries_agree(a: Reconciled, b: Reconciled) -> bool:
+    """Two readings of one log: most layer boundaries of the one with fewer are printed in the other too."""
+    ba, bb = _boundaries(a), _boundaries(b)
+    fewer, more = (ba, bb) if len(ba) <= len(bb) else (bb, ba)
+    if not fewer:
+        return False
+    shared = sum(1 for d in fewer if any(_same_depth(d, e) for e in more))
+    return shared >= BOUNDARY_SHARE * len(fewer)
+
+
+def _one_hole(a: Reconciled, b: Reconciled) -> bool:
+    """Two parts with different labels that are one borehole: nothing they print disagrees and their depth
+    columns overlap or go on from one another. Never when they print different positions or different total
+    depths, nor two logs from the top to different depths (unless one is a fragment inside the other); two
+    full logs over the same depths only when their layer boundaries agree (two renditions of one log)."""
+    pa, pb = _printed_position(a), _printed_position(b)
+    if pa is not None and pb is not None and pa != pb:
+        return False
+    ta, tb = _total_depth(a), _total_depth(b)
+    if ta is not None and tb is not None and not _same_depth(ta, tb):
+        return False
+    sa, sb = _depth_span(a), _depth_span(b)
+    if sa is None or sb is None:
+        return False  # header-only parts are placed by `_merge_across`
+    if min(sa[1], sb[1]) - max(sa[0], sb[0]) < -DEPTH_TOLERANCE_M:
+        return False  # a gap between the depth columns
+    la, lb = len(a.outcome.result.layers), len(b.outcome.result.layers)
+    full = la > FRAGMENT_LAYERS and lb > FRAGMENT_LAYERS
+    tops = sa[0] <= DEPTH_TOLERANCE_M and sb[0] <= DEPTH_TOLERANCE_M
+    if tops:
+        bottom_a, bottom_b = ta or sa[1], tb or sb[1]
+        if _same_depth(bottom_a, bottom_b):
+            return _boundaries_agree(a, b) if full else True
+        inner = a if bottom_a < bottom_b else b
+        return len(inner.outcome.result.layers) <= FRAGMENT_LAYERS and _total_depth(inner) is None
+    if full and _overlap(sa, sb):
+        return _boundaries_agree(a, b)
+    return True
+
+
+def _completeness(item: Reconciled) -> tuple[int, float, int]:
+    span = _depth_span(item)
+    return len(item.outcome.result.layers), (span[1] - span[0]) if span else 0.0, len(item.group.pages)
+
+
+def _item_depths(name: str, item: dict[str, Any]) -> list[float]:
+    keys = ("from_raw", "to_raw") if name in ("layers", "core_runs", "samples") else ("depth_raw",)
+    out = []
+    for key in keys:
+        value = item.get(key)
+        text = value.get("raw") if isinstance(value, dict) else None
+        if isinstance(text, str) and (number := parse_number(text).value) is not None:
+            out.append(number)
+    return out
+
+
+def _fill_into(base: ExtractionResult, others: Sequence[ExtractionResult]) -> ExtractionResult:
+    """The base reading with what it lacks from the others: header values it does not print, whole sections
+    it has none of, and rows of the others that lie outside its depth column (a further sheet)."""
+    data = base.model_dump(mode="json")
+    depths = [d for name in SECTIONS for row in data[name] for d in _item_depths(name, row)]
+    top, bottom = (min(depths), max(depths)) if depths else (None, None)
+    for other in others:
+        extra = other.model_dump(mode="json")
+        _fill_header(data["header"], extra["header"])
+        for name in SECTIONS:
+            if not data[name]:
+                data[name] = extra[name]
+                continue
+            if top is None or bottom is None:
+                continue
+            for row in extra[name]:
+                values = _item_depths(name, row)
+                if values and (
+                    min(values) >= bottom - DEPTH_TOLERANCE_M or max(values) <= top + DEPTH_TOLERANCE_M
+                ):
+                    data[name].append(row)
+    data["layers"] = _depth_order(data["layers"])
+    return ExtractionResult.model_validate(data)
+
+
+def _merge_across(items: Sequence[Reconciled], tables: Tables) -> list[Reconciled]:
+    """Parts with different labels that are one borehole (`_one_hole`) as one: the most complete part is the
+    base, the others fill its gaps, and their names become aliases. The borehole is named by the most
+    complete part whose label is not the document's own identifier. Parts that two listed IDs name, parts
+    with the same label (kept apart before) and unlabelled parts are never merged here. A part without any
+    depth joins only when the document has a single borehole with depths."""
+    labelled = [i for i in items if i.group.label_canonical]
+    unlabelled = [i for i in items if not i.group.label_canonical]
+    listed = tables.ids
+
+    def fits(cluster: list[Reconciled], part: Reconciled) -> bool:
+        label = part.group.label_canonical
+        labels = {m.group.label_canonical for m in cluster}
+        if label in labels:
+            return False
+        if label in listed and any(other in listed for other in labels):
+            return False  # the tables list both: two boreholes
+        return all(_one_hole(member, part) for member in cluster)
+
+    ranked = sorted(labelled, key=_completeness, reverse=True)
+    clusters: list[list[Reconciled]] = []
+    for part in (p for p in ranked if _depth_span(p) is not None):
+        target = next((c for c in clusters if fits(c, part)), None)
+        if target is None:
+            clusters.append([part])
+        else:
+            target.append(part)
+    with_depths = len(clusters)  # the boreholes with a depth column
+    for part in (p for p in ranked if _depth_span(p) is None):
+        if with_depths == 1 and not unlabelled and _joins_alone(clusters[0], part):
+            clusters[0].append(part)
+        else:
+            clusters.append([part])
+    out = list(unlabelled)
+    for cluster in clusters:
+        if len(cluster) == 1:
+            out.append(cluster[0])
+            continue
+        named = next((m for m in cluster if m.group.label_canonical not in tables.document_ids), cluster[0])
+        ordered = [named, *(m for m in cluster if m is not named)]
+        out.append(_merge(ordered, base=ordered.index(cluster[0])))
+    return sorted(out, key=lambda i: (min(i.group.pages, default=0), i.group.key))
+
+
+def _joins_alone(cluster: Sequence[Reconciled], part: Reconciled) -> bool:
+    """A part without depths (a header page, a stamp read as a name) belongs to the document's only borehole
+    with depths when it has another label and prints no other position and no other total depth."""
+    members = [*cluster, part]
+    if part.group.label_canonical in {m.group.label_canonical for m in cluster}:
+        return False
+    positions = {pos for m in members if (pos := _printed_position(m)) is not None}
+    depths = [d for m in members if (d := _total_depth(m)) is not None]
+    return len(positions) <= 1 and all(_same_depth(d, depths[0]) for d in depths)
+
+
 def reconcile(
     pairs: Sequence[tuple[PageGroup, ExtractionOutcome]], tables: Tables | dict[str, str]
 ) -> list[Reconciled]:
-    """Relabel to the IDs the document's tables list, then merge the parts that share a label and are one
-    borehole (`_holes`). Parts without a label are never merged.
+    """Relabel to the IDs the document's tables list, merge the parts that share a label and are one
+    borehole (`_holes`), then the parts with different labels that are one (`_merge_across`). Parts without
+    a label are never merged.
 
     A borehole takes, in this order: the listed ID its own pages print; the ID of the table row its values
     were taken from; the ID of the one table row printing its total depth, when no other borehole has it."""
@@ -430,4 +628,4 @@ def reconcile(
         else:
             for hole in _holes(by_id[entry], listed):
                 out.append(hole[0] if len(hole) == 1 else _merge(hole))
-    return out
+    return _merge_across(out, tables)

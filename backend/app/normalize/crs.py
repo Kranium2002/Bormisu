@@ -502,6 +502,77 @@ def local_grid(system_raw: str | None, coords: CoordinateResult | None) -> str |
     return None
 
 
+@lru_cache(maxsize=1)
+def _map_sheet_pattern() -> re.Pattern[str]:
+    terms = str_list((load_data("crs_patterns.yaml") or {}).get("map_sheet_terms"))
+    regex = "|".join(
+        _term_regex(t, digits_after=True) for t in sorted(terms, key=len, reverse=True) if t.strip()
+    )
+    return re.compile(regex or r"(?!)")
+
+
+def _names_a_system(text: str) -> bool:
+    """The normalised text names a datum, grid, national system, EPSG code or local grid term."""
+    p = _patterns()
+    return (
+        any(d.pattern.search(text) for d in p.datums)
+        or any(pattern.search(text) for pattern, _ in p.grid_words)
+        or any(n.pattern.search(text) for n in p.named)
+        or p.epsg_pattern.search(text) is not None
+        or any(pattern.search(text) for pattern in p.local_patterns)
+    )
+
+
+def map_sheet(system_raw: str | None) -> bool:
+    """The printed system text is a map-sheet reference ("TK25 7513", "Blatt Offenburg") that names no
+    coordinate system: it counts as no system printed. Data: crs_patterns.yaml map_sheet_terms."""
+    if system_raw is None or not system_raw.strip():
+        return False
+    text = _norm(system_raw)
+    if not _map_sheet_pattern().search(text) or _names_a_system(text):
+        return False
+    return match_alias(system_raw.strip()) is None
+
+
+_KM_PREFIXES = re.compile(r"^\s*(\d{2})\s+(\d{2})\s*$")
+_KM_PREFIX_SCALE = 100_000  # the prefixes are the digits above the last five
+
+
+def km_prefix_text(system_raw: str | None) -> bool:
+    """The printed system text is two 2-digit numbers: kilometre prefixes (`km_prefixed_point`), no system."""
+    return system_raw is not None and _KM_PREFIXES.match(system_raw) is not None
+
+
+def km_prefixed_point(system_raw: str | None, coords: CoordinateResult | None) -> tuple[float, float] | None:
+    """(easting, northing) of grid values printed with their kilometre prefixes apart: the system text is two
+    2-digit numbers ("34 53") and the values are below 100 000 ("22 925", "70 335"), giving 3422925 /
+    5370335. Only when the joined point lies inside the area of use of the zone its easting names on the
+    grid of crs_patterns.yaml km_prefix_grid; else None."""
+    if system_raw is None or coords is None or coords.kind != "projected":
+        return None
+    match = _KM_PREFIXES.match(system_raw)
+    x, y = coords.local_x, coords.local_y
+    if match is None or x is None or y is None:
+        return None
+    if not (0 <= x < _KM_PREFIX_SCALE and 0 <= y < _KM_PREFIX_SCALE):
+        return None
+    east = int(match.group(1)) * _KM_PREFIX_SCALE + x
+    north = int(match.group(2)) * _KM_PREFIX_SCALE + y
+    grid_id = (load_data("crs_patterns.yaml") or {}).get("km_prefix_grid")
+    grid = next((g for g in _patterns().grids if g.id == grid_id), None)
+    if grid is None or not grid.words:
+        return None
+    joined = CoordinateResult("projected", local_x=east, local_y=north)
+    code = _from_patterns(grid.words[0], joined).code
+    if code is None:
+        return None
+    _, geographic, bounds = _crs_info(code)
+    point = to_wgs84(code, east, north)
+    if geographic or bounds is None or point is None or not _inside(point[0], point[1], bounds):
+        return None
+    return east, north
+
+
 def resolve_printed_system(system_raw: str | None, coords: CoordinateResult | None = None) -> CrsResult:
     """The EPSG code a printed system name states, or None with a reason when it states none."""
     if system_raw is None or not system_raw.strip():

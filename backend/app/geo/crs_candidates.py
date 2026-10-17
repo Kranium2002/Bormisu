@@ -182,6 +182,24 @@ def area_of_use(code: str) -> tuple[float, float, float, float] | None:
     return None if area is None else (area.west, area.south, area.east, area.north)
 
 
+def inside_area_of_use(code: str, x: float, y: float, *, swap_axes: bool = False) -> bool:
+    """The point transforms with `code` and lies inside its area of use (plus the ranking margin)."""
+    point = to_wgs84(code, x, y, swap_axes=swap_axes)
+    if point is None:
+        return False
+    bounds = area_of_use(code)
+    if bounds is None:
+        return True
+    lat, lon = point
+    west, south, east, north = bounds
+    margin = ranking_config().shift_margin_deg
+    if west <= east:
+        lon_ok = west - margin <= lon <= east + margin
+    else:  # area crosses the antimeridian
+        lon_ok = lon >= west - margin or lon <= east + margin
+    return lon_ok and south - margin <= lat <= north + margin
+
+
 @lru_cache(maxsize=512)
 def area_of_use_km2(code: str) -> float | None:
     """Surface of the area-of-use box on the sphere."""

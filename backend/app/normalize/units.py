@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -298,3 +299,32 @@ def normalise_lab_test_value(
             reason=f"'{printed}' does not convert to {spec.unit} for {spec.name}",
         )
     return NumberResult(value, unit=spec.unit, qualifier=number.qualifier)
+
+
+@lru_cache(maxsize=1)
+def _unitless_rule() -> tuple[frozenset[str], re.Pattern[str], float]:
+    data = load_data("units.yaml").get("unitless_depths") or {}
+    languages = frozenset(str(lang).casefold() for lang in str_list(data.get("ask_languages")))
+    countries = sorted(str_list(data.get("feet_countries")), key=len, reverse=True)
+    pattern = re.compile(
+        r"(?<!\w)(?:" + "|".join(re.escape(c) for c in countries) + r")(?!\w)" if countries else r"(?!)",
+        re.IGNORECASE,
+    )
+    return languages, pattern, float(data.get("max_metres") or 0.0)
+
+
+def unitless_depths_in_metres(
+    language: str | None, printed_texts: Iterable[object], values: Iterable[float]
+) -> str | None:
+    """Why depths printed without a unit are metres here (data/units.yaml unitless_depths), or None when
+    they are to be asked about: no language known, a language also written where feet are used, a printed
+    country that logs in feet, or a depth too large for metres."""
+    ask_languages, feet_countries, max_metres = _unitless_rule()
+    primary = (language or "").split("-")[0].strip().casefold()
+    if not primary or primary in ask_languages:
+        return None
+    if any(isinstance(t, str) and feet_countries.search(t) for t in printed_texts):
+        return None
+    if max_metres > 0 and any(abs(v) > max_metres for v in values):
+        return None
+    return f"the document is in a language ({primary}) of countries that log boreholes in metres"

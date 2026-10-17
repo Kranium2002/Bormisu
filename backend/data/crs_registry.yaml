@@ -148,6 +148,13 @@ systems:
   - { code: "EPSG:28350", kind: projected, label: "GDA94 / MGA zone 50" }
   - { code: "EPSG:7850", kind: projected, label: "GDA2020 / MGA zone 50" }
   - { code: "EPSG:7854", kind: projected, label: "GDA2020 / MGA zone 54" }
+# A coordinate system confirmed for a project (an answered crs_confirm question) is applied to the project's
+# other boreholes that print coordinates but no system (or only a map sheet), when their values fit it: the
+# point lies inside the system's area of use and within near_km of a borehole of the project already on the
+# map. Exactly one confirmed system must fit; otherwise the question is asked as before (app.geo.project_crs).
+project_answer:
+  near_km: 25
+
 ranking:
   shift_margin_deg: 1.0
   match_km: 50
