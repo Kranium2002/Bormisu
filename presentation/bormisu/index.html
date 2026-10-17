@@ -75,7 +75,7 @@
     70% { transform: rotate(3deg); }
   }
 
-  /* 05 Drill core and 06 Baden-Württemberg: one image, centred */
+  /* 05 Drilling and 06 Offenburg: one image, centred */
   .hero-img { padding: 0; }
   .hero-img .frame { border-radius: 28px; overflow: hidden; box-shadow: 0 40px 120px rgba(0,0,0,0.45); }
   .light .frame { box-shadow: 0 40px 100px rgba(59,36,24,0.25); }
@@ -84,7 +84,7 @@
   @keyframes slowzoom { from { transform: scale(1.08); } to { transform: scale(1); } }
   .core .frame { height: 940px; aspect-ratio: 1125 / 1500; }
   .core img { width: 100%; height: 100%; object-fit: cover; }
-  .bw .frame { height: 940px; aspect-ratio: 564 / 824; }
+  .bw .frame { width: 1500px; aspect-ratio: 1764 / 1206; }
   .bw img { width: 100%; height: 100%; object-fit: cover; }
   .core-bg { background: radial-gradient(ellipse at 50% 40%, #4a3122 0%, var(--espresso-2) 70%); }
 
@@ -225,9 +225,9 @@
     <div class="frame" data-anim style="--d: 100ms;"><img class="hero-img-zoom" src="img/drill-rig.jpg" alt="Auger drilling rig on site" /></div>
   </section>
 
-  <!-- 06 BADEN-WÜRTTEMBERG — boreholes in the LGRB borehole map -->
-  <section class="hero-img bw light center" data-label="06 Baden-Württemberg">
-    <div class="frame" data-anim style="--d: 100ms;"><img class="hero-img-zoom" src="img/bw-map.png" alt="Borehole clusters across Baden-Württemberg" /></div>
+  <!-- 06 OFFENBURG — boreholes around Offenburg in the LGRB borehole map -->
+  <section class="hero-img bw light center" data-label="06 Offenburg">
+    <div class="frame" data-anim style="--d: 100ms;"><img class="hero-img-zoom" src="img/offenburg-map.jpg" alt="Borehole clusters around Offenburg" /></div>
   </section>
 
   <!-- 07 REPORTS — a crowd of real pages behind; the three hardest (Norwegian handwriting, Spanish, Korean) in front -->
@@ -280,7 +280,7 @@
     <div class="flow">
       <div class="node" data-anim style="--d: 200ms;"><div class="h">Upload</div><div class="t">FastAPI</div></div>
       <div class="arrow" data-anim style="--d: 280ms;">→</div>
-      <div class="node" data-anim style="--d: 360ms;"><div class="h">Classify</div><div class="t">Mistral Small</div></div>
+      <div class="node" data-anim style="--d: 360ms;"><div class="h">Classify</div><div class="t">Mistral Large</div></div>
       <div class="arrow" data-anim style="--d: 440ms;">→</div>
       <div class="node" data-anim style="--d: 520ms;"><div class="h">OCR</div><div class="t">Mistral OCR</div></div>
       <div class="arrow" data-anim style="--d: 600ms;">→</div>
@@ -302,7 +302,7 @@
         <div class="h">Mistral, Paris</div>
         <ul>
           <li><b>OCR</b>Mistral OCR</li>
-          <li><b>Classify &amp; extract</b>Mistral Small · Mistral Large <span class="chonk">(Le Chonk) <img class="chonk-cat" src="img/chonk-cat.png" alt="pixel cat" /></span></li>
+          <li><b>Classify &amp; extract</b>Mistral Large <span class="chonk">(Le Chonk) <img class="chonk-cat" src="img/chonk-cat.png" alt="pixel cat" /></span></li>
         </ul>
         <div class="why">Best OCR we found.</div>
       </div>

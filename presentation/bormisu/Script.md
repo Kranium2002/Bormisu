@@ -3,6 +3,7 @@
 The slides carry almost no text. Everything is said here.
 Open `index.html` in Chrome, arrow keys to advance.
 Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it automatically.
+Slide 11 (Team) is skipped for now, so you click straight from 10 to 12.
 
 ## 01 · Title (~10 s)
 
@@ -10,7 +11,7 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 ## 02 · Hook: 3 million hours (~25 s)
 
-*(the number counts up, let it land)*
+*(the number counts up to 3,000,000 — let it land)*
 
 > 3 million hours.
 > That's how much time the Gotthard Base Tunnel saves its passengers every year.
@@ -29,27 +30,35 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 ## 04 · Stuttgart 21 🤫 (~5 s)
 
+*(construction photo of Stuttgart main station, the 🤫 is already on screen)*
+
 > …but we don't talk about that.
 
 *(let the laugh happen, then move on)*
 
-## 05 · Drill core (~25 s)
+## 05 · Drilling (~25 s)
+
+*(photo of a drilling rig on site)*
 
 > But to build tunnels like these, you have to understand the ground. And that means drilling.
 > A drill core tells you what the ground is made of — soil or rock, how hard, where the water sits.
 > That decides which machine you build. Get it wrong, and the machine is wrong.
 
-## 06 · Baden-Württemberg (~25 s)
+## 06 · Offenburg (~25 s)
 
-> And there are a lot of them. This is Baden-Württemberg alone — every bubble is thousands of boreholes.
+*(borehole map of Offenburg — every bubble is a cluster of boreholes)*
+
+> And there are a lot of them. This is how much has been drilled in Offenburg alone.
 > This data is well kept and classified. But not even here is it all in the same standard.
 > Even here, someone has to pull the data out and standardise it by hand.
 
 ## 07 · Reports from around the world (~25 s)
 
+*(a crowd of real reports drops in, then three land in front: a handwritten Norwegian sheet, a Spanish soil probe sheet, a Korean drill log)*
+
 > Now think internationally. Herrenknecht works in China, the Middle East, South America.
-> This is what the reports really look like:
-> Korean drill logs. Handwritten sheets from Norway and Malaysia. Spanish, Catalan. Typewriter scans.
+> This is what the reports really look like.
+> Handwritten, in Norwegian. A Spanish soil probe sheet. A Korean drill log.
 > Every country does it differently — often every company does.
 > So we built the thing that standardises all of it.
 
@@ -71,13 +80,17 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 ## 09 · Under the hood (~20 s)
 
-> Upload. A small model sorts the pages. OCR only where there's borehole data — Mistral OCR from Paris, the best we found.
-> A large model pulls out every value with its source box — never a finished number.
+*(six boxes: Upload → Classify → OCR → Extract → Check → Map)*
+
+> Upload. Mistral Large sorts the pages. OCR only where there's borehole data — Mistral OCR from Paris, the best we found.
+> Then it pulls out every value with its source box — never a finished number.
 > Then plain Python checks it against DIN 4023, and it lands on the map.
 
 ## 10 · Sovereignty (~25 s)
 
-> Today it runs in the cloud on Mistral.
+*(three cards: Cloud today · One GPU, 32 GB · Mac mini, 32 GB — with the Le Chonk cat as an easter egg)*
+
+> Today it runs in the cloud on Mistral — Mistral Large, also known as Le Chonk.
 > But borehole reports are confidential. So the same pipeline runs on open models — PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
 > That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
 
@@ -86,6 +99,8 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 > That's us — Team Tiramisu, built in Breisgau.
 
 ## 12 · In a nutshell (~15 s)
+
+*(three checkmarks on the left, the tiramisu logo on the right)*
 
 > So, in a nutshell:
 > It's multilingual — any language, any format, even handwriting.
@@ -103,14 +118,10 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 ### Slide 02 (3 million hours)
 
-Rough calculation, assuming a lifetime of about 80 years (700,000 hours):
-
 - The tunnel carried on average **16,400 passengers a day** in 2025, and 9,000 a day in 2015 ([swissinfo, SBB figures](https://www.swissinfo.ch/eng/swiss-democracy/the-gotthard-base-tunnel-ten-years-on/91672319)).
 - Time saved: about **30 minutes** from the base tunnel alone ([swissinfo](https://www.swissinfo.ch/eng/business/gotthard-base-tunnel_world-s-longest-rail-tunnel-has-a-way-to-go/42940622)), about **1 hour** on Zurich–Milan together with the Ceneri tunnel ([Gulf News](https://gulfnews.com/amp/story/world%2Feurope%2Fthe-worlds-longest-tunnel-opens-in-switzerland-1.1838836)).
-- **Per year:** 16,400 × 0.5 h × 365 ≈ 3.0 million hours ≈ **4 lifetimes**. With a full hour saved: ≈ 9 lifetimes.
-- **Since it opened (2016–2026):** about 13,000 passengers a day on average × 0.5 h × 365 × 10 years ≈ 24 million hours ≈ **34 lifetimes**. With a full hour saved: ≈ 68 lifetimes.
-
-The slide uses the conservative per-year figure: **about 3 million hours** (2.99 million: 30 minutes saved, 2025 ridership). Freight time is not counted.
+- **Per year:** 16,400 × 0.5 h × 365 ≈ **2.99 million hours**, rounded to 3 million on the slide. With the full hour saved it would be about 6 million.
+- Freight time is not counted.
 
 ### Slide 03 (said over the video)
 
@@ -119,11 +130,12 @@ The slide uses the conservative per-year figure: **about 3 million hours** (2.99
 - Hong Kong Tuen Mun–Chek Lap Kok, 17.6 m Mixshield, largest TBM: [Herrenknecht reference](https://herrenknecht.com/en/references/referencesdetail/hong-kong-tuen-mun-chek-lap-kok-link), [Guinness](https://www.guinnessworldrecords.com/world-records/78259-largest-tunnel-boring-machine)
 - Stuttgart 21 Filder Tunnel, Herrenknecht TBM "SUSE": [Herrenknecht press release](https://herrenknecht.com/en/newsroom/pressreleasedetail/suse-sibylle-wanda-and-kaethchen-from-baden-set-a-fast-pace-in-swabia)
 
-### Slides 05–07 (images)
+### Slides 04–07 (images)
 
+- Stuttgart 21: construction photo of the main station (`img/s21.jpg`, supplied by Mateo).
 - Drilling: photo of an auger drilling rig on site (`img/drill-rig.jpg`, supplied by Mateo).
-- Baden-Württemberg: screenshot of the LGRB borehole map (`img/bw-map.png`).
-- Reports: `SEA01` p1 (Korean), `ToughOne1` p2 (Norway, handwritten), `ToughOne2` p1 (Malaysia, handwritten), `AF02` p1 (Spanish), `profile01.jpg` (Catalan), `MEA01` p3 (typewriter), `SEA02` p1, `MEA03/BH-1.jpg` (Kuwait), `SAM01` p1.
+- Offenburg: screenshot of the LGRB borehole map around Offenburg (`img/offenburg-map.jpg`, supplied by Mateo).
+- Reports, front: `ToughOne1` p2 (Norway, handwritten), `AF02` p1 (Spanish soil probe sheet), `SEA01` p1 (Korean). Background: 27 more pages from the challenge dataset (`img/bg/`).
 
 ### Slide 10 (sovereignty)
 
@@ -132,3 +144,4 @@ The figures are public estimates, not measured on our data.
 - Qwen 3.8 27B, 4-bit MLX build ~16–19 GB, tested on a 32 GB Mac mini M4 at ~5–6 tokens/s: [orcarouter](https://www.orcarouter.ai/blog/qwen-3-8-27b-mlx)
 - PaddleOCR-VL runs on Apple Silicon via mlx-vlm: [PaddleOCR docs](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL-Apple-Silicon.html)
 - Not yet confirmed: whether Qwen 3.8 27B accepts images, and its licence.
+- "Le Chonk" as the nickname for Mistral Large 4: from Mateo, not checked. Cat image supplied by Mateo (`img/chonk-cat.png`).
