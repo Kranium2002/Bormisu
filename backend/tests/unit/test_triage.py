@@ -100,3 +100,13 @@ def test_text_quality(text: str, low: bool | None) -> None:
 
 def test_a4_constant() -> None:
     assert A4 == (595.0, 842.0)
+
+
+def test_line_end_hyphen_keeps_each_word_on_its_line(tmp_path: Path) -> None:
+    """PDFium joins a word hyphenated at a line end with the next line; each part keeps its own box."""
+    pdf = make_pdf([[TextItem(60, 700, "Schluff, stark sand-"), TextItem(60, 688, "ig, braun")]])
+    page = next(triage_pdf(_write(tmp_path, "hyphen.pdf", pdf)))
+    words = {w.text: w.box for w in page.words}
+    assert "sand-" in words and "ig," in words
+    assert words["ig,"][1] > words["sand-"][1]  # the second part sits on the next line
+    assert all("￾" not in w.text for w in page.words)

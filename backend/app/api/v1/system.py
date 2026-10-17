@@ -14,8 +14,8 @@ from app.schemas.documents import Health, HealthProviders, HealthUpload, Stats
 
 router = APIRouter()
 
-# Chat ships in M3; until then the provider is reported as unavailable even with a key.
-CHAT_IMPLEMENTED = False
+# The chat assistant (app.chat) is built; providers.chat is true exactly when OPENAI_API_KEY is set.
+CHAT_IMPLEMENTED = True
 
 
 def build_health() -> Health:

@@ -17,6 +17,7 @@ import pypdfium2 as pdfium
 from PIL import Image, ImageOps, ImageSequence
 
 RENDER_LONG_EDGE = 1600
+SOFT_HYPHEN_MARK = "￾"  # PDFium: hyphen at a line end
 THUMB_LONG_EDGE = 300
 # Images larger than this are refused by Pillow as a decompression bomb guard.
 Image.MAX_IMAGE_PIXELS = 250_000_000
@@ -142,6 +143,17 @@ def _words(
             current, box = [], None
             continue
         left, bottom, right, top = textpage.get_charbox(i)
+        if ch == SOFT_HYPHEN_MARK:
+            # PDFium marks a hyphen at a line end with U+FFFE and joins the next line's first word to it:
+            # end the word here with a plain hyphen so each word box stays on its own line.
+            if box is not None:
+                box = [min(box[0], left), min(box[1], bottom), max(box[2], right), max(box[3], top)]
+                current.append("-")
+                words.append(
+                    Word("".join(current), _map_box(box[0], box[1], box[2], box[3], width, height, rotation))
+                )
+            current, box = [], None
+            continue
         if box is None:
             box = [left, bottom, right, top]
         else:

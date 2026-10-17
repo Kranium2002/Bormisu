@@ -1,0 +1,77 @@
+# Second reads of handwritten and low-confidence values (BACKEND.md 7.7). Read by app/pipeline/reread.py.
+# Nothing here names a document, project, language or layout.
+
+# Provenance methods a second read checks: values a machine read from the page (OCR or the text layer).
+# Derived, guessed and edited values are never re-read.
+methods: [ocr, read]
+
+# Page handwriting levels (page classifier) that make every value on the page a candidate. Values on other
+# pages are candidates when their confidence is below OCR_LOW_CONFIDENCE.
+handwriting: [partial, full]
+
+crop:
+  # Added on every side of the value's box, as a share of the box's width and height.
+  margin: 0.08
+  # A crop is widened around its centre to at least this many render pixels in each direction.
+  min_px: 32
+  # Crops larger than this (long edge, pixels) are scaled down before they are sent.
+  max_edge_px: 1024
+  # An OCR block counts as text of a crop (or of the value's box) when at least this share of its area lies
+  # inside it; the comparison aligns the second reading with the text of these blocks.
+  block_share: 0.5
+
+# Crops per model call.
+batch_size: 20
+
+# When a value's printed text is not in the OCR text of its box (the extractor read it from the page image),
+# the whole second reading counts as the value's reading only if neither reading of the box is longer than
+# the printed text by more than this many characters (spaces not counted). Otherwise nothing is concluded.
+tight_slack_chars: 2
+
+# Confidence of the second reader's transcription, by the legibility it reports for the crop.
+legibility_confidence:
+  clear: 0.9
+  unsure: 0.6
+  illegible: 0.0
+
+# Token sizing of one call: max_tokens for the answer and the input estimate used by the budget check.
+tokens:
+  output_base: 200
+  output_per_crop: 120
+  input_base: 700
+  input_per_crop: 250
+
+# Labels of the choose_reading form fields, built from the value path.
+labels:
+  # Section of a path; {n} is the 1-based position in the record.
+  sections:
+    stratigraphy: "Layer {n}"
+    groundwater: "Groundwater reading {n}"
+    samples: "Sample {n}"
+    test_results: "Test result {n}"
+    coordinates: "Coordinates"
+    metadata: ""
+  # Field names shown with their own words.
+  fields:
+    borehole_id: "borehole label"
+    original_description: "description"
+    x_raw: "first coordinate as printed"
+    y_raw: "second coordinate as printed"
+    axis_labels_raw: "axis labels as printed"
+    local_x: "first coordinate"
+    local_y: "second coordinate"
+    spt_raw: "SPT blows as printed"
+    spt_n_value: "SPT N"
+    rqd_pct: "RQD"
+    core_recovery_pct: "core recovery"
+    ucs_mpa: "UCS"
+  # Last word of a field name that is a unit, shown in brackets ("depth_to_m" -> "depth to (m)").
+  units:
+    m: m
+    mASL: m ASL
+    pct: "%"
+    mpa: MPa
+    kpa: kPa
+    cm: cm
+    mm: mm
+    deg: "°"

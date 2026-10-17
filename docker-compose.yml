@@ -123,6 +123,7 @@ services:
 
   # make test / make lint / make contract-test. No env_file and blank provider keys, so tests
   # can never call paid providers. Tests use TEST_DATABASE_URL (database geomemory_test).
+  # Gotenberg runs alongside so the office-file integration test converts a generated DOCX for real.
   test:
     profiles: ["test"]
     build:
@@ -144,6 +145,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      gotenberg:
+        condition: service_started
     healthcheck:
       disable: true
 

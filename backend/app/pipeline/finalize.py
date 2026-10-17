@@ -2,7 +2,8 @@
 
 finalize_group(document_id, group, outcome)
     Normalises the model's raw text with app.normalize (Python only), builds the record body and one
-    provenance entry per value from the OCR blocks the model cited (app.pipeline.provenance), decides the
+    provenance entry per value from the OCR blocks the model cited (app.pipeline.provenance), narrowed to
+    the printed words when the page has a trustworthy text layer (app.pipeline.textlayer), decides the
     coordinate-system status and creates the borehole through app.review.service.create_borehole.
     Idempotent per (document, group key). Depths printed without any unit are stored as metres with
     method `guessed` and one `unit_ambiguous` question per document; uncertain page groups get a
@@ -19,10 +20,12 @@ Unknown stays null with a reason; no value is invented and nothing depends on a 
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import json
 import logging
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -42,13 +45,16 @@ from app.normalize import crs as crs_parser
 from app.normalize import dates, datums, lithology, numbers, units
 from app.normalize import spt as spt_parser
 from app.normalize.api import CoordinateResult
-from app.pipeline.provenance import Citations, MethodLiteral, method_of, printed
+from app.pipeline import textlayer
+from app.pipeline.provenance import Citations, MethodLiteral, method_of, printed, union_box
 from app.pipeline.schemas import ExtractedLayer, ExtractionResult, RawValue
+from app.pipeline.textlayer import PageText
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
 from app.review.service import canonical_label, create_borehole, refresh_document_status
 from app.schemas.boreholes import ProvenanceIn
 from app.schemas.documents import Completeness
 from app.services.documents import emit_document_updated
+from app.storage import StorageKeyError, get_storage
 
 logger = logging.getLogger("geomemory.pipeline.finalize")
 
@@ -198,19 +204,45 @@ def _block_index(block: BlockRef) -> int:
 
 
 class _Builder:
-    def __init__(self, document_id: str, group: PageGroup, outcome: ExtractionOutcome) -> None:
+    def __init__(
+        self,
+        document_id: str,
+        group: PageGroup,
+        outcome: ExtractionOutcome,
+        text_layers: Mapping[int, PageText] | None = None,
+    ) -> None:
         self.document_id = document_id
         self.group = group
         self.result = outcome.result
         self.cite = Citations(
-            outcome.blocks, document_id=document_id, page_order=(*group.pages, *group.context_pages)
+            outcome.blocks,
+            document_id=document_id,
+            page_order=(*group.pages, *group.context_pages),
+            text_layers=text_layers,
         )
         self.style = numbers.learn_style(_number_raws(self.result))
         self.prov: dict[str, ProvenanceIn] = {}
         self.warnings: list[str] = []
         self.guessed: list[GuessedDepth] = []
-        self.negative_down = False
+        h = self.result.header
+        # Known before any depth is read: a printed sign note changes the depth order of the rows.
+        origin = datums.parse_depth_origin(printed(h.depth_origin_note), printed(h.elevation_datum))
+        self.negative_down = origin.negative_down is True
         self.depth_unit = self._group_depth_unit()
+        if text_layers:
+            # Where each printed value is in the text layers, resolved once for the whole record. Tight
+            # boxes are a refinement: if they cannot be worked out, the values keep their OCR blocks.
+            try:
+                self.cite.resolution = textlayer.resolve_record(
+                    self.result,
+                    outcome.blocks,
+                    text_layers,
+                    page_key=self.cite.page_key,
+                    depth_of=lambda value: self.depth(value)[0],
+                )
+            except Exception:  # never lose a borehole over its evidence boxes
+                logger.exception("group %s: text-layer boxes not resolved", group.key)
+                self.warnings.append("evidence boxes from the text layer could not be resolved")
 
     # -- generic helpers -------------------------------------------------------------------------
 
@@ -317,12 +349,16 @@ class _Builder:
         )
         if matches:
             block = matches[0]
+            box = self.cite.locate([block])[1]
+            hit = self.cite.find_text(label, [block])
+            if hit is not None and hit.page == block.page and hit.box is not None:
+                box = union_box([hit.box])
             return ProvenanceIn(
                 document_id=self.document_id,
                 page=block.page,
-                box=self.cite.locate([block])[1],
+                box=box,
                 raw=label,
-                method=method_of([block]),
+                method=method_of([block], found_in_text_layer=hit is not None),
                 confidence=block.confidence,
             )
         return ProvenanceIn(
@@ -802,9 +838,19 @@ class _Builder:
         )
 
 
-def build_record(document_id: str, group: PageGroup, outcome: ExtractionOutcome) -> RecordDraft:
-    """Normalise one group's extraction into a record body with provenance (no database access)."""
-    return _Builder(document_id, group, outcome).build()
+def build_record(
+    document_id: str,
+    group: PageGroup,
+    outcome: ExtractionOutcome,
+    *,
+    text_layers: Mapping[int, PageText] | None = None,
+) -> RecordDraft:
+    """Normalise one group's extraction into a record body with provenance (no database access).
+
+    `text_layers`: trustworthy text layers of the cited pages by page number; values printed in them get
+    the box of their words and method `read`.
+    """
+    return _Builder(document_id, group, outcome, text_layers).build()
 
 
 # ----------------------------------------------------------------------------------------------
@@ -820,6 +866,42 @@ async def _lock_document(session: AsyncSession, document_id: str) -> Document | 
         .with_for_update(key_share=True)
         .execution_options(populate_existing=True)
     )
+
+
+async def load_text_layers(
+    session: AsyncSession, document_id: str, pages: Iterable[int]
+) -> dict[int, PageText]:
+    """Stored text layers of `pages` whose quality makes them trustworthy. A missing or unreadable file is
+    skipped: the values on that page keep the boxes of their OCR blocks."""
+    wanted = sorted(set(pages))
+    if not wanted:
+        return {}
+    threshold = textlayer.config().read_min_text_quality
+    rows = (
+        await session.execute(
+            select(Page.n, Page.text_layer_key, Page.text_layer_quality).where(
+                Page.document_id == document_id,
+                Page.n.in_(wanted),
+                Page.text_layer_key.is_not(None),
+                Page.text_layer_quality >= threshold,
+            )
+        )
+    ).all()
+    storage = get_storage()
+    layers: dict[int, PageText] = {}
+    for n, key, quality in rows:
+        if key is None:
+            continue
+        try:
+            payload = json.loads(await asyncio.to_thread(storage.get_bytes, key))
+        except (OSError, ValueError, StorageKeyError) as exc:
+            logger.warning(
+                "document %s page %s: text layer not readable (%s)", document_id, n, type(exc).__name__
+            )
+            continue
+        if isinstance(payload, dict):
+            layers[n] = textlayer.page_text_from_payload(n, payload, quality=quality)
+    return layers
 
 
 async def _existing_uid(session: AsyncSession, document_id: str, group_key: str) -> str | None:
@@ -970,7 +1052,9 @@ async def finalize_group(document_id: str, group: PageGroup, outcome: Extraction
         existing = await _existing_uid(session, document_id, group.key)
         if existing is not None:
             return existing
-        draft = build_record(document_id, group, outcome)
+        cited_pages = {block.page for block in outcome.blocks.values()}
+        layers = await load_text_layers(session, document_id, cited_pages)
+        draft = build_record(document_id, group, outcome, text_layers=layers)
         for warning in draft.warnings:
             logger.warning("document %s group %s: %s", document_id, group.key, warning)
         if draft.body is None:

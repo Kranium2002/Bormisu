@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import io
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -26,12 +26,13 @@ from app.db.session import get_sessionmaker
 from app.pipeline import classify as classify_module
 from app.pipeline import extract as extract_module
 from app.pipeline import finalize as finalize_module
+from app.pipeline import reread as reread_module
 from app.pipeline.orchestrator import run_pipeline
 from app.pipeline.schemas import PageLabel
 from app.pipeline.types import ExtractionOutcome, PageGroup
 from app.providers import ocr_mistral
 from app.providers.base import ProviderError
-from app.providers.fakes import FakeClassifier, FakeExtractor, FakeOcrEngine, label
+from app.providers.fakes import FakeClassifier, FakeExtractor, FakeOcrEngine, FakeRereader, label
 from app.providers.ocr_mistral import OcrResponse
 from tests.contract_utils import validate_response
 from tests.pdf_factory import TextItem, make_pdf
@@ -246,12 +247,37 @@ async def ocr_blocks(document_id: str) -> dict[tuple[int, str], tuple[float, ...
     return {(row.n, _key(b["text"])): tuple(b["box"]) for row in rows for b in row.blocks or []}
 
 
+# The fake OCR rounds its line boxes to whole pixels; the text layer's word boxes are exact.
+BOX_TOLERANCE = 2e-3
+
+
+def inside(box: Sequence[float], outer: Sequence[float]) -> bool:
+    return (
+        box[0] >= outer[0] - BOX_TOLERANCE
+        and box[1] >= outer[1] - BOX_TOLERANCE
+        and box[0] + box[2] <= outer[0] + outer[2] + BOX_TOLERANCE
+        and box[1] + box[3] <= outer[1] + outer[3] + BOX_TOLERANCE
+    )
+
+
 def assert_box(
-    entry: dict[str, Any], blocks: dict[tuple[int, str], tuple[float, ...]], page: int, line: str
+    entry: dict[str, Any],
+    blocks: dict[tuple[int, str], tuple[float, ...]],
+    page: int,
+    line: str,
+    *,
+    whole_line: bool = False,
 ) -> None:
-    expected = blocks[(page, _key(line))]
+    """The value's box is the box of its printed words inside the cited OCR line (the page has a text
+    layer); `whole_line`: the value is the whole printed line."""
+    line_box = blocks[(page, _key(line))]
     assert entry["page"] == page, entry
-    assert entry["box"] == pytest.approx(list(expected), abs=1e-6), (line, entry["box"], expected)
+    assert entry["method"] in ("read", "derived", "guessed"), entry
+    assert inside(entry["box"], line_box), (line, entry["box"], line_box)
+    if whole_line:
+        assert entry["box"] == pytest.approx(list(line_box), abs=BOX_TOLERANCE), (line, entry["box"])
+    else:
+        assert entry["box"][2] < line_box[2] - BOX_TOLERANCE, (line, entry["box"], line_box)
 
 
 async def events(document_id: str, kind: str) -> list[dict[str, Any]]:
@@ -368,12 +394,13 @@ async def test_upload_to_map_and_review(
     assert prov["stratigraphy[0].depth_from_m"]["raw"] == "0,00"
     assert prov["metadata.coordinates.x_raw"]["raw"] == "413 210,5"
     assert prov["stratigraphy[0].din4023_code"]["method"] == "derived"
-    known = {(page, tuple(round(v, 5) for v in box)) for (page, _), box in blocks.items()}
     for record in (fx1, fx2):
         for path, entry in record["provenance"].items():
             assert entry["document_id"] == doc_id, path
-            assert entry["box"] is not None, path  # every value points at a printed line
-            assert (entry["page"], tuple(round(v, 5) for v in entry["box"])) in known, path
+            assert entry["box"] is not None, path  # every value points into a printed line
+            assert any(
+                page == entry["page"] and inside(entry["box"], box) for (page, _), box in blocks.items()
+            ), path
 
     # The stated system plots both boreholes where the printed coordinates are.
     plotted = await map_points(client)
@@ -639,3 +666,74 @@ async def test_budget_stops_the_pipeline_with_a_readable_reason(
     await work(queue, doc_id)
     assert (await document(client, doc_id))["status"] == "needs_review"
     assert fakes.extractor.calls == 2 and sorted(await records(client, doc_id)) == ["FX-1", "FX-2"]
+
+
+# ----------------------------------------------------------------------------------------------
+# A partly handwritten page: second reads and one choose_reading question
+# ----------------------------------------------------------------------------------------------
+
+
+async def test_handwritten_page_gets_second_reads_and_one_question(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def partly_handwritten(text: str) -> PageLabel:
+        page_label = classify_rule(text)
+        if "BOREHOLE LOG FX-2" in text:
+            return page_label.model_copy(update={"handwriting": "partial"})
+        return page_label
+
+    fakes.classifier.rule = partly_handwritten
+    # The second reader sees one word of the handwritten page differently.
+    rereader = FakeRereader(replace={"Mutterboden": "Mutterbaden"})
+    monkeypatch.setattr(reread_module, "OpenRouterRereader", lambda: rereader)
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    doc = await document(client, doc_id)
+    assert doc["status"] == "needs_review" and doc["error"] is None
+    assert doc["progress"]["boreholes_extracted"] == 2
+    assert {p["n"]: p.get("handwriting") for p in doc["pages"] if p["used"]}[4] == "partial"
+    # One call for the values of page 4; FX-1 (pages 2-3) is printed and confident and is not read again.
+    assert rereader.calls == 1 and len(rereader.crops) == rereader.batches[0] > 0
+    printed = " ".join(c.printed for c in rereader.crops)
+    assert "Mutterboden" in printed and "FX-2" in printed and "FX-1" not in printed
+
+    by_label = await records(client, doc_id)
+    fx1, fx2 = by_label["FX-1"], by_label["FX-2"]
+    assert fx1["revision"] == 1 and fx1["open_clarifications"] == 0
+    path = "stratigraphy[0].original_description"
+    entry = fx2["provenance"][path]
+    assert entry["readings"] == [
+        {"reader": "ocr", "text": "Mutterboden", "confidence": 0.97},
+        {"reader": "reread", "text": "Mutterbaden", "confidence": 0.9},
+    ]
+    assert entry["status"] == "unreviewed" and fx2["stratigraphy"][0]["original_description"] == "Mutterboden"
+    assert [p for p, e in fx2["provenance"].items() if e["readings"]] == [path]  # the rest agreed
+    assert fx2["revision"] == 2 and fx2["open_clarifications"] == 1
+    assert fx2["review_status"] == "unreviewed"
+
+    questions = await call(client, "GET", "/api/v1/clarifications", expect=200)
+    assert [q["kind"] for q in questions] == ["choose_reading"]
+    question = questions[0]
+    assert question["borehole_uids"] == [fx2["uid"]] and question["path"] == path
+    (form,) = question["fields"]
+    assert form["name"] == "reading" and form["widget"] == "choose_reading"
+    assert [o["value"] for o in form["options"]] == ["Mutterboden", "Mutterbaden"]
+    for option in form["options"]:
+        assert (option["evidence"]["page"], option["evidence"]["box"]) == (4, entry["box"])
+
+    # Rerunning the stage pays nothing, changes nothing and asks nothing new.
+    await set_stage(doc_id, "extract")
+    await run_pipeline(doc_id)
+    assert rereader.calls == 1
+    assert len(await call(client, "GET", "/api/v1/clarifications", expect=200)) == 1
+    assert (await records(client, doc_id))["FX-2"]["revision"] == 2
+    assert (await document(client, doc_id))["status"] == "needs_review"
+
+    # The answer edits and approves the chosen reading.
+    url = f"/api/v1/clarifications/{question['clarification_id']}/answer"
+    answer = {"values": {"reading": "Mutterbaden"}, "answered_by": "fictional-reviewer"}
+    assert (await call(client, "POST", url, expect=200, json=answer))["status"] == "answered"
+    fx2 = (await records(client, doc_id))["FX-2"]
+    assert fx2["stratigraphy"][0]["original_description"] == "Mutterbaden"
+    assert fx2["provenance"][path]["status"] == "approved" and fx2["open_clarifications"] == 0

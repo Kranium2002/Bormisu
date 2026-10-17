@@ -5,12 +5,15 @@ built by hand as the extractor model would return them (raw text plus cited bloc
 stand in for Mistral OCR output. Four document families are covered: a German metric log with a printed
 ETRS89 / UTM system, an Australian-style scanned log with an MGA zone and AHD levels, a US-style log in
 feet without a printed system, and a log with degrees and decimal minutes whose depths carry no unit.
+A fifth, a vector PDF generated at test time, has a text layer while the OCR returns one coarse block per
+page: its evidence boxes shrink to the printed words.
 """
 
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -19,7 +22,14 @@ from sqlalchemy import func, select
 from app.clarify.answers import answer_clarification
 from app.db.models import Borehole, Clarification, Document, Page
 from app.db.session import get_sessionmaker
-from app.pipeline.finalize import build_record, finalize_document, finalize_group, length_unit_in
+from app.pipeline import textlayer
+from app.pipeline.finalize import (
+    build_record,
+    finalize_document,
+    finalize_group,
+    length_unit_in,
+    load_text_layers,
+)
 from app.pipeline.provenance import Citations, method_of, union_box
 from app.pipeline.schemas import (
     ExtractedCoreRun,
@@ -33,10 +43,14 @@ from app.pipeline.schemas import (
     RawCoordinates,
     RawValue,
 )
+from app.pipeline.textlayer import PageText
+from app.pipeline.triage import triage_pdf
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
 from app.review.service import to_record
 from app.schemas.boreholes import BoreholeRecord
+from app.storage import get_storage, original_key
 from tests.contract_utils import validate_schema
+from tests.pdf_factory import TextItem, make_pdf
 
 # ----------------------------------------------------------------------------------------------
 # Builders
@@ -531,10 +545,12 @@ def test_union_box_and_method_rules() -> None:
     text_page = blk("p1.b0", "1,20", (0.1, 0.1, 0.1, 0.1), quality=0.95)
     scan_page = blk("p2.b0", "1,20", (0.1, 0.1, 0.1, 0.1), quality=0.5)
     unknown_page = blk("p3.b0", "1,20", (0.1, 0.1, 0.1, 0.1), quality=None)
-    assert method_of([text_page]) == "read"
-    assert method_of([text_page, scan_page]) == "ocr"
-    assert method_of([unknown_page]) == "ocr"
-    assert method_of([]) == "ocr"
+    # "read" needs a trustworthy text layer on every cited page and the printed text found in it.
+    assert method_of([text_page], found_in_text_layer=True) == "read"
+    assert method_of([text_page]) == "ocr"  # not checked against the text layer
+    assert method_of([text_page, scan_page], found_in_text_layer=True) == "ocr"
+    assert method_of([unknown_page], found_in_text_layer=True) == "ocr"
+    assert method_of([], found_in_text_layer=True) == "ocr"
 
 
 def test_provenance_uses_the_first_page_in_reading_order_and_ignores_unknown_blocks() -> None:
@@ -548,7 +564,8 @@ def test_provenance_uses_the_first_page_in_reading_order_and_ignores_unknown_blo
     cite = Citations(blocks, document_id="doc_X", page_order=(7, 8))
     entry = cite.entry(rv("Kies, sandig", "p8.b0", "p7.b2", "p7.b1", "p99.b0"))
     assert (entry.page, entry.box) == (7, [0.2, 0.8, 0.35, 0.02])
-    assert (entry.method, entry.confidence, entry.raw, entry.state) == ("read", 0.7, "Kies, sandig", "ok")
+    # No text layer to agree with: an OCR reading.
+    assert (entry.method, entry.confidence, entry.raw, entry.state) == ("ocr", 0.7, "Kies, sandig", "ok")
     illegible = cite.entry(rv("1?,5", state="illegible"))
     assert (illegible.page, illegible.box, illegible.state) == (None, None, "illegible")
 
@@ -653,7 +670,8 @@ async def test_german_log_with_printed_utm_system(db: None) -> None:
     )
     assert prov["metadata.coordinates.local_x"].raw == "413 210,5"
 
-    # Header values as printed or normalised, each with its source box; text-layer page -> "read".
+    # Header values as printed or normalised, each with its source box. The pages' text layers are not
+    # stored in this test, so nothing agrees with them: "ocr" (tight boxes are tested further below).
     assert (meta.borehole_id, meta.project_name, meta.location_name) == (
         "KB 3",
         "Neubau Lagerhalle Fiktivweiler",
@@ -670,7 +688,7 @@ async def test_german_log_with_printed_utm_system(db: None) -> None:
         "page": 2,
         "box": [0.6, 0.07, 0.2, 0.02],
         "raw": "6,00 m",
-        "method": "read",
+        "method": "ocr",
     }
     assert prov["metadata.borehole_depth_source"].method == "derived"
     assert prov["metadata.depth_origin"].method == "derived"
@@ -683,7 +701,7 @@ async def test_german_log_with_printed_utm_system(db: None) -> None:
     gravel_desc = prov["stratigraphy[1].original_description"]
     assert (gravel_desc.page, gravel_desc.box, gravel_desc.confidence) == (2, [0.2, 0.32, 0.3, 0.04], 0.8)
     assert gravel_desc.method == "ocr"  # one cited block lies on the scanned page
-    assert prov["stratigraphy[1].depth_from_m"].method == "read"
+    assert prov["stratigraphy[1].depth_from_m"].method == "ocr"
     assert prov["stratigraphy[1].depth_from_m"].confidence == 0.91
     assert prov["stratigraphy[2].depth_to_m"].method == "ocr"  # scanned page 3
     # DIN codes: the model's code agreeing with the vocabulary, or derived from the printed description.
@@ -997,3 +1015,268 @@ def test_a_test_printed_over_its_drive_interval_is_one_spt() -> None:
     held = [layer for layer in draft.body["stratigraphy"] if layer.get("spt_raw")]
     assert len(held) == 1 and held[0]["spt_depth_m"] == 1.5
     assert any("repeats a test" in w for w in draft.warnings)
+
+
+# ----------------------------------------------------------------------------------------------
+# Family 5: vector PDF with a text layer; the OCR returns one coarse block per page
+# ----------------------------------------------------------------------------------------------
+
+
+def coarse_report() -> bytes:
+    """Two FICTIONAL log pages: "5,40" is printed in the header and in the table, "1,20" and "3,40" end one
+    row and start the next, one description wraps over two lines."""
+    return make_pdf(
+        [
+            [
+                TextItem(60, 780, "Bohrung KB 12 (fiktiv)", 14),
+                TextItem(60, 760, "Projekt: Fiktive Halle Musterau"),
+                TextItem(60, 745, "Endtiefe 5,40"),
+                TextItem(300, 745, "Ansatzpunkt +212,30 m NN"),
+                TextItem(60, 715, "Tiefe [m]"),
+                TextItem(60, 700, "0,00"),
+                TextItem(110, 700, "1,20"),
+                TextItem(170, 700, "Mutterboden, schluffig"),
+                TextItem(60, 680, "1,20"),
+                TextItem(110, 680, "3,40"),
+                TextItem(170, 680, "Sand, mittelsandig,"),
+                TextItem(170, 668, "schwach kiesig, braun"),
+                TextItem(400, 680, "GW 2,10"),
+                TextItem(60, 648, "3,40"),
+                TextItem(110, 648, "5,40"),
+                TextItem(170, 648, "Ton, steif, grau"),
+            ],
+            [
+                TextItem(60, 780, "KB 12 Blatt 2 (fiktiv)", 14),
+                TextItem(60, 700, "Bemerkung: Bohrung trocken"),
+            ],
+        ]
+    )
+
+
+# One OCR block per page, covering everything printed on it (as Mistral OCR may return a whole table).
+COARSE_BOXES = {1: (0.05, 0.03, 0.9, 0.3), 2: (0.05, 0.03, 0.9, 0.2)}
+COARSE_BLOCKS = block_map(
+    [
+        BlockRef(
+            id=f"p{n}.b0",
+            page=n,
+            text=text,
+            box=COARSE_BOXES[n],
+            confidence=0.93,
+            page_text_quality=0.99,
+            page_handwriting="none",
+        )
+        for n, text in (
+            (1, "Bohrung KB 12 (fiktiv) Projekt: Fiktive Halle Musterau Endtiefe 5,40 ... Ton, steif, grau"),
+            (2, "KB 12 Blatt 2 (fiktiv) Bemerkung: Bohrung trocken"),
+        )
+    ]
+)
+COARSE_GROUP = PageGroup(key="g-kb12", label_raw="KB 12", label_canonical="KB12", pages=(1, 2))
+
+
+def coarse_result(*, label: bool = True) -> ExtractionResult:
+    b = "p1.b0"
+    head = header(
+        borehole_label=rv("KB 12", b) if label else absent(),
+        project=rv("Fiktive Halle Musterau", b),
+        location=rv("Musterau-Süd", b),  # the model's reading is not what is printed: no agreement
+        total_depth=rv("5,40", b),
+        depth_unit=rv("Tiefe [m]", b),
+        ground_level=rv("+212,30", b),
+        elevation_datum=rv("m NN", b),
+        notes=rv("Bohrung trocken", "p2.b0"),
+    )
+    layers = [
+        layer(rv("0,00", b), rv("1,20", b), rv("Mutterboden, schluffig", b), language="de"),
+        layer(
+            rv("1,20", b),
+            rv("3,40", b),
+            rv("Sand, mittelsandig, schwach kiesig, braun", b),
+            language="de",
+            colour_raw=rv("braun", b),
+        ),
+        layer(
+            rv("3,40", b),
+            rv("5,40", b),
+            rv("Ton, steif, grau", b),
+            language="de",
+            colour_raw=rv("grau", b),
+            consistency_raw=rv("steif", b),
+        ),
+    ]
+    water = ExtractedGroundwater(type="strike", depth_raw=rv("2,10", b), date_raw=absent())
+    return result(head, layers, groundwater=[water])
+
+
+def words_box(layer_text: PageText, *words: tuple[str, int]) -> list[float]:
+    """Union box of printed words given as (text, occurrence on the page), rounded like provenance."""
+    boxes = []
+    for word, nth in words:
+        boxes.append([w.box for w in layer_text.words if w.text == word][nth])
+    box = union_box(boxes)
+    assert box is not None
+    return box
+
+
+def text_layers_of(pdf: bytes, folder: Path) -> dict[int, PageText]:
+    """Triage's text layer of every page (the same words the pipeline stores)."""
+    path = folder / "fictional-coarse.pdf"
+    path.write_bytes(pdf)
+    return {
+        page.n: textlayer.page_text(
+            page.n, [(w.text, w.box) for w in page.words], quality=page.text_layer_quality
+        )
+        for page in triage_pdf(path)
+    }
+
+
+def assert_tight_boxes(prov: dict[str, Any], layers: dict[int, PageText]) -> None:
+    """Every value found in the text layer points at its printed words, far smaller than the OCR block."""
+    p1, p2 = layers[1], layers[2]
+    expected = {
+        "metadata.borehole_id": (1, words_box(p1, ("KB", 0), ("12", 0))),
+        "metadata.project_name": (1, words_box(p1, ("Fiktive", 0), ("Musterau", 0))),
+        # "5,40" twice: the header's total depth and the table's base of the last layer.
+        "metadata.borehole_depth_m": (1, words_box(p1, ("5,40", 0))),
+        "stratigraphy[2].depth_to_m": (1, words_box(p1, ("5,40", 1))),
+        # A row's top is the next row's printed "1,20" / "3,40", not the base printed in the row above.
+        "stratigraphy[0].depth_to_m": (1, words_box(p1, ("1,20", 0))),
+        "stratigraphy[1].depth_from_m": (1, words_box(p1, ("1,20", 1))),
+        "stratigraphy[1].depth_to_m": (1, words_box(p1, ("3,40", 0))),
+        "stratigraphy[2].depth_from_m": (1, words_box(p1, ("3,40", 1))),
+        # A description wrapped over two lines: the union of its words on both.
+        "stratigraphy[1].original_description": (
+            1,
+            words_box(p1, ("Sand,", 0), ("mittelsandig,", 0), ("schwach", 0), ("kiesig,", 0), ("braun", 0)),
+        ),
+        "stratigraphy[1].colour": (1, words_box(p1, ("braun", 0))),
+        "stratigraphy[2].colour": (1, words_box(p1, ("grau", 0))),
+        "stratigraphy[2].consistency_density": (1, words_box(p1, ("steif,", 0))),
+        "metadata.surface_elevation_mASL": (1, words_box(p1, ("+212,30", 0))),
+        "groundwater[0].depth_m": (1, words_box(p1, ("2,10", 0))),
+        "metadata.notes": (2, words_box(p2, ("Bohrung", 0), ("trocken", 0))),
+    }
+    coarse_area = {n: box[2] * box[3] for n, box in COARSE_BOXES.items()}
+    for path, (page, box) in expected.items():
+        entry = prov[path]
+        assert (entry["page"], entry["box"], entry["method"]) == (page, box, "read"), path
+        assert box[2] * box[3] < 0.02 * coarse_area[page], path
+    # Printed differently from the model's reading: the coarse block and an OCR reading, never a guess.
+    location = prov["metadata.location_name"]
+    assert (location["box"], location["method"]) == (list(COARSE_BOXES[1]), "ocr")
+    # Derived values keep their method and take the tight box of the text they come from.
+    din = prov["stratigraphy[2].din4023_code"]
+    assert din["method"] == "derived"
+    assert din["box"] == words_box(p1, ("Ton,", 0), ("steif,", 0), ("grau", 0))
+
+
+def test_coarse_ocr_blocks_shrink_to_the_printed_words(tmp_path: Path) -> None:
+    layers = text_layers_of(coarse_report(), tmp_path)
+    assert all(t.quality is not None and t.quality > 0.9 for t in layers.values())
+    draft = build_record("doc_X", COARSE_GROUP, outcome(coarse_result(), COARSE_BLOCKS), text_layers=layers)
+    assert draft.body is not None
+    assert not any("text layer" in w for w in draft.warnings)
+    prov = {path: entry.model_dump(mode="json") for path, entry in draft.provenance.items()}
+    assert_tight_boxes(prov, layers)
+    # Without the text layer the same extraction keeps the coarse blocks and reads as OCR.
+    plain = build_record("doc_X", COARSE_GROUP, outcome(coarse_result(), COARSE_BLOCKS))
+    depth = plain.provenance["stratigraphy[2].depth_to_m"]
+    assert (depth.box, depth.method) == (list(COARSE_BOXES[1]), "ocr")
+
+
+def test_a_label_from_the_classifier_points_at_its_printed_words(tmp_path: Path) -> None:
+    layers = text_layers_of(coarse_report(), tmp_path)
+    draft = build_record(
+        "doc_X", COARSE_GROUP, outcome(coarse_result(label=False), COARSE_BLOCKS), text_layers=layers
+    )
+    label = draft.provenance["metadata.borehole_id"]
+    assert (label.raw, label.page, label.method) == ("KB 12", 1, "read")
+    assert label.box == words_box(layers[1], ("KB", 0), ("12", 0))
+    assert draft.label_box == label.box
+
+
+def _box_inside(inner: Sequence[float], outer: Sequence[float]) -> bool:
+    return (
+        inner[0] >= outer[0] - 1e-6
+        and inner[1] >= outer[1] - 1e-6
+        and inner[0] + inner[2] <= outer[0] + outer[2] + 1e-6
+        and inner[1] + inner[3] <= outer[1] + outer[3] + 1e-6
+    )
+
+
+def test_tight_boxes_stay_inside_the_cited_blocks(tmp_path: Path) -> None:
+    layers = text_layers_of(coarse_report(), tmp_path)
+    draft = build_record("doc_X", COARSE_GROUP, outcome(coarse_result(), COARSE_BLOCKS), text_layers=layers)
+    for path, entry in draft.provenance.items():
+        assert entry.page is not None and entry.box is not None, path
+        assert _box_inside(entry.box, COARSE_BOXES[entry.page]), path
+
+
+COARSE_DOC = "doc_01JFINAL00000000000000CRS"
+
+
+@pytest.mark.db
+async def test_finalize_reads_the_stored_text_layer(db: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Triage stores the text layer; finalisation loads it and narrows every box to the printed words."""
+    from app.pipeline import orchestrator
+    from app.pipeline.orchestrator import run_pipeline
+
+    monkeypatch.setattr(orchestrator, "STAGES", ("triage",))
+    pdf = coarse_report()
+    digest = hashlib.sha256(pdf).hexdigest()
+    get_storage().put_bytes(original_key(digest, ".pdf"), pdf)
+    async with get_sessionmaker()() as session:
+        session.add(
+            Document(
+                id=COARSE_DOC,
+                file_name="fictional-coarse.pdf",
+                sha256=digest,
+                mime_type="application/pdf",
+                size_bytes=len(pdf),
+                storage_key=original_key(digest, ".pdf"),
+                status="queued",
+            )
+        )
+        await session.commit()
+    await run_pipeline(COARSE_DOC)
+    async with get_sessionmaker()() as session:
+        pages = (await session.scalars(select(Page).where(Page.document_id == COARSE_DOC))).all()
+        assert sorted(p.n for p in pages) == [1, 2] and all(p.text_layer_key for p in pages)
+        for page_row in pages:  # what classification and OCR would have recorded
+            page_row.role = "log_sheet" if page_row.n == 1 else "log_continuation"
+            page_row.used = True
+            page_row.ocr_status = "done"
+        await session.commit()
+        stored = await load_text_layers(session, COARSE_DOC, [1, 2, 3])
+    assert sorted(stored) == [1, 2]
+
+    uid = await finalize_group(COARSE_DOC, COARSE_GROUP, outcome(coarse_result(), COARSE_BLOCKS))
+    assert uid is not None
+    rec = await record_of(uid)
+    prov = {path: entry.model_dump(mode="json") for path, entry in rec.provenance.items()}
+    assert_tight_boxes(prov, stored)
+    assert rec.metadata.borehole_depth_m == 5.4 and len(rec.stratigraphy) == 3
+
+
+@pytest.mark.db
+async def test_missing_or_untrusted_text_layers_are_skipped(db: None) -> None:
+    await make_document(
+        DE_DOC,
+        pages={1: ("log_sheet", ["KB 3"], 0.95), 2: ("log_sheet", [], 0.95), 3: ("log_sheet", [], 0.4)},
+    )
+    async with get_sessionmaker()() as session:
+        rows = {p.n: p for p in (await session.scalars(select(Page).where(Page.document_id == DE_DOC))).all()}
+        rows[1].text_layer_key = f"pages/{DE_DOC}/text/0001.json"  # file never written
+        rows[2].text_layer_key = f"pages/{DE_DOC}/text/0002.json"
+        rows[3].text_layer_key = f"pages/{DE_DOC}/text/0003.json"
+        await session.commit()
+    get_storage().put_bytes(f"pages/{DE_DOC}/text/0002.json", b"{not json")
+    get_storage().put_bytes(f"pages/{DE_DOC}/text/0003.json", b'{"text": "x", "words": []}')
+    async with get_sessionmaker()() as session:
+        assert await load_text_layers(session, DE_DOC, [1, 2, 3]) == {}  # 3 is below the quality bar
+    # Finalisation still works and keeps the OCR blocks.
+    uid = await finalize_group(DE_DOC, DE_GROUP, outcome(de_result(), DE_BLOCKS))
+    assert uid is not None
+    rec = await record_of(uid)
+    assert rec.provenance["metadata.borehole_depth_m"].box == [0.6, 0.07, 0.2, 0.02]

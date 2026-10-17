@@ -11,6 +11,9 @@ the groups that have no borehole yet; a group extracted but not finalised reuses
 A group is extracted only once all of its pages and the document's context pages have OCR text, because a
 finished group is never extracted again. Groups held back that way fail the document with a readable reason
 and rewind it to before OCR, so a retry reads the missing pages again (finished OCR runs are reused).
+
+The `reread` stage (app.pipeline.reread) reads handwritten and low-confidence values a second time. It does
+nothing when there are none, never fails the document and leaves its status and progress as they are.
 """
 
 from __future__ import annotations
@@ -50,7 +53,7 @@ IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
 SPREADSHEET_EXTENSIONS = frozenset({".xlsx", ".csv"})
 
 # Stage order; `documents.stage` holds the last finished one.
-STAGES = ("triage", "classify", "ocr", "extract")
+STAGES = ("triage", "classify", "ocr", "extract", "reread")
 # Statuses a finished document can have; the last stage never moves a document out of them.
 REVIEW_STATUSES = frozenset({"needs_review", "done"})
 
@@ -275,12 +278,19 @@ async def _extract(document_id: str) -> None:
     await stage_extract(document_id)
 
 
+async def _reread(document_id: str) -> None:
+    from app.pipeline.reread import stage_reread
+
+    await stage_reread(document_id)  # logs and swallows its own failures: the document stays as it is
+
+
 StageFn = Callable[[str], Awaitable[None]]
 STAGE_FUNCTIONS: dict[str, StageFn] = {
     "triage": _triage,
     "classify": _classify,
     "ocr": _ocr,
     "extract": _extract,
+    "reread": _reread,
 }
 # Document status once a stage has finished (the UI maps classifying=0, extracting=1, needs_review=2).
 STATUS_AFTER: dict[str, str] = {
@@ -288,6 +298,7 @@ STATUS_AFTER: dict[str, str] = {
     "classify": "extracting",
     "ocr": "extracting",
     "extract": "needs_review",
+    "reread": "needs_review",
 }
 
 

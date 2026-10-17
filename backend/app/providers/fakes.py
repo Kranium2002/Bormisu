@@ -3,20 +3,22 @@
 FakeOcrEngine answers like Mistral OCR from the text layer of the (fictional) PDF it is sent, so its blocks
 carry exact boxes. FakeClassifier labels pages from their text with simple keyword rules supplied by the test.
 FakeExtractor answers like the extractor model for the fictional log layout the tests generate (one OCR block
-per printed line), citing the block ids it read.
+per printed line), citing the block ids it read. FakeRereader answers second reads of crops with the OCR text
+inside each crop, changed where a test says so.
 """
 
 from __future__ import annotations
 
 import io
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 import pypdfium2 as pdfium
 
 from app.db.models import Page
+from app.pipeline.reread import CropImage, CropReading, RereadAnswer
 from app.pipeline.schemas import (
     ExtractedGroundwater,
     ExtractedHeader,
@@ -27,7 +29,7 @@ from app.pipeline.schemas import (
     RawValue,
 )
 from app.pipeline.types import ExtractionInput
-from app.providers.base import Usage, check_budget, record_usage
+from app.providers.base import ProviderError, Usage, check_budget, record_usage
 from app.providers.ocr_mistral import OcrResponse
 
 FAKE_DPI = 200
@@ -280,3 +282,57 @@ class FakeExtractor:
             usage = Usage("fake", "extract", self.model, inp.estimated_tokens, None, None, self.cost_usd)
             await record_usage(usage, document_id)
         return fake_extraction(inp), self.model, self.cost_usd
+
+
+# ----------------------------------------------------------------------------------------------
+# Second reads
+# ----------------------------------------------------------------------------------------------
+
+
+@dataclass
+class FakeRereader:
+    """The second reader for tests: each crop is "transcribed" as the OCR text inside it (the fake OCR reads
+    the fictional PDF exactly), or as the printed text of its values when no OCR block lies in it (a box
+    tighter than its block), after the `replace` substitutions; `rule(crop)` overrides that and returns
+    (text or None, legibility). `fail` makes every call raise it. Counts calls and the crops of each call.
+
+    Like the real client it checks PROVIDER_BUDGET_USD before every call and, when `cost_usd` is set,
+    records the call in the provider ledger.
+    """
+
+    replace: dict[str, str] = field(default_factory=dict)
+    rule: Callable[[CropImage], tuple[str | None, str]] | None = None
+    legibility: str = "clear"
+    fail: ProviderError | None = None
+    cost_usd: float = 0.0
+    model: str = "fake-rereader"
+    calls: int = 0
+    batches: list[int] = field(default_factory=list)
+    crops: list[CropImage] = field(default_factory=list)
+
+    async def reread(
+        self, crops: Sequence[CropImage], *, document_id: str
+    ) -> tuple[RereadAnswer, str | None, float]:
+        await check_budget(self.cost_usd)
+        self.calls += 1
+        self.batches.append(len(crops))
+        self.crops.extend(crops)
+        if self.fail is not None:
+            raise self.fail
+        if self.cost_usd > 0:
+            await record_usage(
+                Usage("fake", "reread", self.model, None, None, None, self.cost_usd), document_id
+            )
+        readings = []
+        for crop in crops:
+            if self.rule is not None:
+                text, legibility = self.rule(crop)
+            else:
+                text = crop.ocr_text or crop.printed
+                for old, new in self.replace.items():
+                    text = text.replace(old, new)
+                legibility = self.legibility
+            readings.append(
+                CropReading.model_validate({"id": crop.id, "text": text, "legibility": legibility})
+            )
+        return RereadAnswer(readings=readings), self.model, self.cost_usd
