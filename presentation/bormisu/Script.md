@@ -4,7 +4,7 @@
 
 ## 02 · Profile (~25 s)
 
-> This glas of dirt and stones the key to building tunnels.
+> This glas of dirt and stones is the key to building tunnels.
 > Its a soil sample.
 > This is what it looks like on a plan.
 > It tells you exactly what the ground is made of: which material sits at which depth.
@@ -48,9 +48,8 @@
 
 ## 09 · Sovereignty (~25 s)
 
-> Today it runs in the cloud on Mistral: Mistral Large, also known as Le Chonk.
-> But borehole reports are confidential. So the same pipeline runs on open models: PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
-> That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
+> Today it runs in the cloud on Mistral: Mistral Large and the Mistral ORC.
+> But borehole reports are confidential. So the same pipeline runs on open models, whcih you can run either on your on premise server or your own PC.
 
 ## 10 · In a nutshell (~15 s)
 
