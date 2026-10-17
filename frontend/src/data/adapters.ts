@@ -14,8 +14,10 @@ import type {
   DocumentSummary,
   ExtractedValue,
   FieldState,
+  FieldValue,
   GroundwaterReading,
   GroundwaterType,
+  Joint,
   Layer,
   LayerProps,
   Lint,
@@ -58,6 +60,9 @@ export interface ApiLayer {
   spt_penetration_cm?: number | null;
   spt_depth_m?: number | null;
   consistency_density?: string | null;
+  uscs_group?: string | null;
+  stratigraphic_name?: string | null;
+  geologic_age?: string | null;
   weathering?: string | null;
   jointing?: string | null;
   wet?: boolean | null;
@@ -92,6 +97,10 @@ export interface ApiBoreholeRecord {
   geotechnical_tests?: { water_table_m?: number | null } | null;
   /** One entry per sample (API contract §5.5). */
   test_results?: Record<string, unknown>[] | null;
+  joints?: { depth_m?: number | null; dip_direction_deg?: number | null; dip_deg?: number | null }[] | null;
+  tbm_engineering_assessment?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   provenance?: Record<string, ApiProvenance> | null;
   lint?: { path: string; rule?: string; severity: 'warning' | 'error'; message: string }[] | null;
 }
@@ -389,6 +398,8 @@ export function adaptBorehole(rec: ApiBoreholeRecord): AdaptedBorehole {
       layers,
       groundwater,
       ...(rec.test_results?.length ? { testResults: rec.test_results.map(testResultFromApi) } : {}),
+      ...(rec.joints?.length ? { joints: jointsOf(rec.joints) } : {}),
+      fields: readmeFields(rec),
       rockHead,
       values,
       primaryPage: firstPage,
@@ -445,7 +456,46 @@ function adaptLayer(l: ApiLayer, i: number, add: (s: ValueSpec) => ExtractedValu
     ...(l.core_recovery_pct != null ? { tcr: l.core_recovery_pct } : {}),
     ...(l.rqd_pct != null ? { rqd: l.rqd_pct } : {}),
     ...(props ? { props } : {}),
+    fields: { uscs_group: l.uscs_group ?? null, stratigraphic_name: l.stratigraphic_name ?? null, geologic_age: l.geologic_age ?? null },
   };
+}
+
+/**
+ * README_data `boreholes` columns the Borehole doesn't model elsewhere, from the API record
+ * (names per the API contract §8). Missing = null, never a default.
+ */
+function readmeFields(rec: ApiBoreholeRecord): Record<string, FieldValue> {
+  const meta = rec.metadata as unknown as Record<string, unknown>;
+  const coords = (rec.metadata.coordinates ?? {}) as Record<string, unknown>;
+  const val = (v: unknown): FieldValue => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ? v : null);
+  const tbm = rec.tbm_engineering_assessment;
+  return {
+    location_name: val(meta.location_name),
+    start_date: val(meta.drilling_date),
+    end_date: val(meta.drilling_end_date),
+    project_id: val(meta.project_id),
+    country: val(meta.country),
+    client: val(meta.client),
+    drilling_contractor: val(meta.drilling_contractor),
+    driller_name: val(meta.driller_name),
+    surface_elevation: val(meta.surface_elevation_mASL),
+    location_uncertainty: val(coords.location_uncertainty_m),
+    local_x: val(coords.local_x),
+    local_y: val(coords.local_y),
+    borehole_length: val(meta.borehole_length_m),
+    casing_info: val(meta.casing_info),
+    groundwaterlevel: val(rec.geotechnical_tests?.water_table_m),
+    tbm_assessment: tbm ? val(tbm.recommended_tbm_mode) : null,
+    notes: val(meta.notes),
+    created_at: val(rec.created_at),
+    updated_at: val(rec.updated_at),
+  };
+}
+
+/** API joints[] → Joint, keeping only complete measurements. */
+function jointsOf(list: NonNullable<ApiBoreholeRecord['joints']>): Joint[] {
+  return list.flatMap((j) => (j.depth_m != null && j.dip_direction_deg != null && j.dip_deg != null
+    ? [{ depth: j.depth_m, dipDirection: j.dip_direction_deg, dip: j.dip_deg }] : []));
 }
 
 /** The layer's DIN 4023 extras; only what the backend states (null / missing fields are left out). */

@@ -190,7 +190,9 @@
   margin: 0;
   padding: var(--space-1) 0;
   list-style: none;
-  min-width: 170px;
+  min-width: 220px;
+  max-height: 70vh;
+  overflow: auto;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
@@ -206,4 +208,21 @@
 
 .addItem:hover {
   background: var(--c-hover);
+}
+
+/* README_data table name above its fields in the + menu */
+.addGroup {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  color: var(--c-faint);
+  text-transform: uppercase;
+  border-top: 1px solid var(--c-line);
+}
+
+.addGroupList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }

@@ -98,8 +98,19 @@ function bk07Layers(): Layer[] {
     ...(l.spt ? { spt: toSpt(l.spt) } : {}),
     ...(l.n === 6 ? { tcr: 74, rqd: 18 } : {}),
     ...(l.props ? { props: l.props } : {}),
+    fields: BK07_LAYER_FIELDS[l.n - 1],
   }));
 }
+
+/** README_data layer columns of BK-07: USCS group, formation, age (fictional). */
+const BK07_LAYER_FIELDS: Record<string, string | null>[] = [
+  { uscs_group: 'OL', stratigraphic_name: 'Holocene deposits', geologic_age: 'Holocene' },
+  { uscs_group: null, stratigraphic_name: 'made ground', geologic_age: null },
+  { uscs_group: 'CL', stratigraphic_name: 'Holocene deposits', geologic_age: 'Holocene' },
+  { uscs_group: 'ML', stratigraphic_name: 'Holocene deposits', geologic_age: 'Holocene' },
+  { uscs_group: 'GP', stratigraphic_name: 'Pleistocene terrace', geologic_age: 'Pleistocene' },
+  { uscs_group: null, stratigraphic_name: 'Stuttgart Formation (Stubensandstein)', geologic_age: 'Triassic' },
+];
 
 /** The BK-07 borehole at the given map position (prototype BK7 override: 48.7905, 9.1835). */
 export function bk07(lat: number, lng: number): Borehole {
@@ -122,6 +133,15 @@ export function bk07(lat: number, lng: number): Borehole {
       { type: 'strike', depth: 3.1, key: K.gwStrike },
       { type: 'rest', depth: 2.4, key: K.gwRest },
     ],
+    // README_data borehole columns, from the log where it states them, else placeholders (fictional).
+    fields: {
+      location_name: 'Neckarbogen', start_date: '2019-03-12', end_date: '2019-03-13', project_id: 'P-02000', country: 'Germany',
+      client: 'Musterstadt Infrastruktur (fictional)', drilling_contractor: 'Beispiel Bohrtechnik GmbH', driller_name: 'A. Muster',
+      surface_elevation: 241.35, location_uncertainty: 5, local_x: 3513420, local_y: 5405870, borehole_length: 18,
+      casing_info: 'Ø 146 mm to 3.0 m', groundwaterlevel: 2.4, tbm_assessment: null, notes: 'Rotary core drilling',
+      created_at: '2026-10-17T09:00:00Z', updated_at: '2026-10-17T09:00:00Z',
+    },
+    joints: [{ depth: 12.4, dipDirection: 135, dip: 25 }],
     // Fictional lab tests on the log's samples: clay, silt, the sandstone core and one water sample.
     testResults: [
       testResultFromApi({ sample_name: 'P1', sample_type: 'soil', sample_depth_m: 3.5, water_content_pct: 24.8, density_kn_m3: 19.6,

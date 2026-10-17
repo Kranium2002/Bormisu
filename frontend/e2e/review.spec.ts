@@ -102,6 +102,7 @@ test.describe('review', () => {
     await expect(legendCount(page, 'attention')).toHaveText('7');
     expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(7);
     await nav(page, 'LIST');
-    await expect(page.locator('[data-uid="nb:BK-01"]')).toContainText('confirmed · DHDN / GK3');
+    await expect(page.locator('[data-uid="nb:BK-01"]')).toContainText('confirmed');
+    await expect(page.locator('[data-uid="nb:BK-01"]')).toContainText('EPSG:31467');
   });
 });

@@ -7,7 +7,7 @@ import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
 import { formatSpt } from '../domain/spt';
 import { TEST_FIELDS } from '../domain/testResults';
-import type { Borehole, ExtractedValue, Layer, LayerProps, Method, PageItem, PatternId, Spt, TestResult } from '../domain/types';
+import type { Borehole, ExtractedValue, Joint, Layer, LayerProps, Method, PageItem, PatternId, Spt, TestResult } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
 import { Ln, sampleValue, T, textWidth, type SampleValueInput } from './helpers';
 import { NB_CRS, NB_PROJECT } from './neckarbogen';
@@ -338,6 +338,24 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
       { type: 'rest', depth: gwR, key: K.gwRest },
     ],
     testResults: labTests(seed.id, layers),
+    joints: joints(seed.id, layers),
+    fields: {
+      ...projectFields(seed.project),
+      start_date: dateIso,
+      end_date: dateIso,
+      driller_name: DRILLERS[hashS(seed.id) % DRILLERS.length],
+      surface_elevation: Number(elev),
+      location_uncertainty: seed.onMap ? 5 : null,
+      local_x: hasCoords ? A : null,
+      local_y: hasCoords ? B : null,
+      borehole_length: fd,
+      casing_info: `Ø 146 mm to ${Math.min(3, fd).toFixed(1)} m`,
+      groundwaterlevel: gwR,
+      tbm_assessment: null,
+      notes: methEn,
+      created_at: '2026-10-17T09:00:00Z',
+      updated_at: '2026-10-17T09:00:00Z',
+    },
     rockHead: rockLayer ? rockLayer.from : null,
     values,
     primaryPage: page,
@@ -363,6 +381,59 @@ function applyBase(base: string, values: ExtractedValue[]): ExtractedValue[] {
     );
   }
   return values;
+}
+
+/* ---------- README_data fields (all fictional placeholders) ---------- */
+
+/** Project-level fields: country by location, placeholder client and contractor ("Muster", "Beispiel", "Sample"). */
+const PROJECT_FIELDS: Record<string, { country: string; location_name: string }> = {
+  [NB_PROJECT]: { country: 'Germany', location_name: 'Neckarbogen' },
+  'Elbquerung Ost': { country: 'Germany', location_name: 'Elbe, east bank' },
+  'Mainufer-Sammler': { country: 'Germany', location_name: 'Main riverside' },
+  'Emscher-Kanal Ost': { country: 'Germany', location_name: 'Emscher valley' },
+  'Spree-Kabeltunnel': { country: 'Germany', location_name: 'Spree crossing' },
+  'Rheinbogen-Fernwärme': { country: 'Germany', location_name: 'Rhine bend' },
+  'City-Ring Leipzig': { country: 'Germany', location_name: 'Leipzig city ring' },
+  'Limmattal-Abwasserstollen': { country: 'Switzerland', location_name: 'Limmat valley' },
+  'Alna-Overvannstunnel': { country: 'Norway', location_name: 'Alna valley' },
+  'Kallang Cable Tunnel': { country: 'Singapore', location_name: 'Kallang basin' },
+};
+const CONTRACTORS = ['Beispiel Bohrtechnik GmbH', 'Muster Geotechnik AG', 'Sample Drilling Ltd'];
+const DRILLERS = ['A. Muster', 'B. Beispiel', 'C. Sample'];
+
+function projectFields(project: string): Record<string, string> {
+  const i = PROJECTS.findIndex((p) => p.name === project);
+  const meta = PROJECT_FIELDS[project] ?? { country: '', location_name: '' };
+  return {
+    ...meta,
+    project_id: `P-${String(2000 + Math.max(i, 0) * 37).padStart(5, '0')}`,
+    client: 'Musterstadt Infrastruktur (fictional)',
+    drilling_contractor: CONTRACTORS[Math.max(i, 0) % CONTRACTORS.length],
+  };
+}
+
+/** USCS group of a layer's main DIN code (rough, fictional sample only). */
+const USCS: Record<string, string> = { T: 'CL', U: 'ML', S: 'SP', G: 'GP', Mg: 'CL', Mu: 'OL' };
+/** Formation and age per stratigraphy code of the sample units. */
+const STRAT: Record<string, [string, string]> = {
+  qh: ['Holocene deposits', 'Holocene'], qp: ['Pleistocene terrace', 'Pleistocene'], qw: ['Weichselian loess', 'Pleistocene'],
+  kmS: ['Stuttgart Formation', 'Triassic'], tm: ['Upper Freshwater Molasse', 'Miocene'], kro: ['Upper Cretaceous marl', 'Cretaceous'],
+  S: ['Oslo shale', 'Silurian'], T: ['Jurong Formation', 'Triassic'],
+};
+function layerFields(din: string, strat: string): Record<string, string | null> {
+  const main = din.split(',')[0].trim();
+  const [name, age] = STRAT[strat] ?? [null, null];
+  return { uscs_group: USCS[main] ?? null, stratigraphic_name: name, geologic_age: age };
+}
+
+/** One joint measurement in the middle of each cored rock layer (own RNG, so the log stays the same). */
+function joints(id: string, layers: GenLayer[]): Joint[] {
+  const rnd = mulberry32(hashS(`${id}:joints`));
+  return layers.filter((l) => l.rock && l.props?.core).map((l) => ({
+    depth: Math.round(((l.from + l.to) / 2) * 10) / 10,
+    dipDirection: Math.round(rnd() * 359),
+    dip: 5 + Math.round(rnd() * 80),
+  }));
 }
 
 /**
@@ -404,6 +475,7 @@ function toLayer(l: GenLayer): Layer {
     ...(l.tcr != null ? { tcr: l.tcr } : {}),
     ...(l.rqd != null ? { rqd: l.rqd } : {}),
     ...(l.props ? { props: l.props } : {}),
+    fields: layerFields(l.din, l.st),
   };
 }
 

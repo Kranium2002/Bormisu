@@ -61,7 +61,13 @@ export interface Layer {
   method: Method; confidence: number;
   spt?: Spt; tcr?: number; rqd?: number;
   props?: LayerProps;
+  /** README_data `layers` columns not modelled above (uscs_group, stratigraphic_name, geologic_age). */
+  fields?: Record<string, FieldValue>;
 }
+/** A value of a README_data.md column as the source states it; null = not stated. */
+export type FieldValue = string | number | boolean | null;
+/** One joint (crack) orientation measurement (README_data `joints`), printed like 135/25. */
+export interface Joint { depth: number; dipDirection: number; dip: number }
 /** One measured value of a lab test, e.g. water content 21.5 %. */
 export interface TestValue { key: string; label: string; value: number; unit: string }
 /** One sample / test depth with the values measured on it (only those the source states). */
@@ -92,6 +98,13 @@ export interface Borehole {
   groundwater: GroundwaterReading[];
   /** Lab tests, one per sample / test depth (API test_results[]); absent = none in the source. */
   testResults?: TestResult[];
+  /** Joint orientations (README_data `joints`); absent = none in the source. */
+  joints?: Joint[];
+  /**
+   * README_data `boreholes` columns not modelled above, keyed by their README name (location_name,
+   * start_date, client, casing_info …). Absent or null = not stated.
+   */
+  fields?: Record<string, FieldValue>;
   rockHead: number | null;
   values: ExtractedValue[];
   primaryPage: number;

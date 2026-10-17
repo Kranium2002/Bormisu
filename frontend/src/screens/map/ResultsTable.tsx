@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { StatusChip } from '../../components/StatusChip';
-import { metres } from '../../domain/format';
+import { FIELD_GROUPS, FIELDS, fieldByKey, type FieldDef } from '../../domain/fields';
 import { useT } from '../../i18n';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
-import { crsCell, depthText, type NotOnMapReason } from './mapModel';
+import type { NotOnMapReason } from './mapModel';
 import styles from './ResultsTable.module.css';
 
 interface Props {
@@ -18,44 +18,20 @@ interface Props {
   onOpen(uid: string): void;
 }
 
-/** A column the user can add or remove (BOREHOLE, PROJECT and STATUS always stay); `min` = narrowest width in px. */
-interface Column { key: string; label: string; min: number; cell(b: Borehole): ReactNode }
-
-const num = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? metres(v) : '–');
-const OPTIONAL: readonly Column[] = [
-  { key: 'depth', label: 'FINAL DEPTH', min: 100, cell: (b) => <span className={styles.mono}>{depthText(b)}</span> },
-  {
-    key: 'crs', label: 'CRS', min: 160, cell: (b) => {
-      const c = crsCell(b.crs);
-      return <span className={c.warn ? styles.warn : styles.muted} title={c.title}>{c.text}</span>;
-    },
-  },
-  { key: 'rock', label: 'ROCK HEAD', min: 100, cell: (b) => <span className={styles.mono}>{num(b.rockHead)}</span> },
-  { key: 'layers', label: 'LAYERS', min: 70, cell: (b) => <span className={styles.mono}>{b.layers.length}</span> },
-  {
-    key: 'gw', label: 'GROUNDWATER', min: 110,
-    cell: (b) => <span className={styles.mono}>{num((b.groundwater.find((g) => g.type === 'strike') ?? b.groundwater[0])?.depth)}</span>,
-  },
-  { key: 'tests', label: 'TEST RESULTS', min: 100, cell: (b) => <span className={styles.mono}>{b.testResults?.length ?? 0}</span> },
-  {
-    key: 'coords', label: 'COORDINATES', min: 160,
-    cell: (b) => <span className={styles.mono}>{b.lat != null && b.lng != null ? `${b.lat.toFixed(4)}, ${b.lng.toFixed(4)}` : '–'}</span>,
-  },
-  { key: 'file', label: 'SOURCE FILE', min: 150, cell: (b) => <span className={styles.muted}>{b.sourceFile || '–'}</span> },
-];
-const DEFAULT_COLUMNS = ['depth', 'crs'];
+/** Shown until the user picks others: final depth, CRS status and CRS. */
+const DEFAULT_COLUMNS = ['boreholes.borehole_depth', 'boreholes.crs_status', 'boreholes.coordinate_system'];
 /** Narrowest widths (px) of the columns that are always there. */
 const FIXED_MIN = { borehole: 90, project: 180, status: 170, action: 120 };
 /** The table's side padding (2 × --space-3). */
 const TABLE_PADDING = 24;
-const STORAGE_KEY = 'bormisu.listColumns';
+const STORAGE_KEY = 'bormisu.listColumns.v2';
 
 /** The chosen optional columns, remembered in this browser (a convenience: falls back to the default). */
 function useColumns(): [string[], (keys: string[]) => void] {
   const [keys, setKeys] = useState<string[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-      if (Array.isArray(saved)) return saved.filter((k) => OPTIONAL.some((c) => c.key === k));
+      if (Array.isArray(saved)) return saved.filter((k) => fieldByKey.has(k));
     } catch {
       // no storage (private window, blocked site data): the default
     }
@@ -80,8 +56,8 @@ function useColumns(): [string[], (keys: string[]) => void] {
 export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBoreholes, onOpen }: Props) {
   const [keys, setKeys] = useColumns();
   const t = useT();
-  const shown = keys.map((k) => OPTIONAL.find((c) => c.key === k)!);
-  const hidden = OPTIONAL.filter((c) => !keys.includes(c.key));
+  const shown = keys.map((k) => fieldByKey.get(k)!);
+  const hidden = FIELDS.filter((f) => !keys.includes(f.key));
   // Every column gets an equal share of the width, never less than its minimum: few columns spread out,
   // more columns move closer, and past the screen width the table gets wider and LIST scrolls sideways.
   const mins = [FIXED_MIN.borehole, FIXED_MIN.project, FIXED_MIN.status, ...shown.map((c) => c.min), FIXED_MIN.action];
@@ -101,7 +77,7 @@ export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBore
             <div key={c} className={styles.cell} role="columnheader">{t(c)}</div>
           ))}
           {shown.map((c) => (
-            <div key={c.key} className={`${styles.cell} ${styles.optionalHead}`} role="columnheader">
+            <div key={c.key} className={`${styles.cell} ${styles.optionalHead}`} role="columnheader" title={`${c.group} · ${c.column}`}>
               {t(c.label)}
               <button type="button" className={styles.removeColumn} aria-label={`Remove column ${c.label}`}
                 onClick={() => setKeys(keys.filter((k) => k !== c.key))}>×</button>
@@ -112,9 +88,16 @@ export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBore
               <details ref={addMenu} className={styles.addMenu}>
                 <summary className={styles.addButton} aria-label={t('Add a column')} title={t('Add a column')}>+</summary>
                 <ul className={styles.addList}>
-                  {hidden.map((c) => (
-                    <li key={c.key}>
-                      <button type="button" className={styles.addItem} onClick={() => add(c.key)}>{t(c.label)}</button>
+                  {FIELD_GROUPS.filter((g) => hidden.some((f) => f.group === g)).map((g) => (
+                    <li key={g}>
+                      <div className={styles.addGroup}>{t(g)}</div>
+                      <ul className={styles.addGroupList}>
+                        {hidden.filter((f) => f.group === g).map((f) => (
+                          <li key={f.key}>
+                            <button type="button" className={styles.addItem} title={f.column} onClick={() => add(f.key)}>{t(f.label)}</button>
+                          </li>
+                        ))}
+                      </ul>
                     </li>
                   ))}
                 </ul>
@@ -141,7 +124,7 @@ interface RowProps {
   status: BoreholeStatus;
   notOnMap: NotOnMapReason | null;
   active: boolean;
-  columns: readonly Column[];
+  columns: readonly FieldDef[];
   grid: { gridTemplateColumns: string };
   onOpen(uid: string): void;
 }
@@ -171,7 +154,9 @@ function ResultRow({ borehole: b, status, notOnMap, active, columns, grid, onOpe
         )}
       </div>
       {columns.map((c) => (
-        <div key={c.key} className={styles.cell} role="cell">{c.cell(b)}</div>
+        <div key={c.key} className={`${styles.cell} ${c.mono ? styles.mono : ''} ${c.warn?.(b) ? styles.warn : ''}`} role="cell">
+          {c.text(b)}
+        </div>
       ))}
       <div className={`${styles.cell} ${styles.actionCell}`} role="cell">
         <button type="button" className={styles.action} aria-label={`Open detail of ${b.id}`} onClick={onButton}>
