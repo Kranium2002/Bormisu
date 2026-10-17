@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefOb
 import { errorText } from '../../data/errors';
 import type { Clarification } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
+import { ANSWER_STORED } from '../../store/clarificationsSlice';
 import { useFocusTrap } from '../useFocusTrap';
 import styles from './Clarify.module.css';
 import {
@@ -343,12 +344,13 @@ export function ClarificationDialog() {
   const id = c.id;
 
   /**
-   * Closes the dialog unless another question took its place meanwhile. A toast with an action (the
-   * answer already placed boreholes: "… placed · SHOW ON MAP") is not replaced.
+   * Closes the dialog unless another question took its place meanwhile. The toast of this answer's
+   * placed boreholes ("Answer stored · … placed · SHOW ON MAP"), when it came first, is not replaced.
    */
   const done = (text: string) => {
     if (useAppStore.getState().activeClarificationId === id) closeClarification();
-    if (!useAppStore.getState().toast?.action) showToast(text);
+    const shown = useAppStore.getState().toast;
+    if (!(shown?.action && shown.text.startsWith(ANSWER_STORED))) showToast(text);
   };
 
   const onAnswer = async (values: Record<string, unknown>) => {

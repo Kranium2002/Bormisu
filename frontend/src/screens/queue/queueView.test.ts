@@ -118,6 +118,24 @@ describe('upload → map: the map steps of a processed card', () => {
     expect(steps({ questions: [q({ id: 'cl_x', kind: 'crs_confirm', documentId: 'doc_OTHER', boreholeUids: ['x'] })] })).toEqual([]);
   });
 
+  it('pinned boreholes with an inferred system that the CRS question covers need it too; settled ones do not', () => {
+    const crs = q({ id: 'cl_crs', kind: 'crs_confirm', boreholeUids: ['p1', 'p2', 'p3', 'w3_other_doc'] });
+    // p1 and p2 are pinned with an inferred system, p3 is confirmed already.
+    expect(steps({ pinned: 3, questions: [crs], uids: ['p1', 'p2', 'p3'], unsettled: ['p1', 'p2'] })).toEqual([
+      { kind: 'onMap', n: 3 },
+      { kind: 'crs', n: 2, questionId: 'cl_crs' },
+    ]);
+    // Every borehole of this report is settled: the project-wide question is no step here.
+    expect(steps({ pinned: 3, questions: [crs], uids: ['p1', 'p2', 'p3'], unsettled: [] })).toEqual([{ kind: 'onMap', n: 3 }]);
+    // One without coordinates is not placed by a coordinate system: it is behind WHY, not CONFIRM.
+    const withNoXy = { ...crs, boreholeUids: ['p1', 'n1'] };
+    expect(steps({ pinned: 1, offMap: [off('n1', 'no_coordinates')], questions: [withNoXy], uids: ['p1', 'n1'], unsettled: ['p1', 'n1'] })).toEqual([
+      { kind: 'onMap', n: 1 },
+      { kind: 'crs', n: 1, questionId: 'cl_crs' },
+      { kind: 'notOnMap', n: 1 },
+    ]);
+  });
+
   it('a locate_borehole question: PLACE opens it (click the map), and explains its boreholes', () => {
     const locate = q({ id: 'cl_loc', kind: 'locate_borehole', boreholeUids: ['c'] });
     expect(steps({ offMap: [off('c', 'no_coordinates')], questions: [locate], uids: ['c'] })).toEqual([

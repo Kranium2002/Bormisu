@@ -3,7 +3,7 @@ import { firstQuestionOf } from '../../components/clarify/clarifyModel';
 import { QuestionsButton } from '../../components/clarify/QuestionsButton';
 import { stageStep } from '../../data/adapters';
 import { completenessSummary } from '../../domain/review';
-import type { DocumentProgress, DocumentSummary } from '../../domain/types';
+import type { Borehole, DocumentProgress, DocumentSummary } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import styles from './DocumentCard.module.css';
 import { PageStrip, type ThumbnailUrl } from './PageStrip';
@@ -102,11 +102,17 @@ function useMapSteps(doc: DocumentSummary): MapStep[] {
     // As the map's NOT ON MAP list: listed by the server and not (any more) pinned.
     const offList = new Set(unplottedUids.filter((uid) => !pinned.has(uid)));
     const records = boreholes.filter((b) => b.documentId === doc.id);
+    // The CRS status per borehole: its pin's, else (newer) its cached record's.
+    const crs = new Map<string, Borehole['crs']['status']>([
+      ...pins.map((f) => [f.uid, f.crsStatus] as const),
+      ...records.map((b) => [b.uid, b.crs.status] as const),
+    ]);
     return mapSteps(doc, {
       pinned: pins.length,
       offMap: records.filter((b) => offList.has(b.uid)),
       questions: clarifications,
-      uids: [...pins.map((f) => f.uid), ...records.map((b) => b.uid)],
+      uids: [...crs.keys()],
+      unsettled: [...crs].filter(([, s]) => s === 'inferred' || s === 'unknown').map(([uid]) => uid),
     });
   }, [doc, features, boreholes, unplottedUids, clarifications]);
 }

@@ -107,6 +107,8 @@ export interface MapStepInput {
   questions: readonly Clarification[];
   /** Uids of the document's boreholes the store knows (pins and records). */
   uids: readonly string[];
+  /** Uids of the document's boreholes whose coordinate system is only inferred or unknown (pins and records). */
+  unsettled?: readonly string[];
 }
 
 /**
@@ -135,6 +137,10 @@ function concerns(c: Clarification, documentId: string, uids: ReadonlySet<string
  * The map steps of a document's card, in order: its pins, then what places the rest (a CRS question
  * or dialog, a position question) or, when nothing can, why they are not on the map. Nothing before
  * extraction is through, after a failure, or while its boreholes are not known yet.
+ *
+ * The CRS step counts the document's boreholes whose system is not settled: off the map for a CRS
+ * reason, or pinned with an inferred or unknown system that the CRS question covers. A project-wide
+ * CRS question about other reports' boreholes only is no step of this card (its badge still counts it).
  */
 export function mapSteps(d: Pick<DocumentSummary, 'id' | 'step' | 'error' | 'status'>, input: MapStepInput): MapStep[] {
   if (d.step < 2 || d.error || d.status === 'failed') return [];
@@ -144,16 +150,23 @@ export function mapSteps(d: Pick<DocumentSummary, 'id' | 'step' | 'error' | 'sta
   const crsQuestion = mine.find((c) => c.kind === 'crs_confirm') ?? null;
   const locate = mine.find((c) => c.kind === 'locate_borehole') ?? null;
   const offCrs = input.offMap.filter((b) => CRS_REASONS.has(b.unplottedReason));
+  const unsettled = new Set(input.unsettled ?? []);
+  // Off the map for another reason (no or implausible coordinates): a coordinate system cannot place them.
+  const offOther = new Set(input.offMap.filter((b) => !CRS_REASONS.has(b.unplottedReason)).map((b) => b.uid));
+  const needCrs = new Set([
+    ...offCrs.map((b) => b.uid),
+    ...(crsQuestion?.boreholeUids.filter((u) => uids.has(u) && unsettled.has(u) && !offOther.has(u)) ?? []),
+  ]);
   const steps: MapStep[] = [];
   if (input.pinned > 0) steps.push({ kind: 'onMap', n: input.pinned });
   let explained = 0;
-  if (crsQuestion || offCrs.length) {
-    const n = offCrs.length || (crsQuestion ? crsQuestion.boreholeUids.filter((u) => uids.has(u)).length : 0);
-    steps.push({ kind: 'crs', n, questionId: crsQuestion?.id ?? null });
+  if (needCrs.size) {
+    steps.push({ kind: 'crs', n: needCrs.size, questionId: crsQuestion?.id ?? null });
     explained += offCrs.length;
   }
   if (locate) {
-    steps.push({ kind: 'locate', n: locate.boreholeUids.length, questionId: locate.id });
+    const own = locate.boreholeUids.filter((u) => uids.has(u)).length;
+    steps.push({ kind: 'locate', n: own || locate.boreholeUids.length, questionId: locate.id });
     explained += input.offMap.filter((b) => !CRS_REASONS.has(b.unplottedReason) && locate.boreholeUids.includes(b.uid)).length;
   }
   // The rest is not on the map and no question here places it: how many, and WHY opens the list.
