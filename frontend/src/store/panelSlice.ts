@@ -206,7 +206,8 @@ export const createPanelSlice: SliceCreator<PanelSlice> = ({ set, get, find }) =
     }
     // A value whose source entry names no page (guessed, derived) is on no page: none is made up for it.
     const page = v ? v.page : b.primaryPage;
-    set({ panel: { kind: 'source', uid, key, documentId, page, box: v?.box ?? null } });
+    const sources = v?.sources && v.sources.length > 1 ? v.sources : undefined;
+    set({ panel: { kind: 'source', uid, key, documentId, page, box: v?.box ?? null, ...(sources ? { sources } : {}) } });
   },
 
   openPage(documentId, page) {

@@ -78,6 +78,17 @@ describe('DV-11-UI: a value whose source is in another document', () => {
     expect(st().panel).toEqual({ kind: 'source', uid: UID, key: K.test(1), documentId: LAB, page: 3, box: BOX });
   });
 
+  it('a value cited on several pages opens with all of them; one page carries none', async () => {
+    const b = withLab();
+    const sources = [{ page: 3, box: BOX }, { page: 4, box: null }];
+    b.values = b.values.map((v) => (v.key === K.test(1) ? { ...v, sources } : v.key === K.test(0) ? { ...v, sources: [{ page: 3, box: null }] } : v));
+    await ready([b]);
+    st().openSource(UID, K.test(1));
+    expect(st().panel).toMatchObject({ page: 3, box: BOX, sources });
+    st().openSource(UID, K.test(0));
+    expect(st().panel).not.toHaveProperty('sources');
+  });
+
   it('opens even when the borehole itself names no document', async () => {
     await ready([withLab({ documentId: null })]);
     st().openSource(UID, K.test(1));

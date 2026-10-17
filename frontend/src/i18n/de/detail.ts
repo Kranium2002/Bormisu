@@ -103,4 +103,8 @@ export const detail: Record<string, string> = {
   'Esc to close': 'Esc schließt',
   'No source reference from the backend: this value can’t be corrected here.':
     'Keine Quellenangabe vom Server: Dieser Wert kann hier nicht korrigiert werden.',
+  'Sources of this value': 'Quellen dieses Werts',
+  'Previous source': 'Vorherige Quelle',
+  'Next source': 'Nächste Quelle',
+  'No box on this page': 'Kein Rahmen auf dieser Seite',
 };

@@ -79,12 +79,18 @@ export function correctionBlocked(value: Pick<ExtractedValue, 'hasProvenance'>):
  * (guessed, derived) says so and shows none, as does a borehole without pages. OPEN IN REVIEW for
  * reviewable values.
  */
-export function SourcePanel({ panel }: { panel: SourcePanelState }) {
+export function SourcePanel({ panel: opened }: { panel: SourcePanelState }) {
   const correctValue = useAppStore((s) => s.correctValue);
+  // A value cited on several pages: the panel steps through them (‹ source 1 of N ›), back to the
+  // first whenever another value opens.
+  const [stop, setStop] = useState({ for: opened, index: 0 });
+  const index = stop.for === opened ? stop.index : 0;
+  const panel = sourceStop(opened, index);
   const value = useValue(panel.uid, panel.key);
   const borehole = useBorehole(panel.uid);
   const doc = useDocument(panel.documentId);
   const page = usePage(panel.cell ? null : panel.documentId, panel.page);
+  const count = opened.sources?.length ?? 0;
   const reviewable = useIsReviewable(panel.uid);
   const openReview = useAppStore((s) => s.openReview);
   const focusValue = useAppStore((s) => s.focusValue);
@@ -108,8 +114,22 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
       page={page}
       onOpenInReview={reviewable ? openInReview : undefined}
       onCorrect={panel.uid && panel.key && !panel.pageOnly ? (text) => correctValue(panel.uid!, panel.key!, text) : undefined}
+      stepper={count > 1 ? { index, count, onStep: (to) => setStop({ for: opened, index: to }) } : undefined}
     />
   );
+}
+
+/** The panel at source `index` of a value cited on several pages (its page and box there); the panel itself otherwise. */
+export function sourceStop(panel: SourcePanelState, index: number): SourcePanelState {
+  const s = panel.sources?.[index];
+  return s ? { ...panel, page: s.page, box: s.box } : panel;
+}
+
+interface Stepper {
+  /** 0-based source shown. */
+  index: number;
+  count: number;
+  onStep(index: number): void;
 }
 
 interface ViewProps {
@@ -124,10 +144,12 @@ interface ViewProps {
   onOpenInReview?: () => void;
   /** Saves a correction (or a confirmation) of the value; without it there is no field. */
   onCorrect?: (text: string) => void;
+  /** A value cited on several pages: ‹ source i of N ›. */
+  stepper?: Stepper;
 }
 
 /** What the Source panel shows, from the store's data (pure; rendered in tests without a store). */
-export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInReview, onCorrect }: ViewProps) {
+export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInReview, onCorrect, stepper }: ViewProps) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
   /** Neither a page nor a cell to show: a value on no page, or a borehole without pages. */
@@ -175,7 +197,34 @@ export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInRevi
           {value && <CertaintyMark certainty={certaintyOf(value)} />}
           {detail && <span className={styles.raw}>{detail}</span>}
         </div>
-        {value && !box && !panel.cell && !onNoPage && <div className={styles.noBox}>{t('Box not found: page shown')}</div>}
+        {stepper && (
+          <div className={styles.stepper} role="group" aria-label={t('Sources of this value')}>
+            <button
+              type="button"
+              className={styles.stepButton}
+              aria-label={t('Previous source')}
+              disabled={stepper.index === 0}
+              onClick={() => stepper.onStep(stepper.index - 1)}
+            >
+              ‹
+            </button>
+            <span className={styles.stepText} aria-live="polite">
+              {t('source')} {stepper.index + 1} {t('of')} {stepper.count} · {t('page')} {panel.page}
+            </span>
+            <button
+              type="button"
+              className={styles.stepButton}
+              aria-label={t('Next source')}
+              disabled={stepper.index >= stepper.count - 1}
+              onClick={() => stepper.onStep(stepper.index + 1)}
+            >
+              ›
+            </button>
+          </div>
+        )}
+        {value && !box && !panel.cell && !onNoPage && (
+          <div className={styles.noBox}>{stepper ? t('No box on this page') : t('Box not found: page shown')}</div>
+        )}
         {value && onCorrect && !blocked && <CorrectValue key={`${panel.uid}:${value.key}`} value={value} onCorrect={onCorrect} />}
         {value && onCorrect && blocked && <div className={styles.correctNote}>{t(blocked)}</div>}
       </PanelHeader>

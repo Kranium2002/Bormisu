@@ -341,3 +341,21 @@
     grid-template-columns: 60px 56px minmax(0, 1fr);
   }
 }
+
+/* ‹ source 1 of N › for a value cited on several pages. */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.stepButton {
+  composes: iconButton from '../styles/buttons.module.css';
+}
+
+.stepText {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--c-text);
+}

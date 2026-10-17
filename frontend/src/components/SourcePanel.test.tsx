@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { K } from '../domain/keys';
 import type { PageContent } from '../domain/types';
 import { makeDocument, makePage, makeValue } from '../test/fixtures';
-import { SourcePanelView } from './SourcePanel';
+import { sourceStop, SourcePanelView } from './SourcePanel';
 
 const doc = makeDocument();
 const guessed = makeValue({ key: K.country, label: 'Country', value: 'Fictionland', raw: '', page: null, box: null, method: 'Guessed', confidence: null });
@@ -146,5 +146,48 @@ describe('SourcePanelView: correcting the value', () => {
   it('has no field without a correction action (a page opened from the queue)', () => {
     const html = renderToStaticMarkup(<SourcePanelView panel={panel} value={onPage} doc={doc} page={ready} />);
     expect(html).not.toContain('Corrected value for');
+  });
+});
+
+describe('a value cited on several pages', () => {
+  const sources = [
+    { page: 1, box: { x: 0.1, y: 0.2, w: 0.3, h: 0.05 } },
+    { page: 2, box: null },
+  ];
+  const opened = { kind: 'source' as const, uid: 'bh_X', key: K.finalDepth, documentId: doc.id, page: 1, box: sources[0].box, sources };
+
+  it('steps to each page with its box, or none', () => {
+    expect(sourceStop(opened, 0)).toMatchObject({ page: 1, box: sources[0].box });
+    expect(sourceStop(opened, 1)).toMatchObject({ page: 2, box: null });
+    // Out of range or without sources: the panel as opened.
+    expect(sourceStop({ ...opened, sources: undefined }, 1)).toMatchObject({ page: 1 });
+  });
+
+  it('shows ‹ source i of N › and says when this page has no box', () => {
+    const second = renderToStaticMarkup(
+      <SourcePanelView
+        panel={sourceStop(opened, 1)}
+        value={onPage}
+        doc={doc}
+        page={{ status: 'ready', content: { ...content, page: 2 } }}
+        stepper={{ index: 1, count: 2, onStep: () => undefined }}
+      />,
+    );
+    expect(second).toContain('source 2 of 2 · page 2');
+    expect(second).toContain('No box on this page');
+    expect(second).not.toContain('Box not found');
+    expect(second).toMatch(/aria-label="Next source" disabled=""/);
+    const first = renderToStaticMarkup(
+      <SourcePanelView panel={sourceStop(opened, 0)} value={onPage} doc={doc} page={LOADING} stepper={{ index: 0, count: 2, onStep: () => undefined }} />,
+    );
+    expect(first).toContain('source 1 of 2 · page 1');
+    expect(first).toMatch(/aria-label="Previous source" disabled=""/);
+  });
+
+  it('a value on one page has no stepper', () => {
+    const html = renderToStaticMarkup(
+      <SourcePanelView panel={{ ...opened, sources: undefined }} value={onPage} doc={doc} page={LOADING} />,
+    );
+    expect(html).not.toContain('Sources of this value');
   });
 });
