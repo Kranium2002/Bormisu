@@ -11,6 +11,8 @@
 
 ## Index
 
+**Decisions in one page:** [extra-features.md](extra-features.md) has what we build, what waits and what we dropped (R1–R14), with reasons and build order.
+
 Reports in this folder:
 
 | Report | Date | Scope |

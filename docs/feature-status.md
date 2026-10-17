@@ -6,6 +6,8 @@ Sources:
 - the research log: [research/README.md](research/README.md)
 - the frontend: `frontend/`, PR #2
 
+The extra researched features (R1–R14) are written up in [research/extra-features.md](research/extra-features.md).
+
 Legend: ✅ built · 🔨 in progress · ⏭️ next (approved, not started) · 🔵 roadmap (later, name on the pitch slide) · ❌ dropped
 
 ## ✅ Built (frontend, PR #2, runs on sample data)
