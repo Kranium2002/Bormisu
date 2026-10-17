@@ -38,6 +38,7 @@ from app.ids import new_id
 from app.normalize.lithology import valid_din_code
 from app.normalize.numbers import parse_number
 from app.normalize.units import lab_tests, match_lab_test
+from app.pipeline import textlayer
 from app.pipeline.schemas import EXTRACTION_SCHEMA_VERSION, ExtractionResult
 from app.pipeline.types import BlockRef, ExtractionInput, ExtractionOutcome, PageGroup
 from app.providers.base import ProviderError, token_cost
@@ -337,6 +338,21 @@ class _Loaded:
     context: tuple[PageSegment, ...]
 
 
+def _text_layer_blocks(page: Page) -> list[dict[str, Any]] | None:
+    """Blocks of a page's trustworthy text layer, line by line (None when it has none)."""
+    threshold = textlayer.config().read_min_text_quality
+    if page.text_layer_key is None or (page.text_layer_quality or 0.0) < threshold:
+        return None
+    storage = get_storage()
+    try:
+        payload = json.loads(storage.get_bytes(page.text_layer_key))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return textlayer.line_blocks(textlayer.page_text_from_payload(page.n, payload)) or None
+
+
 async def _load(document_id: str, group: PageGroup) -> _Loaded:
     numbers = set(group.pages) | set(group.context_pages)
     async with get_sessionmaker()() as session:
@@ -364,10 +380,13 @@ async def _load(document_id: str, group: PageGroup) -> _Loaded:
 
     def segment(n: int) -> PageSegment:
         page, page_ocr = pages.get(n), ocr.get(n)
+        blocks = page_ocr.blocks if page_ocr else None
+        if page_ocr is None and page is not None and page.ocr_status == "skipped":
+            blocks = _text_layer_blocks(page)  # not sent to OCR: its trustworthy text layer stands in
         return page_segment(
             n,
             role=page.role if page else None,
-            blocks=page_ocr.blocks if page_ocr else None,
+            blocks=blocks,
             tables=page_ocr.tables if page_ocr else None,
             markdown=page_ocr.markdown if page_ocr else None,
             text_quality=page.text_layer_quality if page else None,

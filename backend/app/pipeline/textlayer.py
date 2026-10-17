@@ -249,6 +249,25 @@ def page_text(
     return PageText(page=page, words=tuple(out_words), lines=tuple(out_lines), quality=quality, unit=unit)
 
 
+def line_blocks(text: PageText) -> list[dict[str, Any]]:
+    """The text layer as OCR-like blocks: one per line (top to bottom), its words joined by spaces, the union
+    of their boxes, confidence 1.0 (the printed text itself, not a reading of it)."""
+    blocks: list[dict[str, Any]] = []
+    for line in text.lines:
+        words = [text.words[i] for i in line.words]
+        x0, x1 = min(w.x0 for w in words), max(w.x1 for w in words)
+        blocks.append(
+            {
+                "id": f"p{text.page}.b{len(blocks)}",
+                "type": "text",
+                "text": " ".join(w.text for w in words),
+                "box": [round(x0, 5), round(line.y0, 5), round(x1 - x0, 5), round(line.height, 5)],
+                "confidence": 1.0,
+            }
+        )
+    return blocks
+
+
 def page_text_from_payload(
     page: int, payload: Mapping[str, Any], *, quality: float | None = None, cfg: BoxConfig | None = None
 ) -> PageText:

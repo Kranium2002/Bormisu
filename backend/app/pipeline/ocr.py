@@ -36,6 +36,7 @@ from app.config import Settings, get_settings
 from app.db.models import Document, OcrPage, OcrRun, Page
 from app.db.session import get_sessionmaker
 from app.ids import new_id
+from app.pipeline import textlayer
 from app.pipeline.classify import update_progress
 from app.providers import base as providers
 from app.providers.base import RATE_LIMITED, ProviderError
@@ -166,9 +167,13 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
         skipped: list[int] = []
         if engine is None and _bh3_reads_logs(settings):
             # bh3 reads the log pages itself and the classic fallback only needs log pages: a page that
-            # cannot carry a log (photos, lab results, a legend naming boreholes) is not sent to paid OCR.
-            skipped = [p.n for p in pages if p.role not in LOG_ROLES]
-            pages = [p for p in pages if p.role in LOG_ROLES]
+            # cannot carry a log (photos, lab results, a legend naming boreholes) is not sent to paid OCR,
+            # nor is a log page whose text layer bh3 reads directly (its words still give evidence boxes).
+            trusted = textlayer.config().read_min_text_quality
+            skipped = [
+                p.n for p in pages if p.role not in LOG_ROLES or (p.text_layer_quality or 0.0) >= trusted
+            ]
+            pages = [p for p in pages if p.n not in skipped]
         todo = [p.n for p in pages]
         sizes = {p.n: (p.width_px or 0) * (p.height_px or 0) // 6 for p in pages}  # rough bytes per page
         sha256 = doc.sha256

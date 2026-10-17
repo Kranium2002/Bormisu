@@ -330,8 +330,9 @@ async def test_in_bh3_mode_only_log_pages_get_paid_ocr(
 
     doc = await document(client, doc_id)
     by_page = {p["n"]: p["ocr"] for p in doc["pages"] if p["used"]}
-    assert by_page == {2: "done", 3: "done", 4: "done", 5: "skipped"}  # page 5: the summary table
-    assert doc["warnings"] == [] and fakes.ocr.pages_seen == 3
+    # page 5 is a summary table; pages 2-4 are log sheets whose text layer bh3 reads directly
+    assert by_page == {2: "skipped", 3: "skipped", 4: "skipped", 5: "skipped"}
+    assert doc["warnings"] == [] and fakes.ocr.pages_seen == 0
 
 
 async def test_a_document_without_borehole_logs_is_done_and_says_so(
@@ -360,3 +361,73 @@ def test_text_layer_pages_take_the_classifier_language() -> None:
     info = bh3_adapter._PageInfo(1, 100, 140, 1.0, "none", "en-GB")
     assert bh3_adapter._base_language(info) == "en"
     assert bh3_adapter._base_language(bh3_adapter._PageInfo(1, 100, 140, 1.0, "none", None)) is None
+
+
+class ThinBridge(FakeBridge):
+    """bh3 reads FX-2's sheet as one layer, and names no hole on it."""
+
+    def build(
+        self, page_results: list[Any], source_file: str, *, doc_id: str | None = None, llm: Any = None
+    ) -> list[Any]:
+        holes = super().build(page_results, source_file, doc_id=doc_id, llm=llm)
+        for hole in holes:
+            if hole.pages == [4]:
+                hole.layers = hole.layers[:1]
+        return holes
+
+
+class NamelessBridge(FakeBridge):
+    def build(
+        self, page_results: list[Any], source_file: str, *, doc_id: str | None = None, llm: Any = None
+    ) -> list[Any]:
+        holes = super().build(page_results, source_file, doc_id=doc_id, llm=llm)
+        for hole in holes:
+            if hole.pages == [4]:
+                hole.metadata = {**hole.metadata, "BoreholeName": "doc-BH2", "_name_generated": True}
+        return holes
+
+
+async def test_at_most_one_layer_on_a_log_sheet_goes_to_the_classic_extractor(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any
+) -> None:
+    bh3(ThinBridge())
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    assert fakes.extractor.calls == 1  # FX-2's sheet, read again by the classic extractor
+    by_label = await records(client, doc_id)
+    assert sorted(by_label) == ["FX-1", "FX-2"] and len(by_label["FX-2"]["stratigraphy"]) == 2
+
+
+async def test_an_unnamed_hole_takes_the_label_the_classifier_read(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any
+) -> None:
+    bh3(NamelessBridge())
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    assert sorted(await records(client, doc_id)) == ["FX-1", "FX-2"]  # not "unlabelled p4"
+
+
+def test_a_page_without_ink_or_text_is_blank() -> None:
+    import io
+
+    from PIL import Image, ImageDraw
+
+    from app.pipeline.classify import is_blank
+
+    def png(draw_text: bool) -> bytes:
+        img = Image.new("RGB", (1240, 1754), "white")
+        if draw_text:  # a faint grey log: one line every 40 px down the page
+            draw = ImageDraw.Draw(img)
+            for row in range(40):
+                draw.text(
+                    (100, 100 + 40 * row), f"FICTIONAL {row}.00 - {row}.50 Sand, faint", fill=(150, 150, 150)
+                )
+        out = io.BytesIO()
+        img.save(out, format="PNG")
+        return out.getvalue()
+
+    assert is_blank(png(False), None) is True
+    assert is_blank(png(False), "BOREHOLE LOG FX-9") is False  # embedded text: not blank
+    assert is_blank(png(True), None) is False  # faint grey writing still counts as ink

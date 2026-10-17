@@ -140,6 +140,8 @@ class _PageInfo:
     text_quality: float | None
     handwriting: str | None
     language: str | None = None  # the page classifier's BCP 47 code
+    role: str | None = None  # the page classifier's role
+    labels: tuple[str, ...] = ()  # borehole labels the page classifier read on the page
 
 
 async def extract_document(document_id: str, bridge: ModuleType | None = None) -> Bh3Read | None:
@@ -164,7 +166,14 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         render_keys = {p.n: p.render_key for p in pages}
         infos = {
             p.n: _PageInfo(
-                p.n, p.width_px or 0, p.height_px or 0, p.text_layer_quality, p.handwriting, p.language
+                p.n,
+                p.width_px or 0,
+                p.height_px or 0,
+                p.text_layer_quality,
+                p.handwriting,
+                p.language,
+                p.role,
+                tuple(p.borehole_labels or ()),
             )
             for p in pages
         }
@@ -268,12 +277,28 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
     long_side = _long_sides(pdf_path, infos)
     out = Bh3Read(failed=failed)
     for bh in built:
+        if too_thin(bh, infos):
+            logger.warning(
+                "bh3 read at most one layer on log sheet(s) %s of %s; the classic extractor takes them",
+                getattr(bh, "pages", None),
+                document_id,
+            )
+            continue
         mapped = map_borehole(bh, infos=infos, languages=languages, long_side=long_side, model=route.model)
         if mapped is None:
             continue
         out.boreholes.append(mapped)
         out.pages.update(mapped[0].pages)
     return out
+
+
+def too_thin(bh: Any, infos: dict[int, _PageInfo]) -> bool:
+    """At most one layer and no run of test points on a page the classifier calls a log sheet: bh3 missed
+    the log (a turned or faint page), so the classic extractor reads it instead."""
+    pages = [int(n) for n in getattr(bh, "pages", None) or []]
+    if not any(infos[n].role == "log_sheet" for n in pages if n in infos):
+        return False
+    return len(getattr(bh, "layers", None) or []) <= 1 and len(getattr(bh, "points", None) or []) < 2
 
 
 def _base_language(info: _PageInfo | None) -> str | None:
@@ -445,7 +470,9 @@ def map_borehole(
 
     generated = bool(metadata.get("_name_generated"))
     name = None if generated else _text(metadata.get("BoreholeName"))
-    label = name or UNLABELLED.format(page=first)
+    # bh3 found no name: the page classifier's label, when it read exactly one on the hole's first page
+    classified = sorted({label for label in infos[first].labels if label.strip()})
+    label = name or (classified[0] if len(classified) == 1 else UNLABELLED.format(page=first))
     label_value = header("BoreholeName") if name else RawValue.absent()
     head = ExtractedHeader(
         borehole_label=label_value,
