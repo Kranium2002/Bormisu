@@ -82,6 +82,14 @@ def needs_location(record: dict[str, Any]) -> str | None:
     return location.strip() if isinstance(location, str) and location.strip() else None
 
 
+def unplaceable_system(record: dict[str, Any]) -> str:
+    """How to name the printed system of coordinates that no listed system places."""
+    coords = (record.get("metadata") or {}).get("coordinates") or {}
+    system = coords.get("coordinate_system")
+    printed = system.strip() if isinstance(system, str) and system.strip() else "no system printed"
+    return f"{printed}; the printed values fit no coordinate system"
+
+
 def local_grid_of(record: dict[str, Any], crs_status: str) -> str | None:
     """The local grid a record's printed coordinates are in, when no system places them; None otherwise."""
     if crs_status not in ("unknown", "inferred"):
@@ -102,8 +110,21 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         )
     ).all()
     asked = 0
+    covered = {
+        uid
+        for uids in (
+            await session.scalars(
+                select(Clarification.borehole_uids).where(
+                    Clarification.kind == "crs_confirm", Clarification.document_id == doc.id
+                )
+            )
+        ).all()
+        for uid in (uids or [])
+    }
     for bh in boreholes:
         grid = local_grid_of(bh.record, bh.crs_status)
+        if grid is None and bh.crs_status == "inferred" and bh.uid not in covered:
+            grid = unplaceable_system(bh.record)  # printed values no coordinate system places
         location = needs_location(bh.record) if grid is None else grid
         if location is None:
             continue

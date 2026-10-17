@@ -46,7 +46,7 @@ from app.clarify.service import clarification_out, create_clarification
 from app.db.models import Borehole, Clarification, Document, FieldValue, Page
 from app.db.session import get_sessionmaker
 from app.events.writer import emit
-from app.geo.crs_candidates import area_of_use, candidates_for_boreholes, ranking_config
+from app.geo.crs_candidates import area_of_use, candidates_for_boreholes, offerable, ranking_config
 from app.geo.land import near_land
 from app.geo.plotting import to_wgs84
 from app.normalize import coordinates as coordinates_parser
@@ -1273,7 +1273,7 @@ async def _crs_question_parts(
         evidence.append(
             {"document_id": x.document_id or bh.document_id, "page": x.page, "box": x.box, "snippet": snippet}
         )
-    candidates = await candidates_for_boreholes(session, boreholes)
+    candidates = [c for c in await candidates_for_boreholes(session, boreholes) if offerable(c)]
     options: list[dict[str, Any]] = []
     for candidate in candidates:
         if any(option["value"] == candidate.crs for option in options):
@@ -1372,6 +1372,8 @@ async def _ask_crs(session: AsyncSession, doc: Document) -> None:
         if open_question is not None and set(target_uids) <= set(open_question.borehole_uids or []):
             continue
         parts = await _crs_question_parts(session, doc, targets, project)
+        if not parts["fields"][0]["options"]:
+            continue  # no system places these values: the borehole is asked to be placed on the map instead
         if open_question is not None:
             open_question.borehole_uids = target_uids
             open_question.question = parts["question"]

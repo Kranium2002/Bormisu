@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -351,9 +352,50 @@ def _utm_entry(reference: Reference) -> RegistryEntry:
     return RegistryEntry(code, "projected", crs_label(code) or code, ())
 
 
-def _systems(reference: Reference | None, cfg: RankingConfig) -> tuple[list[RegistryEntry], set[str]]:
+_UTM_ZONE = re.compile(r"(?i)\butm\b\D{0,12}?(\d{1,2})\s*([NS])?\b")
+
+
+def offerable(candidate: CrsCandidate) -> bool:
+    """A candidate worth offering in a question: not out of range, and not a world-wide projected system
+    (Pseudo-Mercator places any pair of numbers somewhere; it is never a survey system)."""
+    if candidate.verdict == "out_of_range":
+        return False
+    kinds = {entry.code: entry.kind for entry in registry()}
+    area = area_of_use_km2(candidate.crs)
+    worldwide = area is not None and area / GLOBE_KM2 >= ranking_config().worldwide_share
+    return not (worldwide and kinds.get(candidate.crs, "projected") == "projected")
+
+
+def printed_zone_systems(printed: Iterable[str | None]) -> list[RegistryEntry]:
+    """WGS 84 north and south (and ETRS89 in Europe's zones) for a UTM zone printed without a datum or a
+    hemisphere ("UTM Sone 32", "WGS 84 UTM Zone 32"): ranked like the registry, so area of use, the
+    reference place and land decide between them."""
+    codes: list[str] = []
+    for text in printed:
+        match = _UTM_ZONE.search(text or "")
+        if match is None or not 1 <= int(match.group(1)) <= 60:
+            continue
+        zone, hemisphere = int(match.group(1)), (match.group(2) or "").upper()
+        if hemisphere != "S":
+            codes.append(f"EPSG:{32600 + zone}")
+            if 28 <= zone <= 38:
+                codes.append(f"EPSG:{25800 + zone}")
+        if hemisphere != "N":
+            codes.append(f"EPSG:{32700 + zone}")
+    entries: list[RegistryEntry] = []
+    for code in dict.fromkeys(codes):
+        entries.append(RegistryEntry(code, "projected", crs_label(code) or code, ()))
+    return entries
+
+
+def _systems(
+    reference: Reference | None, cfg: RankingConfig, extra: Sequence[RegistryEntry] = ()
+) -> tuple[list[RegistryEntry], set[str]]:
     entries = registry()
     generated: set[str] = set()
+    for entry in extra:
+        if all(_norm(e.code) != _norm(entry.code) for e in entries):
+            entries.append(entry)
     if reference is not None and cfg.utm_from_reference:
         utm = _utm_entry(reference)
         if all(_norm(e.code) != _norm(utm.code) for e in entries):
@@ -504,7 +546,10 @@ def _cap(items: list[_Scored], limit: int) -> tuple[list[_Scored], list[_Scored]
 
 
 def rank_candidates(
-    points: list[tuple[str, float, float]], *, reference: Reference | None = None
+    points: list[tuple[str, float, float]],
+    *,
+    reference: Reference | None = None,
+    extra: Sequence[RegistryEntry] = (),
 ) -> list[CrsCandidate]:
     """`points` are (uid, local_x, local_y) as printed. Returns candidates best first.
 
@@ -514,7 +559,7 @@ def rank_candidates(
     if not points:
         return []
     cfg = ranking_config()
-    entries, generated = _systems(reference, cfg)
+    entries, generated = _systems(reference, cfg, extra)
     scored: list[_Scored] = []
     for entry in entries:
         if not all(_plausible_for_kind(entry.kind, x, y) for _, x, y in points):
@@ -525,7 +570,13 @@ def rank_candidates(
                 scored.append(item)
     tied_scores = Counter((item.verdict, item.score) for item in scored)
     ashore = {id(item): _ashore(item, cfg) for item in scored if tied_scores[(item.verdict, item.score)] > 1}
-    scored.sort(key=lambda item: item.sort_key(ashore.get(id(item), 1.0)))
+    printed = {e.code for e in extra}  # the zone the document prints: first among the matches
+    scored.sort(
+        key=lambda item: (
+            item.verdict != "match" or item.code not in printed,
+            *item.sort_key(ashore.get(id(item), 1.0)),
+        )
+    )
     kept, dropped = _cap(scored, cfg.max_candidates)
     out = [_with_land_note(item, ashore.get(id(item)), cfg) for item in kept]
     if dropped and out:
@@ -541,9 +592,11 @@ def rank_candidates(
             else ""
         )
         ties = f" ({tied} with the same score as this one)" if tied else ""
-        extra = f"{len(dropped)} more candidates not listed{ties}: {listed}{more}"
+        dropped_note = f"{len(dropped)} more candidates not listed{ties}: {listed}{more}"
         last = out[-1]
-        out[-1] = last.model_copy(update={"note": f"{last.note}; {extra}" if last.note else extra})
+        out[-1] = last.model_copy(
+            update={"note": f"{last.note}; {dropped_note}" if last.note else dropped_note}
+        )
     return out
 
 
@@ -585,4 +638,6 @@ async def candidates_for_boreholes(
         (m.get("country") for m in metas),
     )
     reference = await reference_for(queries)
-    return await asyncio.to_thread(rank_candidates, points, reference=reference)
+    printed = [((m.get("coordinates") or {}).get("coordinate_system")) for m in metas]
+    extra = printed_zone_systems(p if isinstance(p, str) else None for p in printed)
+    return await asyncio.to_thread(rank_candidates, points, reference=reference, extra=extra)
