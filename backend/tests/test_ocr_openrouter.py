@@ -189,7 +189,6 @@ async def test_auto_falls_back_to_openrouter_when_the_mistral_key_is_refused(
     _stages_until_ocr(monkeypatch)
     from app.pipeline import ocr as ocr_module
 
-    monkeypatch.setattr(ocr_module, "_MISTRAL_REFUSED", False)  # restored after the test
     try:
         doc_id = await _upload(fictional_report(), "doc_01JFAKE00000000000000ORO2")
         with respx.mock() as mock:
@@ -201,7 +200,8 @@ async def test_auto_falls_back_to_openrouter_when_the_mistral_key_is_refused(
             )
             await run_pipeline(doc_id)
         assert mistral.call_count == 1 and openrouter.call_count == 2
-        assert ocr_module._MISTRAL_REFUSED is True  # later documents go straight to OpenRouter
+        assert {"mistral"} == ocr_module._REFUSED_ROUTES  # later documents start with OpenRouter
+        assert ocr_module.route_chain(get_settings()) == ["openrouter", "mistral"]
         async with get_sessionmaker()() as session:
             done = await session.scalar(
                 select(func.count())

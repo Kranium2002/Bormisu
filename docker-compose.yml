@@ -1,7 +1,8 @@
 # GeoMemory (UI brand "Bormisu").
 #   docker compose up --build        then open http://localhost:${WEB_PORT:-8080}
-# Works with and without a .env file. Without OPENROUTER_API_KEY / MISTRAL_API_KEY the API runs in
-# demo mode (/api/health reports "demo"). Published host ports come from WEB_PORT, API_PORT, DB_PORT.
+# Works with and without a .env file. Without OPENROUTER_API_KEY and OPENAI_API_KEY the API runs in
+# demo mode (/api/health reports "demo"); either key alone gives live mode.
+# Published host ports come from WEB_PORT, API_PORT, DB_PORT.
 # Needs Docker Compose 2.24 or newer (env_file with "required: false").
 
 x-backend-env-file: &backend-env-file
@@ -14,9 +15,12 @@ x-backend-environment: &backend-environment
   DATABASE_URL: postgresql+asyncpg://geomemory:geomemory@db:5432/geomemory
   STORAGE_DIR: /data/storage
   GOTENBERG_URL: http://gotenberg:3000
-  # OCR: Mistral direct when MISTRAL_API_KEY works, else (or on a refused key) through OpenRouter;
-  # set OCR_PROVIDER=openrouter or mistral in .env to force one route.
+  # OCR: Mistral direct when MISTRAL_API_KEY works, else (or on a refused key) through OpenRouter,
+  # else with OpenAI; set OCR_PROVIDER=mistral, openrouter or openai in .env to force one route.
   OCR_PROVIDER: ${OCR_PROVIDER:-auto}
+  # Classifier, extractor, second reads, sheet mapping: OpenRouter when OPENROUTER_API_KEY works, else
+  # (or on a refused key) OpenAI; set LLM_PROVIDER=openrouter or openai in .env to force one provider.
+  LLM_PROVIDER: ${LLM_PROVIDER:-auto}
 
 services:
   db:

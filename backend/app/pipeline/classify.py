@@ -27,7 +27,7 @@ from app.db.models import Document, Page
 from app.db.session import get_sessionmaker
 from app.pipeline.schemas import PageLabel
 from app.pipeline.triage import hamming
-from app.providers.llm_openrouter import image_part, text_part
+from app.providers.llm import image_part, text_part
 from app.services.documents import emit_document_updated, page_type_for, unused_reason_for
 from app.storage import get_storage
 from app.validate.document import section
@@ -53,22 +53,21 @@ class Classifier(Protocol):
 
 
 class OpenRouterClassifier:
-    """Classifier model on OpenRouter; escalation uses the extractor model with the same schema."""
+    """The classifier model on the configured provider (OpenRouter or OpenAI, app.providers.llm); escalation
+    uses the extractor model with the same schema."""
 
     def __init__(self, document_id: str) -> None:
-        from app.providers.llm_openrouter import OpenRouterClient
+        from app.providers.llm import LlmClient
 
-        self.client = OpenRouterClient()
+        self.client = LlmClient()
         self.document_id = document_id
 
     async def label(self, page: Page, image_png: bytes, text: str | None, *, escalate: bool) -> PageLabel:
-        settings = get_settings()
-        model = settings.extractor_model if escalate else settings.classifier_model
         content = [image_part("data:image/png;base64," + base64.b64encode(image_png).decode("ascii"))]
         if text:
             content.append(text_part("Embedded text of the page (may be incomplete):\n" + text))
         result = await self.client.structured(
-            model=model,
+            role="extractor" if escalate else "classifier",
             output=PageLabel,
             system=system_prompt(),
             content=content,

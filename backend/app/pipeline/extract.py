@@ -41,7 +41,7 @@ from app.normalize.units import lab_tests, match_lab_test
 from app.pipeline.schemas import EXTRACTION_SCHEMA_VERSION, ExtractionResult
 from app.pipeline.types import BlockRef, ExtractionInput, ExtractionOutcome, PageGroup
 from app.providers.base import ProviderError, token_cost
-from app.providers.llm_openrouter import OutputTruncatedError, image_part, text_part
+from app.providers.llm import OutputTruncatedError, active_model, image_part, text_part
 from app.storage import get_storage
 
 logger = logging.getLogger("geomemory.pipeline.extract")
@@ -127,21 +127,21 @@ def message_content(inp: ExtractionInput) -> list[dict[str, Any]]:
 
 
 class OpenRouterExtractor:
-    """The extractor model on OpenRouter with the strict ExtractionResult schema (budget checked by the
-    client before every call)."""
+    """The extractor model on the configured provider (OpenRouter or OpenAI, app.providers.llm) with the
+    strict ExtractionResult schema (budget checked by the client before every call)."""
 
     def __init__(self) -> None:
-        from app.providers.llm_openrouter import OpenRouterClient
+        from app.providers.llm import LlmClient
 
-        self.client = OpenRouterClient()
+        self.client = LlmClient()
 
     async def extract(
         self, inp: ExtractionInput, *, document_id: str
     ) -> tuple[ExtractionResult, str | None, float]:
-        model = get_settings().extractor_model
+        model = self.client.model_for("extractor")
         max_tokens = output_tokens_for(inp.estimated_tokens)
         result = await self.client.structured(
-            model=model,
+            role="extractor",
             output=ExtractionResult,
             system=system_prompt(),
             content=message_content(inp),
@@ -628,7 +628,7 @@ async def _call(
     stored = await _stored(key)
     if stored is not None:
         return stored
-    model = get_settings().extractor_model
+    model = active_model("extractor")
     async with get_sessionmaker()() as session:
         run = await session.scalar(select(ExtractionRun).where(ExtractionRun.cache_key == key))
         if run is None:
@@ -673,7 +673,7 @@ async def _store_merged(
     document_id: str, group_id: str, key: str, result: ExtractionResult, parts: Sequence[_Run]
 ) -> str:
     """The merged answer of a split group as one finished run under the whole input's key."""
-    model = next((p.model for p in parts if p.model), get_settings().extractor_model)
+    model = next((p.model for p in parts if p.model), active_model("extractor"))
     async with get_sessionmaker()() as session:
         run = await session.scalar(select(ExtractionRun).where(ExtractionRun.cache_key == key))
         if run is None:
@@ -707,7 +707,7 @@ async def extract_group(
             f"No text could be read on pages {', '.join(map(str, group.pages))}. Retry the document's OCR."
         )
     inp = assemble(group, loaded.segments, loaded.context)
-    model = get_settings().extractor_model
+    model = active_model("extractor")
     key = cache_key(loaded.sha256, group.key, model, inp)
     instance: list[Extractor] = [extractor] if extractor is not None else []
 
