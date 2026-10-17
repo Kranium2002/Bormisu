@@ -30,6 +30,7 @@ from app.pipeline import reread as reread_module
 from app.pipeline.orchestrator import run_pipeline
 from app.pipeline.schemas import PageLabel
 from app.pipeline.types import ExtractionOutcome, PageGroup
+from app.providers import base as providers_base
 from app.providers import ocr_mistral
 from app.providers.base import ProviderError
 from app.providers.fakes import (
@@ -554,7 +555,7 @@ class FlakyOcr:
         return await self.inner.ocr(data, mime, document_id=document_id, page_count=page_count)
 
 
-async def test_unread_pages_hold_back_their_borehole_until_retry(
+async def test_unread_page_keeps_the_rest_in_review_and_retry_reads_only_it(
     client: httpx.AsyncClient,
     live_mode: None,
     queue: Any,
@@ -568,32 +569,120 @@ async def test_unread_pages_hold_back_their_borehole_until_retry(
     doc_id = await upload(client, fictional_report())
     await work(queue, doc_id)
 
+    # The page that could not be read holds back only its borehole: the rest is finalised and in review.
     doc = await document(client, doc_id)
-    assert doc["status"] == "failed" and flaky.failed == [1]
-    assert doc["error"] == (
-        "Text could not be read on page(s) 4, so the boreholes on them were not extracted yet. "
-        "Retry the document to read these pages again."
-    )
+    assert doc["status"] == "needs_review" and flaky.failed == [1]
+    assert doc["error"] is None and doc["failed_stage"] is None
+    assert doc["warnings"] == [
+        "Page 4 was not read; boreholes on it are missing. Retry the document to read it."
+    ]
     assert {p["n"]: p["ocr"] for p in doc["pages"] if p["used"]} == {
         2: "done",
         3: "done",
         4: "failed",
         5: "done",
     }
-    assert sorted(await records(client, doc_id)) == ["FX-1"]  # the readable group went ahead
-    assert fakes.extractor.calls == 1 and doc["completeness"] is None  # the document is not closed yet
-    assert (await events(doc_id, "job.failed"))[-1]["retryable"] is True
-    async with get_sessionmaker()() as session:
-        stored = await session.get(Document, doc_id)
-        assert stored is not None and stored.stage == "classify"  # rewound so a retry reads page 4 again
+    assert sorted(await records(client, doc_id)) == ["FX-1"]
+    assert fakes.extractor.calls == 1 and doc["completeness"]["missing"] == ["FX-2", "FX-3"]
+    assert await events(doc_id, "job.failed") == []
 
     await call(client, "POST", f"/api/v1/documents/{doc_id}/retry", expect=202)
     ocr_calls = fakes.ocr.calls
     await work(queue, doc_id)
     doc = await document(client, doc_id)
     assert doc["status"] == "needs_review" and doc["completeness"]["missing"] == ["FX-3"]
+    assert doc["warnings"] == []
     assert fakes.ocr.calls == ocr_calls + 1  # only page 4 is read again
     assert fakes.extractor.calls == 2 and sorted(await records(client, doc_id)) == ["FX-1", "FX-2"]
+    # Nothing left unread: a retry is refused as before.
+    refused = await call(client, "POST", f"/api/v1/documents/{doc_id}/retry", expect=409)
+    assert refused["code"] == "not_failed"
+
+
+@dataclass
+class RateLimitedOcr:
+    """Answers 429 (after the client's own waiting) for the first `times` requests of pages printing
+    `marker`, then like `inner`."""
+
+    inner: FakeOcrEngine
+    marker: str
+    times: int
+    refused: int = 0
+    current_pages: list[int] | None = None
+
+    async def ocr(self, data: bytes, mime: str, *, document_id: str | None, page_count: int) -> OcrResponse:
+        texts: list[str] = []
+        original = await _original_pages(document_id, self.current_pages)
+        self.inner.current_pages = self.current_pages
+        pdf = pdfium.PdfDocument(io.BytesIO(original if original is not None else data))
+        try:
+            for index in range(len(pdf)):
+                page = pdf[index]
+                textpage = page.get_textpage()
+                texts.append(textpage.get_text_range())
+                textpage.close()
+                page.close()
+        finally:
+            pdf.close()
+        if self.marker in " ".join(texts) and self.refused < self.times:
+            self.refused += 1
+            raise ProviderError("Fictional OCR is rate-limited (429).", retryable=True, status=429)
+        return await self.inner.ocr(data, mime, document_id=document_id, page_count=page_count)
+
+
+async def test_rate_limited_page_is_read_later_in_the_same_job(
+    client: httpx.AsyncClient,
+    live_mode: None,
+    queue: Any,
+    fakes: Fakes,
+    monkeypatch: pytest.MonkeyPatch,
+    settings_env: Any,
+) -> None:
+    settings_env(OCR_MAX_PAGES_PER_REQUEST="1", OCR_RATE_LIMIT_ROUNDS="2", OCR_RATE_LIMIT_COOLDOWN_S="30")
+    limited = RateLimitedOcr(fakes.ocr, "BOREHOLE LOG FX-2", times=2)
+    monkeypatch.setattr(ocr_mistral, "MistralOcrClient", lambda: limited)
+    pauses: list[float] = []
+
+    async def no_wait(seconds: float) -> None:
+        pauses.append(seconds)
+
+    monkeypatch.setattr(providers_base, "pause", no_wait)
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    doc = await document(client, doc_id)
+    assert limited.refused == 2 and pauses == [30.0, 60.0]  # deferred twice, a longer cooldown each round
+    assert doc["status"] == "needs_review" and doc["warnings"] == []
+    assert all(p["ocr"] == "done" for p in doc["pages"] if p["used"])
+    assert sorted(await records(client, doc_id)) == ["FX-1", "FX-2"]
+
+
+async def test_page_still_rate_limited_after_every_round_is_left_for_retry(
+    client: httpx.AsyncClient,
+    live_mode: None,
+    queue: Any,
+    fakes: Fakes,
+    monkeypatch: pytest.MonkeyPatch,
+    settings_env: Any,
+) -> None:
+    settings_env(OCR_MAX_PAGES_PER_REQUEST="1", OCR_RATE_LIMIT_ROUNDS="1")
+    limited = RateLimitedOcr(fakes.ocr, "BOREHOLE LOG FX-2", times=2)
+    monkeypatch.setattr(ocr_mistral, "MistralOcrClient", lambda: limited)
+
+    async def no_wait(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(providers_base, "pause", no_wait)
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    doc = await document(client, doc_id)
+    assert doc["status"] == "needs_review" and doc["warnings"][0].startswith("Page 4 was not read")
+    assert sorted(await records(client, doc_id)) == ["FX-1"]
+    await call(client, "POST", f"/api/v1/documents/{doc_id}/retry", expect=202)
+    await work(queue, doc_id)
+    doc = await document(client, doc_id)
+    assert doc["warnings"] == [] and sorted(await records(client, doc_id)) == ["FX-1", "FX-2"]
 
 
 # ----------------------------------------------------------------------------------------------

@@ -48,6 +48,10 @@ class CoordinateResult:
     local_x: float | None = None  # projected: easting-like value
     local_y: float | None = None  # projected: northing-like value
     swap_suspected: bool = False  # the axis labelled X behaves like a latitude or northing
+    # Degrees whose axis order nothing printed decides (no N/E/lat/lon mark or label, both values fit a
+    # latitude): read latitude first (X/Y labels: X as longitude) until the coordinate-system question, which
+    # offers both orders, confirms it.
+    order_assumed: bool = False
     notes: list[str] = field(default_factory=list)
     reason: str | None = None
 

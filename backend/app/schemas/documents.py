@@ -112,6 +112,8 @@ class DocumentOut(ApiModel):
     progress: DocumentProgress | None = None
     duplicate_of: str | None = None
     open_clarifications: int = 0
+    # Contract 1.2.1: readable notes on a document in review that is not complete, e.g. pages not read.
+    warnings: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

@@ -17,6 +17,7 @@
       "progress": null,
       "duplicate_of": null,
       "open_clarifications": 0,
+      "warnings": [],
       "created_at": "2026-10-17T09:30:00Z",
       "updated_at": "2026-10-17T09:30:00Z"
     },
@@ -133,6 +134,7 @@
       },
       "duplicate_of": null,
       "open_clarifications": 0,
+      "warnings": [],
       "created_at": "2026-10-17T09:20:00Z",
       "updated_at": "2026-10-17T09:22:15Z"
     },
@@ -219,6 +221,7 @@
       },
       "duplicate_of": null,
       "open_clarifications": 0,
+      "warnings": [],
       "created_at": "2026-10-17T09:10:00Z",
       "updated_at": "2026-10-17T09:14:30Z"
     },
@@ -259,6 +262,7 @@
       },
       "duplicate_of": null,
       "open_clarifications": 0,
+      "warnings": [],
       "created_at": "2026-10-17T07:40:00Z",
       "updated_at": "2026-10-17T07:44:05Z"
     },
@@ -319,6 +323,7 @@
       },
       "duplicate_of": null,
       "open_clarifications": 1,
+      "warnings": [],
       "created_at": "2026-10-17T07:32:00Z",
       "updated_at": "2026-10-17T07:42:00Z"
     },
@@ -583,6 +588,7 @@
       },
       "duplicate_of": null,
       "open_clarifications": 8,
+      "warnings": [],
       "created_at": "2026-10-17T07:20:00Z",
       "updated_at": "2026-10-17T08:41:12Z"
     },
@@ -608,6 +614,7 @@
       "progress": null,
       "duplicate_of": null,
       "open_clarifications": 0,
+      "warnings": [],
       "created_at": "2026-10-17T07:10:00Z",
       "updated_at": "2026-10-17T07:12:40Z"
     },
@@ -670,6 +677,7 @@
       },
       "duplicate_of": null,
       "open_clarifications": 0,
+      "warnings": [],
       "created_at": "2026-10-17T07:05:00Z",
       "updated_at": "2026-10-17T08:58:30Z"
     }

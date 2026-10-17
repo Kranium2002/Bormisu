@@ -1108,11 +1108,22 @@ def test_version_has_a_changelog_entry() -> None:
     headings = re.findall(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", changelog, flags=re.MULTILINE)
     assert headings and headings[0][0] == version, "the newest CHANGELOG entry names info.version"
     entry = _section(changelog, f"## {version} ", "\n## ")
-    for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
+    for addition in ("Document.warnings", "/documents/{id}/retry", "needs_review", "429", "crs_confirm"):
         assert addition in entry, addition
+    previous = _section(changelog, "## 1.2.0 ", "\n## ")
+    for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
+        assert addition in previous, addition
     older = _section(changelog, "## 1.1.0 ", "\n## ")
     for addition in ("crs_label", "confirmed_by", "/clarifications/{clarification_id}/crs-candidates"):
         assert addition in older, addition
+
+
+def test_contract_1_2_1_document_warnings() -> None:
+    warnings = SCHEMAS["Document"]["properties"]["warnings"]
+    assert warnings["type"] == "array" and warnings["items"] == {"type": "string"}
+    assert "warnings" not in SCHEMAS["Document"]["required"]
+    retry = SPEC["paths"]["/api/v1/documents/{document_id}/retry"]["post"]
+    assert "unread pages" in retry["responses"]["409"]["description"] and "warnings" in retry["description"]
 
 
 def test_clarification_crs_candidates_operation() -> None:
