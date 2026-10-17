@@ -3,7 +3,7 @@
 **Borehole reports in, verified geodata out.**
 
 Bormisu turns the borehole reports a tunnelling team actually receives into a reviewed, queryable PostGIS database: vector PDFs, scans, phone photos, multi-page TIFFs, Word files and spreadsheets, in any language, partly handwritten.
-Every value on the map can be traced to the place on the page it was read from. Models only transcribe. Every unit conversion, depth fit, coordinate transform and check is done by tested Python. When the input is unclear, the system asks a person instead of guessing.
+Every value on the map can be traced to the place on the page it was read from. Models read and classify. Every unit conversion, depth fit, coordinate transform and check is done by tested Python. When the input is unclear, the system asks a person instead of guessing.
 
 The database starts empty. The map shows only boreholes from files you upload. Nothing is preloaded or scraped.
 
@@ -19,17 +19,17 @@ Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · heal
 
 | | |
 |---|---|
-| **Inputs** | 10 file types, detected by their content (magic bytes), not by their name: PDF (vector and scanned), PNG, JPEG, WebP, TIFF (every frame), DOCX, XLSX, CSV |
+| **Inputs** | 8 formats (10 file extensions): PDF (vector and scanned), PNG, JPEG, WebP, TIFF (every frame), DOCX, XLSX, CSV. Each file's content must match its extension, so a renamed file is rejected |
 | **Languages** | Prompts are language-independent. DIN 4023 vocabulary in 10 languages (553 terms). 39 language-to-country hints for coordinate systems |
 | **Coordinate systems** | 122 curated EPSG systems, 49 of them with the names they are printed under (UTM, ETRS89, Gauss-Krüger, MGA, NAD83, national grids). Any other EPSG code printed in a document is resolved through PROJ. Local site grids are placed from one or two anchors |
-| **Geotechnical standards** | DIN 4023 with 49 codes and 132 SVG hatch patterns and symbols. 4 SPT schemes (3×150, 6×75, 2×300, 3×100 mm). 43 units in 7 dimensions |
-| **Quality gates** | 18 record lint rules, a datum-convention check, cross-document outlier and duplicate checks, and 9 kinds of clarification question |
+| **Geotechnical standards** | DIN 4023 with 49 codes and 132 SVG hatch patterns and symbols. 4 SPT schemes (3×150, 6×75, 2×300, 3×100 mm). 37 units in 7 dimensions, each with its printed aliases |
+| **Quality gates** | 18 lint rules, a datum-convention check, a coordinate-outlier check per document, a cross-document duplicate check, and 9 kinds of clarification question |
 | **Accuracy of the page reader** (hand-labelled pages from documents it was never tuned on) | Borehole names **100 %** · SPT recall **81 %** · layer boundaries within 15 cm **80 %** |
-| **Vector logs** | Read from the PDF text layer with **zero model calls**: 100 % of boundaries and 9/9 header fields on the corpus's clean vector-log report |
-| **DIN coding coverage** | **92 %** of 3,805 real layer descriptions get a DIN 4023 code (75 % before the page reader's mapper). Where the codebase's two independent mappers both code a layer, they agree exactly on 88 % |
-| **Throughput** | Full challenge corpus (18 documents, 1,034 pages) in 98 minutes, about 0.6 US cents per page with the model used in development. Retries replay from cache at zero model cost |
+| **Vector logs** | Read from the PDF text layer with **no OCR and no vision call**: 100 % of boundaries and 9/9 header fields on the corpus's clean vector-log report |
+| **DIN coding coverage** | **92 %** of 3,805 real layer descriptions get a DIN 4023 code (75 % before the page reader's mapper). Where the codebase's two DIN mappers both code a layer, they agree exactly on 88 % |
+| **Throughput** | Full challenge corpus (18 documents, 1,034 pages) in 98 minutes, about 0.6 US cents per page with the model used in development. Every stage caches its answers, so a retry repeats no vision call |
 | **Tests** | **2,940 passing tests**: 1,335 backend (pytest on real PostGIS) and 1,605 frontend (vitest), plus 14 Playwright end-to-end specs with 120 tests. None of them makes a paid provider call |
-| **Interface contract** | OpenAPI 3 contract with 34 operations and 85 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
+| **Interface contract** | OpenAPI 3.1 contract with 34 operations and 91 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
 | **Deployment** | One `docker compose up`. Runs on premise. Model-agnostic through OpenRouter, with an optional bundled Ollama service for local models |
 
 The accuracy, coverage and throughput figures were measured during development on the challenge corpus and 21 hand-labelled pages. Method and per-version history are in [`MAIN_VS_BH3.md`](MAIN_VS_BH3.md). The labels themselves stay out of git (see [Data rule](#data-rule)).
@@ -42,23 +42,23 @@ Borehole logs combine the hardest parts of document AI: dense ruled tables, dept
 
 | | End-to-end LLM extraction | Classic OCR + templates | **Bormisu** |
 |---|---|---|---|
-| Numbers are… | generated by the model (can be invented, rounded, converted) | parsed by layout rules | **copied as printed, then normalised by tested Python** |
+| Numbers are… | generated by the model (can be invented, rounded, converted) | parsed by layout rules | **read as printed or off the depth scale, then normalised and checked by tested Python** |
 | Works on an unseen layout or language | yes, but unverifiable | no, needs a new template | **yes, and every value is checkable** |
-| Depths on a scanned log | estimated from the image | template-bound | **anchored to the printed depth scale by a least-squares fit** |
+| Depths on a scanned log | estimated from the image | template-bound | **anchored to the printed depth scale by a least-squares fit wherever the fit and a ruling line confirm it** |
 | Coordinate system | guessed | hard-coded | **detected, ranked by evidence, confirmed by a person if uncertain** |
 | Evidence for a value | none | position in a template | **page, box, raw text, method, confidence, revision history** |
-| Cost on vector PDFs | every page through a model | none | **none: the text layer is parsed directly** |
-| Switching the model | rewrite prompts and parsers | n/a | **change one environment variable** |
+| Cost on vector PDFs | every page through a model | none | **one cheap classification per page; the log itself is parsed from the text layer, with no OCR or vision call** |
+| Switching the model | rewrite prompts and parsers | n/a | **change an environment variable (one model id per stage); no code or prompt change** |
 
 The design principles behind it:
 
-1. **Models read, Python decides.** The text extractor returns the *raw printed text* of every value plus the ids of the OCR blocks it came from. It never returns a normalised number. The page reader reports what it sees together with its position on a grid, and the code anchors it to the depth scale. Units, SPT N values, dates, datums, DIN codes, coordinates and coordinate systems are computed in deterministic, unit-tested Python (`backend/app/normalize/`, `backend/app/bh3/`).
-2. **Geometry over guesswork.** On scanned logs a labelled coordinate grid is drawn onto each tile. The model reports where the depth-scale ticks and layer boundaries sit on that grid. The code fits the scale by least squares (r² ≥ 0.985, and ≥ 0.995 with at least 4 ticks to anchor a tile) and snaps boundaries to ruling lines detected with OpenCV. On one test log, anchoring took SPT depth accuracy from 12 % to 100 %.
+1. **Models read, Python decides.** The text extractor returns the *raw printed text* of every value plus the ids of the OCR blocks it came from. It never returns a normalised number. The page reader reports what it sees together with its position on a grid, and the code anchors it to the depth scale wherever the fit confirms it. Units, SPT N values, dates, datums, coordinates and coordinate systems are computed in deterministic, unit-tested Python (`backend/app/normalize/`, `backend/app/bh3/`). DIN codes come from a deterministic mapper over the printed description and a lithology class.
+2. **Geometry over guesswork.** On scanned logs a labelled coordinate grid is drawn onto each tile. The model reports where the depth-scale ticks and layer boundaries sit on that grid. The code fits the scale by least squares and anchors a tile only when the fit reaches r² ≥ 0.995 from at least 4 ticks (depth scales on vector pages need r² ≥ 0.985). Boundaries snap to ruling lines detected with OpenCV. On one test log, anchoring took SPT depth accuracy from 12 % to 100 %.
 3. **Evidence for every value.** Each stored value carries its page, its box (tightened to the printed words on pages with a text layer), the raw text, how it was obtained (`read`, `ocr`, `derived`, `guessed`), its confidence and its review status. Every edit is a revision.
 4. **Ask, don't guess.** Unknown is `null` with a reason. There is never a default lithology, a default coordinate system or a `(0, 0)` placeholder. Anything uncertain becomes one of 9 typed clarification questions, answered in a form or on the map.
-5. **Pay only for pages that matter.** SHA-256 upload dedupe, perceptual-hash duplicate pages, blank-page detection, page roles, text-layer parsing and a cache at every stage mean a page is read by a model at most once, and only if it carries borehole data.
-6. **Vocabularies are data, not code.** Page roles, CRS candidates, units, DIN terms, lint thresholds, prompts, prices and reasoning rules live in `backend/data/*.yaml` and `backend/data/prompts/`. No code path depends on a sample file, project or layout.
-7. **Model-agnostic by construction.** The model only transcribes, against a strict JSON Schema. Normalisation, checks and coordinates are code, so a model swap changes none of them.
+5. **Pay only for pages that matter.** SHA-256 upload dedupe, perceptual-hash duplicate pages, blank-page detection, page roles, text-layer parsing and a cache at every stage mean no stage pays for the same page twice. The expensive reading stages (OCR, page reader, extractor) run only on pages the classifier marks as carrying borehole data.
+6. **Vocabularies are data, not code.** The pipeline's page roles, CRS candidates, units, DIN terms, lint thresholds, prompts, prices and reasoning rules live in `backend/data/*.yaml` and `backend/data/prompts/`. The page reader keeps its own prompts and DIN tables in `backend/app/bh3/`. No code path depends on a sample file, project or layout.
+7. **Model-agnostic by construction.** Models answer against strict JSON schemas. Normalisation, checks and coordinates are code, so a model swap changes none of them.
 
 ---
 
@@ -99,7 +99,7 @@ make unseed    # docker compose exec api python -m app.seed --remove
 
   Or put `AUTH_BOOTSTRAP_EMAIL` and `AUTH_BOOTSTRAP_PASSWORD` in `.env` before `docker compose up`: the api creates that admin at startup (and sets the password again when you change it), so the sign-in works with no extra step.
 - Or register in the browser with an email and a password of 8 to 128 characters; the first account becomes admin. Every page and every API route except `/api/health`, register and login needs a session. Any signed-in user can read, review and upload; your name (or your email when you set no name) is recorded on every change you make.
-- Sign-in is deliberately minimal (hackathon scope): sessions last until you sign out, there are no attempt limits, and there is no password change in the browser.
+- Sign-in is deliberately minimal: sessions last until you sign out, there are no attempt limits, and there is no password change in the browser.
 - More accounts, a forgotten password or a role change are handled on the server, because there is no email verification or reset by email:
 
   ```bash
@@ -122,20 +122,20 @@ The root `docker-compose.yml` is the build. On a plain Linux machine with no sec
   - the web app (TypeScript compile, Vite build, a `check:dist` guard that no sample data ships, then nginx).
 - `docker compose up` starts the full stack in demo mode. Migrations run automatically, and the API and web containers have health checks.
 - `.env` is optional (`env_file: required: false`). No build step needs a key or a private registry.
-- CI runs this same no-`.env` build (`.github/workflows/backend.yml`, job `build`) on every push that touches the backend, database, contracts or compose file. Lint, type checks and both test suites run alongside it.
+- CI checks the compose file with no `.env` and builds the db and backend images (`.github/workflows/backend.yml`, job `build`) on every push that touches the backend, database, contracts or compose file. `frontend.yml` builds the web image and checks that it starts and serves the app. Lint, type checks and both test suites run alongside.
 
 ---
 
 ## The extraction pipeline in detail
 
-Every upload becomes a job on a PostgreSQL-backed queue (Procrastinate). A worker runs these stages in order: `triage → classify → ocr → extract → reread`, then finalisation. Spreadsheets take their own path: `sheet_read → sheet_map → sheet_extract`. Each stage records its completion, so a retry resumes after the last finished stage and never repeats a paid call.
+Every upload becomes a job on a PostgreSQL-backed queue (Procrastinate). A worker runs these stages in order: `triage → classify → ocr → extract → reread`. The extract stage also normalises, checks and finalises each borehole into PostGIS, and second reads then revisit the stored values. Spreadsheets take their own path: `sheet_read → sheet_map → sheet_extract`. Each stage records its completion, so a retry resumes after the last finished stage and never repeats a paid call.
 
 ```
  upload ─▶ sniff + SHA-256 dedupe ─▶ render + text layer ─▶ page roles ─┬─▶ vector log: parse text layer (no model)
                                                                        ├─▶ scanned log: tiles + grid ─▶ vision read ─▶ depth-scale anchoring
-                                                                       ├─▶ other data pages: OCR with boxes ─▶ cited-text extraction
+                                                                       ├─▶ log pages the reader leaves: OCR with boxes ─▶ cited-text extraction
                                                                        └─▶ no data (cover, photo, blank, duplicate): skipped
-                                   ─▶ normalise (Python) ─▶ checks + questions ─▶ second reads ─▶ PostGIS + events ─▶ map / review / chat
+                                   ─▶ normalise (Python) ─▶ checks + questions ─▶ PostGIS + events ─▶ second reads ─▶ map / review / chat
 ```
 
 ### 1. Upload: content-checked and deduplicated
@@ -144,7 +144,7 @@ Every upload becomes a job on a PostgreSQL-backed queue (Procrastinate). A worke
 - Word files are converted to PDF by an internal Gotenberg (LibreOffice) service and then follow the PDF path.
 
 ### 2. Triage: render once, measure the text layer (no model)
-- Pages are rendered once with pdfium at 1600 px on the long edge. 300 px thumbnails are made for the UI, and every TIFF frame becomes a page with EXIF orientation applied.
+- Triage renders every page once with pdfium at 1600 px on the long edge, for the UI, the classifier and OCR. The page reader renders log sheets again at 200 dpi for its tiles. 300 px thumbnails are made for the UI, and every TIFF frame becomes a page with EXIF orientation applied.
 - The embedded text layer is read word by word, with boxes mapped onto the rotated render. A `text_quality` score separates trustworthy text layers from garbled ones.
 - A 256-bit difference hash of the inked area identifies repeated pages across documents.
 
@@ -152,23 +152,23 @@ Every upload becomes a job on a PostgreSQL-backed queue (Procrastinate). A worke
 - **Duplicates.** A page needs a near-identical hash, the same aspect ratio, and either equal text or a pixel-level check (≤ 0.03 % changed). It is linked to its original and never read again.
 - **Blank pages** are recognised from ink and embedded text, with no model call.
 - **Everything else** gets a role from a small, fast model: `log_sheet`, `log_continuation`, `summary_table`, `coordinate_table`, `lab_results`, `legend_or_key`, `narrative`, `location_plan`, `cross_section`, `cover_or_toc`, `photos`, … The model also returns borehole labels, sheet numbers ("2 of 3"), handwriting level, language and whether the page has coordinates or a depth scale.
-- **Low-confidence labels** (below 0.6) are re-asked with the stronger extractor model.
-- **Second opinion.** Outlier pages, such as a no-data page between two log sheets of the same size, are relabelled by the stronger model, capped at 10 % of the pages.
-- Only pages in data-bearing roles continue. The rest keep a stated reason ("cover page", "duplicate of report.pdf p. 4") and cost nothing more.
+- **Low-confidence labels** (below 0.6) are asked again in the extractor role. `EXTRACTOR_MODEL` can name a stronger model than `CLASSIFIER_MODEL`.
+- **Second opinion.** Outlier pages, such as a no-data page between two log sheets of the same size, are asked again in the extractor role, capped at 10 % of the pages (at least one, at most ten per document).
+- Only pages in data-bearing roles, or pages that name a borehole or carry coordinates, continue. The rest keep a stated reason ("cover or contents page", "duplicate of report.pdf p. 4") and cost nothing more.
 
 ### 4. Reading log pages: the page reader (`backend/app/bh3/`)
 Each log page goes down the cheapest route that can read it reliably.
-- **Vector page.** If the PDF has a usable text layer, words and ruling segments are parsed with pdfium. Ruled columns become layers, a numeric column fitted against y becomes the depth scale, and header aliases give the metadata. **No model is called.** If the geometry is not conclusive (fewer than two layers, or no depth scale), the page moves to the vision route with its exact embedded text as a transcript hint.
+- **Vector page.** If the PDF has a usable text layer, words and ruling segments are parsed with pdfium. Ruled columns become layers, a numeric column fitted against y becomes the depth scale, and header aliases give the metadata. **No vision call is needed.** Only the layer descriptions go through one batched text call that classifies the lithology for the DIN code. If the geometry is not conclusive (fewer than two layers, or no depth scale), the page moves to the vision route with its exact embedded text as a transcript hint.
 - **Raster page.**
   1. **Classify.** One low-resolution vision call returns the page type, the language, the depth unit, the read quality (clean, faded, handwritten, photo) and the boxes of the header, column titles and table body. Sideways pages are detected by the model and by an ink-profile test, then turned.
   2. **Tile.** The table body is cut into slices of at most 1540 px with 15 % overlap, at 200 dpi, with the column-title strip stitched above each slice. Faded and photographed pages are preprocessed.
   3. **Anchor.** A labelled coordinate grid is drawn on each tile. The model reports grid positions of scale ticks, boundaries, tests, samples and water levels. The code fits y→depth by robust least squares and snaps boundaries to OpenCV-detected ruling lines. Shifts are capped at 0.75 m for boundaries and 0.3 m for points. Anchoring runs as post-processing on the stored answer, so its gate can be retuned without a single new model call.
-  4. **Merge.** Tiles are merged deterministically by depth and text identity, never averaged. Layers that cross a tile edge are joined. A disagreement becomes an issue on the record, not a silent choice.
+  4. **Merge.** Tiles are merged deterministically by depth and text identity, never averaged. Layers that cross a tile edge are joined. A disagreement is never averaged away: the first tile's reading is kept and the conflict lowers the page's confidence, which sends its values to second reads and review.
   5. **Header and symbols.** A separate crop reads the header. A hatch-symbol read runs only when a layer has no description.
 - **Reconcile and validate.** Feet are converted to metres, elevation scales are converted through ground level, layers are re-sorted, and overlaps, inversions, implausible thicknesses and out-of-range SPT values are checked.
-  - Every violated rule travels with the borehole as an issue. Nothing is silently fixed.
-  - Confidence is computed from these checks, not from the model's self-report.
-- **DIN 4023.** Codes are assigned deterministically and offline. Evidence is taken in this order, and `din_source` records which piece decided:
+  - Confidence is computed from these checks, not from the model's self-report. Failed checks lower it, which routes the values to second reads and review.
+  - Only rounding gaps of 0.1 m or less are closed, and each is noted. The stored borehole then goes through the record lint (stage 7), which flags values and never changes them.
+- **DIN 4023.** Codes are assigned by a deterministic rule pass that makes no model call of its own (one input is the lithology class the text call reads from each description). Evidence is taken in this order, and inside the page reader `din_source` records which piece decided:
   1. legend markers
   2. a printed DIN short form
   3. the normalised lithology
@@ -179,10 +179,10 @@ Each log page goes down the cheapest route that can read it reliably.
 
   With no evidence, the code stays empty and the layer is marked for review.
 
-Any page the reader cannot finish falls back to the cited-text extractor below, page by page.
+A borehole the reader cannot read falls back to the cited-text extractor below.
 
-### 5. OCR with boxes and cited-text extraction (all other data pages)
-- **OCR, only where needed.** OCR runs only on used pages, and pages with a trustworthy text layer (quality ≥ 0.9) skip it entirely. A vision model returns every line and table cell with its box. Boxes are normalised onto the render and stored with stable block ids (`p7.b12`).
+### 5. OCR with boxes and cited-text extraction (log pages the reader leaves)
+- **OCR, only where needed.** With the default page reader, OCR runs only on log pages without a trustworthy text layer (quality below 0.9). Summary, coordinate, lab and legend pages reach the extractor as context through their text layer. A vision model returns every line and table cell with its box. Boxes are normalised onto the render and stored with stable block ids (`p7.b12`).
 - **Extractor input.** Pages are grouped into boreholes deterministically from the classifier's labels and sheet numbers. Uncertain splits become a `borehole_boundary` question. The extractor sees each page as `[[p7.b12]] text` lines, with summary, coordinate and legend pages as context. It gets a page image only where OCR may be wrong (handwriting, or a block below 0.75 confidence).
 - **Extractor contract** (`backend/data/prompts/extractor.txt`):
   - Copy values exactly as printed. Never convert, compute, round, complete, correct or translate.
@@ -200,7 +200,7 @@ Every normaliser takes printed text and returns a typed value, or `None` with a 
 - **Datums:** depth origin (ground, mudline, seabed, relative) and sign conventions in several languages.
 - **Coordinates:** decimal degrees, DMS, degrees with decimal minutes and projected values with any grouping. The axis order comes from the printed labels, and swapped axes are detected.
 - **Coordinate system:**
-  - It is detected from an exact registry alias, a printed EPSG code, a named system, or datum + grid + zone composed into an EPSG name and looked up in PROJ. Ambiguous names (a UTM zone without datum or hemisphere) stay unresolved. Nothing is guessed from where the numbers happen to land.
+  - It is detected from an exact registry alias, a printed EPSG code, a named system, or datum + grid + zone composed into an EPSG name and looked up in PROJ. Ambiguous names (a UTM zone without datum or hemisphere) stay unresolved. The printed values only check printed evidence (they can pick a printed datum's national grid or reveal swapped axes). They never choose a system on their own.
   - Where no system is printed, candidates are ranked by evidence: area of use, distance to a place geocoded from the borehole's own location text, compactness of the point set, and a penalty for world-wide systems. A person confirms the result in one `crs_confirm` question per printed system.
 
 ### 7. Checks and clarification questions
@@ -217,7 +217,7 @@ Handwritten and low-confidence values are cropped from their box and read again 
 
 ### 9. Finalisation, provenance and review
 - **Finalisation.** Each borehole is written to PostGIS idempotently, with one provenance entry per value. A borehole is plotted only with a stated or confirmed coordinate system or a person-placed point. Otherwise it is listed under "Not on map" with its reason.
-- **Provenance boxes.** A box is always the box of printed words or OCR blocks, never an estimate. Repeated strings such as "1.00" are resolved across the whole record in depth order.
+- **Provenance boxes.** On text-layer pages a box is the tight box of the printed words. On OCR'd pages it is the union of the cited OCR blocks, and on pages the page reader reads by vision it is the layer's row band. Repeated strings such as "1.00" are resolved across the whole record in depth order.
 - **Revisions and events.** Every change (pipeline, review edit, question answer) goes through one review service. It writes a revision and a transactional event that PostgreSQL `NOTIFY` streams to the UI over SSE.
 - **One-click approval.** Values that are unflagged and either read from a text layer, or OCR'd at ≥ 0.9 confidence, can be approved in one step.
 
@@ -228,21 +228,21 @@ The model sees a **preview only**: the header and unit rows, 5 sample rows and t
 
 ## Model-agnostic by design (OpenRouter)
 
-Bormisu does not depend on any one model vendor. Every document model call (page classifier, extractor, page reader, OCR, second reads, sheet mapping) uses the OpenAI-compatible `chat/completions` protocol against a configurable base URL. The default gateway is **OpenRouter**, which puts models from many vendors behind one key.
+Bormisu does not depend on any one model vendor. Every document model call (page classifier, extractor, page reader, OCR, second reads, sheet mapping) can run over the OpenAI-compatible `chat/completions` protocol against a configurable base URL. The default gateway is **OpenRouter**, which puts models from many vendors behind one key.
 
 - **One variable per stage.** `CLASSIFIER_MODEL`, `EXTRACTOR_MODEL`, `BH3_MODEL` and `OPENROUTER_OCR_MODEL` are independent. A small, fast model can sort pages while a stronger one reads them. Changing a model is an `.env` edit, not a code change.
 - **Swappable endpoints.** `OPENROUTER_BASE_URL`, `OPENAI_BASE_URL` and `MISTRAL_BASE_URL` point the same client at any compatible gateway, a self-hosted server or a local model.
-- **Automatic failover.** With `LLM_PROVIDER=auto` and `OCR_PROVIDER=auto`, every configured provider is used in order. A refused key (401/403) moves the call, and every later call, to the next provider.
-- **Strict structured output.** Every answer is defined by a Pydantic model. It is turned into a closed, all-fields-required JSON Schema and enforced through `response_format: json_schema`.
-  - A model that refuses the schema is switched to JSON mode with the schema in the prompt, and this is remembered per model.
-  - Every answer is validated, with one corrective retry carrying the validation error. Partial JSON is never accepted.
+- **Automatic failover.** With `LLM_PROVIDER=auto` and `OCR_PROVIDER=auto`, every configured provider is used in order. A refused key (401/403) moves the classifier, extractor, second-read, sheet-mapping and OCR calls, and every later one, to the next provider. The page reader runs on the first configured route, and a borehole it cannot read falls back to the extractor, which fails over.
+- **Strict structured output.** The classifier, extractor, second reads, sheet mapping and OCR with boxes answer against Pydantic models, turned into closed, all-fields-required JSON Schemas and enforced through `response_format: json_schema`. The page reader uses its own strict hand-written schemas.
+  - On OpenRouter, a model that refuses a schema is switched to JSON mode with the schema in the prompt, and this is remembered per model and schema. The page reader makes the same switch on any server.
+  - Answers are validated, with one corrective retry carrying the validation error. Partial JSON is never accepted.
 - **Reasoning handled per model.** Reasoning is off by default (short, cheap answers). Models that require it are listed in `backend/data/reasoning.yaml`, or detected from their first answer, and get a low effort plus room in the output budget.
 - **Resilient transport.**
   - Timeouts on every request, and exponential backoff with jitter.
-  - Rate limits (429) are waited out honouring `Retry-After`.
-  - An OCR page whose rate limit outlasts the wait is deferred to the end of the run, not failed.
-- **Cost control.** Every call goes into a `provider_calls` ledger, using the provider-reported cost or the per-model prices in `backend/data/prices.yaml`. `PROVIDER_BUDGET_USD` is a hard cap checked before every call. When the cap is hit mid-document, the pages already read still become boreholes, and the unread ones are named so a retry finishes them.
-- **Prompts are data.** The pipeline's prompts are text files in `backend/data/prompts/`. Prompt versions are part of the cache keys, so a prompt change re-reads what it affects.
+  - Rate limits (429) are waited out honouring `Retry-After`. The page reader retries 429s and server errors with its own doubling backoff.
+  - An OCR page whose rate limit outlasts the wait is deferred to the end of the run and retried after a cooldown (`OCR_RATE_LIMIT_ROUNDS`) before it is left for a retry.
+- **Cost control.** Every call goes into a `provider_calls` ledger, using the provider-reported cost or the per-model prices in `backend/data/prices.yaml`. `PROVIDER_BUDGET_USD` is a hard cap, checked before every paid call of the provider clients and before every vision call of the page reader. When the cap is hit mid-document, the pages already read still become boreholes, and the unread ones are named so a retry finishes them.
+- **Prompts are data.** The classifier, extractor, second-read, sheet-mapping, OCR and chat prompts are text files in `backend/data/prompts/` (the page reader's are in `backend/app/bh3/prompts.py`). The extractor, second reads, sheet mapping and page reader put their prompt into the cache key, so changing a prompt re-reads what it affects.
 
 Because the model's only job is to transcribe against a schema, a model swap leaves normalisation, coordinate handling, checks and the database untouched. The guarantees hold for whichever model you plug in.
 
@@ -263,7 +263,7 @@ Bormisu is fully dockerized and runs on your own hardware:
 | `ollama` *(profile `ollama`)* | Local model server on the OpenAI-compatible API, internal only |
 
 - **Your data stays on the machine.** Originals, page renders, OCR output and the database live in named Docker volumes (`pgdata`, `storage`). Document content leaves the machine only in model calls, and with local models it doesn't leave at all.
-- **Local models with Ollama.** `docker compose --profile ollama up --build` adds the bundled Ollama service. Point the OpenAI-compatible route at it in `.env` (`OPENAI_BASE_URL=http://ollama:11434/v1`, `LLM_PROVIDER=openai`, `OCR_PROVIDER=openai`, `CHAT_MODEL=<pulled model>`; the full block is in the "Local models" section of [`.env.example`](.env.example)). The classifier, extractor, page reader and OCR then run on local models. Pulled models persist in the `ollama` volume.
+- **Local models with Ollama.** `docker compose --profile ollama up --build` adds the bundled Ollama service. Point the OpenAI-compatible route at it in `.env` (`OPENAI_API_KEY=ollama`, `OPENAI_BASE_URL=http://ollama:11434/v1`, `LLM_PROVIDER=openai`, `OCR_PROVIDER=openai`, `CHAT_MODEL=<pulled vision model>`; the full block is in the "Local models" section of [`.env.example`](.env.example)). The classifier, extractor, page reader and OCR then run on local models (pages with a text layer keep their word-level boxes). Pulled models persist in the `ollama` volume.
 - **Air-gap friendly.**
   - `GEOCODER=none` turns off the place-search geocoder (only the typed query is ever sent to it).
   - `docker compose build --build-arg VITE_TILE_URL=…` points the basemap at an internal tile server.
@@ -273,13 +273,14 @@ Bormisu is fully dockerized and runs on your own hardware:
 
 ## What you can do with it
 
+- **World map.** An LGRB-style borehole map of your uploads. Pins are coloured by review status, with a legend that counts what the search keeps, place search, result sets and a "Not on map" list that names its reasons.
 - **Draw or upload a planned route and get the boreholes along it.** Draw a tunnel or pipeline line on the map, or upload its path as GeoJSON, KML, GPX or CSV (projected CSV with an EPSG code). Bormisu lists every borehole within a buffer you set (100 m by default), with its chainage along the line, its offset and its side, sorted from start to end, and highlights them on the map. Distances are ellipsoidal (PostGIS geography); chainage is computed in the UTM zone of the line. Samples: [`docs/samples/planned-line/`](docs/samples/planned-line/).
 - **Select by any shape.** Rectangle, polygon and circle tools on the map select the boreholes inside them. The selection feeds the table, the exports and the chat, just like a search or a planned line.
 - **Many coordinate systems, read and checked.** A printed system name ("MGA94 zone 55", "UTM sone 32", "S34S", Gauss-Krüger "R/H") is resolved to its EPSG code. Coordinates printed without a system get ranked candidates: area of use, distance to the printed place or project, the document's language (a Korean report points to the Korean belts) and whether the points land on land. A person confirms the system once per project, on a map preview. Boreholes on a project's own site grid ("Oslo lokal") are placed from one or two anchors clicked on the map; the rest follow by a fitted shift, rotation and scale.
 - **Any language.** Reports in English, German, Norwegian, Korean, Spanish, Portuguese, Danish and more are read with the same pipeline; printed values stay as printed, in their language, with an English rendering of each layer description and a DIN 4023 code. The interface is in English and German. The chat answers in the language you ask in.
 - **Human in the loop where the input is unclear.** Typed questions appear in an inbox and next to the affected values: the coordinate system, where a borehole on a site grid belongs, which of two readings of a handwritten value is right, a depth unit, a datum or sign convention, a borehole boundary, a duplicate document. One answer settles every borehole it concerns, and every answer is a revision with the person's name.
 - **Side-by-side verification.** The verify view and the borehole sheet show the **original uploaded page** next to the **reconstruction** from the extracted values, at the same zoom, with the box of every value drawn on the original. Approve, edit or flag each value; values read from several pages step through their sources ("source 1 of N").
-- **Evidence for every fact shown.** Every value on the map, the detail page, the sheet and in chat answers carries its page, its box on that page, the raw printed text, how it was read (`read`, `ocr`, `derived`, `guessed`), its confidence and its review status. Chat answers cite the boreholes and pages they used, and every number comes from SQL.
+- **Evidence for every fact shown.** Every value on the map, the detail page, the sheet and in chat answers carries its page, its box on that page wherever the reading has one (otherwise its row band or the page), the raw printed text, how it was read (`read`, `ocr`, `derived`, `guessed`), its confidence and its review status. Chat answers cite the boreholes and pages they used, and every number comes from SQL.
 - **Bad files are accepted, not rejected.** Scans turned sideways or upside down are turned upright. Blank pages, cover letters and photos are recognised and skipped without a model call. Handwritten forms are read from the page image. A damaged or encrypted file fails with a readable reason, a page that cannot be read is named and can be retried on its own, and what was read stays in review. Re-uploads and copied pages are detected as duplicates. Transient provider errors (rate limits, timeouts, dropped connections) are waited out and retried. With a spending cap set, a document that hits it keeps everything read so far.
 - **Several boreholes per file, one borehole across files.** A report with a summary table and many logs is split into its boreholes; IDs come from the report's own tables when a log sheet only prints them in a remark, and the parts of one borehole (a log and its drilling plot, continuation sheets) are merged. The same borehole in a later upload is recognised.
 - **DIN 4023 profiles.** Logs are drawn with DIN 4023 hatch patterns and symbols. Copy a profile to the clipboard or download it as PNG or SVG.
@@ -299,7 +300,7 @@ Bormisu is fully dockerized and runs on your own hardware:
                                                      ├─▶ gotenberg (Word → PDF)
                                                      ├─▶ page classifier ┐
                                                      ├─▶ page reader     ├─▶ any OpenAI-compatible endpoint:
-                                                     ├─▶ OCR with boxes  │   OpenRouter (default), a gateway,
+                                                     ├─▶ OCR             │   OpenRouter (default), a gateway,
                                                      ├─▶ extractor       ┘   or the bundled Ollama
                                                      └─▶ Python normalisation, coordinate systems, checks
 ```
@@ -334,12 +335,12 @@ cd frontend && npm test && npm run e2e   # vitest and Playwright
 | Suite | Size |
 |---|---|
 | Backend (pytest, real PostGIS) | **1,335 passed** from 52 files (571 test functions, expanded by parametrisation), about 5½ minutes in Docker |
-| Backend contract tests | 60 test functions over 85 example files |
+| Backend contract tests | 60 test functions over 91 example files |
 | Frontend unit (vitest) | **1,605 passed** in 97 files |
 | Frontend end-to-end (Playwright) | 14 specs, 120 tests: map, review, inbox, queue, explore, chat, accessibility, responsive layout, chart export |
 
 - **No paid calls in tests.** Provider clients are faked and the test service has blank keys, so a test can never reach a paid provider.
-- **CI on every push** (`.github/workflows/`):
+- **CI on every push and pull request that touches code, contracts, the compose file or a data-like file** (`.github/workflows/`):
   - ruff and mypy;
   - the backend suite against PostGIS;
   - the contract tests;
@@ -355,7 +356,7 @@ cd frontend && npm test && npm run e2e   # vitest and Playwright
 
 ## Configuration
 
-Every setting is an environment variable, documented in [`.env.example`](.env.example). The most important ones:
+Every backend setting is an environment variable. [`.env.example`](.env.example) documents the ones you would change. The most important ones:
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -366,11 +367,11 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 | `LLM_PROVIDER` / `OCR_PROVIDER` | `auto` | Provider order with failover; or force one by name |
 | `EXTRACTOR` | `bh3` | `bh3` (page reader with depth-scale anchoring and per-page fallback) or `classic` (cited-text extractor) |
 | `PROVIDER_BUDGET_USD` | — | Hard spending cap over the cost ledger |
-| `REQUEST_TIMEOUT_S` / `RATE_LIMIT_WAIT_S` | `120` / `600` | Per-request timeout; how long rate limits are waited out |
+| `REQUEST_TIMEOUT_S` / `RATE_LIMIT_WAIT_S` | `120` / `600` | Upper limit per provider request; how long rate limits are waited out |
 | `GEOCODER` | `nominatim` | Place search for the map; `none` for air-gapped installs |
 | `MAX_UPLOAD_MB` | `200` | Upload limit (reported in `/api/health`) |
 | `AUTH_ENABLED` / `AUTH_REGISTRATION` | `true` / `open` | Sign-in on or off; who may create accounts (reported in `/api/health`) |
-| `AUTH_BOOTSTRAP_EMAIL` / `AUTH_BOOTSTRAP_PASSWORD` | — | An admin account created or updated at api startup (aliases `HACKATHON_EMAIL` / `HACKATHON_USERNAME` / `HACKATHON_PASSWORD`) |
+| `AUTH_BOOTSTRAP_EMAIL` / `AUTH_BOOTSTRAP_PASSWORD` | — | An admin account created or updated at api startup |
 | `COOKIE_SECURE` | `false` | Set `true` when the app is served over HTTPS |
 | `WEB_PORT` / `API_PORT` / `DB_PORT` | `8080` / `8000` / `5432` | Published host ports |
 
@@ -378,7 +379,7 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 
 ## Data rule
 
-No challenge or customer data is committed: no sample files, no values copied from them, no screenshots of them. Fixtures and seed data are fictional and say so. CI fails if a PDF, spreadsheet, Word file or scan image is committed outside `docs/` and `assets/`.
+No challenge or customer data is committed: no sample files, no values copied from them, no screenshots of them. Fixtures and seed data are fictional and say so. CI fails if a PDF, spreadsheet, Word file or scan image is committed outside `docs/`, `assets/` and two reviewed UI-image folders (`frontend/docs/screenshots/`, `frontend/public/`).
 
 ## Credits
 

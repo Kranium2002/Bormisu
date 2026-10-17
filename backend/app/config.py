@@ -54,14 +54,11 @@ class Settings(BaseSettings):
     # account can be registered in the browser; later ones come from `python -m app.users create`.
     auth_registration: Literal["open", "closed"] = "open"
     # A sign-in account the api creates at startup (admin), or updates when its password or role differs
-    # (app.auth.bootstrap). Needs an email and a password; HACKATHON_EMAIL / HACKATHON_USERNAME and
-    # HACKATHON_PASSWORD work too (the first name that is not blank wins). The password is never logged.
+    # (app.auth.bootstrap). Needs an email and a password (AUTH_BOOTSTRAP_USERNAME is an alias of the email;
+    # the first name that is not blank wins). The password is never logged.
     auth_bootstrap_email: str | None = None
     auth_bootstrap_username: str | None = None
-    hackathon_email: str | None = None
-    hackathon_username: str | None = None
     auth_bootstrap_password: SecretStr | None = None
-    hackathon_password: SecretStr | None = None
 
     # Providers (secrets)
     openrouter_api_key: SecretStr | None = Field(
@@ -170,7 +167,6 @@ class Settings(BaseSettings):
         "mistral_api_key",
         "openai_api_key",
         "auth_bootstrap_password",
-        "hackathon_password",
         mode="before",
     )
     @classmethod
@@ -229,11 +225,9 @@ class Settings(BaseSettings):
         names = (
             self.auth_bootstrap_email,
             self.auth_bootstrap_username,
-            self.hackathon_email,
-            self.hackathon_username,
         )
         email = next((n.strip() for n in names if n and n.strip()), None)
-        password = self.auth_bootstrap_password or self.hackathon_password
+        password = self.auth_bootstrap_password
         return (email, password) if email and password is not None else None
 
     @property

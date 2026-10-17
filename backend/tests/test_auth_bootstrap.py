@@ -1,5 +1,5 @@
-"""The startup account (app.auth.bootstrap): AUTH_BOOTSTRAP_* or HACKATHON_* in the environment give a
-working sign-in with no command. Fictional account only (example.test)."""
+"""The startup account (app.auth.bootstrap): AUTH_BOOTSTRAP_* in the environment give a working sign-in
+with no command. Fictional account only (example.test)."""
 
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ NEW_PASSWORD = "another-startup-phrase"
 
 @pytest.fixture
 def startup_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[pytest.MonkeyPatch]:
-    """HACKATHON_EMAIL / HACKATHON_PASSWORD set (the names in the demo .env)."""
-    monkeypatch.setenv("HACKATHON_EMAIL", EMAIL)
-    monkeypatch.setenv("HACKATHON_PASSWORD", PASSWORD)
+    """AUTH_BOOTSTRAP_EMAIL / AUTH_BOOTSTRAP_PASSWORD set."""
+    monkeypatch.setenv("AUTH_BOOTSTRAP_EMAIL", EMAIL)
+    monkeypatch.setenv("AUTH_BOOTSTRAP_PASSWORD", PASSWORD)
     get_settings.cache_clear()
     yield monkeypatch
     monkeypatch.undo()
@@ -45,29 +45,22 @@ def test_bootstrap_account_names() -> None:
     assert Settings().bootstrap_account is None
     assert Settings(auth_bootstrap_email="a@example.test").bootstrap_account is None  # no password
     account = Settings(
-        hackathon_username=" a@example.test ", hackathon_password="secret-phrase"
+        auth_bootstrap_username=" a@example.test ", auth_bootstrap_password="secret-phrase"
     ).bootstrap_account
     assert account is not None and account[0] == "a@example.test"
     assert account[1].get_secret_value() == "secret-phrase"
-    # blanks are skipped; the AUTH_BOOTSTRAP_* names come first
+    # a blank email falls back to the username alias; a blank password means no account
     settings = Settings(
         auth_bootstrap_email=" ",
-        hackathon_email="b@example.test",
-        hackathon_username="c@example.test",
-        auth_bootstrap_password="",
-        hackathon_password="from-hackathon",
+        auth_bootstrap_username="b@example.test",
+        auth_bootstrap_password="first-phrase",
     )
     assert settings.bootstrap_account is not None
     assert settings.bootstrap_account[0] == "b@example.test"
-    assert settings.bootstrap_account[1].get_secret_value() == "from-hackathon"
-    both = Settings(
-        auth_bootstrap_username="d@example.test",
-        hackathon_email="e@example.test",
-        auth_bootstrap_password="first-phrase",
-        hackathon_password="second-phrase",
-    ).bootstrap_account
-    assert both is not None and both[0] == "d@example.test" and both[1].get_secret_value() == "first-phrase"
-    assert "first-phrase" not in repr(both)
+    assert settings.bootstrap_account[1].get_secret_value() == "first-phrase"
+    assert "first-phrase" not in repr(settings.bootstrap_account)
+    no_password = Settings(auth_bootstrap_email="c@example.test", auth_bootstrap_password="")
+    assert no_password.bootstrap_account is None
 
 
 @pytest.mark.db
@@ -93,7 +86,7 @@ async def test_a_changed_password_updates_the_account(
     db: None, queue: object, startup_env: pytest.MonkeyPatch
 ) -> None:
     assert await bootstrap.provision(get_settings()) == "created"
-    startup_env.setenv("HACKATHON_PASSWORD", NEW_PASSWORD)
+    startup_env.setenv("AUTH_BOOTSTRAP_PASSWORD", NEW_PASSWORD)
     get_settings.cache_clear()
     assert await bootstrap.provision(get_settings()) == "updated"
     assert len(await _accounts()) == 1
@@ -131,7 +124,7 @@ async def test_an_existing_reviewer_becomes_admin(
 async def test_a_password_against_the_rules_is_refused(
     db: None, startup_env: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    startup_env.setenv("HACKATHON_PASSWORD", "tiny-pw")
+    startup_env.setenv("AUTH_BOOTSTRAP_PASSWORD", "tiny-pw")
     get_settings.cache_clear()
     assert await bootstrap.provision(get_settings()) is None
     assert "tiny-pw" not in caplog.text and "8 characters" in caplog.text

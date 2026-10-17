@@ -29,13 +29,10 @@ x-backend-environment: &backend-environment
   BH3_MODEL: ${BH3_MODEL:-google/gemini-3.5-flash}
   OPENROUTER_OCR_MODEL: ${OPENROUTER_OCR_MODEL:-google/gemini-3.5-flash}
   # Sign-in account the api creates (admin) or updates at startup (app.auth.bootstrap). Set an email and a
-  # password in .env: AUTH_BOOTSTRAP_EMAIL / AUTH_BOOTSTRAP_PASSWORD, or the HACKATHON_* names. Blank: none.
+  # password in .env: AUTH_BOOTSTRAP_EMAIL / AUTH_BOOTSTRAP_PASSWORD. Blank: none.
   AUTH_BOOTSTRAP_EMAIL: ${AUTH_BOOTSTRAP_EMAIL:-}
   AUTH_BOOTSTRAP_USERNAME: ${AUTH_BOOTSTRAP_USERNAME:-}
   AUTH_BOOTSTRAP_PASSWORD: ${AUTH_BOOTSTRAP_PASSWORD:-}
-  HACKATHON_EMAIL: ${HACKATHON_EMAIL:-}
-  HACKATHON_USERNAME: ${HACKATHON_USERNAME:-}
-  HACKATHON_PASSWORD: ${HACKATHON_PASSWORD:-}
 
 services:
   db:

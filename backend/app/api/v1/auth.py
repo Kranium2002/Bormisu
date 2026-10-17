@@ -1,7 +1,7 @@
 """Sign-in routes (contract 1.4.0): register, login, logout, me.
 
 register and login are public; logout answers 204 with or without a session (idempotent); me needs a
-session. There are no rate limits and no Origin check (minimal sign-in, hackathon scope).
+session. There are no rate limits and no Origin check (minimal sign-in by design).
 """
 
 from __future__ import annotations

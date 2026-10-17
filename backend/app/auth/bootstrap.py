@@ -1,5 +1,4 @@
-"""The startup account: AUTH_BOOTSTRAP_EMAIL and AUTH_BOOTSTRAP_PASSWORD (Settings.bootstrap_account; the
-HACKATHON_EMAIL / HACKATHON_USERNAME / HACKATHON_PASSWORD names work too).
+"""The startup account: AUTH_BOOTSTRAP_EMAIL and AUTH_BOOTSTRAP_PASSWORD (Settings.bootstrap_account).
 
 At api startup the account is created as admin, or brought up to date: a different password is stored
 (hashed; that ends the account's sessions, like a reset) and the role becomes admin. Run again with the same

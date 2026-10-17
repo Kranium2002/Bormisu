@@ -1,6 +1,6 @@
 """Sign-in (contract 1.4.0): email and password accounts, cookie sessions, the signed-in user as actor.
 
-Minimal by design (hackathon scope): register, login, logout, me; no rate limits, no Origin check, no
+Minimal by design: register, login, logout, me; no rate limits, no Origin check, no
 password change in the browser (reset from the command line: python -m app.users).
 
 - `passwords`: argon2id hashes.

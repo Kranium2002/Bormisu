@@ -1,5 +1,5 @@
 /**
- * The startup account (AUTH_BOOTSTRAP_EMAIL / AUTH_BOOTSTRAP_PASSWORD, or the HACKATHON_* names, in the
+ * The startup account (AUTH_BOOTSTRAP_EMAIL / AUTH_BOOTSTRAP_PASSWORD in the
  * backend's environment) signs in through the real form with no other step. It runs only when the test is
  * given the same account:
  *
