@@ -47,6 +47,7 @@ export const sheet: Record<string, string> = {
   English: 'englisch',
   'an upload': 'einem Upload',
   'Profile and layers': 'Profil und Schichten',
+  Legend: 'Legende',
   PROFILE: 'PROFIL',
   LAYERS: 'SCHICHTEN',
   'From–to (m)': 'Von–bis (m)',

@@ -97,7 +97,6 @@ export function SheetScreen() {
               {st('PROFILE')} <span className={styles.note}>DIN 4023 · {model.depthNote}</span>
             </div>
             <ProfileColumn borehole={b} selectedLayer={-1} onSelectLayer={noop} onOpenSource={noop} readOnly t={st} />
-            <ProfileLegend borehole={b} readOnly de={lang === 'de'} t={st} />
           </div>
           <div className={styles.layers}>
             <div className={styles.blockHead}>{st('LAYERS')}</div>
@@ -115,17 +114,17 @@ export function SheetScreen() {
               <tbody>
                 {model.layers.map((l) => (
                   <tr key={l.n}>
-                    <td className={styles.mono}>{l.range}</td>
+                    <td className={`${styles.mono} ${styles.nowrap}`}>{l.range}</td>
                     <td>
                       <Cell cell={l.description} />
                     </td>
                     <td className={styles.mono}>{l.din}</td>
                     <td>{l.consistency}</td>
-                    <td>
+                    <td className={styles.nowrap}>
                       <Cell cell={l.spt} mono />
                     </td>
                     {model.hasCore && (
-                      <td className={styles.mono}>
+                      <td className={`${styles.mono} ${styles.nowrap}`}>
                         <Cell cell={l.tcr} mono /> / <Cell cell={l.rqd} mono />
                       </td>
                     )}
@@ -139,6 +138,10 @@ export function SheetScreen() {
               </tbody>
             </table>
           </div>
+        </section>
+
+        <section className={styles.block} aria-label={st('Legend')}>
+          <ProfileLegend borehole={b} readOnly de={lang === 'de'} t={st} />
         </section>
 
         <section className={styles.block} aria-label={st('Groundwater')}>

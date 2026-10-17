@@ -171,16 +171,25 @@
   font-size: 11px;
 }
 
-/* The profile at its own size next to the layer table. */
+/* The profile, scaled to a third of the page (its viewBox keeps the proportions), next to the layer table. */
 .profileRow {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 62mm minmax(0, 1fr);
   gap: 4mm;
   align-items: start;
 }
 
 .profile {
   min-width: 0;
+}
+
+.profile svg {
+  width: 100%;
+  height: auto;
+}
+
+.nowrap {
+  white-space: nowrap;
 }
 
 .layers {
@@ -244,8 +253,7 @@
   }
 
   .profile svg {
-    max-width: 100%;
-    height: auto;
+    max-width: 414px;
   }
 }
 
@@ -308,14 +316,11 @@
   }
 
   .profileRow {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 62mm minmax(0, 1fr);
   }
 
-  .block + .block {
-    break-before: auto;
-  }
-
-  .profileRow + .block {
-    break-before: page;
+  /* A block that doesn't fit on the page goes to the next one whole. */
+  .block {
+    break-inside: avoid;
   }
 }
