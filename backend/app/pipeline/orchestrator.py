@@ -49,7 +49,7 @@ from app.db.session import get_sessionmaker
 from app.events.writer import emit
 from app.pipeline.office import OfficeConversionError, office_to_pdf
 from app.pipeline.triage import TriagedPage, triage_image, triage_pdf
-from app.providers.base import ProviderError
+from app.providers.base import BudgetExceededError, ProviderError
 from app.queue import queue_app
 from app.services.documents import emit_document_updated
 from app.services.page_images import prewarm_page
@@ -260,12 +260,14 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     # Every outcome is collected first: parts of one borehole (a log and its drilling plot, a name read in a
     # header and the ID the document's tables list) are merged before they are stored (app.pipeline.identity).
     ready: list[tuple[PageGroup, ExtractionOutcome]] = []
+    over_budget: set[int] = set()  # pages not read because PROVIDER_BUDGET_USD ran out
     if extractor is None and bh3_adapter.active():
         # bh3 reads the log pages; the classic extractor takes the groups it covers no page of.
         read = await bh3_adapter.extract_document(document_id)
         if read is not None:
             ready.extend((g, o) for g, o in read.boreholes if g.key not in finished)
             groups = bh3_adapter.covered(groups, read.pages)
+            over_budget.update(read.over_budget)
     todo: list[PageGroup] = []
     unread_pages: set[int] = set()
     for group in groups:
@@ -294,8 +296,14 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
         async with limit:
             if stopped:
                 return
+            if over_budget:
+                over_budget.update(group.pages)  # the budget is spent: no new paid reads
+                return
             try:
                 outcome = await extract_module.extract_group(document_id, group, extractor=extractor)
+            except BudgetExceededError:
+                over_budget.update(group.pages)
+                return
             except extract_module.NothingToExtractError as exc:
                 held.append(str(exc))
                 empty_pages.update(group.pages)
@@ -306,6 +314,13 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
             ready.append((group, outcome))
 
     results = await asyncio.gather(*(one(group) for group in todo), return_exceptions=True)
+    if over_budget:
+        # What was read before the budget ran out goes to review; a retry with a higher budget reads the rest.
+        held.append(
+            f"The provider budget (PROVIDER_BUDGET_USD) ran out, so page(s) {_numbers(sorted(over_budget))} "
+            "were not read. Raise the budget and retry the document to read them."
+        )
+        empty_pages |= over_budget
     errors = [r for r in results if isinstance(r, BaseException)]
     # Stored only when every group was read: a part stored alone would become a second borehole once the
     # rest is merged on the retry (which reuses the stored extraction runs and bh3's cache, so it is free).
