@@ -656,5 +656,20 @@ export function createApiSource(base: string): DataSource {
       const res = await request<{ updated: number }>('POST', `/documents/${enc(documentId)}/crs`, body);
       return res.updated;
     },
+    // Sign-in (contract 1.3.0) is built in the M3 auth work; until then these say so.
+    async currentUser() {
+      return null;
+    },
+    async signIn() {
+      throw new Error('Sign-in is not available yet');
+    },
+    async register() {
+      throw new Error('Registration is not available yet');
+    },
+    async signOut() {},
+    async changePassword() {
+      throw new Error('Changing the password is not available yet');
+    },
+    setSessionListener() {},
   };
 }

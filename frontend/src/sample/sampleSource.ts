@@ -48,6 +48,7 @@ const SAMPLE_HEALTH: Health = {
   version: 'sample',
   providers: { ocr: false, classifier: false, extractor: false, chat: false, geocoder: false },
   upload: { maxMb: 200, extensions: ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.docx', '.xlsx', '.csv'] },
+  auth: { enabled: false, registration: 'closed' },
 };
 
 interface DrawnPage { items: PageItem[]; label: string; type: PageType; page: DocumentPage }
@@ -518,5 +519,21 @@ export function createSampleSource(): DataSource {
       });
       return targets.length;
     },
+
+    // The sample has no sign-in (health.auth.enabled is false); nothing calls these.
+    async currentUser() {
+      return null;
+    },
+    async signIn() {
+      throw new Error('The sample has no sign-in');
+    },
+    async register() {
+      throw new Error('The sample has no sign-in');
+    },
+    async signOut() {},
+    async changePassword() {
+      throw new Error('The sample has no sign-in');
+    },
+    setSessionListener() {},
   };
 }

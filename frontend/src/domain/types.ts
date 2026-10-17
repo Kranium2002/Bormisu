@@ -48,7 +48,26 @@ export interface Health {
   providers: { ocr: boolean; classifier: boolean; extractor: boolean; chat: boolean; geocoder: boolean };
   /** Server upload limits; the drop zone mirrors them. Extensions are lower case with a dot (".pdf"). */
   upload: { maxMb: number; extensions: string[] };
+  /**
+   * Sign-in (contract 1.3.0): when enabled, every API route except health, register and sign-in
+   * needs a session. `registration: 'open'` lets anyone create an account (the first one becomes
+   * admin). A server that doesn't say has no sign-in; sample mode has none either.
+   */
+  auth: { enabled: boolean; registration: 'open' | 'closed' };
 }
+
+/** Every signed-in user may read and change data; admin is reserved for user management. */
+export type UserRole = 'reviewer' | 'admin';
+/** The signed-in user (GET /auth/me). The server records them on every revision. */
+export interface User {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  role: UserRole;
+  createdAt: string;
+}
+/** A new account: the server signs it in at once. */
+export interface Registration { email: string; password: string; displayName: string | null }
 
 export interface Spt {
   raw: string;

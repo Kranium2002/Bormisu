@@ -1159,6 +1159,11 @@ export function adaptClarifications(list: WireClarification[]): Clarification[] 
 /* ---------- health ---------- */
 
 /** Maps the backend's Health answer. */
+/** The health's sign-in settings; anything not stated means no sign-in and no registration. */
+function authOf(a: { enabled?: unknown; registration?: unknown } | undefined): Health['auth'] {
+  return { enabled: a?.enabled === true, registration: a?.registration === 'open' ? 'open' : 'closed' };
+}
+
 export function adaptHealth(h: WireHealth): Health {
   return {
     mode: h.mode,
@@ -1166,5 +1171,7 @@ export function adaptHealth(h: WireHealth): Health {
     version: h.version,
     providers: { ...h.providers },
     upload: { maxMb: h.upload.max_mb, extensions: [...h.upload.extensions] },
+    // Contract 1.3.0 adds `auth`; a server that doesn't send it has no sign-in.
+    auth: authOf((h as { auth?: { enabled?: unknown; registration?: unknown } }).auth),
   };
 }
