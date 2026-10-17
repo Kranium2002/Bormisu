@@ -1,0 +1,13 @@
+{
+  "_comment": "Generic phrase table (no per-document entries). Value: a DIN 4023 main code, 'marker' (the row is not a stratum) or 'ditto' (repeats the previous layer). A phrase starting with ^ is a regex matched at the start of the description; any other phrase matches as whole words, case-insensitively.",
+  "_default": {
+    "ditto": "ditto",
+    "^-+\\s*ditto\\s*-+": "ditto",
+    "^(do\\.|\"|same as above|as above|strata as previous page|strata as above)\\s*$": "ditto",
+    "^ground surface\\s*$": "marker",
+    "^(cota|nivel|nível|level|elevation)\\s*[:=]?\\s*[+-]?\\d": "marker",
+    "^end of (bore ?hole|hole|boring|log)": "marker",
+    "^(fin de(l)? sondeo|fin de(l)? sondaje|fim da sondagem)": "marker",
+    "^(no recovery|core loss|sin recuperaci[oó]n|sem recupera[cç][aã]o)\\s*$": "marker"
+  }
+}
