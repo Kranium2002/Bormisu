@@ -27,6 +27,7 @@ import type {
   ResultSet,
   UploadResult,
 } from '../domain/types';
+import { PAGE_H, PAGE_W } from '../domain/types';
 import { checkAnswer, mapPoint, sampleQuestions, withDatum, withFinalDepth, withLocation } from './clarifications';
 import { crsCandidatesFor, EQ_DOC_ID, EQ_FILE, FIRST_GENERATED_PAGE, REPORT_TITLES, sampleDocuments, type PrintedIds } from './documents';
 import { generateBorehole, makeSeeds, type Placement, type Seed } from './generate';
@@ -425,6 +426,17 @@ export function createSampleSource(): DataSource {
         documentId, page, type: p.type, usage: pageUsageText(p), label: `page ${page} · ${doc.name}`,
         items: genericPage(page, p.type, title),
       };
+    },
+
+    async getPageWords(documentId, page) {
+      // The drawn page's texts stand in for a text layer: one word per item, boxes in the 560×780 space.
+      const content = await this.getPage(documentId, page);
+      return (content.items ?? []).flatMap((it) => {
+        if (it.kind !== 'text' || !it.text?.trim()) return [];
+        const size = it.fontSize ?? 12;
+        const w = Math.min(it.w ?? it.text.length * size * 0.6, PAGE_W - it.x);
+        return [{ text: it.text, box: { x: it.x / PAGE_W, y: it.y / PAGE_H, w: w / PAGE_W, h: (size * 1.2) / PAGE_H }, conf: 1, source: 'text' as const }];
+      });
     },
 
     thumbnailUrl() {

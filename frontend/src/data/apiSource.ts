@@ -66,6 +66,9 @@ import { FollowedDocuments, openLiveFeed } from './events';
 export { MAX_BACKOFF_MS, POLL_MS } from './events';
 
 const PAGE_IMAGE_WIDTH = 1400;
+
+/** Contract 1.2.2 `PageWord` (written out until the wire types are regenerated from 1.2.2). */
+interface WirePageWord { t: string; b: number[] | null; conf?: number | null; source: 'text' | 'located' | 'ocr' }
 /** Width of the page strip thumbnails (FRONTEND.md F6). */
 const THUMBNAIL_WIDTH = 200;
 /** Page size of the borehole list (the contract's maximum). */
@@ -696,6 +699,21 @@ export function createApiSource(base: string): DataSource {
         label: `page ${page} · ${d.file_name}`,
         imageUrl: `${base}/documents/${enc(documentId)}/pages/${page}.png?w=${PAGE_IMAGE_WIDTH}`,
       };
+    },
+
+    async getPageWords(documentId, page) {
+      try {
+        const words = await request<WirePageWord[]>('GET', `/documents/${enc(documentId)}/pages/${page}/words`);
+        return words.flatMap((w) => {
+          const [x, y, wd, h] = w.b ?? [];
+          if (![x, y, wd, h].every((n) => typeof n === 'number' && Number.isFinite(n))) return [];
+          return [{ text: w.t, box: { x, y, w: wd, h }, conf: w.conf ?? null, source: w.source }];
+        });
+      } catch (e) {
+        // A backend before 1.2.2 has no words endpoint: the view stays without them.
+        if (e instanceof ApiError && e.status === 404) return [];
+        throw e;
+      }
     },
 
     thumbnailUrl(documentId, page) {

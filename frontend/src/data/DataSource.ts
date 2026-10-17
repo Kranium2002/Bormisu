@@ -11,6 +11,7 @@ import type {
   LiveStatus,
   MapFeature,
   PageContent,
+  PageWord,
   PlaceCandidate,
   ResultSet,
   UploadProgress,
@@ -81,6 +82,11 @@ export interface DataSource {
   getDocument(documentId: string): Promise<DocumentSummary>;
   /** One rendered page of a document (1-based). */
   getPage(documentId: string, page: number): Promise<PageContent>;
+  /**
+   * The words on a page (contract 1.2.2 GET /documents/{id}/pages/{n}/words), [] when it has none yet or
+   * the server doesn't offer them. Optional: sources without words leave the verification view plain.
+   */
+  getPageWords?(documentId: string, page: number): Promise<PageWord[]>;
   /** URL of a small page image for the page strip (width 200), or null when the source has no page images. */
   thumbnailUrl(documentId: string, page: number): string | null;
   /** Uploads one file with byte progress (the store runs two at a time). */

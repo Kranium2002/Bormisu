@@ -207,6 +207,11 @@ export interface Borehole {
 }
 
 export interface PageItem { kind: 'text' | 'line'; x: number; y: number; w?: number; h?: number; text?: string; fontSize?: number; fontWeight?: number; color?: string }
+/**
+ * A word on a page image (contract 1.2.2 `PageWord`): PDF text-layer words, values located on a scan, or
+ * OCR words; the verification view draws them faintly for context. Box normalised like provenance boxes.
+ */
+export interface PageWord { text: string; box: Box; conf: number | null; source: 'text' | 'located' | 'ocr' }
 /** A rendered page. API pages have imageUrl. Sample pages are drawn from items in a 560x780 px space. */
 export interface PageContent { documentId: string; page: number; type: PageType; usage: string; label: string; imageUrl?: string; items?: PageItem[] }
 

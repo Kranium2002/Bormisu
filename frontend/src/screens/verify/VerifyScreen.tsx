@@ -37,6 +37,7 @@ import {
   stepZoom,
   verifyPages,
   type VerifyItem,
+  type VerifyWord,
   type Zoom,
 } from './verifyModel';
 
@@ -62,6 +63,29 @@ function useImageSize(url: string | undefined): { w: number; h: number } | null 
 }
 
 /** Width of an element, kept up to date. */
+/**
+ * The page's words (contract 1.2.2: text layer, located values or OCR) for the extracted page's faint
+ * context layer; [] while loading, when there are none, or when the source has no words.
+ */
+function usePageWords(documentId: string | null | undefined, page: number | null): VerifyWord[] {
+  const source = useAppStore((s) => s.source);
+  const key = documentId && page ? `${documentId}:${page}` : null;
+  const [loaded, setLoaded] = useState<{ key: string; words: VerifyWord[] } | null>(null);
+  useEffect(() => {
+    if (!key || !documentId || !page || !source?.getPageWords) return;
+    let live = true;
+    source.getPageWords(documentId, page).then(
+      (words) => live && setLoaded({ key, words: words.map(({ text, box }) => ({ text, box })) }),
+      // Context only: a failed load leaves the extracted page without words.
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [key, documentId, page, source]);
+  return loaded?.key === key ? loaded.words : [];
+}
+
 function useWidth(ref: RefObject<HTMLElement | null>): number {
   const [w, setW] = useState(0);
   useLayoutEffect(() => {
@@ -118,6 +142,7 @@ function Verify({ b }: { b: Borehole }) {
   }, [prev, next, goPage]);
 
   const load = usePage(b.documentId, page);
+  const words = usePageWords(b.documentId, page);
   const content = load.status === 'ready' ? load.content : null;
   const natural = useImageSize(content?.imageUrl);
 
@@ -242,6 +267,7 @@ function Verify({ b }: { b: Borehole }) {
             selectedKey={focusKey}
             onSelect={focusValue}
             pageSelected={selected?.placement === 'page'}
+            words={words}
           />
           {unboxed.length > 0 && (
             <div className={styles.unboxed} style={{ maxWidth: Math.max(W, 280) }}>
