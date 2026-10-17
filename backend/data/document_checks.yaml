@@ -1,0 +1,46 @@
+# Document-level checks and the questions they raise (BACKEND.md 7.3, 7.8 and 7.9). Thresholds and labels
+# only: no document, project, borehole label, page, country or language is named here. Detection lives in
+# app/validate/ (pure functions) and app/clarify/ (questions and answers).
+
+# Pages that look the same (app/pipeline/classify.py): perceptual hash of the page render.
+page_duplicates:
+  max_hamming: 8 # of 256 phash bits
+  aspect_tolerance: 0.02 # relative difference of width / height
+  min_hash_bits: 16 # near-uniform renders (blank pages) hash to few set bits and are never duplicates
+
+# Boreholes of a later document that repeat boreholes of an earlier one (same canonical label and the same
+# printed coordinates).
+borehole_duplicates:
+  coordinate_decimals: 6 # coordinates are the same when equal after rounding to this many decimals
+  min_matches: 1 # matching boreholes needed before the question is asked
+  evidence_max: 6 # evidence entries shown with the question
+
+# Depth sign and origin notes against the printed layer depths (app/validate/datum.py).
+datum_convention:
+  min_values: 2 # non-zero printed depth values needed to judge their sign
+  min_intervals: 2 # layers with both depths printed needed to judge their direction
+  min_share: 0.8 # share of those values (or intervals) that must contradict the note
+  evidence_max: 3
+
+# The same header value printed on a context page (summary or coordinate table) and on the log.
+conflicting_sources:
+  number_tolerance: 0.005 # numbers closer than this are the same value
+  # Field labels for the question, by value path. Paths not listed use the path itself.
+  fields:
+    metadata.borehole_depth_m: "Total depth (m)"
+    metadata.surface_elevation_mASL: "Ground level (m)"
+    metadata.coordinates.x_raw: "First coordinate"
+    metadata.coordinates.y_raw: "Second coordinate"
+    metadata.coordinates.coordinate_system: "Coordinate system"
+    metadata.elevation_datum: "Elevation datum"
+    metadata.location_name: "Location"
+    metadata.start_date: "Start date"
+    metadata.end_date: "End date"
+    metadata.inclination_deg: "Inclination (degrees)"
+  # How a source is named in the options, by page role.
+  sources:
+    log_sheet: "log"
+    log_continuation: "log"
+    summary_table: "summary table"
+    coordinate_table: "coordinate table"
+    lab_results: "lab results"

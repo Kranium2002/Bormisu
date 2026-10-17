@@ -1,0 +1,30 @@
+[
+  {
+    "label": "Fictional Harbour Link project site, Lindenwick (uploaded)",
+    "lat": 53.875923,
+    "lon": 8.505846,
+    "bbox": [
+      8.502846,
+      53.873923,
+      8.508846,
+      53.877923
+    ],
+    "source": "uploaded",
+    "kind": "project_site",
+    "borehole_count": 1
+  },
+  {
+    "label": "Lindenwick, Example District, Germany",
+    "lat": 53.8712,
+    "lon": 8.4987,
+    "bbox": [
+      8.47,
+      53.85,
+      8.53,
+      53.89
+    ],
+    "source": "geocoder",
+    "kind": "city",
+    "borehole_count": 1
+  }
+]

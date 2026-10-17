@@ -2,6 +2,23 @@
 
 Rules: inside 1.x only additive changes (new endpoints, new optional fields, new enum values the other side can ignore). Anything else needs a 2.0 and both sessions' agreement in `docs/handover/COORDINATION.md`. Every change gets a dated entry here in the same commit as the change.
 
+## 1.1.0 (2026-10-17)
+
+Additive only: new optional fields, one optional query parameter, one new endpoint and clarified descriptions. Clients built against 1.0.0 keep working.
+
+### Added
+- `Coordinates.crs_label` (`[string, null]`): human-readable name of `crs_code` (the server registry's label, else the EPSG name). The backend fills it whenever `crs_code` is set (stated or confirmed). Server-computed like `crs_code`: no provenance entry, not a PATCH path.
+- `ValuePatch.confirmed_by` (`[string, null]`): who performed the review action. Stored as the revision's actor, trimmed and cut to 100 characters; `"reviewer"` when absent or blank.
+- `POST /api/v1/documents/{document_id}/approve-clean`: optional query parameter `confirmed_by` with the same meaning (default `"reviewer"`).
+- `GET /api/v1/clarifications/{clarification_id}/crs-candidates` (`listClarificationCrsCandidates`, P1): `CrsCandidate[]` ranked for all boreholes in the clarification's `borehole_uids`, which may span several documents. 404 `clarification_not_found`; `[]` when the clarification is not `crs_confirm` or its boreholes have no printed coordinates.
+- Examples: `CrsCandidate.clarification.json` (the new endpoint's answer for `Clarification.crs_confirm.json`) and `ValuePatch.approve_confirmed_by.json`; `crs_label` in every example record; provenance entries for every value that lacked one.
+
+### Clarified (descriptions only, no shape change)
+- `open_clarifications` (Document, BoreholeRecord, map feature) counts unresolved questions: status `open` or `skipped`. Map `attention` is true for an unresolved question too.
+- A skipped question can still be answered later: `POST /clarifications/{id}/answer` on a skipped one returns 200; 409 `already_resolved` only when it is already answered. `POST /clarifications/{id}/skip` now declares that 409 too.
+- Provenance rule in the `BoreholeRecord` description: every non-null value at a ValuePatch path has a provenance entry, except the server-computed `stratigraphy[i].thickness_m`, `stratigraphy[i].description_language`, `metadata.coordinates.crs_code`, `metadata.coordinates.crs_label` and `metadata.aliases`. `english_lithology`, when it is a model's rendering of the printed description, carries method `guessed` with the box of `original_description`.
+- `GET /documents/{id}/crs-candidates` describes its ranking evidence (area of use, distance to a reference place geocoded on the server, compactness, specificity) and order (verdict, score, smaller area of use, EPSG code). An unavailable geocoder never fails the call.
+
 ## 1.0.0 (2026-10-17)
 
 First frozen contract: `contracts/openapi.yaml` and `contracts/realtime-and-chat.md`. It supersedes `docs/design/api-contract.md` (Prada's UI-to-API contract, written against the `arav/dev` prototype). Most shapes are kept so the existing frontend adapters keep working. The differences below are deliberate; the frontend session adapts to them.

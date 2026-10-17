@@ -1,0 +1,65 @@
+# Evidence boxes from a page's embedded text layer (app.pipeline.textlayer, app.pipeline.provenance).
+# Generic for every document, language and layout; no document is named here. Lengths are shares of the
+# page (boxes are normalised 0-1); gaps between words and lines are multiples of the line height.
+
+# A page's text layer is trusted from this text_layer_quality upwards: a value printed in it gets method
+# "read" and the tight box of its words. Below, values keep their OCR blocks (method "ocr").
+read_min_text_quality: 0.9
+
+# A word belongs to a cited OCR block when its centre lies inside the block grown by this margin.
+block_margin: 0.01
+
+# Two words share a line when their vertical overlap is at least this share of the smaller one's height.
+line_overlap: 0.5
+
+# Inside one value, the next word on the same line is at most this many line heights to the right.
+same_line_gap: 1.5
+
+# A value continues on a later line (long descriptions) when that line starts at most this many line
+# heights below the previous one, and its first word in the value's column starts no further left of the
+# column than column_tolerance.
+next_line_gap: 1.2
+column_tolerance: 0.012
+
+# Characters read as one when printed text is compared with the text layer (keys are what they become).
+# Whitespace of every kind (digit grouping, thin and no-break spaces, line breaks) is always ignored, and
+# so is letter case.
+equivalent_characters:
+  ".": [","]                                   # decimal point and decimal comma
+  "-": ["‐", "‑", "‒", "–", "—", "−", "﹣", "－"]  # dashes and minus signs
+  "'": ["’", "‘", "ʼ", "`", "´", "′"]          # apostrophes (digit grouping, minutes)
+  '"': ["“", "”", "„", "″"]                    # quotes (seconds)
+ignored_characters: ["\u00ad", "\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"]  # soft hyphen, zero-width
+
+# PDFium reports a hyphen at the end of a line as U+FFFE and glues the next line's first word to it, so
+# such a "word" has one box over two lines. It is left out (its values keep their OCR blocks).
+broken_word_markers: ["\ufffe"]
+
+# Between two digits these belong to the number ("1,50", "1.234", "1'234"): a value never starts or ends
+# next to them inside a word, so "1" is not found in "1,50".
+number_joiners: [".", ",", "'"]
+
+# A word ending in one of these at the end of a line may be a hyphenated word that continues on the next line.
+break_hyphens: ["-"]
+
+# Choosing between repeated matches across a record (costs in page heights).
+# - reuse_boundary_cost: a layer's top shares the printed word of the previous layer's base (logs that print
+#   one depth per boundary); small, so a separately printed top wins when there is one.
+# - split_boundary_cost: a layer's top and the previous base on two different words of one line (a depth
+#   scale or another column repeating the boundary).
+# - reuse_cost: two different values of one chain on the same word.
+# - used_cost: a word already taken by a value of another row or of the header.
+# - order_violation_cost: a value printed before the value that precedes it in depth order.
+# - row_weight / column_weight: distance of a cell to its row (description or depth values).
+# - tie_margin: two places closer than this in cost are equally good; the value keeps its OCR blocks.
+reuse_boundary_cost: 0.01
+split_boundary_cost: 0.05
+reuse_cost: 3.0
+used_cost: 0.5
+order_violation_cost: 10.0
+row_weight: 0.5
+column_weight: 0.1
+tie_margin: 0.002
+
+# At most this many places are considered for one value (a value printed more often keeps its blocks).
+max_candidates: 64

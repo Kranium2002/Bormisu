@@ -1,0 +1,111 @@
+# Test Results fields of the target format (docs/design/target-format.md section 3): the names the
+# extractor may use for `tests[].name`, the canonical unit each value is stored in (a key of
+# data/units.yaml, or "-" for dimensionless values) and printed aliases in several languages and
+# standards. Read by the extractor prompt and by normalize.units (match_lab_test, normalise_lab_test_value).
+# Aliases are matched case-insensitively on whole text after collapsing spaces; extend by adding entries.
+tests:
+  - name: Watercontent
+    unit: "%"
+    aliases: [water content, natural water content, moisture content, natural moisture content, w, wn, w_n,
+              MC, NMC, Wassergehalt, natürlicher Wassergehalt, teneur en eau, teneur en eau naturelle,
+              humedad, humedad natural, contenido de humedad, contenido de agua, umidade, umidade natural,
+              teor de umidade, teor de água, watergehalte, vanninnhold, vatteninnehåll, vattenkvot,
+              vandindhold, contenuto d'acqua, umidità naturale]
+  - name: Consistency
+    unit: "%"     # the source sheet spells it "Cosistency" and gives % as its unit
+    aliases: [consistency, Cosistency, Konsistenz, consistance, consistencia, consistência, consistentie,
+              konsistens, consistenza]
+  - name: Unitweight
+    unit: kN/m3
+    aliases: [unit weight, bulk unit weight, bulk density, density, wet density, natural density, gamma,
+              γ, Wichte, Feuchtwichte, Dichte, Feuchtdichte, poids volumique, masse volumique,
+              peso específico, peso unitario, densidad, peso específico aparente, massa específica,
+              volumegewicht, dichtheid, romvekt, densitet, tunghet, volumenvægt, peso di volume,
+              peso dell'unità di volume]
+  - name: UCS
+    unit: MPa
+    aliases: [UCS, uniaxial compressive strength, unconfined compressive strength, qu, σc, sigma c, sc,
+              einaxiale Druckfestigkeit, Druckfestigkeit, résistance à la compression simple,
+              résistance à la compression uniaxiale, Rc, resistencia a compresión simple,
+              resistencia a la compresión uniaxial, resistência à compressão simples,
+              resistência à compressão uniaxial, druksterkte, enaksial trykkfasthet,
+              enaxiell tryckhållfasthet, enaksial trykstyrke, resistenza a compressione uniassiale]
+  - name: Tensile strength
+    unit: MPa
+    aliases: [tensile strength, Brazilian tensile strength, BTS, σt, sigma t, Zugfestigkeit,
+              Spaltzugfestigkeit, résistance à la traction, resistencia a tracción, resistencia a la tracción,
+              resistência à tração, treksterkte, strekkfasthet, draghållfasthet, trækstyrke,
+              resistenza a trazione]
+  - name: CAI
+    unit: "-"
+    aliases: [CAI, Cerchar abrasivity index, Cerchar Abrasivitätsindex, Cerchar-Abrasivitätsindex,
+              indice d'abrasivité Cerchar, índice de abrasividad Cerchar, índice de abrasividade Cerchar,
+              Cerchar]
+  - name: RMR
+    unit: "-"
+    aliases: [RMR, rock mass rating, RMR89, Gebirgsklassifikation RMR]
+  - name: Q
+    unit: "-"
+    aliases: [Q, Q-value, Q value, Q-system, Q system, Barton Q, Q-Wert, valeur Q, valor Q, índice Q]
+  - name: GSI
+    unit: "-"
+    aliases: [GSI, geological strength index, Geological-Strength-Index, índice de resistencia geológica,
+              índice de resistência geológica]
+  - name: FrictionAngle
+    unit: deg
+    aliases: [friction angle, angle of friction, angle of internal friction, internal friction angle, phi,
+              φ, φ', phi', effective friction angle, Reibungswinkel, innerer Reibungswinkel,
+              angle de frottement, angle de frottement interne, ángulo de fricción, ángulo de rozamiento,
+              ângulo de atrito, wrijvingshoek, friksjonsvinkel, friktionsvinkel,
+              angolo di attrito]
+  - name: Cohesion
+    unit: kPa
+    aliases: [cohesion, c, c', effective cohesion, undrained cohesion, Kohäsion, cohésion, cohesión,
+              coesão, cohesie, kohesjon, kohesion, kohæsion, coesione]
+  - name: Grainsize-fines
+    unit: "%"
+    aliases: [fines, fines content, fine content, percent fines, passing 0.063 mm, passing 0.075 mm,
+              passing No. 200, "% passing 200", Feinkornanteil, Feinkorn, "Anteil < 0,063 mm",
+              teneur en fines, passant à 80 µm, finos, contenido de finos, porcentaje de finos,
+              teor de finos, fijne fractie, finstoffinnhold, finjordshalt, finstofindhold, fine,
+              contenuto di fine, "passante al setaccio 0,063"]
+  - name: LiquidLimit
+    unit: "%"
+    aliases: [liquid limit, LL, wL, w_L, Fließgrenze, limite de liquidité, límite líquido, limite de liquidez,
+              vloeigrens, flytegrense, flytgräns, flydegrænse, limite di liquidità]
+  - name: PlasticityLimit
+    unit: "%"
+    aliases: [plastic limit, plasticity limit, PL, wP, w_P, Ausrollgrenze, limite de plasticité,
+              límite plástico, limite de plasticidade, uitrolgrens, plastisitetsgrense, plasticitetsgräns,
+              plasticitetsgrænse, limite di plasticità]
+  - name: PlasticityIndex
+    unit: "-"     # the target sheet gives no unit; a printed % is the same number (wL - wP in %)
+    same_number_units: ["%"]
+    aliases: [plasticity index, PI, Ip, I_P, Plastizitätszahl, Plastizitätsindex, indice de plasticité,
+              índice de plasticidad, índice de plasticidade, plasticiteitsindex, plastisitetsindeks,
+              plasticitetsindex, plasticitetsindeks, indice di plasticità]
+  - name: ConsistencyIndex
+    unit: "-"
+    aliases: [consistency index, Ic, I_C, CI, Konsistenzzahl, Konsistenzindex, indice de consistance,
+              índice de consistencia, índice de consistência, consistentie-index, konsistensindeks,
+              konsistensindex, indice di consistenza]
+  - name: HydraulicCoefficient
+    unit: m/s
+    aliases: [hydraulic conductivity, coefficient of permeability, permeability, hydraulic coefficient, k,
+              kf, k-value, Durchlässigkeitsbeiwert, Durchlässigkeit, kf-Wert, coefficient de perméabilité,
+              perméabilité, conductividad hidráulica, coeficiente de permeabilidad, permeabilidad,
+              condutividade hidráulica, coeficiente de permeabilidade, doorlatendheid,
+              hydraulische geleidbaarheid, permeabilitet, hydraulisk konduktivitet, permeabilità,
+              conducibilità idraulica]
+  - name: E-Modulus
+    unit: MPa
+    aliases: [E-modulus, E modulus, Young's modulus, modulus of elasticity, elastic modulus, E, Es, Ev2,
+              deformation modulus, Elastizitätsmodul, E-Modul, Verformungsmodul, module d'Young,
+              module d'élasticité, módulo de elasticidad, módulo de Young, módulo de elasticidade,
+              elasticiteitsmodulus, elastisitetsmodul, elasticitetsmodul, modulo di elasticità,
+              modulo elastico]
+  - name: PoissonsRatio
+    unit: "-"
+    aliases: [Poisson's ratio, Poissons ratio, Poisson ratio, ν, nu, Querdehnzahl, Poissonzahl,
+              coefficient de Poisson, coeficiente de Poisson, relación de Poisson,
+              Poisson-getal, poissontal, Poissons tal, Poissons förhållande, coefficiente di Poisson]

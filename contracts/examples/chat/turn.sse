@@ -1,0 +1,48 @@
+data: {"type":"start","messageId":"msg_01M54KQ688M60P3CWM5H2KE1GX"}
+
+data: {"type":"start-step"}
+
+data: {"type":"tool-input-available","toolCallId":"call_1","toolName":"resolve_place","input":{"query":"Lindenwick"}}
+
+data: {"type":"tool-output-available","toolCallId":"call_1","output":{"candidates":[{"label":"Fictional Harbour Link project site, Lindenwick (uploaded)","lat":53.875923,"lon":8.505846,"bbox":[8.502846,53.873923,8.508846,53.877923],"source":"uploaded","kind":"project_site","borehole_count":1},{"label":"Lindenwick, Example District, Germany","lat":53.8712,"lon":8.4987,"bbox":[8.47,53.85,8.53,53.89],"source":"geocoder","kind":"city","borehole_count":1}]}}
+
+data: {"type":"tool-input-available","toolCallId":"call_2","toolName":"search_boreholes","input":{"area":{"type":"bbox","bbox":[8.47,53.85,8.53,53.89]},"min_depth_m":15.0,"include_unreviewed":true}}
+
+data: {"type":"tool-output-available","toolCallId":"call_2","output":{"result_set_id":"rs_01M54KQD30FJP214PJ45PFT70T","count":1,"located_count":1,"unlocated_count":0,"excluded_unreviewed":0,"bbox":[8.505846,53.875923,8.505846,53.875923],"preview":[{"uid":"bh_01M54CB4HGT2NXJXQZD6BE0FGK","borehole_id":"FHL-BH01","borehole_depth_m":18.0}]}}
+
+data: {"type":"data-result-set","id":"rs_01M54KQD30FJP214PJ45PFT70T","data":{"result_set_id":"rs_01M54KQD30FJP214PJ45PFT70T","count":1,"located_count":1,"unlocated_count":0,"bbox":[8.505846,53.875923,8.505846,53.875923],"area":{"type":"bbox","bbox":[8.47,53.85,8.53,53.89]}}}
+
+data: {"type":"data-ui-command","transient":true,"data":{"command":"show_result_set","args":{"result_set_id":"rs_01M54KQD30FJP214PJ45PFT70T"}}}
+
+data: {"type":"data-ui-command","transient":true,"data":{"command":"fit_result_set","args":{"result_set_id":"rs_01M54KQD30FJP214PJ45PFT70T"}}}
+
+data: {"type":"finish-step"}
+
+data: {"type":"start-step"}
+
+data: {"type":"tool-input-available","toolCallId":"call_3","toolName":"get_evidence","input":{"uid":"bh_01M54CB4HGT2NXJXQZD6BE0FGK","path":"metadata.borehole_depth_m"}}
+
+data: {"type":"tool-output-available","toolCallId":"call_3","output":{"document_id":"doc_01M54BPP80DBVM60TJD6V5NPM0","page":7,"box":[0.08,0.88,0.24,0.03],"raw":"Endteufe 18,00 m","method":"read"}}
+
+data: {"type":"data-citation","id":"cit_1","data":{"citation_id":"cit_1","document_id":"doc_01M54BPP80DBVM60TJD6V5NPM0","page":7,"box":[0.08,0.88,0.24,0.03],"uid":"bh_01M54CB4HGT2NXJXQZD6BE0FGK","path":"metadata.borehole_depth_m","snippet":"Endteufe 18,00 m"}}
+
+data: {"type":"finish-step"}
+
+data: {"type":"start-step"}
+
+data: {"type":"text-start","id":"txt_1"}
+
+data: {"type":"text-delta","id":"txt_1","delta":"One uploaded borehole near Lindenwick goes deeper than 15 m: FHL-BH01, 18.00 m deep [1]. "}
+
+data: {"type":"text-delta","id":"txt_1","delta":"It is not reviewed yet, so treat the depth as a draft."}
+
+data: {"type":"text-end","id":"txt_1"}
+
+data: {"type":"data-scope","id":"scope_1","data":{"included":"accepted and unreviewed data","excluded_unreviewed":0,"unlocated_in_scope":0,"documents_processing":3}}
+
+data: {"type":"finish-step"}
+
+data: {"type":"finish"}
+
+data: [DONE]
+

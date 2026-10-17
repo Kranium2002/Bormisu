@@ -31,6 +31,7 @@ export function makeHealth(o: Partial<Health> = {}): Health {
     version: 'test',
     providers: { ocr: true, classifier: true, extractor: true, chat: true, geocoder: true },
     upload: { maxMb: 1, extensions: ['.pdf', '.png'] },
+    auth: { enabled: false, registration: 'closed' },
     ...o,
   };
 }
@@ -258,6 +259,17 @@ export function fakeSource(data: FakeData, over: Partial<DataSource> = {}): Fake
       }
       return all.length;
     },
+    // No sign-in unless a test turns it on (health.auth) and overrides these.
+    currentUser: async () => null,
+    signIn: async () => {
+      throw new Error('The fake source has no sign-in');
+    },
+    register: async () => {
+      throw new Error('The fake source has no sign-in');
+    },
+    signOut: async () => undefined,
+    changePassword: async () => undefined,
+    setSessionListener: () => undefined,
     ...over,
   };
   return Object.assign(source, { held, questions, resultSets });

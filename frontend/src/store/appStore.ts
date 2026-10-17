@@ -13,6 +13,8 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import type { Borehole, DocumentSummary, ExtractedValue, Health } from '../domain/types';
+import { createAuthSlice } from './authSlice';
+import { createChatSlice } from './chatSlice';
 import { createClarificationsSlice } from './clarificationsSlice';
 import { createContext, isReviewable, pageKey } from './context';
 import { createDataSlice } from './dataSlice';
@@ -54,6 +56,8 @@ export const useAppStore = create<AppState>()((set, get) => {
     ...createSettingsSlice(ctx),
     ...createEventsSlice(ctx),
     ...createClarificationsSlice(ctx),
+    ...createAuthSlice(ctx),
+    ...createChatSlice(ctx),
   };
 });
 

@@ -1,0 +1,10 @@
+{
+  "project": "Fictional Harbour Link",
+  "din4023_codes": [
+    "Kst",
+    "mG"
+  ],
+  "lithology_min_depth_m": 10.0,
+  "include_unreviewed": false,
+  "area": null
+}

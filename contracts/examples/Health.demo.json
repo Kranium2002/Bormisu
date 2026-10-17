@@ -1,0 +1,27 @@
+{
+  "status": "ok",
+  "mode": "demo",
+  "version": "0.1.0",
+  "providers": {
+    "ocr": false,
+    "classifier": false,
+    "extractor": false,
+    "chat": false,
+    "geocoder": true
+  },
+  "upload": {
+    "max_mb": 200,
+    "extensions": [
+      ".pdf",
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".webp",
+      ".tif",
+      ".tiff",
+      ".docx",
+      ".xlsx",
+      ".csv"
+    ]
+  }
+}

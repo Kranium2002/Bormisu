@@ -1,0 +1,24 @@
+{
+  "document_id": "doc_01M54B4CA0P2MRXKZMB6QWNDMJ",
+  "file_name": "fictional-harbour-link-labdata.xlsx",
+  "project": "Fictional Harbour Link",
+  "status": "done",
+  "error": null,
+  "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "size_bytes": 48213,
+  "sha256": "31cf020f85e87f76a377d6d04c7dc95021e1923880316edd7c4f37537eb83e30",
+  "page_count": null,
+  "found": {
+    "boreholes": 0,
+    "layers": 0,
+    "spt": 0,
+    "groundwater": 0
+  },
+  "pages": [],
+  "completeness": null,
+  "progress": null,
+  "duplicate_of": null,
+  "open_clarifications": 0,
+  "created_at": "2026-10-17T07:10:00Z",
+  "updated_at": "2026-10-17T07:12:40Z"
+}

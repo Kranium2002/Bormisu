@@ -208,6 +208,7 @@ describe('sample data', () => {
       mode: 'sample', status: 'ok', version: 'sample',
       providers: { ocr: false, classifier: false, extractor: false, chat: false, geocoder: false },
       upload: { maxMb: 200, extensions: ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.docx', '.xlsx', '.csv'] },
+      auth: { enabled: false, registration: 'closed' },
     });
   });
 

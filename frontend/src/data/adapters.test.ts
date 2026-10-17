@@ -440,6 +440,7 @@ describe('adaptHealth', () => {
       mode: 'live', status: 'ok', version: '1.0.0',
       providers: { ocr: true, classifier: true, extractor: true, chat: true, geocoder: true },
       upload: { maxMb: 200, extensions: ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff', '.docx', '.xlsx', '.csv'] },
+      auth: { enabled: false, registration: 'closed' },
     });
     expect(adaptHealth(fixture<WireHealth>('health-demo'))).toMatchObject({ mode: 'demo', providers: { chat: false }, upload: { maxMb: 50 } });
   });

@@ -1,0 +1,6 @@
+{
+  "crs": "EPSG:27700",
+  "swap_axes": false,
+  "confirmed_by": "Example Reviewer",
+  "note": "Grid matches the location plan."
+}

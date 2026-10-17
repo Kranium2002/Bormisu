@@ -1,0 +1,134 @@
+# How printed coordinates and printed coordinate-system names are read (normalize.coordinates,
+# normalize.crs). Exact system names live in crs_registry.yaml (matched first); this file holds the
+# generic patterns for everything else. No document, project or country is named for its own sake.
+#
+# A printed datum + grid + zone becomes an EPSG CRS name from `template` (for example
+# "ETRS89 / UTM zone 32N") which is looked up in the EPSG database shipped with pyproj, so no code
+# numbers are listed here. A name the database does not know gives no code.
+#
+# Matching is case-insensitive on normalised text ("-", "_", "/", ",", ";", ":", brackets -> spaces).
+
+datums:
+  - epsg_name: "WGS 84"
+    aliases: [WGS84, WGS 84, WGS 1984, WGS1984, World Geodetic System 1984]
+    default_grid: utm
+  - epsg_name: "ETRS89"
+    aliases: [ETRS89, ETRS 89, ETRS 1989, ETRS1989, EUREF89, EUREF 89, E89]
+    default_grid: utm
+    hemisphere: north          # every ETRS89 UTM zone lies in the northern hemisphere
+  - epsg_name: "NAD83"
+    aliases: [NAD83, NAD 83, NAD 1983, North American Datum 1983]
+    default_grid: utm
+    hemisphere: north
+  - epsg_name: "NAD27"
+    aliases: [NAD27, NAD 27, NAD 1927, North American Datum 1927]
+    default_grid: utm
+    hemisphere: north
+  - epsg_name: "ED50"
+    aliases: [ED50, ED 50, ED 1950, European Datum 1950]
+    default_grid: utm
+  - epsg_name: "SIRGAS 2000"
+    aliases: [SIRGAS 2000, SIRGAS2000, SIRGAS]
+    default_grid: utm
+  - epsg_name: "GDA94"
+    aliases: [GDA94, GDA 94, GDA 1994]
+    default_grid: mga
+    hemisphere: south
+  - epsg_name: "GDA2020"
+    aliases: [GDA2020, GDA 2020]
+    default_grid: mga
+    hemisphere: south
+  - epsg_name: "DHDN"
+    aliases: [DHDN, Potsdam Datum, Rauenberg]
+    default_grid: gk
+  - epsg_name: "Pulkovo 1942"
+    aliases: [Pulkovo 1942, Pulkovo 42, Pulkovo1942, SK 42, SK42]
+    default_grid: gk
+  - epsg_name: "NZGD2000"
+    aliases: [NZGD2000, NZGD 2000]
+  - epsg_name: "SVY21"
+    aliases: [SVY21]
+
+grids:
+  - id: utm
+    words: [UTM, Universal Transverse Mercator]
+    template: "{datum} / UTM zone {zone}{hemisphere}"
+    zones: [1, 60]
+    needs_hemisphere: true
+  - id: mga
+    words: [MGA, Map Grid of Australia]
+    # grid words that also name the datum
+    implied_datums: { MGA94: GDA94, MGA 94: GDA94, MGA2020: GDA2020, MGA 2020: GDA2020 }
+    template: "{datum} / MGA zone {zone}"
+    zones: [42, 59]
+  - id: gk
+    words: [Gauss Krüger, Gauss Kruger, Gauß Krüger, Gauss Krueger, Gauß Krueger, GK]
+    template: "{datum} / 3-degree Gauss-Kruger zone {zone}"
+    # datums whose Gauss-Krüger zones are 6 degrees wide
+    datum_templates: { "Pulkovo 1942": "{datum} / Gauss-Kruger zone {zone}" }
+    zones: [1, 60]
+    # A Gauss-Krüger zone without a datum is DHDN, the convention of the alias registry ("GK3").
+    default_datum: DHDN
+    # The zone is the millions digit of a 7-digit easting (Rechtswert 3 512 345 -> zone 3).
+    zone_from_easting_millions: true
+
+# Words that introduce a zone number ("Zone 32", "Zona 18", "3. Streifen", "Z56").
+zone_words: [zone, zona, fuseau, fuso, streifen, sone, zon, z]
+
+# Hemisphere words after a zone number; a single letter after the zone is a hemisphere when it is N or
+# S (EPSG naming: "UTM zone 33S" is southern), otherwise a latitude band (C-M south, N-X north).
+hemisphere_words:
+  north: [N, north, northern, nord, nördlich, norte, noord]
+  south: [S, south, southern, süd, sud, sul, sur, zuid]
+latitude_bands:
+  south: CDEFGHJKLM
+  north: NPQRSTUVWX
+hemisphere_phrases:
+  north: [northern hemisphere, nordhalbkugel, hémisphère nord, hemisferio norte, hemisfério norte]
+  south: [southern hemisphere, südhalbkugel, hémisphère sud, hemisferio sur, hemisfério sul]
+
+# Printed EPSG codes ("EPSG:25832", "EPSG-Code 25832", "SRID 4326").
+epsg_words: [EPSG, EPSG code, EPSG Code, EPSG-Code, SRID]
+
+# Terms for systems without an EPSG transform: the code stays unknown with this reason.
+local_grid_terms: [local grid, site grid, local coordinates, local system, arbitrary grid, arbitrary datum,
+                   assumed grid, lokales system, lokale koordinaten, baustellensystem, système local,
+                   repère local, sistema local, coordenadas locales, coordenadas locais, lokaal stelsel,
+                   lokalt system, sistema locale]
+
+# Terms that say printed values are geographic degrees.
+geographic_terms: [geographic, geographical, lat long, lat lon, latitude, longitude, decimal degrees,
+                   degrees, geografisch, geographisch, géographique, géographiques, geográficas,
+                   geográficos, geografiche]
+
+# Axis labels printed with coordinates (labels_raw, or a label glued to a value such as "E 512345",
+# "6 123 456 mN", "RW 3512345"). Roles: east / north are the projected axes, lon / lat the geographic
+# ones, x / y keep the printed letter (X is read as the easting unless the values say otherwise).
+axis_labels:
+  east: [E, east, easting, eastings, mE, m E, Rechtswert, Rechts, RW, este, est, leste, oost, øst, öst,
+         abscisse]
+  north: [N, north, northing, northings, mN, m N, Hochwert, Hoch, HW, norte, nord, noord, ordonnée]
+  lon: [lon, long, lng, longitude, Länge, Laenge, longitud, longitudine, lengtegraad, λ, lambda]
+  lat: [lat, latitude, Breite, latitud, latitudine, breedtegraad, φ, phi]
+  x: [X]
+  y: [Y]
+
+# Hemisphere letters or words glued to geographic values ("52°31'N", "S 33.85", "13.4 Ost").
+# "O" is East in German and West in Spanish, Portuguese and French, so it decides nothing.
+hemispheres:
+  north: [N, north, nord, norte, noord]
+  south: [S, south, süd, sud, sul, sur, zuid]
+  east: [E, east, ost, est, este, leste, oost]
+  west: [W, west, ouest, oeste]
+  ambiguous: [O]
+
+# Checks that make "the value read as X behaves like a northing" a suspicion (swap_suspected).
+swap_checks:
+  # projected: the X value has at least `northing_like_min` and the Y value is below `easting_like_max`
+  # (a 7-digit value read as easting next to a 6-digit northing).
+  northing_like_min: 1000000
+  easting_like_max: 1000000
+
+# Plain numbers within degree range are read as decimal degrees only with a geographic marker
+# (hemisphere, degree sign, lat/long label) or when both carry at least this many decimals.
+decimal_degree_min_decimals: 4

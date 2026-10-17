@@ -1,0 +1,5 @@
+{
+  "path": "metadata.drilling_contractor",
+  "action": "reset",
+  "if_revision": 4
+}
