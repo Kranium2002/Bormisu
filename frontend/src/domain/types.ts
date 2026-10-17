@@ -33,7 +33,11 @@ export type DepthSource = 'printed' | 'end_note' | 'last_layer';
 
 /** Box on a page, normalised 0–1, origin top-left (same as the API contract). */
 export interface Box { x: number; y: number; w: number; h: number }
-export interface Lint { severity: 'error' | 'warning'; message: string }
+export interface Lint {
+  severity: 'error' | 'warning'; message: string;
+  /** A check the client adds on its own (e.g. SPT increments); it is shown but never counts as attention. */
+  client?: boolean;
+}
 
 /** Server state shown at boot (contract `Health`); `sample` is the in-browser fictional data source. */
 export interface Health {
@@ -75,6 +79,10 @@ export interface ExtractedValue {
   box: Box | null;
   /** Spreadsheet source cell, e.g. "Logdata!C5"; page and box are null then. */
   cell?: string;
+  /** Source document of this value when it isn't the borehole's own document (e.g. a lab spreadsheet). */
+  documentId?: string;
+  /** Why the value can't be edited here even though it has provenance (e.g. a CRS set only through the CRS dialog). */
+  readOnlyReason?: string;
   /**
    * False when the backend sent no provenance entry for the value (a backend bug): the value shows
    * no source icon and can't be reviewed, because only provenance keys are valid PATCH paths.
@@ -173,7 +181,8 @@ export interface Borehole {
   values: ExtractedValue[];
   /** Pages this borehole was read from (1-based). */
   pages: number[];
-  primaryPage: number;
+  /** First source page; null when the borehole has no page (e.g. read from a spreadsheet only). */
+  primaryPage: number | null;
 }
 
 export interface PageItem { kind: 'text' | 'line'; x: number; y: number; w?: number; h?: number; text?: string; fontSize?: number; fontWeight?: number; color?: string }
@@ -223,6 +232,8 @@ export interface DocumentSummary {
   /** Document id of an earlier upload with the same bytes. */
   duplicateOf: string | null;
   uploaded?: boolean;
+  /** The last upload carried bytes this document already has (the backend answered with it, nothing is reprocessed). */
+  uploadedAgain?: boolean;
   simulated?: boolean;              // sample mode upload, which shows "Simulated: live extraction needs an API key"
   error?: string | null;            // extraction failed (API status "failed")
 }

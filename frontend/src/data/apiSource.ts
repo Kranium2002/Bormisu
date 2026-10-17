@@ -238,6 +238,7 @@ export function createApiSource(base: string): DataSource {
         onUpdate({
           ...doc,
           ...(first.uploaded ? { uploaded: true } : {}),
+          ...(first.uploadedAgain ? { uploadedAgain: true } : {}),
           duplicateOf: doc.duplicateOf ?? first.duplicateOf,
         });
         if (isTerminal(d.status)) return;
@@ -378,7 +379,10 @@ export function createApiSource(base: string): DataSource {
         const earlier = res.duplicate_of != null ? docs.get(res.document_id) : undefined;
         const base = earlier ? summarise(earlier) : { ...pendingDocument(res.document_id, file.name, res.status), project: options?.project ?? '' };
         const other = res.duplicate_of != null && res.duplicate_of !== res.document_id ? res.duplicate_of : null;
-        const first: DocumentSummary = { ...base, uploaded: true, duplicateOf: other ?? base.duplicateOf };
+        const again = res.duplicate_of != null && res.duplicate_of === res.document_id;
+        const first: DocumentSummary = {
+          ...base, uploaded: true, ...(again ? { uploadedAgain: true } : {}), duplicateOf: other ?? base.duplicateOf,
+        };
         onUpdate(first);
         follow(first, onUpdate);
       }

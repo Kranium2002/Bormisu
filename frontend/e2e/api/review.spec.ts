@@ -77,7 +77,7 @@ test('approve a value, reload: still approved; undo it (reset), reload: unreview
     // The scanned source page of the focused value loads from the backend.
     const scan = page.getByLabel('Source page').locator('img');
     await expect(scan).toHaveAttribute('src', new RegExp(`/api/v1/documents/${r.document_id}/pages/\\d+\\.png\\?w=1400$`));
-    await expect.poll(() => scan.evaluate((img) => (img as { complete: boolean; naturalWidth: number }).complete && (img as { naturalWidth: number }).naturalWidth > 0)).toBe(true);
+    await expect.poll(() => scan.evaluate((el) => { const img = el as unknown as { complete: boolean; naturalWidth: number }; return img.complete && img.naturalWidth > 0; })).toBe(true);
 
     const before = await reviewedCount(page);
     const btn = approveBtn(page, 'Final depth');
@@ -307,7 +307,7 @@ test('Larger source view opens the page image at the value’s box with the raw 
   await expect(panel).toContainText(`as printed: “${prov.raw}”`);
   const img = panel.locator('img');
   await expect(img).toHaveAttribute('src', new RegExp(`/documents/${r.document_id}/pages/${prov.page}\\.png`));
-  await expect.poll(() => img.evaluate((el) => (el as { naturalWidth: number }).naturalWidth)).toBeGreaterThan(0);
+  await expect.poll(() => img.evaluate((el) => (el as unknown as { naturalWidth: number }).naturalWidth)).toBeGreaterThan(0);
   // The highlighted box sits where the provenance box says (normalised 0..1 → percent).
   const [x, y] = prov.box!;
   const box = panel.locator('[title="Final depth"]');

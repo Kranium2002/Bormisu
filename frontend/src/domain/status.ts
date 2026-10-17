@@ -20,9 +20,15 @@ export function deriveReviewStatus(values: ExtractedValue[]): BoreholeReviewStat
   return 'in_review';
 }
 
-/** True when a value is flagged, a lint error exists or a clarification is open (backend `attention`). */
+/**
+ * True when a value is flagged, a lint error exists or a clarification is open (backend `attention`).
+ * Lints the client adds on its own don't count, so chips and pins agree with the server's map layer.
+ */
 export function hasAttention(b: Borehole): boolean {
-  return b.openClarifications > 0 || b.values.some((v) => v.status === 'flagged' || v.lint?.severity === 'error');
+  return (
+    b.openClarifications > 0 ||
+    b.values.some((v) => v.status === 'flagged' || (v.lint?.severity === 'error' && !v.lint.client))
+  );
 }
 
 /** What chips and pins show: attention wins over the review status. */

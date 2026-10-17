@@ -100,8 +100,8 @@ export function progressView(p: DocumentProgress): ProgressView {
  * duplicate_of): that card says it was uploaded again instead of pointing at itself.
  */
 export function duplicateText(d: DocumentSummary, all: DocumentSummary[]): string | null {
+  if (d.uploadedAgain || isSelfDuplicate(d)) return 'Already uploaded: same bytes as this document';
   if (!d.duplicateOf) return null;
-  if (isSelfDuplicate(d)) return 'Already uploaded: same bytes as this document';
   const original = all.find((x) => x.id === d.duplicateOf);
   return original ? `Same file as ${original.name}` : 'Same file as an earlier upload';
 }
