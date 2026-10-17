@@ -49,7 +49,7 @@ from app.db.session import get_sessionmaker
 from app.events.writer import emit
 from app.pipeline.office import OfficeConversionError, office_to_pdf
 from app.pipeline.triage import TriagedPage, triage_image, triage_pdf
-from app.providers.base import BudgetExceededError, ProviderError
+from app.providers.base import BudgetExceededError, ProviderError, spent_usd
 from app.queue import queue_app
 from app.services.documents import emit_document_updated
 from app.services.page_images import prewarm_page
@@ -314,6 +314,9 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
             ready.append((group, outcome))
 
     results = await asyncio.gather(*(one(group) for group in todo), return_exceptions=True)
+    if over_budget and not ready and not await _has_boreholes(document_id):
+        # nothing was read before the budget ran out: the document fails with the budget's own reason
+        raise BudgetExceededError(await spent_usd(), get_settings().provider_budget_usd or 0.0)
     if over_budget:
         # What was read before the budget ran out goes to review; a retry with a higher budget reads the rest.
         held.append(

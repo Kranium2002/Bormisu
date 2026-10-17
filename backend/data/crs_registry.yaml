@@ -69,6 +69,85 @@ systems:
 # Verdicts: match = every point inside the area of use and (no reference place, or the centroid within
 # `match_km` of it); shifted = inside but farther than that, or only within `shift_margin_deg` of the area;
 # out_of_range = the rest. Order: verdict, score, smaller area of use, EPSG code (never registry order).
+  # Europe (from the EPSG database shipped with pyproj)
+  - { code: "EPSG:31370", kind: projected, label: "BD72 / Belgian Lambert 72" }
+  - { code: "EPSG:2180", kind: projected, label: "ETRF2000-PL / CS92" }
+  - { code: "EPSG:3003", kind: projected, label: "Monte Mario / Italy zone 1" }
+  - { code: "EPSG:3004", kind: projected, label: "Monte Mario / Italy zone 2" }
+  - { code: "EPSG:6707", kind: projected, label: "RDN2008 / UTM zone 32N (N-E)" }
+  - { code: "EPSG:2157", kind: projected, label: "IRENET95 / Irish Transverse Mercator" }
+  - { code: "EPSG:3067", kind: projected, label: "EUREF-FIN / TM35FIN(E,N)" }
+  - { code: "EPSG:2100", kind: projected, label: "GGRS87 / Greek Grid" }
+  # North America (from the EPSG database shipped with pyproj)
+  - { code: "EPSG:26910", kind: projected, label: "NAD83 / UTM zone 10N" }
+  - { code: "EPSG:26911", kind: projected, label: "NAD83 / UTM zone 11N" }
+  - { code: "EPSG:26912", kind: projected, label: "NAD83 / UTM zone 12N" }
+  - { code: "EPSG:26913", kind: projected, label: "NAD83 / UTM zone 13N" }
+  - { code: "EPSG:26914", kind: projected, label: "NAD83 / UTM zone 14N" }
+  - { code: "EPSG:26915", kind: projected, label: "NAD83 / UTM zone 15N" }
+  - { code: "EPSG:26916", kind: projected, label: "NAD83 / UTM zone 16N" }
+  - { code: "EPSG:26917", kind: projected, label: "NAD83 / UTM zone 17N" }
+  - { code: "EPSG:26919", kind: projected, label: "NAD83 / UTM zone 19N" }
+  # South America (from the EPSG database shipped with pyproj)
+  - { code: "EPSG:31981", kind: projected, label: "SIRGAS 2000 / UTM zone 21S" }
+  - { code: "EPSG:31982", kind: projected, label: "SIRGAS 2000 / UTM zone 22S" }
+  - { code: "EPSG:31984", kind: projected, label: "SIRGAS 2000 / UTM zone 24S" }
+  - { code: "EPSG:5346", kind: projected, label: "POSGAR 2007 / Argentina 4" }
+  - { code: "EPSG:5347", kind: projected, label: "POSGAR 2007 / Argentina 5" }
+  - { code: "EPSG:5348", kind: projected, label: "POSGAR 2007 / Argentina 6" }
+  # Africa (from the EPSG database shipped with pyproj)
+  - { code: "EPSG:2046", kind: projected, label: "Hartebeesthoek94 / Lo15" }
+  - { code: "EPSG:2047", kind: projected, label: "Hartebeesthoek94 / Lo17" }
+  - { code: "EPSG:2048", kind: projected, label: "Hartebeesthoek94 / Lo19" }
+  - { code: "EPSG:2049", kind: projected, label: "Hartebeesthoek94 / Lo21" }
+  - { code: "EPSG:2050", kind: projected, label: "Hartebeesthoek94 / Lo23" }
+  - { code: "EPSG:2051", kind: projected, label: "Hartebeesthoek94 / Lo25" }
+  - { code: "EPSG:2052", kind: projected, label: "Hartebeesthoek94 / Lo27" }
+  - { code: "EPSG:2053", kind: projected, label: "Hartebeesthoek94 / Lo29" }
+  - { code: "EPSG:2054", kind: projected, label: "Hartebeesthoek94 / Lo31" }
+  - { code: "EPSG:2055", kind: projected, label: "Hartebeesthoek94 / Lo33" }
+  - { code: "EPSG:26191", kind: projected, label: "Merchich / Nord Maroc" }
+  - { code: "EPSG:26192", kind: projected, label: "Merchich / Sud Maroc" }
+  - { code: "EPSG:32629", kind: projected, label: "WGS 84 / UTM zone 29N" }
+  - { code: "EPSG:32630", kind: projected, label: "WGS 84 / UTM zone 30N" }
+  - { code: "EPSG:32631", kind: projected, label: "WGS 84 / UTM zone 31N" }
+  - { code: "EPSG:2078", kind: projected, label: "ELD79 / UTM zone 33N" }
+  - { code: "EPSG:2079", kind: projected, label: "ELD79 / UTM zone 34N" }
+  - { code: "EPSG:22992", kind: projected, label: "Egypt 1907 / Red Belt" }
+  - { code: "EPSG:26331", kind: projected, label: "Minna / UTM zone 31N" }
+  - { code: "EPSG:26332", kind: projected, label: "Minna / UTM zone 32N" }
+  # Middle East and Central Asia (from the EPSG database shipped with pyproj)
+  - { code: "EPSG:20499", kind: projected, label: "Ain el Abd / Bahrain Grid" }
+  - { code: "EPSG:24600", kind: projected, label: "KOC Lambert" }
+  - { code: "EPSG:2932", kind: projected, label: "QND95 / Qatar National Grid" }
+  - { code: "EPSG:32638", kind: projected, label: "WGS 84 / UTM zone 38N" }
+  - { code: "EPSG:32639", kind: projected, label: "WGS 84 / UTM zone 39N" }
+  - { code: "EPSG:20437", kind: projected, label: "Ain el Abd / UTM zone 37N" }
+  - { code: "EPSG:20438", kind: projected, label: "Ain el Abd / UTM zone 38N" }
+  - { code: "EPSG:20439", kind: projected, label: "Ain el Abd / UTM zone 39N" }
+  # South and East Asia (from the EPSG database shipped with pyproj)
+  - { code: "EPSG:6669", kind: projected, label: "JGD2011 / Japan Plane Rectangular CS I" }
+  - { code: "EPSG:6673", kind: projected, label: "JGD2011 / Japan Plane Rectangular CS V" }
+  - { code: "EPSG:6674", kind: projected, label: "JGD2011 / Japan Plane Rectangular CS VI" }
+  - { code: "EPSG:6677", kind: projected, label: "JGD2011 / Japan Plane Rectangular CS IX" }
+  - { code: "EPSG:32644", kind: projected, label: "WGS 84 / UTM zone 44N" }
+  - { code: "EPSG:32645", kind: projected, label: "WGS 84 / UTM zone 45N" }
+  - { code: "EPSG:4547", kind: projected, label: "CGCS2000 / 3-degree Gauss-Kruger CM 114E" }
+  - { code: "EPSG:4548", kind: projected, label: "CGCS2000 / 3-degree Gauss-Kruger CM 117E" }
+  - { code: "EPSG:4549", kind: projected, label: "CGCS2000 / 3-degree Gauss-Kruger CM 120E" }
+  - { code: "EPSG:3375", kind: projected, label: "GDM2000 / Peninsula RSO" }
+  - { code: "EPSG:3168", kind: projected, label: "Kertau (RSO) / RSO Malaya (m)" }
+  - { code: "EPSG:3405", kind: projected, label: "VN-2000 / UTM zone 48N" }
+  - { code: "EPSG:32647", kind: projected, label: "WGS 84 / UTM zone 47N" }
+  - { code: "EPSG:32748", kind: projected, label: "WGS 84 / UTM zone 48S" }
+  - { code: "EPSG:32749", kind: projected, label: "WGS 84 / UTM zone 49S" }
+  - { code: "EPSG:32750", kind: projected, label: "WGS 84 / UTM zone 50S" }
+  - { code: "EPSG:3826", kind: projected, label: "TWD97 / TM2 zone 121" }
+  - { code: "EPSG:3123", kind: projected, label: "PRS92 / Philippines zone 3" }
+  # Oceania (from the EPSG database shipped with pyproj)
+  - { code: "EPSG:28350", kind: projected, label: "GDA94 / MGA zone 50" }
+  - { code: "EPSG:7850", kind: projected, label: "GDA2020 / MGA zone 50" }
+  - { code: "EPSG:7854", kind: projected, label: "GDA2020 / MGA zone 54" }
 ranking:
   shift_margin_deg: 1.0
   match_km: 50
