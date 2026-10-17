@@ -24,6 +24,10 @@ import styles from './MapScreen.module.css';
 import { NotOnMapList } from './NotOnMapList';
 import { ResultsTable } from './ResultsTable';
 
+/** Empty RESULTS while a result set is active: it has no member, or none the app holds (deleted meanwhile). */
+const NO_MATCH = 'No borehole matches this selection.';
+const NOT_LOADED = 'No borehole of this result set is loaded.';
+
 export function MapScreen() {
   const features = useAppStore((s) => s.features);
   const boreholes = useAppStore((s) => s.boreholes);
@@ -103,7 +107,7 @@ export function MapScreen() {
             rows={tableRows}
             selectedUid={selectedUid}
             resetKey={resultSet?.id ?? 'all'}
-            empty={resultSet ? 'No borehole of this result set is loaded.' : undefined}
+            empty={resultSet ? (resultSet.count === 0 ? NO_MATCH : NOT_LOADED) : undefined}
             extra={<ResultSetSummary resultSet={resultSet} busy={resultSetBusy} error={resultSetError} onClear={clearResultSet} />}
             onOpen={openBorehole}
             onShow={selectOnMap}

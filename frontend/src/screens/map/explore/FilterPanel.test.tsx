@@ -20,6 +20,7 @@ function render(filter: Partial<BoreholeFilter> = {}, o: Partial<FilterPanelView
     ],
     projects: ['Alpha (fictional)', 'Bravo (fictional)'],
     busy: false,
+    error: null,
     onChange: noop,
     onDepthText: noop,
     onDinQuery: noop,
@@ -115,5 +116,16 @@ describe('FilterPanelView', () => {
     const html = render({}, { busy: true });
     expect(html).toMatch(/<form[^>]*aria-busy="true"/);
     expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>APPLYING…<\/button>/);
+    // An earlier failure is not shown while the next request runs.
+    expect(render({}, { busy: true, error: 'Fictional failure.' })).not.toContain('Fictional failure.');
+  });
+
+  it('a failed request’s detail is shown next to APPLY, which it describes; the announcing alert is the result-set line', () => {
+    const html = render({}, { error: 'min_depth_m must not exceed max_depth_m (fictional detail).' });
+    expect(html).toMatch(/<button type="submit"[^>]*aria-describedby="filter-apply-error"[^>]*>APPLY<\/button>/);
+    expect(html).toMatch(/<p id="filter-apply-error"[^>]*>min_depth_m must not exceed max_depth_m \(fictional detail\)\.<\/p>/);
+    expect(tag(html, 'filter-apply-error')).not.toContain('role=');
+    expect(tag(render(), 'filter-apply-error')).toBe('');
+    expect(render()).toMatch(/<button type="submit" class="[^"]*">APPLY<\/button>/);
   });
 });

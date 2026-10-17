@@ -51,7 +51,7 @@ test.describe('place search (F11)', () => {
     await expect(placeStatus(page)).toHaveText('2 places found');
   });
 
-  test('one candidate is chosen at once and the map flies there', async ({ page }) => {
+  test('one candidate is chosen at once', async ({ page }) => {
     await searchPlace(page, 'Elbhafen');
     await expect(placeStatus(page)).toHaveText('1 place found');
     await expect(places(page)).toHaveCount(1);
@@ -60,6 +60,13 @@ test.describe('place search (F11)', () => {
     await expect(only).toContainText('geocoder');
     await expect(only).toHaveAttribute('aria-pressed', 'true');
     await expect(panel(page).getByText('No uploaded boreholes here')).toHaveCount(0);
+  });
+
+  // The flight itself is the map canvas's (BoreholeMap follows the store's mapOutline, m2/map): this
+  // test needs both halves of M2 round 2.
+  test('one candidate: the map flies there', async ({ page }) => {
+    await searchPlace(page, 'Elbhafen');
+    await expect(placeStatus(page)).toHaveText('1 place found');
     // The map flies to the place (its view goes into the URL when the flight ends).
     await expect
       .poll(() => {
@@ -147,6 +154,15 @@ test.describe('filters and the result set (F10)', () => {
     await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
     expect(rsParam(page)).toBe(rs);
     await expect(page.getByRole('alert').filter({ hasText: 'Result set not found or expired.' })).toBeVisible();
+  });
+
+  test('a filter nothing matches gives an empty set: zero counts, an empty table that says why', async ({ page }) => {
+    await panel(page).getByLabel('Project', { exact: true }).fill('No Such Project (fictional)');
+    await panel(page).getByRole('button', { name: 'APPLY' }).click();
+    await expect(summary(page)).toHaveText('0 boreholes · 0 on the map · 0 not located · 0 unreviewed left out');
+    await expect.poll(() => rsParam(page)).toMatch(/^rs_/);
+    await expect(rows(page)).toHaveCount(0);
+    await expect(page.getByRole('table').getByText('No borehole matches this selection.')).toBeVisible();
   });
 
   test('an invalid depth range is refused before anything is sent', async ({ page }) => {
