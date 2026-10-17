@@ -10,7 +10,7 @@ import { makeBorehole, makeMeta } from '../../test/fixtures';
 import { fixture } from '../../test/contract/wire';
 import { depthOriginText, groundwaterRows, locationInfo, metadataRows } from './detailModel';
 
-/** The fixture record, adapted (the console warning of a value without provenance is expected here). */
+/** The fixture record, adapted (the adapter logs nothing; the spy guards against a stray warning). */
 function adapt(change: (w: WireBorehole) => void) {
   const wire = fixture<WireBorehole>('borehole');
   change(wire);
@@ -67,15 +67,15 @@ describe('uiv-2: a rock head the backend does not state', () => {
 });
 
 describe('uiv-3: the elevation datum is shown once', () => {
-  it('does not repeat a datum the value’s unit already names', () => {
+  it('adds the datum to the adapted record, whose unit is m (uiv-B3)', () => {
     const b = adapt(() => undefined);
-    expect(row(b, 'Surface elevation')?.shown.text).toBe('12.40 m NZVD2016');
+    expect(row(b, 'Surface elevation')?.shown.text).toBe('12.40 m · datum NZVD2016');
   });
 
-  it('adds the datum when the unit does not name it', () => {
+  it('does not repeat a datum the value’s unit already names', () => {
     const b = adapt(() => undefined);
-    b.values = b.values.map((v) => (v.key === K.elevation ? { ...v, unit: 'm' } : v));
-    expect(row(b, 'Surface elevation')?.shown.text).toBe('12.40 m · datum NZVD2016');
+    b.values = b.values.map((v) => (v.key === K.elevation ? { ...v, unit: 'm NZVD2016' } : v));
+    expect(row(b, 'Surface elevation')?.shown.text).toBe('12.40 m NZVD2016');
   });
 });
 
