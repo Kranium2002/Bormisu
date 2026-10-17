@@ -103,12 +103,20 @@ const IMAGE_PAGE: PageContent = { ...PAGE, imageUrl: '/api/v1/documents/doc_X/pa
 describe('EvidencePageView', () => {
   const one = { documentId: DOC, page: 6, boxes: [{ x: 0.08, y: 0.41, w: 0.06, h: 0.02 }], snippets: ['9,50 / 9,80 (handwritten)'] };
 
-  it('shows the page with its box highlighted and the text as printed', () => {
-    const html = renderToStaticMarkup(<EvidencePageView page={one} load={{ status: 'ready', content: IMAGE_PAGE }} otherFile={null} noPages={false} />);
+  it('shows the page with its box highlighted and the text as printed, captioned as the original', () => {
+    const html = renderToStaticMarkup(<EvidencePageView page={one} load={{ status: 'ready', content: PAGE }} otherFile={null} fileName="fictional-report.pdf" noPages={false} />);
     expect(html).toContain('aria-label="Page 6"');
+    expect(html).toMatch(/ORIGINAL<\/span> · fictional-report\.pdf, page 6 \(as uploaded\)/);
     expect(html).toContain('“9,50 / 9,80 (handwritten)”');
-    expect(html).toContain('src="/api/v1/documents/doc_X/pages/6.png"');
     expect(html).toMatch(/class="[^"]*highlight[^"]*" style="left:8%;top:41%;width:6%;height:2%"/);
+  });
+
+  it('an uploaded page image draws no box until it has loaded, and says it is loading the scan', () => {
+    const html = renderToStaticMarkup(<EvidencePageView page={one} load={{ status: 'ready', content: IMAGE_PAGE }} otherFile={null} noPages={false} />);
+    expect(html).toContain('src="/api/v1/documents/doc_X/pages/6.png"');
+    expect(html).toContain('Loading the original scan… · page 6');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toMatch(/class="[^"]*highlight/);
   });
 
   it('several boxes on one page are outlined, none dims the others', () => {

@@ -43,9 +43,11 @@ function BoxOverlay({ b }: { b: ScanBox }) {
 }
 
 /**
- * An API page image (frontend_din). Until it has loaded (and if it fails) the page keeps its 560:780
- * shape, so the boxes stay where they belong. On error a placeholder names the page and the request
- * path. ScanPage keys it by URL, so another page starts again at 'loading'.
+ * An API page image (frontend_din): the original scan as uploaded. Until it has loaded (and if it
+ * fails) the page keeps its 560:780 shape and says so ("Loading the original scan…", or "Original
+ * page could not be loaded" with the request path), and draws no boxes: boxes on blank paper would
+ * look like a clean reconstruction of the page. ScanPage keys it by URL, so another page starts
+ * again at 'loading'.
  */
 function ImagePage({ content, boxes, width }: { content: PageContent; boxes: ScanBox[]; width: number }) {
   const url = content.imageUrl ?? '';
@@ -65,15 +67,22 @@ function ImagePage({ content, boxes, width }: { content: PageContent; boxes: Sca
           onError={() => setStatus('error')}
         />
       )}
+      {status === 'loading' && (
+        <div className={styles.placeholder}>
+          <span className={styles.placeholderTitle}>
+            {tr('Loading the original scan…')} · {tr('page')} {content.page}
+          </span>
+        </div>
+      )}
       {status === 'error' && (
         <div className={styles.placeholder} role="note">
           <span className={styles.placeholderTitle}>
-            {tr('PAGE IMAGE NOT AVAILABLE')} · {tr('page')} {content.page}
+            {tr('Original page could not be loaded')} · {tr('page')} {content.page}
           </span>
           <span className={styles.placeholderPath}>{url}</span>
         </div>
       )}
-      {boxes.map((b) => <BoxOverlay key={b.id} b={b} />)}
+      {status === 'ready' && boxes.map((b) => <BoxOverlay key={b.id} b={b} />)}
     </div>
   );
 }

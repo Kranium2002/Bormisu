@@ -1,11 +1,12 @@
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode, Ref } from 'react';
 import { dinFill, dinLegendItems, dinNeedsUnderlay } from '../../domain/din';
 import { decimal } from '../../domain/format';
 import { K } from '../../domain/keys';
 import type { Borehole, GroundwaterReading, GroundwaterType, Layer, Sample } from '../../domain/types';
+import type { ChartExportInfo, ChartLegendEntry } from '../../export/chartImage';
 import { useT } from '../../i18n';
 import { COL } from '../../theme';
-import { GW_LABEL } from './detailModel';
+import { depthOriginText, GW_LABEL } from './detailModel';
 import {
   CORED_PATTERN,
   CORED_W,
@@ -53,6 +54,8 @@ interface Props {
   readOnly?: boolean;
   /** Translates the drawing's few words; the app's UI language when left out (the sheet passes its own). */
   t?: (en: string) => string;
+  /** The drawing's root <svg>, for the chart image export. */
+  ref?: Ref<SVGSVGElement>;
 }
 
 const INK = COL.text;
@@ -137,6 +140,7 @@ export function ProfileColumn({
   onSelectSample,
   readOnly = false,
   t: tProp,
+  ref,
 }: Props) {
   const appT = useT();
   const t = tProp ?? appT;
@@ -180,6 +184,7 @@ export function ProfileColumn({
 
   return (
     <svg
+      ref={ref}
       className={styles.svg}
       width={PROFILE_W}
       height={PROFILE_H}
@@ -330,6 +335,7 @@ export function ProfileColumn({
       {/* selected layer */}
       {sel && !readOnly && (
         <rect
+          data-export="skip"
           className={styles.noHit}
           x={X.layerX - 2}
           y={y(sel.from) - 2}
@@ -374,7 +380,7 @@ export function ProfileColumn({
             <line x1={X.sampleX + X.sampleW} y1={sy} x2={X.layerX} y2={sy} stroke={INK} strokeWidth="1" />
             <Symbol sym={sym} x={X.sampleX} bottom={sy} w={X.sampleW} />
             {picked && (
-              <rect className={styles.noHit} x={X.sampleX - 2} y={sy - h - 2} width={X.sampleW + 4} height={h + 4} fill="none" stroke={INK} strokeWidth="1.5" />
+              <rect data-export="skip" className={styles.noHit} x={X.sampleX - 2} y={sy - h - 2} width={X.sampleW + 4} height={h + 4} fill="none" stroke={INK} strokeWidth="1.5" />
             )}
           </g>
         );
@@ -572,4 +578,31 @@ export function ProfileLegend({
       </div>
     </div>
   );
+}
+
+/**
+ * What the chart image of a profile adds around the drawing: the caption (borehole name), the
+ * project and depth reference with its unit, "m" over the depth axis, the legend of the DIN 4023
+ * fills it shows (codes, then secondary components) and "nach DIN 4023". `t` and `de` are the
+ * language of the screen it comes from (the sheet's own on the sheet).
+ */
+export function profileExportInfo(b: Borehole, { t, de = false }: { t: (en: string) => string; de?: boolean }): ChartExportInfo {
+  const legend: ChartLegendEntry[] = dinLegendItems(b.layers).map(({ code, entry }) => ({
+    fill: isUnknownCode(code) ? COL.red : dinFill(code),
+    underlay: dinNeedsUnderlay(code),
+    code,
+    name: entry ? (de ? entry.nameDe : entry.nameEn) : t('no pattern assigned'),
+  }));
+  if (b.layers.some((l) => !l.din)) legend.push({ fill: dinFill(null), code: '–', name: t('no DIN code in source') });
+  for (const sc of new Map(b.layers.map(secondaryOf).filter((x) => x != null).map((x) => [x.code, x])).values()) {
+    legend.push({ fill: `url(#${sc.patternId})`, code: sc.code, name: de ? sc.nameDe : sc.nameEn });
+  }
+  return {
+    caption: `${b.id} · ${t('DIN 4023 profile')}`,
+    subtitle: [b.project, t(depthOriginText(b.meta))].filter(Boolean).join(' · '),
+    axisUnit: { text: 'm', x: 34, y: 18 },
+    legend,
+    note: 'nach DIN 4023',
+    fileBase: b.id,
+  };
 }

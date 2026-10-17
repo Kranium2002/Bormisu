@@ -164,11 +164,9 @@
   min-width: 0;
 }
 
+/* ORIGINAL · file, page n (as uploaded) / RECONSTRUCTED · from extracted values (SideLabel), as wide as the page. */
 .paneHead {
-  font: 700 var(--fs-2xs) / 1 var(--font-sans);
-  letter-spacing: var(--ls-head);
-  text-transform: uppercase;
-  color: var(--c-muted);
+  line-height: 1.3;
 }
 
 .sheet {

@@ -54,7 +54,6 @@ export const review: Record<string, string> = {
   'Spreadsheet source: each value names its cell (e.g. Sheet!C5) next to its label. There is no page image.':
     'Quelle ist eine Tabelle: Jeder Wert nennt seine Zelle (z. B. Blatt!C5) neben der Bezeichnung. Es gibt kein Seitenbild.',
   'No source page for this borehole.': 'Keine Quellseite zu dieser Bohrung.',
-  'PAGE IMAGE NOT AVAILABLE': 'SEITENBILD NICHT VERFÜGBAR',
   page: 'Seite',
   'page {page} · click a box to jump to its field': 'Seite {page} · Rahmen anklicken, um zum Feld zu springen',
   'page {page} · sheet {i} of {n} · click a box to jump to its field': 'Seite {page} · Blatt {i} von {n} · Rahmen anklicken, um zum Feld zu springen',

@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import { ChartExport } from '../../components/ChartExport';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusChip } from '../../components/StatusChip';
 import { displayStatus } from '../../domain/status';
@@ -12,7 +13,7 @@ import { ExportMenu } from './ExportMenu';
 import { GroundwaterTable } from './GroundwaterTable';
 import { LayersTable } from './LayersTable';
 import { MetadataCard } from './MetadataCard';
-import { ProfileColumn, ProfileLegend } from './ProfileColumn';
+import { ProfileColumn, profileExportInfo, ProfileLegend } from './ProfileColumn';
 import { TestResultsTable } from './TestResultsTable';
 import card from './cards.module.css';
 import styles from './DetailScreen.module.css';
@@ -38,6 +39,7 @@ export function DetailScreen() {
   const reviewable = useIsReviewable(b?.uid);
   const uid = b?.uid;
   // The picked sample (index into samples), for this borehole only.
+  const profileRef = useRef<SVGSVGElement>(null);
   const [pick, setPick] = useState<{ uid: string; sample: number } | null>(null);
   const selectedSample = pick && pick.uid === uid ? pick.sample : null;
   const onOpenSource = useCallback(
@@ -108,10 +110,14 @@ export function DetailScreen() {
         <section className={card.card} aria-label="Profile">
           <div className={`${card.head} ${styles.profileHead}`}>
             <span>{t('PROFILE')}</span>
-            <span className={styles.profileNote}>DIN 4023 · {depthOriginText(b.meta)}</span>
+            <span className={styles.profileTools}>
+              <span className={styles.profileNote}>DIN 4023 · {depthOriginText(b.meta)}</span>
+              <ChartExport target={profileRef} info={profileExportInfo(b, { t, de: lang === 'de' })} />
+            </span>
           </div>
           <div className={styles.profileBody}>
             <ProfileColumn
+              ref={profileRef}
               borehole={b}
               selectedLayer={selectedLayer}
               onSelectLayer={selectLayer}

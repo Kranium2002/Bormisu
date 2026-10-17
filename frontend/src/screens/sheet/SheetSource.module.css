@@ -1,0 +1,363 @@
+/* The sheet's desk and the Source pane beside it: desk | handle | pane, or desk | rail when hidden. */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* The grey desk with the A4 page; it scrolls on its own. */
+.desk {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+/* RECONSTRUCTED · from extracted values: names the sheet side, as ORIGINAL names the pane (not printed). */
+.deskHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--space-2) var(--space-4);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* ---------- resize handle ---------- */
+.handle {
+  flex: none;
+  position: relative;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--c-border);
+}
+
+/* Two grip lines in the middle. */
+.handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 2px;
+  height: 32px;
+  margin-top: -16px;
+  border-left: 1px solid var(--c-muted);
+  border-right: 1px solid var(--c-muted);
+}
+
+.handle:hover {
+  background: var(--c-border-strong);
+}
+
+.handle:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+  background: var(--c-border-strong);
+}
+
+/* ---------- hidden pane: a slim rail to show it again ---------- */
+.rail {
+  flex: none;
+  width: 36px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4) 0;
+  border: 0;
+  border-left: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: 700 var(--fs-xs) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+}
+
+.railText {
+  writing-mode: vertical-rl;
+}
+
+.rail:hover {
+  background: var(--c-hover);
+}
+
+.rail:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* ---------- pane ---------- */
+.pane {
+  flex: none;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+}
+
+.head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* ORIGINAL · file, page n (as uploaded) */
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-top: 6px;
+  font-size: var(--fs-sm);
+  line-height: 1.3;
+}
+
+.hide {
+  composes: iconButton from '../../styles/buttons.module.css';
+  margin-right: calc(-1 * var(--space-2));
+}
+
+/* The active value: its label (own case, 'SPT @ 10.50 m') and the text as printed. */
+.value {
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.valueLabel {
+  font-weight: 800;
+}
+
+.raw {
+  font-family: var(--font-mono);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.pager,
+.zoom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.pageText,
+.zoomText {
+  font: 700 var(--fs-xs) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  min-width: 44px;
+  text-align: center;
+}
+
+.navBtn {
+  composes: secondary small from '../../styles/buttons.module.css';
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 16px;
+}
+
+.fitBtn {
+  composes: secondary small from '../../styles/buttons.module.css';
+  height: 32px;
+}
+
+.fitBtn[aria-pressed='true'] {
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  border-color: var(--c-accent);
+}
+
+/* No box on this page, another document (with "Open that page"), no page. */
+.noteRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.note {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-amber-text);
+}
+
+.openOther {
+  composes: secondary small from '../../styles/buttons.module.css';
+}
+
+/* The borehole's pages: thumbnails when the source serves page images, else the numbers. */
+.strip {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.stripPage {
+  flex: none;
+  position: relative;
+  cursor: pointer;
+  min-width: 32px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--c-paper);
+  border: 1px solid var(--c-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stripPage:hover {
+  border-color: var(--c-faint);
+}
+
+.stripPage:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.stripCurrent {
+  border: 2px solid var(--c-accent);
+}
+
+.withThumb {
+  height: 56px;
+}
+
+.thumb {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+.stripNum {
+  font: 700 var(--fs-xs) / 1 var(--font-mono);
+  color: var(--c-text);
+}
+
+.thumb + .stripNum {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 1px 3px;
+  background: var(--c-surface);
+  font-size: var(--fs-2xs);
+}
+
+/* The page: 16 px around it (PAD in SheetSource.tsx); scrolls when zoomed in. */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+  padding: 16px;
+  background: var(--c-scan-bg);
+}
+
+.scroll:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* The page at its true aspect ratio; clips the highlight's dimming to it; centred while it fits. */
+.paper {
+  position: relative;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.paper > .status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.status {
+  padding: var(--space-4);
+  font-size: var(--fs-md);
+  color: var(--c-muted);
+}
+
+/* The original couldn't be loaded (or the page has no image): said in its place, never a reconstruction instead. */
+.failed {
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  text-align: center;
+  background: var(--c-paper);
+  border: 1px dashed var(--c-red);
+}
+
+.failedTitle {
+  font-size: var(--fs-md);
+  font-weight: 800;
+  color: var(--c-red);
+}
+
+.failedDetail {
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--c-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Narrow screens: one scroll column, the pane (or the button to show it) under the page. */
+@media (max-width: 899px) {
+  .body {
+    display: block;
+    overflow: auto;
+  }
+
+  .desk {
+    overflow: visible;
+  }
+
+  .handle {
+    display: none;
+  }
+
+  .pane {
+    width: auto !important;
+    height: min(85vh, 760px);
+    margin: 0 var(--space-4) var(--space-5);
+    border: 1px solid var(--c-border);
+  }
+
+  .rail {
+    width: calc(100% - 2 * var(--space-4));
+    margin: 0 var(--space-4) var(--space-5);
+    padding: var(--space-3);
+    border: 1px solid var(--c-border);
+  }
+
+  .railText {
+    writing-mode: horizontal-tb;
+  }
+}
+
+/* Print keeps only the sheet. */
+@media print {
+  .deskHead,
+  .handle,
+  .rail,
+  .pane {
+    display: none !important;
+  }
+}

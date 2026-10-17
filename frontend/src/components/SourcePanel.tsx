@@ -16,6 +16,8 @@ import { useT } from '../i18n';
 import { PAGE_TYPE_META, pageMeta } from '../theme';
 import { CertaintyMark } from './CertaintyMark';
 import { ScanPage } from './ScanPage';
+import { OriginalLabel } from './SideLabel';
+import { SourceStepper } from './SourceStepper';
 import { PanelHeader } from './PanelHeader';
 import styles from './SidePanel.module.css';
 
@@ -163,7 +165,8 @@ export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInRevi
   // Show the page from the top (sheet header in view) unless the box would be below the fold.
   useEffect(() => {
     const el = scrollRef.current;
-    const pageEl = el?.firstElementChild;
+    // The page is the last child, under its ORIGINAL caption.
+    const pageEl = el?.lastElementChild;
     if (!el || !pageEl || !content) return;
     const pageTop = pageEl.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
     const boxBottom = box ? pageTop + (box.y + box.h) * PAGE_H * SCALE : 0;
@@ -198,29 +201,7 @@ export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInRevi
           {detail && <span className={styles.raw}>{detail}</span>}
         </div>
         {stepper && (
-          <div className={styles.stepper} role="group" aria-label={t('Sources of this value')}>
-            <button
-              type="button"
-              className={styles.stepButton}
-              aria-label={t('Previous source')}
-              disabled={stepper.index === 0}
-              onClick={() => stepper.onStep(stepper.index - 1)}
-            >
-              ‹
-            </button>
-            <span className={styles.stepText} aria-live="polite">
-              {t('source')} {stepper.index + 1} {t('of')} {stepper.count} · {t('page')} {panel.page}
-            </span>
-            <button
-              type="button"
-              className={styles.stepButton}
-              aria-label={t('Next source')}
-              disabled={stepper.index >= stepper.count - 1}
-              onClick={() => stepper.onStep(stepper.index + 1)}
-            >
-              ›
-            </button>
-          </div>
+          <SourceStepper className={styles.stepper} index={stepper.index} count={stepper.count} page={panel.page} onStep={stepper.onStep} />
         )}
         {value && !box && !panel.cell && !onNoPage && (
           <div className={styles.noBox}>{stepper ? t('No box on this page') : t('Box not found: page shown')}</div>
@@ -243,6 +224,11 @@ export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInRevi
           <>
             {page.status === 'loading' && <div className={styles.status}>Loading page {panel.page}…</div>}
             {page.status === 'error' && <div className={styles.error}>{page.error}</div>}
+            {content && (
+              <div className={styles.pageCaption}>
+                <OriginalLabel file={doc?.name || ownFile} page={panel.page} />
+              </div>
+            )}
             {content && (
               <ScanPage
                 content={content}

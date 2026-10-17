@@ -24,8 +24,12 @@ export function sheetT(lang: SheetLang, en: string): string {
   return SHEET_DE[en] ?? translate('de', en);
 }
 
-/** One cell of the sheet: its text, grey italics when the source doesn't state it, `*` when not reviewed yet. */
-export interface SheetCell { text: string; missing: boolean; unreviewed: boolean }
+/**
+ * One cell of the sheet: its text, grey italics when the source doesn't state it, `*` when not
+ * reviewed yet. `key` is the record value the cell shows (keys.ts), when the record has one: the
+ * screen shows that value in the original page.
+ */
+export interface SheetCell { text: string; missing: boolean; unreviewed: boolean; key?: string }
 
 export interface HeaderField { label: string; cell: SheetCell }
 
@@ -62,13 +66,13 @@ const DASH = '–';
 const valueOf = (b: Borehole, key: string) => b.values.find((v) => v.key === key);
 const unreviewed = (v: ExtractedValue | undefined) => !!v && v.hasProvenance && v.status !== 'approved';
 
-/** A value as a sheet cell: value and unit, or its state in the sheet's language. */
+/** A value as a sheet cell: value and unit, or its state in the sheet's language; keyed by the value. */
 function cellOf(lang: SheetLang, v: ExtractedValue | undefined, fallback?: string | null): SheetCell {
   const t = (en: string) => sheetT(lang, en);
   if (!v) return fallback ? { text: fallback, missing: false, unreviewed: false } : { text: t('not in source'), missing: true, unreviewed: false };
-  if (v.state !== 'ok') return { text: t(v.state), missing: true, unreviewed: unreviewed(v) };
-  if (!v.value.trim()) return { text: t('not in source'), missing: true, unreviewed: unreviewed(v) };
-  return { text: v.unit ? `${v.value} ${v.unit}` : v.value, missing: false, unreviewed: unreviewed(v) };
+  if (v.state !== 'ok') return { text: t(v.state), missing: true, unreviewed: unreviewed(v), key: v.key };
+  if (!v.value.trim()) return { text: t('not in source'), missing: true, unreviewed: unreviewed(v), key: v.key };
+  return { text: v.unit ? `${v.value} ${v.unit}` : v.value, missing: false, unreviewed: unreviewed(v), key: v.key };
 }
 
 /** "2025-03-11 – 2025-03-12", one date, or the drilling date; null when the source states none. */
@@ -77,7 +81,7 @@ function datesCell(lang: SheetLang, b: Borehole): SheetCell {
   const end = valueOf(b, K.endDate);
   const ok = (v: ExtractedValue | undefined) => !!v && v.state === 'ok' && !!v.value.trim();
   if (ok(start) && ok(end) && start!.value !== end!.value) {
-    return { text: `${start!.value} – ${end!.value}`, missing: false, unreviewed: unreviewed(start) || unreviewed(end) };
+    return { text: `${start!.value} – ${end!.value}`, missing: false, unreviewed: unreviewed(start) || unreviewed(end), key: start!.key };
   }
   if (ok(start)) return cellOf(lang, start);
   if (ok(end)) return cellOf(lang, end);
@@ -149,15 +153,17 @@ export function sheetModel(b: Borehole, lang: SheetLang, opts: { pages?: readonl
     const sptText = sptValue && sptValue.state !== 'ok' ? t(sptValue.state) : spt ? (spt.refusal ? `R ${spt.raw}` : formatSpt(spt)) : DASH;
     const num = (key: string): SheetCell => {
       const v = valueOf(b, key);
-      return v && v.state === 'ok' && v.value ? { text: v.value, missing: false, unreviewed: unreviewed(v) } : { text: DASH, missing: false, unreviewed: false };
+      return v && v.state === 'ok' && v.value ? { text: v.value, missing: false, unreviewed: unreviewed(v), key } : { text: DASH, missing: false, unreviewed: false };
     };
     return {
       n: l.n,
       range: `${decimal(l.from)}–${decimal(l.to)}`,
-      description: text ? { text, missing: false, unreviewed: unreviewed(lith) } : { text: t('not in source'), missing: true, unreviewed: false },
+      description: text
+        ? { text, missing: false, unreviewed: unreviewed(lith), ...(lith ? { key: lith.key } : {}) }
+        : { text: t('not in source'), missing: true, unreviewed: false },
       din: l.dinNotation || l.din || DASH,
       consistency: [l.consistency, l.weathering].filter(Boolean).join(', ') || DASH,
-      spt: { text: sptText, missing: false, unreviewed: unreviewed(sptValue) },
+      spt: { text: sptText, missing: false, unreviewed: unreviewed(sptValue), ...(sptValue ? { key: sptValue.key } : {}) },
       tcr: num(K.tcr(l.n)),
       rqd: num(K.rqd(l.n)),
     };

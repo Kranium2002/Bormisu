@@ -204,7 +204,8 @@ test.describe('map canvas', () => {
     await expect(page.getByRole('group', { name: 'Final depth legend' })).toBeVisible();
     const rows = await legendRows(page);
     expect(rows.map(([label]) => label)).toEqual(DEPTH_LABELS);
-    expect(rows.reduce((a, [, n]) => a + n, 0)).toBe(SAMPLE_PINS);
+    // The search keeps only BK-11 on the map, and the legend counts what the map shows.
+    expect(rows.reduce((a, [, n]) => a + n, 0)).toBe(1);
     await expect.poll(async () => (await canvasColours(page)).filter((c) => DEPTH_COLOURS.includes(c)).length).toBeGreaterThan(0);
     const depthColours = await canvasColours(page);
     expect(depthColours.filter((c) => c === AMBER || c === GREEN), 'no status colour left on the canvas').toEqual([]);
@@ -359,6 +360,16 @@ test.describe('map canvas', () => {
 
 test.describe('header search on the map', () => {
   test.beforeEach(async ({ page }) => openApp(page));
+
+  test('the legend counts only the pins the search keeps (Needs attention included), and all again when cleared', async ({ page }) => {
+    const total = async () => (await legendRows(page)).reduce((a, [, n]) => a + n, 0);
+    await expect.poll(total).toBe(SAMPLE_PINS);
+    await page.getByLabel('Search project or borehole ID').fill('BK-11');
+    await expect.poll(total).toBe(1);
+    expect(await legendRows(page)).toContainEqual(['Needs attention', 1]);
+    await page.getByRole('button', { name: 'Clear the search' }).click();
+    await expect.poll(total).toBe(SAMPLE_PINS);
+  });
 
   test('search "EQ-03" flies to the pin and opens its popup, from any screen; the pin goes into the URL', async ({ page }) => {
     await nav(page, 'UPLOAD & QUEUE');

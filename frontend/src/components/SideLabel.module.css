@@ -1,0 +1,15 @@
+/* ORIGINAL · file, page n (as uploaded) / RECONSTRUCTED · from extracted values: the side's name bold, the rest muted. */
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--c-muted);
+  overflow-wrap: anywhere;
+}
+
+.side {
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  color: var(--c-text);
+}

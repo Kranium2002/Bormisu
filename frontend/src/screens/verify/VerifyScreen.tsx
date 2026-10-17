@@ -7,20 +7,12 @@
  * It works on the review borehole (the route sets reviewUid), so approve, edit, not-in-source and
  * flag are the Review screen's own store actions.
  */
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { CertaintyMark } from '../../components/CertaintyMark';
 import { EmptyState } from '../../components/EmptyState';
 import { ScanPage } from '../../components/ScanPage';
+import { OriginalLabel, ReconstructedLabel } from '../../components/SideLabel';
+import { useImageSize, useWidth } from '../../components/usePageSize';
 import { PAGE_W, type Borehole } from '../../domain/types';
 import { useT } from '../../i18n';
 import { useLocationRoute } from '../../routing/RouteSync';
@@ -47,22 +39,6 @@ const STACK_BELOW = 760;
 const PAD = 16;
 const GAP = 16;
 
-/** Natural size of a page image, once it has loaded; null before and for drawn sample pages. */
-function useImageSize(url: string | undefined): { w: number; h: number } | null {
-  const [size, setSize] = useState<{ url: string; w: number; h: number } | null>(null);
-  useEffect(() => {
-    if (!url) return;
-    const img = new Image();
-    img.onload = () => setSize({ url, w: img.naturalWidth, h: img.naturalHeight });
-    img.src = url;
-    return () => {
-      img.onload = null;
-    };
-  }, [url]);
-  return size && size.url === url ? size : null;
-}
-
-/** Width of an element, kept up to date. */
 /**
  * The page's words (contract 1.2.2: text layer, located values or OCR) for the extracted page's faint
  * context layer; [] while loading, when there are none, or when the source has no words.
@@ -84,19 +60,6 @@ function usePageWords(documentId: string | null | undefined, page: number | null
     };
   }, [key, documentId, page, source]);
   return loaded?.key === key ? loaded.words : [];
-}
-
-function useWidth(ref: RefObject<HTMLElement | null>): number {
-  const [w, setW] = useState(0);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    setW(el.clientWidth);
-    const ro = new ResizeObserver(() => setW(el.clientWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ref]);
-  return w;
 }
 
 const isTyping = (t: EventTarget | null) =>
@@ -224,7 +187,9 @@ function Verify({ b }: { b: Borehole }) {
 
       <div ref={scrollRef} className={`${styles.panes} ${stacked ? styles.stacked : ''}`}>
         <section className={styles.pane} aria-label={t('Original page')}>
-          <div className={styles.paneHead}>{t('Original page')}</div>
+          <div className={styles.paneHead} style={{ maxWidth: W }}>
+            <OriginalLabel file={doc?.name ?? b.sourceFile} page={page} />
+          </div>
           <div
             className={`${styles.sheet} ${selected?.placement === 'page' ? styles.pageSelected : ''}`}
             style={{ width: W, height: H }}
@@ -237,7 +202,8 @@ function Verify({ b }: { b: Borehole }) {
               </div>
             )}
             <div className={styles.overlay}>
-              {boxed.map((it) => (
+              {/* No boxes until the scan is there: boxes on blank paper would look like a reconstruction. */}
+              {(natural || !content?.imageUrl) && boxed.map((it) => (
                 <button
                   key={it.key}
                   type="button"
@@ -259,7 +225,9 @@ function Verify({ b }: { b: Borehole }) {
         </section>
 
         <section className={styles.pane} aria-label={t('Extracted page')}>
-          <div className={styles.paneHead}>{t('Extracted page')}</div>
+          <div className={styles.paneHead} style={{ maxWidth: W }}>
+            <ReconstructedLabel />
+          </div>
           <ExtractedPage
             width={W}
             height={H}
