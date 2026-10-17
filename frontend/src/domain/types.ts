@@ -23,8 +23,10 @@ export interface ExtractedValue {
   key: string;            // see keys.ts, unique within a borehole
   field: string;          // target-format field name (schema) or an extension name
   label: string;          // UI label, e.g. "Final depth", "SPT @ 10.50 m"
-  group: 'borehole' | 'groundwater' | 'layer';
+  group: 'borehole' | 'groundwater' | 'layer' | 'test';
   layer?: number;
+  /** Test result index (group 'test'): the value is `test_results[test].<field>`. */
+  test?: number;
   raw: string;            // as printed in the source
   value: string;          // normalised, as text
   unit: string;

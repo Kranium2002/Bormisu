@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import { AddColumnMenu, RemovableHeader, useColumns } from '../../components/ColumnChooser';
 import { ValueCell } from '../../components/ValueCell';
-import type { Certainty } from '../../domain/certainty';
-import { formatTestValue, TEST_FIELDS } from '../../domain/testResults';
+import { certaintyOf, type Certainty } from '../../domain/certainty';
+import { K } from '../../domain/keys';
+import { formatTestValue, SAMPLE_DEPTH, TEST_FIELDS } from '../../domain/testResults';
 import type { Borehole, Layer, TestResult } from '../../domain/types';
 import { useT } from '../../i18n';
 import card from './cards.module.css';
@@ -17,14 +18,14 @@ interface Props {
   onOpenSource(key: string): void;
 }
 
-/** Lab values come from the lab results as stated, without an AI confidence: green. */
+/** A lab value without a reviewable value behind it (older data): as stated, green. */
 const STATED: Certainty = { kind: 'sure', title: 'Stated in the lab results' };
 
 /** A test-result column the user can add or remove (README_data `test_results`); SAMPLE and DEPTH always stay. */
 interface TestColumn {
   key: string; label: string; group: string; min: number;
-  /** `open` shows the value in the document view. */
-  cell(t: TestResult, layer: Layer | undefined, open: (field: string) => () => void): ReactNode;
+  /** `val` draws a lab value with its dot; a click on it opens the document view at that value. */
+  cell(t: TestResult, layer: Layer | undefined, val: (field: string, text: string) => ReactNode): ReactNode;
 }
 
 const TEST_COLUMNS: readonly TestColumn[] = [
@@ -32,10 +33,9 @@ const TEST_COLUMNS: readonly TestColumn[] = [
   { key: 'layer', label: 'LAYER', group: 'Sample', min: 90, cell: (_r, l) => (l ? `${l.n} · ${l.din || '–'}` : '–') },
   ...TEST_FIELDS.map((f): TestColumn => ({
     key: f.key, label: f.label.toUpperCase(), group: 'Lab tests', min: Math.max(90, f.label.length * 8 + 24),
-    cell: (r, _l, open) => {
+    cell: (r, _l, val) => {
       const v = r.values.find((x) => x.key === f.key);
-      if (!v) return <span className={card.mono}>–</span>;
-      return <ValueCell certainty={STATED} onOpen={open(f.key)}><span className={card.mono}>{formatTestValue(v)}</span></ValueCell>;
+      return v ? val(f.key, formatTestValue(v)) : <span className={card.mono}>–</span>;
     },
   })),
 ];
@@ -84,7 +84,16 @@ export function TestResultsTable({ borehole: b, selected, onSelect, onOpenSource
               const layer = layerAt(r.depth);
               const sel = selected === i;
               const select = () => onSelect(i);
-              const open = (field: string) => () => onOpenSource(`test_results[${i}].${field}`);
+              // The dot comes from the reviewable value behind a lab value (test_results[i].<field>).
+              const val = (field: string, text: string) => {
+                const key = K.test(i, field);
+                const v = b.values.find((x) => x.key === key);
+                return (
+                  <ValueCell certainty={v ? certaintyOf(v) : STATED} onOpen={() => onOpenSource(key)}>
+                    <span className={card.mono}>{text}</span>
+                  </ValueCell>
+                );
+              };
               return (
                 <div key={i} role="row" tabIndex={0} aria-current={sel ? 'true' : undefined}
                   className={`${card.trow} ${styles.row} ${sel ? styles.selected : ''}`} style={grid}
@@ -92,10 +101,10 @@ export function TestResultsTable({ borehole: b, selected, onSelect, onOpenSource
                   onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), select())}>
                   <div role="cell" className={`${styles.cell} ${styles.name}`}>{r.sampleName ?? '–'}</div>
                   <div role="cell" className={`${styles.cell} ${r.depth == null ? card.missing : card.mono}`}>
-                    {r.depth == null ? 'not stated' : <ValueCell certainty={STATED} onOpen={open('sample_depth_m')}>{r.depth.toFixed(2)}</ValueCell>}
+                    {r.depth == null ? 'not stated' : val(SAMPLE_DEPTH, r.depth.toFixed(2))}
                   </div>
                   {shown.map((c) => (
-                    <div key={c.key} role="cell" className={styles.cell}>{c.cell(r, layer, open)}</div>
+                    <div key={c.key} role="cell" className={styles.cell}>{c.cell(r, layer, val)}</div>
                   ))}
                   <div role="cell" />
                 </div>

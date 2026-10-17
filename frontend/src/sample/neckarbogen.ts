@@ -5,7 +5,7 @@
  */
 import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
-import { testResultFromApi } from '../domain/testResults';
+import { testResultFromApi, testValues } from '../domain/testResults';
 import { formatSpt, sptLint } from '../domain/spt';
 import type { Borehole, ExtractedValue, Layer, LayerProps, Method, PageItem, PatternId, Spt } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
@@ -112,6 +112,17 @@ const BK07_LAYER_FIELDS: Record<string, string | null>[] = [
   { uscs_group: null, stratigraphic_name: 'Stuttgart Formation (Stubensandstein)', geologic_age: 'Triassic' },
 ];
 
+/** Fictional lab tests on BK-07's samples: clay, silt, the sandstone core and one water sample. */
+const BK07_TESTS = [
+  testResultFromApi({ sample_name: 'P1', sample_type: 'soil', sample_depth_m: 3.5, water_content_pct: 24.8, density_kn_m3: 19.6,
+    liquid_limit_pct: 42, plastic_limit_pct: 20, plasticity_index_pct: 22, consistency_index: 0.78 }),
+  testResultFromApi({ sample_name: 'W1', sample_type: 'water', sample_depth_m: 3.6 }),
+  testResultFromApi({ sample_name: 'P2', sample_type: 'soil', sample_depth_m: 6.0, water_content_pct: 27.1, fines_pct: 68,
+    hydraulic_conductivity_m_s: 4.2e-7 }),
+  testResultFromApi({ sample_name: 'K1', sample_type: 'soil', sample_depth_m: 12.6, ucs_mpa: 14.2, tensile_strength_mpa: 1.6,
+    cai_cerchar_abrasivity: 1.1, e_modulus_mpa: 3900 }),
+];
+
 /** The BK-07 borehole at the given map position (prototype BK7 override: 48.7905, 9.1835). */
 export function bk07(lat: number, lng: number): Borehole {
   const layers = bk07Layers();
@@ -142,18 +153,9 @@ export function bk07(lat: number, lng: number): Borehole {
       created_at: '2026-10-17T09:00:00Z', updated_at: '2026-10-17T09:00:00Z',
     },
     joints: [{ depth: 12.4, dipDirection: 135, dip: 25 }],
-    // Fictional lab tests on the log's samples: clay, silt, the sandstone core and one water sample.
-    testResults: [
-      testResultFromApi({ sample_name: 'P1', sample_type: 'soil', sample_depth_m: 3.5, water_content_pct: 24.8, density_kn_m3: 19.6,
-        liquid_limit_pct: 42, plastic_limit_pct: 20, plasticity_index_pct: 22, consistency_index: 0.78 }),
-      testResultFromApi({ sample_name: 'W1', sample_type: 'water', sample_depth_m: 3.6 }),
-      testResultFromApi({ sample_name: 'P2', sample_type: 'soil', sample_depth_m: 6.0, water_content_pct: 27.1, fines_pct: 68,
-        hydraulic_conductivity_m_s: 4.2e-7 }),
-      testResultFromApi({ sample_name: 'K1', sample_type: 'soil', sample_depth_m: 12.6, ucs_mpa: 14.2, tensile_strength_mpa: 1.6,
-        cai_cerchar_abrasivity: 1.1, e_modulus_mpa: 3900 }),
-    ],
+    testResults: BK07_TESTS,
     rockHead: 11.2,
-    values: bk07Values(),
+    values: [...bk07Values(), ...testValues({ testResults: BK07_TESTS, primaryPage: 7 })],
     primaryPage: 7,
   };
 }

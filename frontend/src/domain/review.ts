@@ -2,6 +2,7 @@
 import { parseNumber } from './format';
 import { K } from './keys';
 import { parseSptText, sptLint } from './spt';
+import { syncTestValue } from './testResults';
 import type {
   Borehole,
   BoreholeStatus,
@@ -149,6 +150,8 @@ function syncDerived(b: Borehole, v: ExtractedValue): Borehole {
   if (b.groundwater.some((g) => g.key === v.key) && num != null) {
     return { ...b, groundwater: b.groundwater.map((g) => (g.key === v.key ? { ...g, depth: num } : g)) };
   }
+  const test = syncTestValue(b, v.key, num);
+  if (test) return test;
   const m = LAYER_KEY.exec(v.key);
   if (!m) return b;
   const n = Number(m[1]);

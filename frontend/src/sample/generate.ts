@@ -6,7 +6,7 @@
 import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
 import { formatSpt } from '../domain/spt';
-import { TEST_FIELDS } from '../domain/testResults';
+import { TEST_FIELDS, testValues } from '../domain/testResults';
 import type { Borehole, ExtractedValue, Joint, Layer, LayerProps, Method, PageItem, PatternId, Spt, TestResult } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
 import { Ln, sampleValue, T, textWidth, type SampleValueInput } from './helpers';
@@ -314,9 +314,13 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
     { group: 'groundwater', key: K.gwStrike, field: 'Groundwaterlevel', label: 'GW strike', raw: `GW ${cm(gwS)}`, value: gwS.toFixed(2), unit: 'm bgl', box: gw.s, method: gw.s ? 'Read' : 'OCR', confidence: gw.s ? 0.95 : 0.7 },
     { group: 'groundwater', key: K.gwRest, field: 'Groundwaterlevel', label: 'GW rest level', raw: `RWS ${cm(gwR)}`, value: gwR.toFixed(2), unit: 'm bgl', box: gw.r, method: gw.r ? 'Read' : 'OCR', confidence: gw.r ? 0.92 : 0.7 },
   ];
+  const tests = labTests(seed.id, layers);
   const values = applyBase(
     seed.base,
-    [...head, ...tail, ...gwVals, ...layerVals].map((v) => sampleValue({ group: 'borehole', ...v, page })),
+    [
+      ...[...head, ...tail, ...gwVals, ...layerVals].map((v) => sampleValue({ group: 'borehole', ...v, page })),
+      ...testValues({ testResults: tests, primaryPage: page }),
+    ],
   );
 
   const borehole: Borehole = {
@@ -337,7 +341,7 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
       { type: 'strike', depth: gwS, key: K.gwStrike },
       { type: 'rest', depth: gwR, key: K.gwRest },
     ],
-    testResults: labTests(seed.id, layers),
+    testResults: tests,
     joints: joints(seed.id, layers),
     fields: {
       ...projectFields(seed.project),

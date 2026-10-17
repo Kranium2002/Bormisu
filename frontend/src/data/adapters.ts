@@ -4,7 +4,7 @@
  */
 import { K } from '../domain/keys';
 import { formatSpt, sptLint } from '../domain/spt';
-import { testResultFromApi } from '../domain/testResults';
+import { SAMPLE_DEPTH, TEST_FIELDS, testResultFromApi } from '../domain/testResults';
 import type {
   Borehole,
   Box,
@@ -182,7 +182,7 @@ export function patternFor(din: string, lithology: string): PatternId {
 }
 
 const depthText = (v: number) => v.toFixed(2);
-const GROUP_ORDER: Record<ExtractedValue['group'], number> = { borehole: 0, groundwater: 1, layer: 2 };
+const GROUP_ORDER: Record<ExtractedValue['group'], number> = { borehole: 0, groundwater: 1, layer: 2, test: 3 };
 
 /* ---------- borehole ---------- */
 
@@ -357,6 +357,20 @@ export function adaptBorehole(rec: ApiBoreholeRecord): AdaptedBorehole {
   meta(K.notes, 'metadata.notes', 'Notes', 'Remarks', md.notes);
 
   const groundwater = adaptGroundwater(rec, add);
+  // Test results: the sample depth and every lab value are reviewable values, with provenance by their path.
+  const testResults = (rec.test_results ?? []).map(testResultFromApi);
+  testResults.forEach((t, i) => {
+    const name = t.sampleName ?? `Sample ${i + 1}`;
+    if (t.depth != null) {
+      add({ key: K.test(i, SAMPLE_DEPTH), path: K.test(i, SAMPLE_DEPTH), field: 'SampleDepth', label: `${name} · depth`, group: 'test',
+        value: String(t.depth), unit: 'm', type: 'number', extra: { test: i } });
+    }
+    for (const v of t.values) {
+      const target = TEST_FIELDS.find((f) => f.key === v.key)?.target ?? v.key;
+      add({ key: K.test(i, v.key), path: K.test(i, v.key), field: target as ValueFieldName, label: `${name} · ${v.label}`, group: 'test',
+        value: String(v.value), unit: v.unit, type: 'number', extra: { test: i } });
+    }
+  });
   const logBottom = layers.length ? layers[layers.length - 1].to : 0;
   const firstPage = Object.values(prov).find((p) => p.page != null)?.page ?? 1;
   const documentId = rec.document_id ?? null;
@@ -397,7 +411,7 @@ export function adaptBorehole(rec: ApiBoreholeRecord): AdaptedBorehole {
       },
       layers,
       groundwater,
-      ...(rec.test_results?.length ? { testResults: rec.test_results.map(testResultFromApi) } : {}),
+      ...(testResults.length ? { testResults } : {}),
       ...(rec.joints?.length ? { joints: jointsOf(rec.joints) } : {}),
       fields: readmeFields(rec),
       rockHead,

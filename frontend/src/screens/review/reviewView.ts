@@ -14,7 +14,7 @@ export type ReviewRow =
   | { kind: 'head'; id: string; title: string }
   | { kind: 'field'; value: ExtractedValue };
 
-const GROUP_RANK: Record<ExtractedValue['group'], number> = { borehole: 0, groundwater: 1, layer: 2 };
+const GROUP_RANK: Record<ExtractedValue['group'], number> = { borehole: 0, groundwater: 1, layer: 2, test: 3 };
 
 /** Values in list order: borehole, groundwater, then layers by number. Stable within a group. */
 export function orderedValues(b: Borehole): ExtractedValue[] {
@@ -37,16 +37,25 @@ export function layerTitle(b: Borehole, n: number): string {
   return `LAYER ${n}${range}${page ? ` · p.${page}` : ''}`;
 }
 
-/** Field list rows with BOREHOLE / GROUNDWATER / LAYER n headings (prototype `rows`). */
+/** Heading of one sample's lab values: "TEST RESULTS · P1 · 3.50 m". */
+function testTitle(b: Borehole, i: number): string {
+  const t = b.testResults?.[i];
+  return `TEST RESULTS · ${t?.sampleName ?? `SAMPLE ${i + 1}`}${t?.depth != null ? ` · ${t.depth.toFixed(2)} m` : ''}`;
+}
+
+/** Field list rows with BOREHOLE / GROUNDWATER / LAYER n / TEST RESULTS headings (prototype `rows`). */
 export function reviewRows(b: Borehole): ReviewRow[] {
   const rows: ReviewRow[] = [];
   let last = '';
   for (const v of orderedValues(b)) {
-    const group = v.group === 'layer' ? `layer:${v.layer ?? 0}` : v.group;
+    const group = v.group === 'layer' ? `layer:${v.layer ?? 0}` : v.group === 'test' ? `test:${v.test ?? 0}` : v.group;
     if (group !== last) {
       last = group;
       const title =
-        v.group === 'borehole' ? 'BOREHOLE' : v.group === 'groundwater' ? 'GROUNDWATER' : layerTitle(b, v.layer ?? 0);
+        v.group === 'borehole' ? 'BOREHOLE'
+          : v.group === 'groundwater' ? 'GROUNDWATER'
+            : v.group === 'test' ? testTitle(b, v.test ?? 0)
+              : layerTitle(b, v.layer ?? 0);
       rows.push({ kind: 'head', id: `head:${group}`, title });
     }
     rows.push({ kind: 'field', value: v });

@@ -13,7 +13,7 @@ test.describe('review', () => {
   test.beforeEach(async ({ page }) => openReview(page));
 
   test('opens on the inferred CRS with the scan, sheet tabs and progress', async ({ page }) => {
-    await expect(page.getByText('0 of 30 values reviewed')).toBeVisible();
+    await expect(page.getByText('0 of 47 values reviewed')).toBeVisible();
     await expect(page.getByRole('tab')).toHaveText(['SHEET 1 · p.7', 'SHEET 2 · p.8']);
     await expect(row(page, 'CoordinateSystem')).toHaveAttribute('aria-current', 'true');
     await expect(page.getByText('not stated in source · inferred from 7-digit Rechtswert')).toBeVisible();
@@ -21,13 +21,13 @@ test.describe('review', () => {
   });
 
   test('approve all clean approves n values and updates the progress', async ({ page }) => {
-    await page.getByRole('button', { name: 'APPROVE ALL CLEAN (16)' }).click();
-    await expect(page.getByText('Approve 16 clean values?')).toBeVisible();
+    await page.getByRole('button', { name: 'APPROVE ALL CLEAN (33)' }).click();
+    await expect(page.getByText('Approve 33 clean values?')).toBeVisible();
     await page.getByRole('button', { name: 'APPROVE', exact: true }).click();
-    await expect(page.getByText('16 of 30 values reviewed')).toBeVisible();
-    await expect(page.getByRole('progressbar', { name: 'Values reviewed' })).toHaveAttribute('aria-valuenow', '16');
+    await expect(page.getByText('33 of 47 values reviewed')).toBeVisible();
+    await expect(page.getByRole('progressbar', { name: 'Values reviewed' })).toHaveAttribute('aria-valuenow', '33');
     await expect(page.getByRole('button', { name: 'APPROVE ALL CLEAN (0)' })).toBeDisabled();
-    await expect(page.getByText('16 clean values approved')).toBeVisible();
+    await expect(page.getByText('33 clean values approved')).toBeVisible();
   });
 
   test('an edit keeps the AI value struck through', async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe('review', () => {
     await expect(elev.locator('s')).toHaveText('241.35');
     await expect(elev).toContainText('(AI value)');
     await expect(elev.getByRole('img', { name: 'Reviewed' })).toBeVisible();
-    await expect(page.getByText('1 of 30 values reviewed')).toBeVisible();
+    await expect(page.getByText('1 of 47 values reviewed')).toBeVisible();
   });
 
   test('a flag shows the flag line, and flagging again removes it', async ({ page }) => {
@@ -58,10 +58,10 @@ test.describe('review', () => {
     const illegible = row(page, 'StartDate').getByRole('button', { name: 'Illegible' });
     await illegible.click();
     await expect(illegible).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByText('1 of 30 values reviewed')).toBeVisible();
+    await expect(page.getByText('1 of 47 values reviewed')).toBeVisible();
     await illegible.click();
     await expect(illegible).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.getByText('0 of 30 values reviewed')).toBeVisible();
+    await expect(page.getByText('0 of 47 values reviewed')).toBeVisible();
   });
 
   test('closing the CRS dialog while its map is still zooming raises no error', async ({ page }) => {

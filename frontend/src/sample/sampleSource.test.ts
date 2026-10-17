@@ -66,8 +66,8 @@ describe('sample data', () => {
     const spt5 = bk7.values.find((v) => v.key === K.spt(5));
     expect(spt5?.value).toBe('refusal · 50 blows / 30 cm');
     expect(boreholeStatus(bk7)).toBe('attention');
-    expect(bk7.values).toHaveLength(30);
-    expect(cleanKeys(bk7)).toHaveLength(16);
+    expect(bk7.values).toHaveLength(47); // 30 from the log + 17 lab values and sample depths
+    expect(cleanKeys(bk7)).toHaveLength(33);
   });
 
   it('assigns CRS statuses: Neckarbogen inferred, SK-05 unknown, others stated', async () => {

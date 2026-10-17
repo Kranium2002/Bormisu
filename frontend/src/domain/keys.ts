@@ -7,4 +7,6 @@ export const K = {
   gw: (i: number) => `GW[${i}]`,
   bottom: (n: number) => `layer[${n}].bottom`, lithology: (n: number) => `layer[${n}].lithology`,
   spt: (n: number) => `layer[${n}].spt`, tcr: (n: number) => `layer[${n}].tcr`, rqd: (n: number) => `layer[${n}].rqd`,
+  /** A lab value of one sample, by its API path: test_results[0].ucs_mpa. */
+  test: (i: number, field: string) => `test_results[${i}].${field}`,
 } as const;
