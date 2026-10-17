@@ -110,6 +110,9 @@ class ExtractedHeader(StrictModel):
     start_date: RawValue
     end_date: RawValue
     total_depth: RawValue
+    depth_unit: RawValue = Field(
+        description='Unit of the depth column or depth scale as printed, e.g. "m", "(m)", "ft", "Tiefe [m]".'
+    )
     ground_level: RawValue
     elevation_datum: RawValue
     coordinates: RawCoordinates
