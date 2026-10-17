@@ -234,6 +234,7 @@ def test_pdf_words_and_ruling_lines_in_top_left_points(tmp_path: Path) -> None:
     assert any(abs(s.y0 - 142) < 1 and s.length > 400 for s in horizontal)
     assert any(abs(s.x0 - 100) < 1 and s.length > 400 for s in vertical)
     assert content.image_area_ratio == 0
+    bh3_pdfium.close(str(pdf))
 
 
 def test_rotated_page_swaps_axes(tmp_path: Path) -> None:
@@ -244,6 +245,7 @@ def test_rotated_page_swaps_axes(tmp_path: Path) -> None:
     assert any(s.vertical and s.length > 400 for s in content.segments)
     img = bh3_pdfium.render(str(pdf), 0, 0.5)
     assert img.width > img.height
+    bh3_pdfium.close(str(pdf))
 
 
 def test_text_layer_page_needs_no_model(tmp_path: Path) -> None:
