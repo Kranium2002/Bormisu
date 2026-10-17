@@ -1,4 +1,4 @@
-// Profile slide intro: the globe turns, a wedge opens to show the Earth's layers,
+// Profile slide intro: the top half of the globe splits open to show the Earth's layers,
 // the camera dives into the crust onto a construction site, a rig drills a core,
 // and the core grows into a drawn, explained borehole profile.
 // Uses d3 + window.WORLD (already loaded for the world map slide).
@@ -16,7 +16,7 @@
   // the dive: one continuous zoom onto the very top of the globe, where its surface is level.
   // The site is drawn inside the Earth there, 1/K small, with its ground line on the globe's surface,
   // so zooming the Earth by K turns the curved crust into the flat ground of the site.
-  const K = 160, ZA = -88 * Math.PI / 180;   // 2° clockwise of 12 o'clock: just inside the open wedge
+  const K = 160, ZA = -90 * Math.PI / 180;   // 12 o'clock: the middle of the open top half
   const ZX = CX + R * Math.cos(ZA), ZY = CY + R * Math.sin(ZA), TY = SURFACE;
   let token = 0;
 
@@ -61,6 +61,7 @@
     const sphere = globe.append('path').datum({ type: 'Sphere' }).attr('fill', '#9FC3D3');
     const grat = globe.append('path').datum(d3.geoGraticule10()).attr('fill', 'none').attr('stroke', 'rgba(255,255,255,0.35)').attr('stroke-width', 0.8);
     const lands = globe.append('path').datum(land).attr('fill', '#7DB713').attr('stroke', '#5E8E0E').attr('stroke-width', 0.5);
+    [sphere, grat, lands].forEach((p) => p.attr('d', path));   // the globe stands still
     planet.append('circle').attr('cx', CX).attr('cy', CY).attr('r', R).attr('fill', 'none').attr('stroke', 'rgba(42,29,22,0.35)').attr('stroke-width', 2);
 
     // ---- the construction site ------------------------------------------------------------
@@ -158,10 +159,10 @@
   }
 
   function wedge(m, deg) {
-    // full disc minus a sector from 12 o'clock clockwise by `deg`
+    // full disc minus a sector centred on 12 o'clock, `deg` wide: at 180 the whole top half is open
     const disc = `M${CX - R - 2} ${CY} a${R + 2} ${R + 2} 0 1 0 ${2 * R + 4} 0 a${R + 2} ${R + 2} 0 1 0 ${-2 * R - 4} 0z`;
     if (deg <= 0) return m.clip.attr('d', disc);
-    const a0 = -Math.PI / 2, a1 = a0 + deg * Math.PI / 180, r = R + 4;
+    const h = deg / 2 * Math.PI / 180, a0 = -Math.PI / 2 - h, a1 = -Math.PI / 2 + h, r = R + 4;
     const sector = `M${CX} ${CY} L${CX + r * Math.cos(a0)} ${CY + r * Math.sin(a0)} A${r} ${r} 0 ${deg > 180 ? 1 : 0} 1 ${CX + r * Math.cos(a1)} ${CY + r * Math.sin(a1)}z`;
     m.clip.attr('d', disc + sector);
   }
@@ -174,29 +175,26 @@
     return `translate(${tx},${ty}) scale(${s1},${s2})`;
   }
 
-  const END = 10600;
+  const END = 7400;
   function frame(m, t) {
-    // 0–2.8 s the globe turns in the middle of the slide; 1.2–2.6 s the wedge opens
-    m.proj.rotate([-8 - 40 * seg(t, 0, 2800), -38]);
-    m.sphere.attr('d', m.path); m.grat.attr('d', m.path); m.lands.attr('d', m.path);
-    wedge(m, 100 * ease(seg(t, 1200, 2600)));
-    // 2.6–4.0 s dive into the crust at the top of the cut; the site fades in over the dive
-    // 2.8–4.6 s one continuous zoom: the focus point glides to the screen centre while the scale grows to K
-    const z = ease(seg(t, 2800, 4600)), k = Math.exp(Math.log(K) * z);
+    // 0.3–1.3 s the top half of the globe splits open from 12 o'clock to 9 and 3
+    wedge(m, 180 * ease(seg(t, 300, 1300)));
+    // 1.5–2.9 s one continuous zoom onto the top of the cut: the focus glides to its screen spot while the scale grows to K
+    const z = ease(seg(t, 1500, 2900)), k = Math.exp(Math.log(K) * z);
     const sx = ZX + (CX - ZX) * z, sy = ZY + (TY - ZY) * z;
     m.earth.attr('transform', `translate(${sx},${sy}) scale(${k}) translate(${-ZX},${-ZY})`);
-    m.planet.style('opacity', 1 - seg(t, 4300, 4600));
-    // 4.8–6.8 s drill down; 6.8–7.7 s the rod comes back up
-    const down = ease(seg(t, 4800, 6800)), up = ease(seg(t, 6800, 7700));
+    m.planet.style('opacity', 1 - seg(t, 2650, 2900));
+    // 3.1–4.5 s drill down; 4.5–5.2 s the rod comes back up
+    const down = ease(seg(t, 3100, 4500)), up = ease(seg(t, 4500, 5200));
     const tip = SURFACE + (m.bottom - SURFACE) * down * (1 - up);
     m.rod.attr('height', Math.max(0, tip - 96));
     m.head.attr('y', Math.max(96, tip - 18));
-    m.auger.attr('patternTransform', `translate(0, ${(t / 30) % 16})`);    // the auger turns
-    // 7.2 s the core shows in the hole; 7.9–9.2 s it lifts out and grows into the profile
-    const g = ease(seg(t, 7900, 9200));
-    m.site.style('opacity', seg(t, 3700, 4300) * (1 - seg(t, 8000, 8800)));
-    m.prof.style('opacity', seg(t, 7100, 7400)).attr('transform', grow(m, m.coreBox, g));
-    m.notes.style('opacity', seg(t, 9200, 10000));
+    m.auger.attr('patternTransform', `translate(0, ${(t / 25) % 16})`);    // the auger turns
+    // 4.8 s the core shows in the hole; 5.4–6.4 s it lifts out and grows into the profile
+    const g = ease(seg(t, 5400, 6400));
+    m.site.style('opacity', seg(t, 2100, 2600) * (1 - seg(t, 5500, 6100)));
+    m.prof.style('opacity', seg(t, 4700, 4950)).attr('transform', grow(m, m.coreBox, g));
+    m.notes.style('opacity', seg(t, 6400, 7000));
   }
 
   window.playIntro = function (svgEl) {
