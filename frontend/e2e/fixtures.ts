@@ -41,10 +41,42 @@ export async function openApp(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
 }
 
+/** Opens a URL of the app (deep link) and waits until the data is loaded, whatever screen it shows. */
+export async function openUrl(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  await loaded(page);
+}
+
+/** Waits until the header is there and the loading state is gone (after goto, reload or Back). */
+export async function loaded(page: Page): Promise<void> {
+  await expect(mainNav(page)).toBeVisible();
+  await expect(page.getByText('Loading boreholes and documents…')).toHaveCount(0);
+}
+
+/** The header's main navigation. */
+export const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main' });
+
+/** A link of the header nav (MAP, UPLOAD & QUEUE with its badge, REVIEW). */
+export const navLink = (page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW') =>
+  mainNav(page).getByRole('link', { name: new RegExp(`^${name}`) });
+
 /** Goes to one of the three main screens through the header nav. */
 export async function nav(page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: new RegExp(`^${name}`) }).click();
+  await navLink(page, name).click();
 }
+
+/** The opaque uid of a borehole, read from its RESULTS row on the map screen. */
+export async function uidOf(page: Page, id: string): Promise<string> {
+  const uid = await resultRow(page, id).getAttribute('data-uid');
+  expect(uid, `uid of ${id}`).toBeTruthy();
+  return uid as string;
+}
+
+/** The path and query of the page's URL, decoded (e.g. "/boreholes/nb:BK-07?layer=3"). */
+export const pathOf = (page: Page) => {
+  const u = new URL(page.url());
+  return decodeURIComponent(u.pathname + u.search);
+};
 
 /** The map's circle markers (Leaflet SVG paths). */
 export const pins = (page: Page) => page.locator('.leaflet-overlay-pane path.leaflet-interactive');

@@ -264,15 +264,31 @@ export async function openApp(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible({ timeout: 15_000 });
 }
 
-/** Reloads the page and waits for the data again (the app has no router yet: it starts on the map). */
+/** Waits until the header is there and the loading state is gone (after goto, reload or Back). */
+export async function loaded(page: Page): Promise<void> {
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Loading boreholes and documents…')).toHaveCount(0, { timeout: 15_000 });
+}
+
+/** Opens a URL of the app (deep link) and waits for the data, whatever screen it shows. */
+export async function openUrl(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  await loaded(page);
+}
+
+/** Reloads the page and waits for the data again; the URL keeps the screen (F4 router). */
 export async function reload(page: Page): Promise<void> {
   await page.reload();
-  await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible({ timeout: 15_000 });
+  await loaded(page);
 }
+
+/** A link of the header nav (MAP, UPLOAD & QUEUE with its badge, REVIEW). */
+export const navLink = (page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW') =>
+  page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: new RegExp(`^${name}`) });
 
 /** Goes to one of the three main screens through the header nav. */
 export async function nav(page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: new RegExp(`^${name}`) }).click();
+  await navLink(page, name).click();
 }
 
 /** A RESULTS row by its borehole ID as printed. */

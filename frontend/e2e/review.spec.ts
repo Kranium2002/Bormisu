@@ -1,10 +1,13 @@
 import type { Page } from '@playwright/test';
-import { expect, nav, openApp, resultRow, test } from './fixtures';
+import { expect, nav, openApp, pathOf, resultRow, test, uidOf } from './fixtures';
 
 async function openReview(page: Page) {
   await openApp(page);
+  const uid = await uidOf(page, 'BK-07');
   await nav(page, 'REVIEW');
   await expect(page.getByRole('heading', { name: 'REVIEW · BK-07' })).toBeVisible();
+  // The first document in review; the link carries its first value to review.
+  expect(pathOf(page)).toMatch(new RegExp(`^/review/${uid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\?key=.+)?$`));
 }
 
 const row = (page: Page, key: string) => page.locator(`[data-key="${key}"]`);

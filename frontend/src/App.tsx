@@ -1,4 +1,5 @@
-import { useEffect, type ComponentType } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
+import { Outlet } from 'react-router';
 import styles from './App.module.css';
 import { DemoBanner, SampleBanner } from './components/Banner';
 import { DinPatternDefs } from './components/DinPatternDefs';
@@ -6,26 +7,25 @@ import { EmptyState } from './components/EmptyState';
 import { Header } from './components/Header';
 import { SidePanel } from './components/SidePanel';
 import { Toast } from './components/Toast';
-import type { Screen } from './domain/types';
-import { DetailScreen } from './screens/detail/DetailScreen';
-import { MapScreen } from './screens/map/MapScreen';
-import { QueueScreen } from './screens/queue/QueueScreen';
+import { RouteSync, useLocationRoute } from './routing/RouteSync';
+import type { RouteKind } from './routing/urlState';
 import { CrsDialog } from './screens/review/CrsDialog';
-import { ReviewScreen } from './screens/review/ReviewScreen';
 import { useAppStore } from './store/appStore';
 
-const SCREENS: Record<Screen, ComponentType> = {
-  map: MapScreen,
-  queue: QueueScreen,
-  review: ReviewScreen,
-  detail: DetailScreen,
+/** Name of the main region per route: screen readers hear it when the focus moves there. */
+const SCREEN_LABEL: Record<RouteKind, string> = {
+  map: 'Map',
+  queue: 'Upload & queue',
+  reviewIndex: 'Extraction review',
+  review: 'Extraction review',
+  detail: 'Borehole detail',
+  notFound: 'Not found',
 };
 
-/** Loading / error / active screen. */
+/** Loading / error / the route's screen. */
 function Body() {
   const loadState = useAppStore((s) => s.loadState);
   const loadError = useAppStore((s) => s.loadError);
-  const screen = useAppStore((s) => s.screen);
   const init = useAppStore((s) => s.init);
   if (loadState === 'loading') return <EmptyState title="LOADING" message="Loading boreholes and documents…" />;
   if (loadState === 'error') {
@@ -38,14 +38,37 @@ function Body() {
       />
     );
   }
-  const Active = SCREENS[screen];
-  return <Active />;
+  return <Outlet />;
 }
 
 /**
- * App shell: header, the mode banner (SAMPLE DATA in sample mode, demo mode when the backend has no
- * provider keys), the active screen and the overlays (side panel, CRS dialog, toast). The DIN 4023
- * patterns are inlined once here, so every profile can fill with `url(#<pattern_id>)`.
+ * After a screen change (a link, Back, an action), the focus goes to the main region when it was
+ * left on nothing: on the page itself, in the main navigation, or on a control of the screen that
+ * went away. A control that is still there (the search field, Review's borehole switcher) keeps it.
+ */
+function useScreenFocus(main: RefObject<HTMLElement | null>, pathname: string) {
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !active.isConnected || !!active.closest('[data-main-nav]');
+    const el = main.current;
+    if (!lost || !el) return;
+    // Focusable only for this: a lasting tabindex would take the focus on every click inside main.
+    el.tabIndex = -1;
+    el.focus({ preventScroll: true });
+    el.addEventListener('blur', () => el.removeAttribute('tabindex'), { once: true });
+  }, [main, pathname]);
+}
+
+/**
+ * App shell and layout route: header, the mode banner (SAMPLE DATA in sample mode, demo mode when the
+ * backend has no provider keys), the route's screen and the overlays (side panel, CRS dialog, toast),
+ * which stay across routes. The DIN 4023 patterns are inlined once here, so every profile can fill
+ * with `url(#<pattern_id>)`. RouteSync applies the URL to the store.
  */
 export function App() {
   const init = useAppStore((s) => s.init);
@@ -53,6 +76,10 @@ export function App() {
   const sampleBanner = useAppStore((s) => s.sampleBannerVisible);
   const demoMode = useAppStore((s) => s.health?.mode === 'demo');
   const crsDialogOpen = useAppStore((s) => s.crsDialogOpen);
+  const route = useLocationRoute();
+  const mainRef = useRef<HTMLElement>(null);
+  const screenPath = route.kind === 'review' || route.kind === 'detail' ? `${route.kind}/${route.uid}` : route.kind;
+  useScreenFocus(mainRef, screenPath);
 
   useEffect(() => {
     void init();
@@ -68,11 +95,12 @@ export function App() {
 
   return (
     <div className={styles.app}>
+      <RouteSync />
       <DinPatternDefs />
       <Header />
       {sampleBanner && <SampleBanner />}
       {demoMode && !sampleBanner && <DemoBanner />}
-      <main className={styles.main}>
+      <main ref={mainRef} className={styles.main} aria-label={SCREEN_LABEL[route.kind]}>
         <Body />
         <SidePanel />
         {crsDialogOpen && <CrsDialog />}

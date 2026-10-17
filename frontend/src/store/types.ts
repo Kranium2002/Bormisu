@@ -85,7 +85,16 @@ export interface ReviewSlice {
   crsCandidates: CrsCandidate[];
   crsPick: number;
 
+  /**
+   * Opens Review on a borehole; without one, on the review target (the last reviewed borehole, else
+   * the first document in review). With a navigator this is /review/:uid (or /review when there is
+   * no target).
+   */
   openReview(uid?: string): void;
+  /**
+   * Focuses a value of the review borehole (and its page). With a navigator the key also goes into
+   * the URL (?key=, history replace) once the focus rests, so holding J / K writes it once.
+   */
   focusValue(key: string, scrollList?: boolean): void;
   setReviewPage(n: number): void;
   /** Opens the inline edit or flag input; an edit of a read-only value is refused with its reason. */
@@ -109,17 +118,33 @@ export interface ReviewSlice {
   closeCrsDialog(): void;
 }
 
-/** The Map and Detail screens: selection, header search and the map's fly-to signal. */
+/**
+ * The Map and Detail screens: selection, the map's URL state, header search and the map's fly-to
+ * signal. (Routing types are imported inline so the shared import block above stays as it is.)
+ */
 export interface MapSlice {
+  /** The borehole of the Detail screen (/boreholes/:uid), or the one selected on the map (?sel=). */
   selectedUid: string | null;
+  /** The layer selected on the Detail screen (?layer=). */
   selectedLayer: number;
+  /** The map view the URL holds (?at=); null lets the map fit the pins. Kept when leaving the map. */
+  mapView: import('../routing/urlState').MapView | null;
+  /** Result set id from the map URL (?rs=): reserved for area selection and filters (F10). */
+  resultSetId: string | null;
   query: string;
   searchMessage: string;
   mapFocus: MapFocus | null;
 
+  /** Opens the Detail screen of a borehole (/boreholes/:uid with a navigator). */
   openBorehole(uid: string): void;
+  /** Selects a layer on the Detail screen (?layer=, history replace). */
   selectLayer(n: number): void;
+  /** Pan or zoom ended on the map: the view goes into the map URL (?at=, history replace). */
+  setMapView(view: import('../routing/urlState').MapView): void;
+  /** A pin's popup opened (uid) or closed (null) on the map: the selection goes into ?sel= (history replace). */
+  selectOnMap(uid: string | null): void;
   setQuery(q: string): void;
+  /** Finds a borehole by ID or project: flies the map to it (/map?sel=<uid>) or says why it is not on the map. */
   search(): void;
 }
 
@@ -137,9 +162,23 @@ export interface UploadSlice {
   retryDocument(documentId: string): Promise<void>;
 }
 
-/** Navigation and overlays: screen, side panel, export menu, toast and Escape. */
+/**
+ * Navigation and overlays: screen, route, side panel, export menu, toast and Escape.
+ *
+ * In the app the URL is the source of navigation truth: a navigator (the router's, injected once in
+ * main.tsx) changes it, and the route sync applies every location to the store (applyRoute: screen,
+ * selectedUid, reviewUid and the query state). Without a navigator (unit tests) the navigation
+ * actions set the screen directly.
+ */
 export interface PanelSlice {
   screen: Screen;
+  /**
+   * Changes the URL: the router's navigator in the app; null in unit tests, where the navigation
+   * actions set the store directly.
+   */
+  navigator: import('../routing/navigator').AppNavigator | null;
+  /** The route the store shows (set by applyRoute); null without a router. */
+  route: import('../routing/urlState').AppRoute | null;
   /** Always true in sample mode: the SAMPLE DATA banner can't be dismissed. */
   sampleBannerVisible: boolean;
   toast: Toast | null;
@@ -147,6 +186,21 @@ export interface PanelSlice {
   exportOpen: boolean;
   includeUnreviewed: boolean;
 
+  setNavigator(navigator: import('../routing/navigator').AppNavigator | null): void;
+  /**
+   * Shows what a URL names: the screen, its borehole and the state in its query. The route sync calls
+   * it for every location (deep link, reload, Back), so the store follows the URL one way. Leaving
+   * Review drops its transient UI (edit, approve-clean confirmation, CRS dialog); the side panel and
+   * the toast stay. Applying the route the store already shows changes nothing.
+   */
+  applyRoute(route: import('../routing/urlState').AppRoute): void;
+  /**
+   * Goes to a route through the navigator: shows it at once (so the next action sees it) and adds a
+   * history entry, or replaces the current one when only the query changes. Without a navigator it
+   * only shows it.
+   */
+  showRoute(route: import('../routing/urlState').AppRoute): void;
+  /** Goes to a screen (with a navigator: its URL, see showRoute). */
   go(screen: Screen): void;
   showToast(text: string): void;
   /**

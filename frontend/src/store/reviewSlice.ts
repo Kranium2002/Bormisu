@@ -9,8 +9,19 @@
 import { errorCode, errorText, SaveError } from '../data/errors';
 import { applyValuePatch, editPatch, flagPatch, initialFocusKey, statePatch, UNFLAG_PATCH } from '../domain/review';
 import type { Borehole, ValuePatch } from '../domain/types';
+import { reviewTarget } from '../routing/navLinks';
 import { nextNonce, pageFor, type SliceCreator } from './context';
 import type { ReviewSlice } from './types';
+
+/** The focused value goes into the URL once the focus has rested this long (holding J / K writes it once). */
+export const KEY_WRITE_MS = 250;
+let keyWriteTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Drops a focus not yet written into the URL (the screen changed, or a new navigator came). */
+export function cancelKeyWrite(): void {
+  clearTimeout(keyWriteTimer);
+  keyWriteTimer = undefined;
+}
 
 /** Why a value without a provenance entry can't be reviewed. */
 export const NO_SOURCE_REFERENCE = 'No source reference from the backend';
@@ -85,6 +96,12 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
 
     openReview(uid) {
       const s = get();
+      if (s.navigator) {
+        const to = uid ?? reviewTarget(s);
+        // Back on the last reviewed borehole, its focused value goes along.
+        s.showRoute(to ? { kind: 'review', uid: to, key: to === s.reviewUid ? s.focusKey : null } : { kind: 'reviewIndex' });
+        return;
+      }
       const target = uid ?? s.reviewUid ?? s.documents.find((d) => d.reviewBoreholeUid)?.reviewBoreholeUid ?? null;
       const base = { screen: 'review' as const, confirmCleanOpen: false, exportOpen: false, searchMessage: '' };
       if (!target || target === s.reviewUid) {
@@ -112,6 +129,16 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
         // Moving to another value drops an unsaved inline edit, so only one row is ever in edit mode.
         editing: s.editing && s.editing.key !== key ? null : s.editing,
       }));
+      if (!get().navigator) return;
+      cancelKeyWrite();
+      keyWriteTimer = setTimeout(() => {
+        keyWriteTimer = undefined;
+        const now = get();
+        const route = now.route;
+        // Only while the same borehole is still shown in Review: a late write never navigates back.
+        if (route?.kind !== 'review' || route.uid !== now.reviewUid || route.key === now.focusKey) return;
+        now.showRoute({ ...route, key: now.focusKey });
+      }, KEY_WRITE_MS);
     },
 
     setReviewPage(n) {
