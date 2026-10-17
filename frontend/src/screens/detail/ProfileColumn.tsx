@@ -247,7 +247,9 @@ export function ProfileColumn({
             {...button(`Layer ${l.n}: ${l.lithology || 'no description'}, ${decimal(l.from)}–${decimal(l.to)} m`, select, l.n === selectedLayer)}
           >
             <title>{layerTitle(l)}</title>
-            {dinNeedsUnderlay(l.din) && <rect x={X.layerX} y={top} width={X.layerW} height={h} fill="#fff" />}
+            {/* the whole band from the column to the depth labels is the button, the Table 6 strip's gaps included */}
+            {!readOnly && <rect x={X.layerX} y={top} width={X.bottomTickTo - X.layerX} height={h} fill="transparent" />}
+            {dinNeedsUnderlay(l.din) &&<rect x={X.layerX} y={top} width={X.layerW} height={h} fill="#fff" />}
             <rect x={X.layerX} y={top} width={X.layerW} height={h} fill={mainFill(l.din)} data-din={l.din ?? ''} />
             {layerOverlays(l).map((f, j) => (
               <rect key={j} x={X.layerX + f.x0 * X.layerW} y={top} width={(f.x1 - f.x0) * X.layerW} height={h} fill={f.fill}>
