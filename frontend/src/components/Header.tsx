@@ -5,7 +5,6 @@ import { mapHref, reviewHref, reviewOffReason } from '../routing/navLinks';
 import { useLocationRoute } from '../routing/RouteSync';
 import { inboxPath, type RouteKind } from '../routing/urlState';
 import { useAppStore } from '../store/appStore';
-import { ClarificationHost } from './clarify/ClarificationHost';
 import { questionCountText, unresolvedCount } from './clarify/clarifyModel';
 import styles from './Header.module.css';
 import { ReviewerName } from './ReviewerName';
@@ -138,7 +137,6 @@ export function Header() {
         )}
       </div>
       <ReviewerName />
-      <ClarificationHost />
     </header>
   );
 }

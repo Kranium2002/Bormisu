@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { Outlet } from 'react-router';
 import styles from './App.module.css';
 import { DemoBanner, SampleBanner } from './components/Banner';
+import { ClarificationHost } from './components/clarify/ClarificationHost';
 import { DinPatternDefs } from './components/DinPatternDefs';
 import { EmptyState } from './components/EmptyState';
 import { Header } from './components/Header';
@@ -19,6 +20,7 @@ const SCREEN_LABEL: Record<RouteKind, string> = {
   reviewIndex: 'Extraction review',
   review: 'Extraction review',
   detail: 'Borehole detail',
+  inbox: 'Questions inbox',
   notFound: 'Not found',
 };
 
@@ -106,6 +108,7 @@ export function App() {
         <Body />
         <SidePanel />
         {crsDialogOpen && <CrsDialog />}
+        <ClarificationHost />
         <Toast />
       </main>
     </div>

@@ -87,6 +87,7 @@ function routePatch(s: AppState, route: AppRoute, entering: boolean): Partial<Ap
         ? { screen: 'detail', selectedUid: route.uid, selectedLayer: layer }
         : { selectedLayer: layer };
     }
+    case 'inbox':
     case 'notFound':
       return {};
   }

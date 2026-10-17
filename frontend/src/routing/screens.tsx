@@ -45,11 +45,25 @@ export function ReviewIndexRoute() {
   return to ? <Navigate to={to} replace /> : <ReviewScreen />;
 }
 
+/**
+ * A borehole route whose record isn't cached: RouteSync fetches it on demand. LOADING while it is
+ * fetched (or not asked for yet), BOREHOLE NOT FOUND only when the server has no such borehole, and
+ * an error state when the request failed.
+ */
+function MissingRecord({ uid }: { uid: string | null }) {
+  const load = useAppStore((s) => (uid ? s.recordLoads[uid] : undefined));
+  if (!uid || load === 'missing') return <NotFound title={BOREHOLE_NOT_FOUND} message={BOREHOLE_NOT_FOUND_TEXT} />;
+  if (load === 'error') {
+    return <EmptyState tone="error" title="NOT LOADED" message="The borehole could not be loaded. Check the connection and reload the page." />;
+  }
+  return <EmptyState title="LOADING" message="Loading the borehole…" />;
+}
+
 export function ReviewRoute() {
   const uid = routeUid(useLocationRoute());
   const borehole = useBorehole(uid);
   const shown = useShown();
-  if (!borehole) return <NotFound title={BOREHOLE_NOT_FOUND} message={BOREHOLE_NOT_FOUND_TEXT} />;
+  if (!borehole) return <MissingRecord uid={uid} />;
   return shown ? <ReviewScreen /> : null;
 }
 
@@ -57,7 +71,7 @@ export function BoreholeRoute() {
   const uid = routeUid(useLocationRoute());
   const borehole = useBorehole(uid);
   const shown = useShown();
-  if (!borehole) return <NotFound title={BOREHOLE_NOT_FOUND} message={BOREHOLE_NOT_FOUND_TEXT} />;
+  if (!borehole) return <MissingRecord uid={uid} />;
   return shown ? <DetailScreen /> : null;
 }
 

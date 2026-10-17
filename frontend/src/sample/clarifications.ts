@@ -6,7 +6,8 @@
  * number_unit a number or {value, unit}, page_range [first, last]).
  *
  * Open questions (they make the boreholes' open-question counts): one CRS question for every
- * Neckarbogen borehole, and one each for MS-05 (datum), EM-04 (two readings) and CL-04 (position).
+ * Neckarbogen borehole, two for MS-05 (datum, depth unit), and one each for EM-04 (two readings) and
+ * CL-04 (position).
  * Together their fields use every widget, each with evidence on a sample page.
  */
 import type { FieldError } from '../data/errors';
@@ -19,6 +20,7 @@ import { NB_DOC_ID, NB_FILE } from './neckarbogen';
 export const Q = {
   nbCrs: 'cl_sample_nb_crs',
   ms05Datum: 'cl_sample_ms05_datum',
+  ms05Unit: 'cl_sample_ms05_unit',
   em04Depth: 'cl_sample_em04_depth',
   cl04Locate: 'cl_sample_cl04_locate',
 } as const;
@@ -31,7 +33,7 @@ export const DATUM_OPTIONS = [
 ] as const;
 
 /** Creation times (fictional), oldest first. */
-const CREATED = ['2026-10-16T08:00:00Z', '2026-10-16T08:05:00Z', '2026-10-16T08:10:00Z', '2026-10-16T08:15:00Z'];
+const CREATED = ['2026-10-16T08:00:00Z', '2026-10-16T08:05:00Z', '2026-10-16T08:10:00Z', '2026-10-16T08:15:00Z', '2026-10-16T08:20:00Z'];
 
 /**
  * A form field. The name is passed on its own: a `name: '…'` literal in src/sample reads as sample
@@ -90,6 +92,17 @@ export function sampleQuestions(boreholes: Borehole[], nbCandidates: CrsCandidat
         field('note', 'text', 'Where is the datum stated?', { help: 'For example a page of the report or a note from the client (fictional).' }),
       ],
       evidence: [evidenceOf(ms, elevation)], createdAt: CREATED[1],
+    }));
+  }
+
+  // MS-05 again: its final depth is printed without a unit. The answer is stored; nothing is converted.
+  const msDepth = ms && valueOf(ms, K.finalDepth);
+  if (ms && msDepth) {
+    out.push(open({
+      id: Q.ms05Unit, kind: 'unit_ambiguous', documentId: ms.documentId as string, boreholeUids: [ms.uid], path: 'metadata.borehole_depth_m',
+      question: `The final depth of MS-05 is printed as "${msDepth.raw}" with no unit next to it. Which unit does the log use?`,
+      fields: [field('depth', 'number_unit', 'Final depth as printed', { required: true, unitOptions: ['m', 'ft'] })],
+      evidence: [evidenceOf(ms, msDepth)], createdAt: CREATED[4],
     }));
   }
 

@@ -359,6 +359,8 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
     it('two approvals clicked at once on one borehole go out in order; the store ends at the last answer', async () => {
       const { calls } = examplesBackend();
       await readyStore(createApiSource(BASE), FULL);
+      // Review loads the record on demand (it is plotted, so the boot did not fetch it).
+      await useAppStore.getState().ensureBorehole(FULL);
       useAppStore.getState().toggleApprove(K.locationName);
       useAppStore.getState().toggleApprove(K.endDate);
       await vi.waitFor(() => expect(shown()?.revision).toBe(6));
@@ -373,6 +375,8 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
     it('undo of an approval is reset; "not in source" sets the state and toggles back with set_state ok and reset', async () => {
       const { calls } = examplesBackend();
       await readyStore(createApiSource(BASE), FULL);
+      // Review loads the record on demand (it is plotted, so the boot did not fetch it).
+      await useAppStore.getState().ensureBorehole(FULL);
       useAppStore.getState().toggleApprove(K.boreholeId);
       await vi.waitFor(() => expect(shown()?.revision).toBe(5));
       useAppStore.getState().setState(K.colour(4), 'not in source');
@@ -413,16 +417,25 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
         return json(200, { count });
       });
       await readyStore(createApiSource(BASE), FULL);
+      // Review loads the record on demand (it is plotted, so the boot did not fetch it).
+      await useAppStore.getState().ensureBorehole(FULL);
       await useAppStore.getState().askClean();
       const counted = useAppStore.getState().cleanCount;
       expect(counted).toBeGreaterThan(0);
       await useAppStore.getState().approveClean();
       expect(approved).toBe(counted);
-      expect(calls.map((c) => `${c.method} ${c.url}`).slice(-3)).toEqual([
+      // In this order: the count, the approval, the document's records; the document's map features
+      // are refreshed alongside (the pins follow the approval).
+      const sent = calls.map((c) => `${c.method} ${c.url}`);
+      const at = (call: string) => sent.indexOf(call);
+      const order = [
         `POST ${BASE}/documents/${DOC}/approve-clean?dry_run=true`,
         `POST ${BASE}/documents/${DOC}/approve-clean?dry_run=false`,
         `GET ${BASE}/documents/${DOC}/boreholes`,
-      ]);
+      ].map(at);
+      expect(order.every((i) => i >= 0)).toBe(true);
+      expect([...order].sort((a, b) => a - b)).toEqual(order);
+      expect(sent.slice(order[1] + 1).filter((c) => !c.startsWith(`GET ${BASE}/map/boreholes.geojson`) && !c.includes(`/documents/${DOC}`))).toEqual([]);
       expect(patches(calls)).toEqual([]);
       expect(shown()?.revision).toBe(5);
       expect(value(K.locationName)?.status).toBe('approved');
@@ -452,6 +465,8 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
     it('an inline edit sends the typed number, then the approval; the layer follows the server', async () => {
       const { calls } = examplesBackend();
       await readyStore(createApiSource(BASE), FULL);
+      // Review loads the record on demand (it is plotted, so the boot did not fetch it).
+      await useAppStore.getState().ensureBorehole(FULL);
       const s = useAppStore.getState();
       s.startEdit(K.bottom(3), 'edit');
       useAppStore.getState().setEditText('9,80');

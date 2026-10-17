@@ -173,27 +173,27 @@ describe('place search (fictional gazetteer)', () => {
 });
 
 describe('clarifications: the questions make the open-question counts', () => {
-  it('every Neckarbogen borehole has one (the shared CRS question), MS-05, EM-04 and CL-04 one each, nothing else', async () => {
+  it('every Neckarbogen borehole has one (the shared CRS question), MS-05 two (datum, depth unit), EM-04 and CL-04 one each, nothing else', async () => {
     const src = createSampleSource();
     const { boreholes } = await everything(src);
     for (const b of boreholes) {
-      const expected = b.documentId === 'nb' || ['MS-05', 'EM-04', 'CL-04'].includes(b.id) ? 1 : 0;
+      const expected = b.id === 'MS-05' ? 2 : b.documentId === 'nb' || ['EM-04', 'CL-04'].includes(b.id) ? 1 : 0;
       expect(b.openClarifications, b.id).toBe(expected);
     }
     const { documents } = await src.load();
     expect(documents.map((d) => [d.id, d.openClarifications])).toEqual([['nb', 1], ['eq', 0], ['is', 0]]);
   });
 
-  it('lists four open questions oldest first, of different kinds, for the boreholes they count against', async () => {
+  it('lists five open questions oldest first, of different kinds, for the boreholes they count against', async () => {
     const src = createSampleSource();
     const { boreholes } = await everything(src);
     const list = await src.clarifications();
     expect(list.map((q) => [q.kind, q.status])).toEqual([
-      ['crs_confirm', 'open'], ['datum_convention', 'open'], ['choose_reading', 'open'], ['locate_borehole', 'open'],
+      ['crs_confirm', 'open'], ['datum_convention', 'open'], ['choose_reading', 'open'], ['locate_borehole', 'open'], ['unit_ambiguous', 'open'],
     ]);
     expect([...list.map((q) => q.createdAt)].sort()).toEqual(list.map((q) => q.createdAt));
     expect(list[0].boreholeUids.sort()).toEqual(uidsOf(boreholes.filter((b) => b.documentId === 'nb')));
-    expect(list.slice(1).map((q) => q.boreholeUids.map((uid) => byId(boreholes, uid.split(':')[1]).id))).toEqual([['MS-05'], ['EM-04'], ['CL-04']]);
+    expect(list.slice(1).map((q) => q.boreholeUids.map((uid) => byId(boreholes, uid.split(':')[1]).id))).toEqual([['MS-05'], ['EM-04'], ['CL-04'], ['MS-05']]);
     await expect(src.clarifications({ documentId: 'nb' })).resolves.toHaveLength(1);
     await expect(src.clarifications({ status: 'skipped' })).resolves.toEqual([]);
     await expect(src.clarifications({ status: 'answered' })).resolves.toEqual([]);
@@ -238,7 +238,7 @@ describe('clarifications: answer checks', () => {
       errors: [{ loc: ['values', 'crs'], msg: 'Coordinate system is required.' }],
     });
     expect(events).toEqual([]);
-    await expect(src.clarifications()).resolves.toHaveLength(4);
+    await expect(src.clarifications()).resolves.toHaveLength(5);
   });
 
   it('every field is checked against its widget: options, booleans, points {lat, lon}, numbers with units, page ranges, unknown fields', async () => {
@@ -252,7 +252,7 @@ describe('clarifications: answer checks', () => {
     expect(await errorsOf(reading, { reading: 99, pages: [3, 1] })).toEqual(['values.reading', 'values.pages']);
     expect(await errorsOf(locate, { location: { lat: 51.3, lng: 12.4 }, accuracy: { value: 5, unit: 'yd' } })).toEqual(['values.location', 'values.accuracy']);
     expect(await errorsOf(locate, { location: { lat: 91, lon: 12.4 } })).toEqual(['values.location']);
-    await expect(src.clarifications()).resolves.toHaveLength(4);
+    await expect(src.clarifications()).resolves.toHaveLength(5);
   });
 
   it('an unknown question is clarification_not_found; an answered one is already_resolved for answer and skip', async () => {
@@ -310,20 +310,21 @@ describe('clarifications: skip and answer', () => {
     await expect(src.answerClarification(q.id, { crs: 'EPSG:25832' }, null)).rejects.toMatchObject({ status: 422, code: 'crs_invalid' });
     await expect(src.answerClarification(q.id, { crs: 'EPSG:31467', swap_axes: true }, null)).rejects.toMatchObject({ status: 422, code: 'crs_invalid' });
     expect(events).toEqual([]);
-    await expect(src.clarifications()).resolves.toHaveLength(4);
+    await expect(src.clarifications()).resolves.toHaveLength(5);
   });
 
-  it('the datum answer sets the datum, settles the datum warning and lowers MS-05\'s count; no queue document changes', async () => {
+  it('the datum answer sets the datum, settles the datum warning and lowers MS-05\'s count (its unit question stays); no queue document changes', async () => {
     const { src, events } = recorded();
     const q = await question(src, 'datum_convention');
     await src.answerClarification(q.id, { datum: 'NHN (DHHN2016)', note: 'Stated in the client brief (fictional)' }, null);
     const { boreholes, features } = await everything(src);
     const ms5 = byId(boreholes, 'MS-05');
-    expect(ms5).toMatchObject({ openClarifications: 0, revision: 2, meta: { elevationDatum: 'NHN (DHHN2016)' } });
+    expect(ms5).toMatchObject({ openClarifications: 1, revision: 2, meta: { elevationDatum: 'NHN (DHHN2016)' } });
     const elevation = ms5.values.find((v) => v.key === K.elevation);
     expect([elevation?.note, elevation?.lint]).toEqual(['datum: NHN (DHHN2016)', undefined]);
-    expect(displayStatus(ms5)).toBe('unreviewed');
-    expect(legend(features)).toEqual({ approved: 23, in_review: 0, unreviewed: 9, attention: 13 });
+    // The depth-unit question is still open, so MS-05 keeps its attention.
+    expect(displayStatus(ms5)).toBe('attention');
+    expect(legend(features)).toEqual({ approved: 23, in_review: 0, unreviewed: 8, attention: 14 });
     expect(events.map((e) => e.type)).toEqual(['clarification.resolved', 'borehole.updated']);
   });
 
@@ -352,6 +353,7 @@ describe('clarifications: skip and answer', () => {
     const src = createSampleSource();
     const answers: Record<string, Record<string, unknown>> = {
       crs_confirm: { crs: 'EPSG:31467' }, datum_convention: { datum: 'NN (DHHN12)' }, choose_reading: { reading: 0 }, locate_borehole: { location: { lat: 51.34, lon: 12.38 } },
+      unit_ambiguous: { depth: { value: 12, unit: 'm' } },
     };
     for (const q of await src.clarifications()) {
       const values = q.kind === 'choose_reading' ? { reading: q.fields[0].options[0].value } : answers[q.kind];
@@ -361,6 +363,6 @@ describe('clarifications: skip and answer', () => {
     expect(boreholes.filter((b) => b.openClarifications > 0)).toEqual([]);
     expect((await src.load()).documents.map((d) => d.openClarifications)).toEqual([0, 0, 0]);
     expect(features.filter((x) => x.attention).map((x) => x.id)).toEqual(['BK-07']);
-    await expect(src.clarifications({ status: 'answered' })).resolves.toHaveLength(4);
+    await expect(src.clarifications({ status: 'answered' })).resolves.toHaveLength(5);
   });
 });
