@@ -77,7 +77,7 @@
 
 .active {
   color: var(--c-surface);
-  border-bottom-color: var(--c-green);
+  border-bottom-color: var(--c-gold);
 }
 
 .badge {

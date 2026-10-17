@@ -1,35 +1,36 @@
-/* Design tokens (Herrenknecht brand + prototype palette) and global resets. */
+/* Design tokens (tiramisu palette: espresso, cocoa, ladyfinger, mascarpone) and global resets. */
 :root {
-  /* brand + status */
-  --c-green: #7DB713;
-  --c-dark: #003E25;
-  --c-on-green: #003E25; /* text on --c-green: 5.04:1. Never white on green. */
-  --c-green-hover: #8CC61F;
-  --c-dark-hover: #00563A;
+  /* brand + status. The --c-green names stay (used everywhere): accent = cocoa, dark = espresso. */
+  --c-green: #8B5A3C; /* cocoa: accent, primary buttons, selection, reviewed */
+  --c-dark: #3B2418; /* espresso: header, headings */
+  --c-on-green: #FFF8EC; /* mascarpone text on cocoa: 5.5:1 */
+  --c-green-hover: #74472C; /* darker cocoa: hover text stays above 4.5:1 */
+  --c-dark-hover: #4E3123;
+  --c-gold: #E6BE78; /* ladyfinger: accents on the espresso header, 8.3:1 */
   --c-amber: #E39B00;
   --c-red: #C8102E;
   --c-grey: #A3A3A2;
   --c-gw: #1F5FA8;
 
   /* text */
-  --c-text: #181818;
-  --c-muted: #555555;
-  --c-faint: #6F6F6E; /* lightest text tone: 5.0:1 on white, 4.7:1 on --c-selected. Not for borders. */
-  --c-nav-idle: #CFE0C8;
-  --c-green-text: #3F6A00;
+  --c-text: #2A1D16;
+  --c-muted: #5C4B40;
+  --c-faint: #72625A; /* lightest text tone: 5.8:1 on white, 5.0:1 on --c-selected. Not for borders. */
+  --c-nav-idle: #EADBC3;
+  --c-green-text: #6B4226;
   --c-amber-text: #8A5300;
 
   /* surfaces + lines */
-  --c-bg: #FCFCFC;
+  --c-bg: #FBF6EF;
   --c-surface: #FFFFFF;
-  --c-line: #EFEFEF;
-  --c-border: #D6D6D6;
-  --c-border-strong: #C9C9C8;
-  --c-ok-border: #BFD98F;
-  --c-hover: #F6F9F0;
-  --c-selected: #F5F9EC;
-  --c-drop: #F2F8E6;
-  --c-green-bg: #E6F1D2;
+  --c-line: #F0E6D9;
+  --c-border: #DDCFBE;
+  --c-border-strong: #CDBBA5;
+  --c-ok-border: #D8BC9E;
+  --c-hover: #FAF3EA;
+  --c-selected: #F6ECDF;
+  --c-drop: #F5EADB;
+  --c-green-bg: #EFDFCC;
   --c-amber-bg: #FFEFCC;
   --c-red-bg: #FDE7EA;
   --c-red-bg-soft: #FDF0F2;
@@ -39,9 +40,9 @@
   --c-paper: #FCFBF7;
   --c-ink: #2B2B2B;
 
-  /* focus: dark ring on light surfaces, green ring on the dark-green header (5.0:1) */
+  /* focus: espresso ring on light surfaces, ladyfinger ring on the espresso header */
   --focus-ring: 2px solid var(--c-dark);
-  --focus-ring-on-dark: 2px solid var(--c-green);
+  --focus-ring-on-dark: 2px solid var(--c-gold);
 
   /* fonts */
   --font-sans: Univers, 'Univers LT Std', Inter, 'Helvetica Neue', Arial, sans-serif;

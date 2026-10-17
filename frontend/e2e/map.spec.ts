@@ -140,10 +140,10 @@ test.describe('map focus dropdown', () => {
     await expect(mask(page)).toHaveCount(1);
     await expect(border(page)).toHaveCount(1);
     // The mask is the map background (tokens.css --c-line), opaque, without an outline.
-    await expect(mask(page)).toHaveAttribute('fill', '#EFEFEF');
+    await expect(mask(page)).toHaveAttribute('fill', '#F0E6D9');
     await expect(mask(page)).toHaveAttribute('fill-opacity', '1');
     await expect(mask(page)).toHaveAttribute('stroke', 'none');
-    await expect(border(page)).toHaveAttribute('stroke', '#003E25');
+    await expect(border(page)).toHaveAttribute('stroke', '#3B2418');
     await expect(border(page)).toHaveAttribute('stroke-width', '1.5');
     await expect(border(page)).toHaveAttribute('fill', 'none');
     // Neither takes clicks.
