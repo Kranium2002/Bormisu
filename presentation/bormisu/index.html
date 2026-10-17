@@ -161,6 +161,11 @@
   .tier .why { margin-top: auto; padding-top: 12px; font-family: var(--display); font-size: 30px; font-weight: 600; color: var(--cocoa-text); }
   .tier.now .why { color: var(--ladyfinger); }
 
+  /* 11 Team */
+  .team { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 72px; }
+  .member { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 40px 36px; }
+  .member .nm { font-family: var(--display); font-size: 48px; font-weight: 600; color: var(--espresso); }
+  .member .r { font-size: 24px; color: var(--muted); margin-top: 8px; }
 
   /* 12 In a nutshell: three points left, logo right */
   .finisher { flex-direction: row; align-items: center; justify-content: space-between; }
@@ -350,8 +355,22 @@
     </div>
   </section>
 
-  <!-- 10 IN A NUTSHELL -->
-  <section class="dark finisher" data-label="10 In a nutshell">
+  <!-- 10 TEAM — skipped for now (data-deck-skip); remove the attribute to bring it back -->
+  <section class="light" data-label="10 Team" data-deck-skip>
+    <div class="eyebrow" data-anim>Team Tiramisu</div>
+    <div class="title" data-anim style="--d: 150ms;">Built in Breisgau.</div>
+    <div class="team">
+      <div class="member" data-anim style="--d: 300ms;"><div class="nm">Prada</div><div class="r">Design</div></div>
+      <div class="member" data-anim style="--d: 380ms;"><div class="nm">Tiwen</div><div class="r">Design</div></div>
+      <div class="member" data-anim style="--d: 460ms;"><div class="nm">Vidhu</div><div class="r">Backend &amp; data</div></div>
+      <div class="member" data-anim style="--d: 540ms;"><div class="nm">Felix</div><div class="r">Backend &amp; data</div></div>
+      <div class="member" data-anim style="--d: 620ms;"><div class="nm">Arav</div><div class="r">Backend &amp; data</div></div>
+      <div class="member" data-anim style="--d: 700ms;"><div class="nm">Mateo</div><div class="r">Product &amp; pitch</div></div>
+    </div>
+  </section>
+
+  <!-- 11 IN A NUTSHELL -->
+  <section class="dark finisher" data-label="11 In a nutshell">
     <div class="left">
       <div class="nut" data-anim>In a nutshell.</div>
       <ul class="pts">
@@ -363,8 +382,8 @@
     <img class="logo finisher-logo" src="logo.png" alt="Bormisu logo" />
   </section>
 
-  <!-- 11 QUESTIONS -->
-  <section class="dark close center" data-label="11 Questions">
+  <!-- 12 QUESTIONS -->
+  <section class="dark close center" data-label="12 Questions">
     <div class="big" data-anim>Questions?</div>
     <div class="sub" data-anim style="--d: 600ms;">Questions about Stuttgart 21 go to <b>Deutsche Bahn</b>.</div>
   </section>
