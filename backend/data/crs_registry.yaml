@@ -38,6 +38,11 @@ systems:
   - { code: "EPSG:27200", kind: projected,  label: "NZGD49 / New Zealand Map Grid",    aliases: ["NZMG"] }
   - { code: "EPSG:5186",  kind: projected,  label: "Korea 2000 / Central Belt 2010",   aliases: ["Korea 2000 Central Belt", "GRS80 central"] }
   - { code: "EPSG:5179",  kind: projected,  label: "Korea 2000 / Unified CS",          aliases: ["Korea 2000 Unified", "UTM-K"] }
+  - { code: "EPSG:5185",  kind: projected,  label: "Korea 2000 / West Belt 2010",      aliases: ["Korea 2000 West Belt", "GRS80 west"] }
+  - { code: "EPSG:5187",  kind: projected,  label: "Korea 2000 / East Belt 2010",      aliases: ["Korea 2000 East Belt", "GRS80 east"] }
+  - { code: "EPSG:5188",  kind: projected,  label: "Korea 2000 / East Sea Belt 2010",  aliases: ["Korea 2000 East Sea Belt"] }
+  - { code: "EPSG:5174",  kind: projected,  label: "Korean 1985 / Modified Central Belt", aliases: ["Bessel central", "Korean 1985 Central"] }
+  - { code: "EPSG:5176",  kind: projected,  label: "Korean 1985 / Modified East Belt", aliases: ["Bessel east", "Korean 1985 East"] }
   - { code: "EPSG:3414",  kind: projected,  label: "SVY21 / Singapore TM",             aliases: ["SVY21"] }
   - { code: "EPSG:2326",  kind: projected,  label: "Hong Kong 1980 Grid",              aliases: ["HK1980", "HK80", "Hong Kong 1980", "Hong Kong 1980 Grid"] }
   - { code: "EPSG:10250", kind: projected,  label: "System 34 Sjælland (S34S)",        west_orientated: true, aliases: ["S34S", "System 34 Sjælland", "System 34 Sjaelland", "S34 Sjælland", "S34 Sjaelland"] }

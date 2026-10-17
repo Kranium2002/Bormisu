@@ -30,7 +30,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.db.models import Borehole, Document
+from app.db.models import Borehole, Document, Page
 from app.db.session import get_sessionmaker
 from app.errors import ApiError
 from app.geo.geocoder import nominatim, normalise_query, uploaded_places
@@ -605,6 +605,26 @@ def rank_candidates(
 # ----------------------------------------------------------------------------------------------
 
 
+def _language_countries() -> dict[str, str]:
+    from app.normalize.numbers import load_data
+
+    raw = (load_data("crs_patterns.yaml") or {}).get("language_countries") or {}
+    return {str(k).lower(): str(v) for k, v in raw.items()}
+
+
+async def language_country(session: AsyncSession, document_ids: Sequence[str]) -> str | None:
+    """The country the documents' main page language points to (data/crs_patterns.yaml), if any."""
+    languages = (
+        await session.scalars(
+            select(Page.language).where(Page.document_id.in_(list(document_ids)), Page.used.is_(True))
+        )
+    ).all()
+    counted = Counter(str(code).lower().split("-")[0] for code in languages if code)
+    if not counted:
+        return None
+    return _language_countries().get(counted.most_common(1)[0][0])
+
+
 def local_points(boreholes: Iterable[Borehole]) -> list[tuple[str, float, float]]:
     """(uid, local_x, local_y) of every borehole with a printed coordinate pair, by uid."""
     points = []
@@ -632,10 +652,13 @@ async def candidates_for_boreholes(
         (await session.scalars(select(Document.project).where(Document.id.in_(doc_ids)))).all()
     )
     metas = [bh.record.get("metadata") or {} for bh in boreholes]
+    countries = [m.get("country") for m in metas]
+    if not any(isinstance(c, str) and c.strip() for c in countries):
+        countries.append(await language_country(session, doc_ids))
     queries = reference_queries(
         (m.get("location_name") for m in metas),
         [*(m.get("project_name") for m in metas), *doc_projects],
-        (m.get("country") for m in metas),
+        countries,
     )
     reference = await reference_for(queries)
     printed = [((m.get("coordinates") or {}).get("coordinate_system")) for m in metas]
