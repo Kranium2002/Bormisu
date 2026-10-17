@@ -638,7 +638,7 @@ class _Builder:
             prov["spt_raw"] = self.cite.entry(raw_source)
             if result.increments is not None:
                 data["spt_increments"] = result.increments
-                prov["spt_increments"] = self.cite.entry(test.blows_raw)
+                prov["spt_increments"] = self.cite.entry(raw_source)  # increments may sit in the N text
             if result.n_value is not None:
                 data["spt_n_value"] = result.n_value
                 if result.printed_n is not None and n_text is not None:
