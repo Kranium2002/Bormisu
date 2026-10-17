@@ -49,8 +49,12 @@ Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on th
 2. **Triage and classification.** Pages are rendered once. A cheap model labels every page (log sheet, continuation, summary table, narrative, photo …).
 3. **OCR only where it matters.** Only pages with borehole data go to Mistral OCR, which returns text with boxes and confidence.
 4. **Extraction.** A stronger model returns the raw text of every value and the OCR blocks it came from. It never returns normalised numbers.
-5. **Normalisation and checks (Python only).** Numbers, units, SPT, coordinates and coordinate systems, DIN 4023 lithology codes and depth datums are normalised in Python. Lint rules flag gaps, overlaps, RQD above 100 and similar problems. Anything uncertain becomes a clarification question.
-6. **Review.** Every value carries its provenance: page, box, raw text, method, confidence and review status. Edits, approvals and flags are revisions, and every change is streamed to the UI as an event.
+5. **Normalisation and checks (Python only).** Numbers, units, SPT, coordinates and coordinate systems, DIN 4023 lithology codes and depth datums are normalised in Python. Lint rules flag gaps, overlaps, RQD above 100, positions far from the rest of a document and similar problems. Anything uncertain becomes a clarification question: the coordinate system, unclear readings, units, datum conventions, borehole boundaries and duplicates.
+6. **Second reads.** Handwritten and low-confidence values are cropped and read again. When the two readings disagree, both are kept and a person chooses.
+7. **Review.** Every value carries its provenance: page, box (tightened to the printed words when the page has a text layer), raw text, method, confidence and review status. Edits, approvals and flags are revisions, and every change is streamed to the UI as an event.
+8. **Chat.** The assistant answers with SQL-backed tools (place search, borehole search, statistics, evidence) and drives the map through result sets. Every number comes from a tool, and every answer states its scope.
+
+Spreadsheets (`.xlsx`, `.csv`) skip the page steps. The model proposes a column mapping from the headers and a few sample rows, and Python applies it to every row, citing the source cell.
 
 Rules the code follows:
 - **No invented values.** Unknown is `null` with a reason. There are no default lithologies, coordinate systems or depths, and never a `0` or `(0, 0)` placeholder.
@@ -97,7 +101,13 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 
 No challenge or customer data is committed: no sample files, no values copied from them, no screenshots of them. Fixtures and seed data are fictional and say so, and CI fails if a PDF, spreadsheet, Word file or scan image is committed outside `docs/` and `assets/`.
 
+## Evaluation
+
+`make eval` runs the real pipeline on sample files you point it at (`EVAL_DATA_DIR`, `EVAL_EXPECTED`). It can process page excerpts (`--pages NAME=3-6`), stops before the `--max-usd` cost cap, and writes metrics and failure categories only to `docs/eval/report.md`, never values from the files. See [`docs/eval/README.md`](docs/eval/README.md).
+
 ## Known limits
 
-- The processing pipeline, CRS ranking against geocoded places and the chat assistant are being completed. See `docs/handover/COORDINATION.md` for the current milestone.
-- `postgis/postgis` publishes amd64 images only. On ARM machines the database runs under emulation.
+- **Scanned tables:** evidence boxes on scanned pages come from the OCR's paragraph or table blocks, so a value in a large scanned table can point at the whole table. Pages with a text layer get word-level boxes.
+- **Conflicting values:** a value printed differently in a summary table and in a log is only asked about once the extractor reports both readings; the question type and its answer handling are in place.
+- **Chat units:** the chat tools return metres; feet are converted in the answer text.
+- **ARM machines:** `postgis/postgis` publishes amd64 images only, so on ARM the database runs under emulation.

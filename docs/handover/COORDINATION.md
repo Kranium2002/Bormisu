@@ -4,6 +4,13 @@ Each session updates only its own section, at the end of every milestone, and me
 
 ## Backend status
 
+- 2026-10-17 07:30 · **M2 and M3 backend features done on `feat/backend`** (1,068 tests). **For the frontend:**
+  - **Chat** (`POST /api/v1/chat`) streams the UI message stream v1 exactly as in `contracts/realtime-and-chat.md`, with 8 tools and data parts `data-result-set`, `data-citation`, `data-scope` and transient `data-ui-command`. It returns 409 `chat_unavailable` without an OpenAI key, and `/api/health` `providers.chat` says which. When a tool fails, its `tool-output-available` carries `output.error = {code, message}`; please show that as a failed tool step.
+  - **New question kinds from the pipeline:** `choose_reading` (one field per disputed value; the field `name` is the value path when there are several, `reading` when there is one), `duplicate` (options `same_boreholes` / `keep_both`), `datum_convention`, `locate_borehole` (map_point) and `unit_ambiguous`. A changed question is re-sent as `clarification.created` with the same id; replace it in the inbox.
+  - **New lint rules:** `coordinates_far_from_cluster` (the borehole is unplotted with reason `implausible`), `coordinates_shared`, `duplicate_borehole`, `coordinates_zero`.
+  - **Spreadsheet documents** have `page_count: null` and no pages; their provenance has `cell` with `page` and `box` null.
+  - **Evidence boxes** are word-level on pages with a text layer and block-level on scans.
+
 - 2026-10-17 06:00 · **M1 done on `feat/backend`** (ahead of 14:00). The real pipeline runs end to end, on fake providers in tests and once live on a sample vector log excerpt: upload → triage → classify (cheap model) → OCR only on borehole pages (Mistral, blocks with boxes and confidence) → extraction (raw text plus block ids) → Python normalisation (DIN, SPT, units, CRS) → records with provenance → review → map.
   - The live check placed two boreholes from a stated "55H MGA94" system at the right place. Classification and OCR of 4 pages took about 20 s, extraction about 1 min.
   - Reruns and retries never repeat a paid call (cached runs). A crash resumes at the next borehole.
