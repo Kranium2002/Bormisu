@@ -103,9 +103,18 @@ Surface" / "Cota 856.93" are markers, not strata); a constituent noun in the tex
 named by the vision model (`symbol`, with the page legend or the DIN conventions). Rock codes stand alone.
 Nothing is invented: a layer with text but no evidence gets no code and `needs_review`.
 
-Measured on the corpus output (4122 layers): 3744 coded (91 %); by source lithology 3589, ditto 74, legend 40,
-words 34, uscs 7. The uncoded rest are notes rows ("Field vane at 43.0 m", "Core loss", "Dense" alone,
-Korean joint descriptions, Report01 test rows) — correctly left blank.
+Three rules ported from the team's normaliser on `main` (`backend/app/normalize/lithology.py` there): made
+ground wins over the soil that describes it ("FYLD: SAND, fint" → `A, s`, DIN 4023 4.2.8), a single grain-size
+word next to the main noun narrows sand and gravel to the DIN fraction ("SAND, fint" → `fS`, "fine to coarse
+SAND" stays `S`), and organic muds (gyttja, Mudde) are `F`, not peat.
+
+Measured on the corpus output (3828 layers, 3805 with text): 3509 coded (92 %); by source lithology 3412,
+ditto 35, legend 33, words 18, symbol 6, uscs 5. The uncoded rest are notes rows ("Field vane at 43.0 m",
+"Core loss", "Dense" alone, Korean joint descriptions, Report01 test rows) — correctly left blank. Run side by
+side with `main`'s noun-only normaliser on the same 3805 descriptions: it codes 75 % (no rock names in its
+vocabulary, no legends, no ditto), bh3 92 %; where both code, 88 % agree exactly and 91 % on the main soil
+family; the rest are flint (`X` vs `Kst`), breccia read as sand, and "silty SAND" style phrases where the
+normaliser's lithology enum and the capitalised noun disagree.
 
 ## One coordinate system
 
