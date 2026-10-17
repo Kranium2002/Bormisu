@@ -203,11 +203,9 @@ export interface paths {
          *     reference place geocoded on the server from the boreholes' location name, project name or
          *     country (uploaded places first, then the cached geocoder), the compactness of the points, and
          *     how specific the system is (world-wide systems and areas of use far larger than the point
-         *     spread score lower). Verdict match: every point inside the area of use and, when a reference
-         *     place was found, the centroid near it; shifted: inside but far from the reference place, or
-         *     only just outside the area; out_of_range: the rest. Order: verdict, score, smaller area of
-         *     use, EPSG code. An unavailable geocoder never fails this call: the ranking then works without
-         *     a reference place and says so in `note`.
+         *     spread score lower). Verdict: see `CrsCandidate.verdict` (match, shifted, out_of_range).
+         *     Order: verdict, score, smaller area of use, EPSG code. An unavailable geocoder never fails
+         *     this call: the ranking then works without a reference place and says so in `note`.
          */
         get: operations["listCrsCandidates"];
         put?: never;
@@ -480,7 +478,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Server-sent events for live updates. See contracts/realtime-and-chat.md. */
+        /**
+         * Server-sent events for live updates. See contracts/realtime-and-chat.md.
+         * @description Without a last event id the stream starts at the newest event (no history). With one, every
+         *     stored event after that id is replayed first. The id can be sent as the `Last-Event-ID`
+         *     header (EventSource does this on its own reconnects) or, since 1.2.0, as the `last_event_id`
+         *     query parameter (for a stream the client opens anew, which cannot set headers). When both are
+         *     sent, the header wins. A header that is not a whole number is ignored.
+         */
         get: operations["streamEvents"];
         put?: never;
         post?: never;
@@ -621,6 +626,14 @@ export interface components {
             project?: string | null;
             status: components["schemas"]["DocumentStatus"];
             error?: string | null;
+            /**
+             * @description The pipeline stage that failed (1.2.0), the same name as `stage` in the `job.failed` event:
+             *     triage, classify, ocr, extract, reread for page documents; sheet_read, sheet_map,
+             *     sheet_extract for spreadsheets. null unless `status` is failed; also null when the
+             *     document failed before any stage ran (for example it could not be queued). Cleared when
+             *     the document is retried.
+             */
+            failed_stage?: string | null;
             mime_type?: string;
             size_bytes?: number;
             sha256?: string;
@@ -764,6 +777,12 @@ export interface components {
             core_recovery_pct?: number | null;
             /** @description Never set on refusal. */
             spt_n_value?: number | null;
+            /**
+             * @description The SPT as printed. To correct an SPT (also a refusal such as "50/120"), edit this path: the
+             *     server parses the text again and updates spt_refusal, spt_n_value (null on refusal),
+             *     spt_increments, spt_increment_mm and spt_penetration_cm in the same revision. An edit of
+             *     spt_n_value accepts whole numbers only.
+             */
             spt_raw?: string | null;
             spt_refusal?: boolean | null;
             spt_increments?: number[] | null;
@@ -827,6 +846,11 @@ export interface components {
             plotted: boolean;
             /** @enum {string|null} */
             unplotted_reason?: "no_coordinates" | "crs_unknown" | "crs_unconfirmed" | "implausible" | null;
+            /**
+             * @description Depth of the rock head in metres: as printed or edited, else derived from the top of the
+             *     first layer whose DIN 4023 code is a rock. null means not stated in the source and not
+             *     derivable from the printed layers; it never means that rock was not reached.
+             */
             rock_head_m?: number | null;
             metadata: components["schemas"]["BoreholeMetadata"];
             stratigraphy: components["schemas"]["Layer"][];
@@ -885,7 +909,20 @@ export interface components {
             crs: string;
             label: string;
             score?: number;
-            /** @enum {string} */
+            /**
+             * @description How the transformed points fit the system (meaning fixed in 1.2.0).
+             *     match: every point, transformed, lies inside the system's EPSG area of use and, when a
+             *     reference place is known, the centroid of the points lies within the server's match
+             *     distance of that place (distance 0 inside the place's bounding box).
+             *     shifted: every point lies inside the area of use or within the server's margin around it,
+             *     but some lie only in the margin, or the centroid is farther than the match distance from
+             *     the reference place.
+             *     out_of_range: at least one point lies outside the area of use and its margin, or cannot be
+             *     transformed (also when the server knows no area of use for the system).
+             *     The margin and the match distance are the server's data (its CRS registry), not part of
+             *     this contract; they can change without a contract change.
+             * @enum {string}
+             */
             verdict?: "match" | "shifted" | "out_of_range";
             /** @description Why it ranks here, e.g. "zone printed as 55H". */
             note?: string | null;
@@ -981,6 +1018,10 @@ export interface components {
                     borehole_depth_m?: number | null;
                     review_status: string;
                     crs_status: string;
+                    /** @description Stated or confirmed system, e.g. EPSG:2193 (1.2.0). */
+                    crs_code?: string | null;
+                    /** @description Readable name of crs_code, as in Coordinates.crs_label (1.2.0). */
+                    crs_label?: string | null;
                     revision?: number;
                     /** @description True when a value is flagged, a lint error exists or a clarification is unresolved (open or skipped). */
                     attention?: boolean;
@@ -1305,7 +1346,10 @@ export interface operations {
                     "application/json": components["schemas"]["UploadAccepted"];
                 };
             };
-            /** @description Document is not in status failed. */
+            /**
+             * @description Document is not in status failed (code not_failed), or the server is in demo mode (code and
+             *     detail both exactly "demo_mode"; the document is not touched).
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1861,6 +1905,11 @@ export interface operations {
         parameters: {
             query?: {
                 document_id?: string;
+                /**
+                 * @description Replay every stored event after this id (1.2.0). Same meaning as the Last-Event-ID
+                 *     header, which wins when both are sent.
+                 */
+                last_event_id?: number;
             };
             header?: {
                 "Last-Event-ID"?: string;
