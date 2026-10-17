@@ -36,6 +36,7 @@
       "local_y": null,
       "coordinate_system": null,
       "crs_code": null,
+      "crs_label": null,
       "x_raw": null,
       "y_raw": null,
       "axis_labels_raw": null
@@ -167,6 +168,168 @@
       "ai_value": "FHL-BH02",
       "flag": null
     },
+    "metadata.location_name": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.3,
+        0.09,
+        0.3,
+        0.03
+      ],
+      "raw": "Lindenwick, Südmole",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Lindenwick, Südmole",
+      "flag": null
+    },
+    "metadata.project_id": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.08,
+        0.01,
+        0.12,
+        0.03
+      ],
+      "raw": "FHL-0426",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "FHL-0426",
+      "flag": null
+    },
+    "metadata.project_name": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.3,
+        0.05,
+        0.35,
+        0.03
+      ],
+      "raw": "Fictional Harbour Link",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Fictional Harbour Link",
+      "flag": null
+    },
+    "metadata.client": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.66,
+        0.05,
+        0.28,
+        0.03
+      ],
+      "raw": "Hafengesellschaft Lindenwick",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Hafengesellschaft Lindenwick",
+      "flag": null
+    },
+    "metadata.drilling_contractor": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.66,
+        0.09,
+        0.28,
+        0.03
+      ],
+      "raw": "Beispiel Bohrtechnik GmbH",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Beispiel Bohrtechnik GmbH",
+      "flag": null
+    },
+    "metadata.drilling_method": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.3,
+        0.13,
+        0.3,
+        0.03
+      ],
+      "raw": "Rammkernbohrung",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Rammkernbohrung",
+      "flag": null
+    },
+    "metadata.drilling_date": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.66,
+        0.13,
+        0.14,
+        0.03
+      ],
+      "raw": "05.03.2026",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "05.03.2026",
+      "flag": null
+    },
+    "metadata.start_date": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.66,
+        0.13,
+        0.14,
+        0.03
+      ],
+      "raw": "05.03.2026",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "2026-03-05",
+      "flag": null
+    },
+    "metadata.end_date": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.66,
+        0.13,
+        0.14,
+        0.03
+      ],
+      "raw": "05.03.2026",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "2026-03-05",
+      "flag": null
+    },
     "metadata.depth_origin": {
       "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
       "page": 8,
@@ -183,6 +346,60 @@
       "status": "unreviewed",
       "state": "ok",
       "ai_value": null,
+      "flag": null
+    },
+    "metadata.borehole_depth_m": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.08,
+        0.62,
+        0.06,
+        0.02
+      ],
+      "raw": "8,00",
+      "cell": null,
+      "method": "derived",
+      "confidence": null,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": 8.0,
+      "flag": null
+    },
+    "metadata.borehole_depth_source": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.08,
+        0.62,
+        0.06,
+        0.02
+      ],
+      "raw": null,
+      "cell": null,
+      "method": "derived",
+      "confidence": null,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "last_layer",
+      "flag": null
+    },
+    "metadata.notes": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.08,
+        0.17,
+        0.3,
+        0.03
+      ],
+      "raw": "Tiefen unter Kajenoberkante",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.97,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Tiefen unter Kajenoberkante",
       "flag": null
     },
     "metadata.coordinates.x_raw": {
@@ -211,25 +428,115 @@
       "ai_value": null,
       "flag": null
     },
-    "metadata.borehole_depth_m": {
+    "stratigraphy[0].depth_from_m": {
       "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
       "page": 8,
       "box": [
         0.08,
-        0.62,
+        0.27,
         0.06,
         0.02
       ],
-      "raw": "8,00",
+      "raw": "0,00",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": 0.0,
+      "flag": null
+    },
+    "stratigraphy[0].depth_to_m": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.08,
+        0.3,
+        0.06,
+        0.02
+      ],
+      "raw": "1,20",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": 1.2,
+      "flag": null
+    },
+    "stratigraphy[0].original_description": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.28,
+        0.45,
+        0.03
+      ],
+      "raw": "Auffüllung, Sand, kiesig",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Auffüllung, Sand, kiesig",
+      "flag": null
+    },
+    "stratigraphy[0].english_lithology": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.28,
+        0.45,
+        0.03
+      ],
+      "raw": null,
+      "cell": null,
+      "method": "guessed",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Fill, sand, gravelly",
+      "flag": null
+    },
+    "stratigraphy[0].din4023_code": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.28,
+        0.45,
+        0.03
+      ],
+      "raw": "Auffüllung, Sand, kiesig",
       "cell": null,
       "method": "derived",
       "confidence": null,
       "status": "unreviewed",
       "state": "ok",
-      "ai_value": 8.0,
+      "ai_value": "A",
       "flag": null
     },
-    "stratigraphy[0].depth_to_m": {
+    "stratigraphy[0].din4023_notation": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.68,
+        0.28,
+        0.05,
+        0.02
+      ],
+      "raw": "A",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "A",
+      "flag": null
+    },
+    "stratigraphy[1].depth_from_m": {
       "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
       "page": 8,
       "box": [
@@ -265,6 +572,114 @@
       "ai_value": 5.0,
       "flag": null
     },
+    "stratigraphy[1].original_description": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.33,
+        0.45,
+        0.04
+      ],
+      "raw": "Feinsand, schluffig, locker",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Feinsand, schluffig, locker",
+      "flag": null
+    },
+    "stratigraphy[1].english_lithology": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.33,
+        0.45,
+        0.04
+      ],
+      "raw": null,
+      "cell": null,
+      "method": "guessed",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Fine sand, silty, loose",
+      "flag": null
+    },
+    "stratigraphy[1].din4023_code": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.33,
+        0.45,
+        0.04
+      ],
+      "raw": "Feinsand, schluffig, locker",
+      "cell": null,
+      "method": "derived",
+      "confidence": null,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "fS",
+      "flag": null
+    },
+    "stratigraphy[1].din4023_notation": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.68,
+        0.33,
+        0.05,
+        0.02
+      ],
+      "raw": "fS, u",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "fS, u",
+      "flag": null
+    },
+    "stratigraphy[1].consistency_density": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.33,
+        0.45,
+        0.04
+      ],
+      "raw": "locker",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "locker",
+      "flag": null
+    },
+    "stratigraphy[2].depth_from_m": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.08,
+        0.45,
+        0.06,
+        0.02
+      ],
+      "raw": "5,00",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": 5.0,
+      "flag": null
+    },
     "stratigraphy[2].depth_to_m": {
       "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
       "page": 8,
@@ -283,6 +698,42 @@
       "ai_value": 8.0,
       "flag": null
     },
+    "stratigraphy[2].original_description": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.5,
+        0.45,
+        0.04
+      ],
+      "raw": "Klei, organisch, weich",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Klei, organisch, weich",
+      "flag": null
+    },
+    "stratigraphy[2].english_lithology": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.5,
+        0.45,
+        0.04
+      ],
+      "raw": null,
+      "cell": null,
+      "method": "guessed",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Marine clay, organic, soft",
+      "flag": null
+    },
     "stratigraphy[2].din4023_code": {
       "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
       "page": 8,
@@ -299,6 +750,42 @@
       "status": "unreviewed",
       "state": "ok",
       "ai_value": "Kl",
+      "flag": null
+    },
+    "stratigraphy[2].din4023_notation": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.68,
+        0.5,
+        0.05,
+        0.02
+      ],
+      "raw": "Kl, h",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "Kl, h",
+      "flag": null
+    },
+    "stratigraphy[2].consistency_density": {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.16,
+        0.5,
+        0.45,
+        0.04
+      ],
+      "raw": "weich",
+      "cell": null,
+      "method": "read",
+      "confidence": 0.99,
+      "status": "unreviewed",
+      "state": "ok",
+      "ai_value": "weich",
       "flag": null
     }
   }

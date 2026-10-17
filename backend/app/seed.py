@@ -7,7 +7,9 @@ Nothing seeds itself on start. The data covers every state the UI shows: documen
 and roles, handwriting, duplicates, review statuses, provenance status/state/method, readings that
 disagree, lint findings, every unplotted reason and every clarification kind except chat_parameter.
 Boreholes are created only through `app.review.service.create_borehole`, so WGS84 positions, rock head,
-lint and placement come from the same code the pipeline uses. Values that are not printed stay null.
+lint and placement come from the same code the pipeline uses. Values that are not printed stay null; every
+other value has a provenance entry whose page and box show where it is printed, or the printed text it was
+derived (a DIN code, a reading type) or guessed (from a neighbouring log or the project's other upload) from.
 
 Coordinates are plausible positions in Germany, Australia, New Zealand, the USA and Chile (so the map
 shows several clusters); nothing is copied from a real report.
@@ -19,7 +21,7 @@ import argparse
 import asyncio
 import hashlib
 import zlib
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -53,6 +55,7 @@ from app.seed_pages import (
     pdf_bytes,
     png_bytes,
     thumbnail_png,
+    union_anchor,
 )
 from app.services.documents import emit_document_updated, page_type_for, unused_reason_for
 from app.storage import (
@@ -74,25 +77,50 @@ FT = 0.3048
 
 @dataclass(frozen=True)
 class Ref:
-    """A drawn value: page number and anchor key on that page."""
+    """Where a value is drawn: page number and anchor key(s) on that page (the box is their union).
+
+    `doc` names another seed document (its key) when the value was taken from that document's page.
+    """
 
     page: int
     key: str
+    also: tuple[str, ...] = ()
+    doc: str | None = None
+
+    @property
+    def keys(self) -> tuple[str, ...]:
+        return (self.key, *self.also)
 
 
 @dataclass
 class Pv:
-    """Provenance of one value; box and raw text come from the drawn anchor."""
+    """Provenance of one value; box and raw text come from the drawn anchor(s)."""
 
-    ref: Ref | None
+    ref: Ref
     method: str | None = None  # None: the document's default (read or ocr)
-    confidence: float | None = None  # None: from the method and whether the value is handwritten
+    confidence: float | None = None  # None: from the method and whether the source is handwritten
     status: str = "unreviewed"
     state: str = "ok"
     flag: str | None = None
     readings: list[tuple[str, str, float]] = field(default_factory=list)
     raw: str | None = "<anchor>"
-    cell: str | None = None
+
+
+def derived(ref: Ref, **kwargs: Any) -> Pv:
+    """A value worked out from drawn text (a code, a type, a flag); the box is that text, no raw."""
+    return Pv(ref, method="derived", raw=None, **kwargs)
+
+
+@dataclass(frozen=True)
+class At:
+    """Header value position for `header_prov`: anchor keys on the page (box = union) and the method."""
+
+    keys: tuple[str, ...]
+    method: str | None = None
+
+
+def at(*keys: str, method: str | None = None) -> At:
+    return At(keys, method)
 
 
 @dataclass
@@ -204,7 +232,10 @@ class LayerDef:
     consistency: str | None = None
 
 
-def layer_rows(layers: Sequence[LayerDef], start: int = 0) -> list[tuple[str, dict[str, Cell]]]:
+def layer_rows(
+    layers: Sequence[LayerDef], start: int = 0, *, row: str = "L"
+) -> list[tuple[str, dict[str, Cell]]]:
+    """Table rows keyed `{row}{i}`; a second log on the same sheet uses another `row` prefix."""
     rows = []
     for i, layer in enumerate(layers, start=start):
         cells: dict[str, Cell] = {
@@ -218,22 +249,29 @@ def layer_rows(layers: Sequence[LayerDef], start: int = 0) -> list[tuple[str, di
             "tcr": layer.tcr,
             "rqd": layer.rqd,
         }
-        rows.append((f"L{i}", cells))
+        rows.append((f"{row}{i}", cells))
     return rows
 
 
 def layer_records(
-    layers: Sequence[LayerDef], pages: Sequence[int], *, language: str, factor: float = 1.0
+    layers: Sequence[LayerDef], pages: Sequence[int], *, language: str, factor: float = 1.0, row: str = "L"
 ) -> tuple[list[dict[str, Any]], dict[str, Pv]]:
-    """Record layers and their provenance; `pages[i]` is the page layer i is drawn on (anchor `L{i}.*`)."""
+    """Record layers and their provenance; `pages[i]` is the page layer i is drawn on (anchors `{row}{i}.*`).
+
+    Every value set here is printed in the layer's row (or, for the SPT increment, in the column title of
+    a table page) or worked out from it (method derived); everything else stays null.
+    """
     records: list[dict[str, Any]] = []
     prov: dict[str, Pv] = {}
     for i, layer in enumerate(layers):
         n = pages[i]
         base = f"stratigraphy[{i}]"
+        desc = Ref(n, f"{row}{i}.desc")
+        spt = Ref(n, f"{row}{i}.spt")
         spt_text = text_of(layer.spt)
         has_spt = layer.spt is not None and spt_text not in ("-", "")
         legible = has_spt and not isinstance(layer.spt, Smudge)
+        printed_din = text_of(layer.din)
         records.append(
             {
                 "depth_from_m": num(layer.top, factor),
@@ -242,7 +280,7 @@ def layer_records(
                 "description_language": language,
                 "english_lithology": layer.en,
                 "din4023_code": layer.code,
-                "din4023_notation": layer.notation or layer.code,
+                "din4023_notation": layer.notation or printed_din,
                 "uscs_group": text_of(layer.uscs),
                 "colour": layer.colour,
                 "consistency_density": layer.consistency,
@@ -252,39 +290,50 @@ def layer_records(
                 "spt_n_value": layer.spt_n,
                 "spt_raw": spt_text if legible else None,
                 "spt_refusal": bool(layer.refusal) if legible else None,
-                "spt_increments": layer.increments,
-                "spt_increment_mm": layer.increment_mm,
-                "spt_penetration_cm": layer.penetration_cm,
+                "spt_increments": layer.increments if legible else None,
+                "spt_increment_mm": layer.increment_mm if legible else None,
+                "spt_penetration_cm": layer.penetration_cm if legible else None,
             }
         )
-        prov[f"{base}.depth_from_m"] = Pv(Ref(n, f"L{i}.from"))
-        prov[f"{base}.depth_to_m"] = Pv(Ref(n, f"L{i}.to"))
-        prov[f"{base}.original_description"] = Pv(Ref(n, f"L{i}.desc"))
+        prov[f"{base}.depth_from_m"] = Pv(Ref(n, f"{row}{i}.from"))
+        prov[f"{base}.depth_to_m"] = Pv(Ref(n, f"{row}{i}.to"))
+        prov[f"{base}.original_description"] = Pv(desc)
         if layer.code is not None:
-            if layer.din is not None:
-                prov[f"{base}.din4023_code"] = Pv(Ref(n, f"L{i}.din"))
+            if printed_din is not None:
+                prov[f"{base}.din4023_code"] = Pv(Ref(n, f"{row}{i}.din"))
             else:
                 # Not printed: mapped from the description by the DIN vocabulary.
-                prov[f"{base}.din4023_code"] = Pv(
-                    Ref(n, f"L{i}.desc"), method="derived", confidence=0.86, raw=None
-                )
+                prov[f"{base}.din4023_code"] = derived(desc, confidence=0.86)
+        if layer.notation is not None:
+            # The full DIN 4023 notation is not printed: worked out from the description's terms.
+            prov[f"{base}.din4023_notation"] = derived(desc, confidence=0.86)
+        elif printed_din is not None:
+            prov[f"{base}.din4023_notation"] = Pv(Ref(n, f"{row}{i}.din"))
+        if layer.colour is not None:
+            prov[f"{base}.colour"] = Pv(desc)
+        if layer.consistency is not None:
+            prov[f"{base}.consistency_density"] = Pv(desc)
         if layer.uscs is not None:
-            prov[f"{base}.uscs_group"] = Pv(Ref(n, f"L{i}.uscs"))
-        if has_spt:
-            if layer.refusal:
-                prov[f"{base}.spt_refusal"] = Pv(Ref(n, f"L{i}.spt"))
-                prov[f"{base}.spt_raw"] = Pv(Ref(n, f"L{i}.spt"))
-            elif isinstance(layer.spt, Smudge):
-                prov[f"{base}.spt_n_value"] = Pv(
-                    Ref(n, f"L{i}.spt"), state="illegible", confidence=0.31, raw=None
-                )
-            else:
-                key = f"L{i}.n" if layer.n is not None else f"L{i}.spt"
+            prov[f"{base}.uscs_group"] = Pv(Ref(n, f"{row}{i}.uscs"))
+        if legible:
+            prov[f"{base}.spt_raw"] = Pv(spt)
+            prov[f"{base}.spt_refusal"] = derived(spt)
+            if not layer.refusal:
+                key = f"{row}{i}.n" if layer.n is not None else f"{row}{i}.spt"
                 prov[f"{base}.spt_n_value"] = Pv(Ref(n, key))
+            if layer.increments is not None:
+                prov[f"{base}.spt_increments"] = Pv(spt)
+            if layer.increment_mm is not None:
+                prov[f"{base}.spt_increment_mm"] = Pv(Ref(n, "hdr.spt"))
+            if layer.penetration_cm is not None:
+                prov[f"{base}.spt_penetration_cm"] = Pv(spt)
+        elif has_spt:
+            prov[f"{base}.spt_n_value"] = Pv(spt, state="illegible", confidence=0.31, raw=None)
         if layer.tcr is not None:
-            prov[f"{base}.core_recovery_pct"] = Pv(Ref(n, f"L{i}.tcr"))
+            prov[f"{base}.core_recovery_pct"] = Pv(Ref(n, f"{row}{i}.tcr"))
+            prov[f"{base}.is_core"] = derived(Ref(n, f"{row}{i}.tcr"))
         if layer.rqd is not None:
-            prov[f"{base}.rqd_pct"] = Pv(Ref(n, f"L{i}.rqd"))
+            prov[f"{base}.rqd_pct"] = Pv(Ref(n, f"{row}{i}.rqd"))
     return records, prov
 
 
@@ -296,10 +345,42 @@ def metadata(**values: Any) -> dict[str, Any]:
     return meta
 
 
-def header_prov(n: int, mapping: dict[str, str], **overrides: Pv) -> dict[str, Pv]:
-    """`mapping`: record path -> anchor key on page n."""
-    prov = {path: Pv(Ref(n, key)) for path, key in mapping.items()}
-    prov.update({path.replace("__", "."): pv for path, pv in overrides.items()})
+def header_prov(n: int, mapping: Mapping[str, str | At], *, status: str = "unreviewed") -> dict[str, Pv]:
+    """`mapping`: record path -> anchor key (or `At` keys and method) on page n."""
+    prov: dict[str, Pv] = {}
+    for path, where in mapping.items():
+        spot = where if isinstance(where, At) else At((where,))
+        ref = Ref(n, spot.keys[0], spot.keys[1:])
+        raw = None if spot.method == "derived" else "<anchor>"
+        prov[path] = Pv(ref, method=spot.method, status=status, raw=raw)
+    return prov
+
+
+def sample_prov(i: int, n: int, row: str, *, type_key: str | None = None) -> dict[str, Pv]:
+    """Sample i from row `row` of a table on page n; the type is its own column or the name's prefix."""
+    base = f"samples[{i}]"
+    name = Ref(n, f"{row}.s")
+    return {
+        f"{base}.name": Pv(name),
+        f"{base}.type_code": Pv(Ref(n, f"{row}.{type_key}")) if type_key else derived(name),
+        f"{base}.depth_from_m": Pv(Ref(n, f"{row}.from")),
+        f"{base}.depth_to_m": Pv(Ref(n, f"{row}.to")),
+    }
+
+
+def water_prov(
+    i: int, n: int, key: str, *, type_from: tuple[str, ...], date_key: str | None = None
+) -> dict[str, Pv]:
+    """Groundwater reading i noted as `key` on page n: depth and raw from the value, the type worked out
+    from the anchors `type_from` (the note's label and/or value), the date from `date_key` when printed."""
+    base = f"groundwater[{i}]"
+    prov = {
+        f"{base}.type": derived(Ref(n, type_from[0], type_from[1:])),
+        f"{base}.depth_m": Pv(Ref(n, key)),
+        f"{base}.raw": Pv(Ref(n, key)),
+    }
+    if date_key is not None:
+        prov[f"{base}.date"] = Pv(Ref(n, date_key))
     return prov
 
 
@@ -487,13 +568,15 @@ KB3_LAYERS = [
 
 
 def _de_header(
-    label: str, ost: str, nord: str, z: str, start: str, end: str, depth: str
+    label: str, loc: str, ost: str, nord: str, z: str, start: str, end: str, depth: str
 ) -> list[tuple[str, str, Cell]]:
     return [
         ("Bohrung", "bh", label),
         ("Projekt", "project", DE_PROJECT),
         ("Auftraggeber", "client", DE_CLIENT),
         ("Bohrfirma", "contractor", DE_CONTRACTOR),
+        ("Lage", "loc", loc),
+        ("Land", "country", "Deutschland"),
         ("Ostwert (E)", "c1", ost),
         ("Nordwert (N)", "c2", nord),
         ("Lagesystem", "crs", "ETRS89 / UTM Zone 32N"),
@@ -537,22 +620,25 @@ def _de_meta(
             "local_y": y,
             "x_raw": xr,
             "y_raw": yr,
-            "axis_labels_raw": "Ostwert, Nordwert",
+            "axis_labels_raw": "Ostwert (E), Nordwert (N)",
             "coordinate_system": "ETRS89 / UTM Zone 32N",
             "crs_code": "EPSG:25832",
         },
     )
 
 
-DE_HEADER_PATHS = {
+DE_HEADER_PATHS: dict[str, str | At] = {
     "metadata.borehole_id": "bh",
     "metadata.project_name": "project",
     "metadata.client": "client",
     "metadata.drilling_contractor": "contractor",
+    "metadata.location_name": "loc",
+    "metadata.country": "country",
     "metadata.coordinates.local_x": "c1",
     "metadata.coordinates.local_y": "c2",
     "metadata.coordinates.x_raw": "c1",
     "metadata.coordinates.y_raw": "c2",
+    "metadata.coordinates.axis_labels_raw": at("c1.label", "c2.label"),
     "metadata.coordinates.coordinate_system": "crs",
     "metadata.surface_elevation_mASL": "z",
     "metadata.elevation_datum": "z",
@@ -560,6 +646,7 @@ DE_HEADER_PATHS = {
     "metadata.end_date": "end",
     "metadata.drilling_method": "method",
     "metadata.borehole_depth_m": "depth",
+    "metadata.borehole_depth_source": at("depth", method="derived"),
     "metadata.depth_origin": "origin",
 }
 
@@ -650,7 +737,14 @@ def _de_doc() -> DocSpec:
         "Schichtenverzeichnis",
         sheet_label="BLATT 1 VON 2",
         header=_de_header(
-            "KB-1", "530 039,85", "5 562 120,29", "312,45 m NHN", "11.03.2025", "12.03.2025", "18,00 m"
+            "KB-1",
+            "Kesselbachtal, Widerlager Nord",
+            "530 039,85",
+            "5 562 120,29",
+            "312,45 m NHN",
+            "11.03.2025",
+            "12.03.2025",
+            "18,00 m",
         ),
         columns=DE_SOIL_COLS,
         rows=layer_rows(KB1_LAYERS[:4]),
@@ -679,7 +773,14 @@ def _de_doc() -> DocSpec:
         "Schichtenverzeichnis",
         sheet_label="BLATT 1 VON 1",
         header=_de_header(
-            "KB-2", "530 224,36", "5 562 299,24", "309,80 m NHN", "13.03.2025", "13.03.2025", "12,00 m"
+            "KB-2",
+            "Kesselbachtal, Pfeiler 2",
+            "530 224,36",
+            "5 562 299,24",
+            "309,80 m NHN",
+            "13.03.2025",
+            "13.03.2025",
+            "12,00 m",
         ),
         columns=DE_SOIL_COLS,
         rows=layer_rows(KB2_LAYERS),
@@ -692,7 +793,14 @@ def _de_doc() -> DocSpec:
         "Schichtenverzeichnis",
         sheet_label="BLATT 1 VON 1",
         header=_de_header(
-            "KB-3", "530 411,33", "5 562 044,56", "287,59 m NHN", "14.03.2025", "14.03.2025", "10,00 m"
+            "KB-3",
+            "Kesselbachtal, Widerlager Sued",
+            "530 411,33",
+            "5 562 044,56",
+            "287,59 m NHN",
+            "14.03.2025",
+            "14.03.2025",
+            "10,00 m",
         ),
         columns=DE_SOIL_COLS,
         rows=layer_rows(KB3_LAYERS),
@@ -898,19 +1006,13 @@ def _de_doc() -> DocSpec:
             ],
         },
         merge(
-            {p: Pv(Ref(3, k), status="approved") for p, k in DE_HEADER_PATHS.items()},
-            {"metadata.country": Pv(None, method="guessed", confidence=0.8, raw=None)},
+            header_prov(3, DE_HEADER_PATHS, status="approved"),
             lprov,
+            water_prov(0, 3, "gw0", type_from=("gw0.label",)),
+            water_prov(1, 3, "gw1", type_from=("gw1.label",), date_key="gw1.label"),
+            sample_prov(0, 7, "r1"),
+            sample_prov(1, 7, "r2"),
             {
-                "groundwater[0].depth_m": Pv(Ref(3, "gw0")),
-                "groundwater[1].depth_m": Pv(Ref(3, "gw1")),
-                "groundwater[1].date": Pv(Ref(3, "gw1")),
-                "samples[0].name": Pv(Ref(7, "r1.s")),
-                "samples[0].depth_from_m": Pv(Ref(7, "r1.from")),
-                "samples[0].depth_to_m": Pv(Ref(7, "r1.to")),
-                "samples[1].name": Pv(Ref(7, "r2.s")),
-                "samples[1].depth_from_m": Pv(Ref(7, "r2.from")),
-                "samples[1].depth_to_m": Pv(Ref(7, "r2.to")),
                 "test_results[0].value": Pv(Ref(7, "r1.w")),
                 "test_results[1].value": Pv(Ref(7, "r1.wl")),
                 "test_results[2].value": Pv(Ref(7, "r2.ucs"), confidence=0.84),
@@ -952,21 +1054,11 @@ def _de_doc() -> DocSpec:
             ],
         },
         merge(
-            {p: Pv(Ref(5, k)) for p, k in DE_HEADER_PATHS.items()},
-            {
-                "metadata.country": Pv(None, method="guessed", confidence=0.8, raw=None),
-                "metadata.notes": Pv(Ref(5, "gwnote")),
-            },
+            header_prov(5, DE_HEADER_PATHS),
+            {"metadata.notes": Pv(Ref(5, "gwnote.label", ("gwnote",)))},
             lprov,
-            {
-                "samples[0].name": Pv(Ref(7, "r3.s")),
-                "samples[0].depth_from_m": Pv(Ref(7, "r3.from")),
-                "samples[0].depth_to_m": Pv(Ref(7, "r3.to")),
-                # Taken from the laboratory's spreadsheet export: a cell, no page or box.
-                "test_results[0].value": Pv(
-                    None, method="read", confidence=None, raw="8.7", cell="Logdata!C5"
-                ),
-            },
+            sample_prov(0, 7, "r3"),
+            {"test_results[0].value": Pv(Ref(7, "r3.w"))},
         ),
         pages=[5, 7],
         crs_status="stated",
@@ -999,14 +1091,11 @@ def _de_doc() -> DocSpec:
             ],
         },
         merge(
-            {p: Pv(Ref(6, k)) for p, k in DE_HEADER_PATHS.items()},
-            {"metadata.country": Pv(None, method="guessed", confidence=0.8, raw=None)},
+            header_prov(6, DE_HEADER_PATHS),
             lprov,
+            water_prov(0, 6, "gw0", type_from=("gw0.label",)),
+            sample_prov(0, 7, "r4"),
             {
-                "groundwater[0].depth_m": Pv(Ref(6, "gw0")),
-                "samples[0].name": Pv(Ref(7, "r4.s")),
-                "samples[0].depth_from_m": Pv(Ref(7, "r4.from")),
-                "samples[0].depth_to_m": Pv(Ref(7, "r4.to")),
                 "test_results[0].value": Pv(Ref(7, "r4.w")),
                 "test_results[1].value": Pv(Ref(7, "r4.wl")),
             },
@@ -1165,7 +1254,9 @@ def _au_header(
         ("Borehole", "bh", label),
         ("Project", "project", AU_PROJECT),
         ("Client", "client", AU_CLIENT),
+        ("Contractor", "contractor", AU_CONTRACTOR),
         ("Location", "loc", loc),
+        ("Country", "country", "Australia"),
         ("Easting", "c1", e),
         ("Northing", "c2", n),
         ("Grid", "crs", grid),
@@ -1174,27 +1265,29 @@ def _au_header(
         ("Date completed", "end", end),
         ("Drill method", "method", method),
         ("Total depth", "depth", depth),
-        ("Contractor", "contractor", AU_CONTRACTOR),
         ("Logged by", "logged", "R.K."),
     ]
 
 
-AU_HEADER_PATHS = {
+AU_HEADER_PATHS: dict[str, str | At] = {
     "metadata.borehole_id": "bh",
     "metadata.project_name": "project",
     "metadata.client": "client",
     "metadata.location_name": "loc",
+    "metadata.country": "country",
     "metadata.drilling_contractor": "contractor",
     "metadata.drilling_method": "method",
     "metadata.start_date": "start",
     "metadata.borehole_depth_m": "depth",
+    "metadata.borehole_depth_source": at("depth", method="derived"),
     "metadata.depth_origin": "origin",
 }
-AU_COORD_PATHS = {
+AU_COORD_PATHS: dict[str, str | At] = {
     "metadata.coordinates.local_x": "c1",
     "metadata.coordinates.local_y": "c2",
     "metadata.coordinates.x_raw": "c1",
     "metadata.coordinates.y_raw": "c2",
+    "metadata.coordinates.axis_labels_raw": at("c1.label", "c2.label"),
     "metadata.coordinates.coordinate_system": "crs",
     "metadata.surface_elevation_mASL": "z",
     "metadata.elevation_datum": "z",
@@ -1415,7 +1508,6 @@ def _au_doc() -> DocSpec:
         PageMeta(p6, "blank", None, ocr="skipped", used=False, confidence=0.99, reason="Empty page."),
     ]
 
-    gw_note = Pv(Ref(3, "gwnote"))
     layers, lprov = layer_records(BH01_LAYERS, [2] * 4, language=lang)
     bh01 = BoreholeSpec(
         "BH01",
@@ -1449,15 +1541,10 @@ def _au_doc() -> DocSpec:
         },
         merge(
             header_prov(2, AU_HEADER_PATHS | AU_COORD_PATHS | {"metadata.end_date": "end"}),
-            {"metadata.country": Pv(None, method="guessed", confidence=0.75, raw=None)},
             lprov,
-            {
-                "groundwater[0].depth_m": Pv(Ref(2, "gw0")),
-                "groundwater[0].date": Pv(Ref(2, "gw0")),
-                "groundwater[1].depth_m": Pv(Ref(2, "gw1")),
-                "groundwater[1].date": Pv(Ref(2, "gw1")),
-                "test_results[0].value": Pv(Ref(2, "cai")),
-            },
+            water_prov(0, 2, "gw0", type_from=("gw0.label",), date_key="gw0"),
+            water_prov(1, 2, "gw1", type_from=("gw1.label",), date_key="gw1"),
+            {"test_results[0].value": Pv(Ref(2, "cai"))},
         ),
         pages=[1, 2],
         crs_status="stated",
@@ -1486,21 +1573,20 @@ def _au_doc() -> DocSpec:
                     },
                     61.85,
                 ),
-                "notes": "Groundwater not encountered. Terminated on SPT refusal on basalt.",
+                "notes": "Groundwater: not encountered. Termination: SPT refusal on basalt.",
             },
             "stratigraphy": layers,
         },
         merge(
             header_prov(3, AU_HEADER_PATHS | AU_COORD_PATHS),
             {
-                "metadata.country": Pv(None, method="guessed", confidence=0.75, raw=None),
                 "metadata.surface_elevation_mASL": Pv(
                     Ref(3, "z"),
                     status="flagged",
                     flag="RL differs from the survey plan (61.58 m AHD); check with the surveyor.",
                 ),
                 "metadata.end_date": Pv(Ref(3, "end"), state="not_in_source", confidence=None, raw=None),
-                "metadata.notes": gw_note,
+                "metadata.notes": Pv(Ref(3, "gwnote.label", ("gwnote", "term.label", "term"))),
             },
             lprov,
         ),
@@ -1516,7 +1602,7 @@ def _au_doc() -> DocSpec:
                 **_au_meta(
                     "BH03", "Next to the pump station", "2025-02-21", "2025-02-21", 6.0, method02, {}, None
                 ),
-                "notes": "Groundwater not encountered.",
+                "notes": "Groundwater: not encountered",
             },
             "stratigraphy": layers,
             "test_results": [
@@ -1526,7 +1612,6 @@ def _au_doc() -> DocSpec:
         merge(
             header_prov(4, AU_HEADER_PATHS | {"metadata.end_date": "end"}),
             {
-                "metadata.country": Pv(None, method="guessed", confidence=0.75, raw=None),
                 "metadata.coordinates.x_raw": Pv(
                     Ref(4, "c1"), state="not_in_source", confidence=None, raw=None
                 ),
@@ -1536,7 +1621,7 @@ def _au_doc() -> DocSpec:
                 "metadata.surface_elevation_mASL": Pv(
                     Ref(4, "z"), state="not_in_source", confidence=None, raw=None
                 ),
-                "metadata.notes": Pv(Ref(4, "gwnote")),
+                "metadata.notes": Pv(Ref(4, "gwnote.label", ("gwnote",))),
                 "test_results[0].value": Pv(Ref(4, "uw"), confidence=0.97),
             },
             lprov,
@@ -1567,6 +1652,7 @@ NZ_PROJECT = "Tarawhiti Wharf Upgrade"
 NZ_CLIENT = "Tarawhiti Port Company (fictional)"
 NZ1_FILE = "fictional-tarawhiti-wharf-phase1-borelogs.pdf"
 NZ2_FILE = "fictional-tarawhiti-wharf-phase2-field-sheets.pdf"
+NZ_LOCATION = "Tarawhiti wharf"
 NZ_COLS = [
     Column("from", "From\n(m)", 85),
     Column("to", "To\n(m)", 85),
@@ -1675,6 +1761,8 @@ def _nz_header(label: str, e: str, n: str, rl: str, date: str, depth: str) -> li
         ("Project", "project", NZ_PROJECT),
         ("Client", "client", NZ_CLIENT),
         ("Date", "start", date),
+        ("Location", "loc", NZ_LOCATION),
+        ("Country", "country", "New Zealand"),
         ("mE", "c1", e),
         ("mN", "c2", n),
         ("Ground level", "z", rl),
@@ -1682,18 +1770,30 @@ def _nz_header(label: str, e: str, n: str, rl: str, date: str, depth: str) -> li
     ]
 
 
-NZ_HEADER_PATHS = {
+NZ_HEADER_PATHS: dict[str, str | At] = {
     "metadata.borehole_id": "bh",
     "metadata.project_name": "project",
     "metadata.client": "client",
+    "metadata.location_name": "loc",
+    "metadata.country": "country",
     "metadata.start_date": "start",
     "metadata.coordinates.local_x": "c1",
     "metadata.coordinates.local_y": "c2",
     "metadata.coordinates.x_raw": "c1",
     "metadata.coordinates.y_raw": "c2",
+    "metadata.coordinates.axis_labels_raw": at("c1.label", "c2.label"),
     "metadata.surface_elevation_mASL": "z",
     "metadata.elevation_datum": "z",
     "metadata.borehole_depth_m": "depth",
+    "metadata.borehole_depth_source": at("depth", method="derived"),
+}
+# The phase 2 field sheet prints none of these; they are guessed from the phase 1 log of WH-1 (document
+# "nz1", page 2), which belongs to the same project.
+NZ_FROM_PHASE1 = {
+    "metadata.project_name": "project",
+    "metadata.client": "client",
+    "metadata.location_name": "loc",
+    "metadata.country": "country",
 }
 
 
@@ -1702,7 +1802,7 @@ def _nz_meta(
 ) -> dict[str, Any]:
     return metadata(
         borehole_id=label,
-        location_name="Tarawhiti wharf",
+        location_name=NZ_LOCATION,
         country="New Zealand",
         project_name=NZ_PROJECT,
         client=NZ_CLIENT,
@@ -1815,9 +1915,9 @@ def _nz_docs() -> tuple[DocSpec, DocSpec]:
                 "WH-1", 2037743.0, 5706760.0, "2037743.0", "5706760.0", 3.42, "2025-03-25", 12.3, None
             ),
             "stratigraphy": layers,
-            "groundwater": [{"type": "other", "depth_m": 2.1, "date": None, "raw": "2.10 m (tidal)"}],
+            "groundwater": [{"type": "other", "depth_m": 2.1, "date": None, "raw": "2.10 m"}],
         },
-        merge(header_prov(2, NZ_HEADER_PATHS), lprov, {"groundwater[0].depth_m": Pv(Ref(2, "gw0"))}),
+        merge(header_prov(2, NZ_HEADER_PATHS), lprov, water_prov(0, 2, "gw0", type_from=("gw0.label",))),
         pages=[2],
         crs_status="inferred",
     )
@@ -1829,15 +1929,16 @@ def _nz_docs() -> tuple[DocSpec, DocSpec]:
                 **_nz_meta(
                     "WH-2", 2037901.1, 5706617.6, "2037901.1", "5706617.6", 3.18, "2025-03-27", 11.0, None
                 ),
-                "notes": "Core loss 3.80 - 4.10 m.",
+                "notes": "Core loss: 3.80 - 4.10 m",
             },
             "stratigraphy": layers,
-            "groundwater": [{"type": "other", "depth_m": 1.85, "date": None, "raw": "1.85 m (tidal)"}],
+            "groundwater": [{"type": "other", "depth_m": 1.85, "date": None, "raw": "1.85 m"}],
         },
         merge(
             header_prov(3, NZ_HEADER_PATHS),
             lprov,
-            {"groundwater[0].depth_m": Pv(Ref(3, "gw0")), "metadata.notes": Pv(Ref(3, "loss"))},
+            water_prov(0, 3, "gw0", type_from=("gw0.label",)),
+            {"metadata.notes": Pv(Ref(3, "loss.label", ("loss",)))},
         ),
         pages=[3],
         crs_status="inferred",
@@ -1923,21 +2024,21 @@ def _nz_docs() -> tuple[DocSpec, DocSpec]:
     wh3 = BoreholeSpec(
         "WH-3",
         {
-            "metadata": {
-                **_nz_meta(
-                    "WH-3", 2038060.0, 5706809.0, "2038060", "5706809", 4.15, "2025-04-02", 10.5, "relative"
-                ),
-                "location_name": "Tarawhiti wharf",
-            },
+            "metadata": _nz_meta(
+                "WH-3", 2038060.0, 5706809.0, "2038060", "5706809", 4.15, "2025-04-02", 10.5, "relative"
+            ),
             "stratigraphy": layers,
             "groundwater": [{"type": "other", "depth_m": 2.4, "date": None, "raw": "tidal, ~2.4"}],
         },
         merge(
-            header_prov(1, NZ_HEADER_PATHS | {"metadata.depth_origin": "origin"}),
+            header_prov(1, {p: k for p, k in NZ_HEADER_PATHS.items() if p not in NZ_FROM_PHASE1}),
             lprov,
+            water_prov(0, 1, "gw0", type_from=("gw0.label", "gw0")),
             {
-                "metadata.project_name": Pv(None, method="guessed", confidence=0.9, raw=None),
-                "metadata.client": Pv(None, method="guessed", confidence=0.9, raw=None),
+                path: Pv(Ref(2, key, doc="nz1"), method="guessed", confidence=0.9)
+                for path, key in NZ_FROM_PHASE1.items()
+            },
+            {
                 "metadata.depth_origin": Pv(Ref(1, "origin"), method="guessed", confidence=0.55),
                 "metadata.surface_elevation_mASL": Pv(
                     Ref(1, "z"),
@@ -2052,7 +2153,9 @@ def _us_header(
         ("Boring No.", "bh", label),
         ("Project", "project", US_PROJECT),
         ("Client", "client", US_CLIENT),
+        ("Driller", "contractor", US_DRILLER),
         ("Location", "loc", loc),
+        ("Country", "country", "USA"),
         ("Northing", "c1", north),
         ("Easting", "c2", east),
         ("Coordinate system", "crs", "WGS 84 / UTM zone 18N"),
@@ -2061,20 +2164,21 @@ def _us_header(
         ("Date completed", "end", date),
         ("Drilling method", "method", "Hollow stem auger / NQ core"),
         ("Total depth", "depth", depth),
-        ("Driller", "contractor", US_DRILLER),
         ("Hammer", "hammer", "Automatic, 140 lb"),
     ]
 
 
-US_HEADER_PATHS = {
+US_HEADER_PATHS: dict[str, str | At] = {
     "metadata.borehole_id": "bh",
     "metadata.project_name": "project",
     "metadata.client": "client",
     "metadata.location_name": "loc",
+    "metadata.country": "country",
     "metadata.coordinates.local_x": "c2",
     "metadata.coordinates.local_y": "c1",
     "metadata.coordinates.x_raw": "c1",
     "metadata.coordinates.y_raw": "c2",
+    "metadata.coordinates.axis_labels_raw": at("c1.label", "c2.label"),
     "metadata.coordinates.coordinate_system": "crs",
     "metadata.surface_elevation_mASL": "z",
     "metadata.elevation_datum": "z",
@@ -2082,6 +2186,7 @@ US_HEADER_PATHS = {
     "metadata.end_date": "end",
     "metadata.drilling_method": "method",
     "metadata.borehole_depth_m": "depth",
+    "metadata.borehole_depth_source": at("depth", method="derived"),
     "metadata.drilling_contractor": "contractor",
     "metadata.depth_origin": "origin",
 }
@@ -2169,6 +2274,7 @@ def _us_doc() -> DocSpec:
         "LABORATORY TEST SUMMARY",
         columns=[
             Column("s", "Sample", 110),
+            Column("type", "Type", 80),
             Column("bh", "Boring", 120),
             Column("from", "Top\n(ft)", 100),
             Column("to", "Bottom\n(ft)", 100),
@@ -2179,12 +2285,22 @@ def _us_doc() -> DocSpec:
         rows=[
             (
                 "r1",
-                {"s": "S-2", "bh": "HR-101", "from": "3.5", "to": "5.0", "w": "18.2", "ll": "34", "ucs": "-"},
+                {
+                    "s": "S-2",
+                    "type": "SS",
+                    "bh": "HR-101",
+                    "from": "3.5",
+                    "to": "5.0",
+                    "w": "18.2",
+                    "ll": "34",
+                    "ucs": "-",
+                },
             ),
             (
                 "r2",
                 {
                     "s": "S-4",
+                    "type": "SS",
                     "bh": "HR-101",
                     "from": "8.5",
                     "to": "10.0",
@@ -2197,6 +2313,7 @@ def _us_doc() -> DocSpec:
                 "r3",
                 {
                     "s": "C-1",
+                    "type": "NQ",
                     "bh": "HR-102",
                     "from": "13.0",
                     "to": "14.5",
@@ -2310,16 +2427,11 @@ def _us_doc() -> DocSpec:
         },
         merge(
             header_prov(1, US_HEADER_PATHS),
-            {"metadata.country": Pv(None, method="guessed", confidence=0.8, raw=None)},
             lprov,
+            water_prov(0, 1, "gw0", type_from=("gw0",)),
+            sample_prov(0, 3, "r1", type_key="type"),
+            sample_prov(1, 3, "r2", type_key="type"),
             {
-                "groundwater[0].depth_m": Pv(Ref(1, "gw0")),
-                "samples[0].name": Pv(Ref(3, "r1.s")),
-                "samples[0].depth_from_m": Pv(Ref(3, "r1.from")),
-                "samples[0].depth_to_m": Pv(Ref(3, "r1.to")),
-                "samples[1].name": Pv(Ref(3, "r2.s")),
-                "samples[1].depth_from_m": Pv(Ref(3, "r2.from")),
-                "samples[1].depth_to_m": Pv(Ref(3, "r2.to")),
                 "test_results[0].value": Pv(Ref(3, "r1.w")),
                 "test_results[1].value": Pv(Ref(3, "r1.ll")),
                 "test_results[2].value": Pv(Ref(3, "r2.w")),
@@ -2347,7 +2459,7 @@ def _us_doc() -> DocSpec:
                     "2025-03-17",
                     19.0,
                 ),
-                "notes": "Groundwater not encountered.",
+                "notes": "Groundwater: not encountered",
             },
             "stratigraphy": layers,
             "samples": [
@@ -2370,17 +2482,10 @@ def _us_doc() -> DocSpec:
         },
         merge(
             header_prov(2, US_HEADER_PATHS),
-            {
-                "metadata.country": Pv(None, method="guessed", confidence=0.8, raw=None),
-                "metadata.notes": Pv(Ref(2, "gwnote")),
-            },
+            {"metadata.notes": Pv(Ref(2, "gwnote.label", ("gwnote",)))},
             lprov,
-            {
-                "samples[0].name": Pv(Ref(3, "r3.s")),
-                "samples[0].depth_from_m": Pv(Ref(3, "r3.from")),
-                "samples[0].depth_to_m": Pv(Ref(3, "r3.to")),
-                "test_results[0].value": Pv(Ref(3, "r3.ucs")),
-            },
+            sample_prov(0, 3, "r3", type_key="type"),
+            {"test_results[0].value": Pv(Ref(3, "r3.ucs"))},
         ),
         pages=[2, 3],
         crs_status="stated",
@@ -2408,6 +2513,7 @@ CL_CO = "Sondajes Altiplano SpA (ficticio)"
 CL_PROJECT = "Planta Salar Verde"
 CL_CLIENT = "Minera Salar Verde (ficticio)"
 CL_FILE = "fictional-salar-verde-sondajes.pdf"
+CL_LOCATION = "Salar Verde, sector planta"
 CL_COLS = [
     Column("from", "Desde\n(m)", 95),
     Column("to", "Hasta\n(m)", 95),
@@ -2485,30 +2591,41 @@ def _cl_header(label: str, lat: str, lon: str, z: str, date: str, depth: str) ->
         ("Sondaje", "bh", label),
         ("Proyecto", "project", CL_PROJECT),
         ("Mandante", "client", CL_CLIENT),
-        ("Ubicacion", "loc", "Salar Verde, sector planta"),
+        ("Fecha", "start", date),
+        ("Ubicacion", "loc", CL_LOCATION),
+        ("Pais", "country", "Chile"),
         ("Latitud", "lat", lat),
         ("Longitud", "lon", lon),
         ("Datum", "crs", "WGS84"),
         ("Cota", "z", z),
-        ("Fecha", "start", date),
         ("Profundidad total", "depth", depth),
     ]
 
 
-CL_HEADER_PATHS = {
+CL_HEADER_PATHS: dict[str, str | At] = {
     "metadata.borehole_id": "bh",
     "metadata.project_name": "project",
     "metadata.client": "client",
     "metadata.location_name": "loc",
+    "metadata.country": "country",
     "metadata.coordinates.latitude": "lat",
     "metadata.coordinates.longitude": "lon",
     "metadata.coordinates.x_raw": "lat",
     "metadata.coordinates.y_raw": "lon",
+    "metadata.coordinates.axis_labels_raw": at("lat.label", "lon.label"),
     "metadata.coordinates.coordinate_system": "crs",
     "metadata.surface_elevation_mASL": "z",
     "metadata.elevation_datum": "z",
     "metadata.start_date": "start",
     "metadata.borehole_depth_m": "depth",
+    "metadata.borehole_depth_source": at("depth", method="derived"),
+}
+# SV-04's block on the shared sheet prints none of these; they are guessed from SV-03's header above it.
+CL_FROM_NEIGHBOUR = {
+    "metadata.project_name": "project",
+    "metadata.client": "client",
+    "metadata.location_name": "loc",
+    "metadata.country": "country",
 }
 
 
@@ -2534,7 +2651,7 @@ def _cl_meta(
     }
     return metadata(
         borehole_id=label,
-        location_name="Salar Verde, sector planta",
+        location_name=CL_LOCATION,
         country="Chile",
         project_name=CL_PROJECT,
         client=CL_CLIENT,
@@ -2636,7 +2753,7 @@ def _cl_doc() -> DocSpec:
         ("Sistema", "crs4", "grilla local de obra"),
         ("Profundidad total", "depth4", "3,00 m"),
     ]
-    sv4_rows = [(f"M{i}", cells) for i, (_, cells) in enumerate(layer_rows(SV4_LAYERS))]
+    sv4_rows = layer_rows(SV4_LAYERS, row="M")
     p4 = MultiLogPage(
         CL_CO,
         "REGISTRO DE SONDAJES CORTOS",
@@ -2697,7 +2814,7 @@ def _cl_doc() -> DocSpec:
         merge(
             header_prov(2, CL_HEADER_PATHS),
             lprov,
-            {"groundwater[0].depth_m": Pv(Ref(2, "gw0")), "groundwater[0].date": Pv(Ref(2, "gw0"))},
+            water_prov(0, 2, "gw0", type_from=("gw0.label",), date_key="gw0.label"),
         ),
         pages=[1, 2],
         crs_status="stated",
@@ -2709,10 +2826,10 @@ def _cl_doc() -> DocSpec:
         {
             "metadata": {
                 **_cl_meta("SV-02", -23.6541, -68.2183, "-23.65410", "-68.21830", 2298.0, "2025-05-07", 5.0),
-                "notes": "Nivel freatico no detectado.",
+                "notes": "Nivel freatico: no detectado",
             },
             "stratigraphy": layers,
-            "samples": [{"name": "M2", "type_code": "M", "depth_from_m": 4.0, "depth_to_m": 4.4}],
+            "samples": [{"name": "M2", "type_code": None, "depth_from_m": 4.0, "depth_to_m": 4.4}],
             "test_results": [
                 {"name": "CAI", "value": 4.2, "unit": None, "sample_name": "M2", "depth_m": 4.0}
             ],
@@ -2721,8 +2838,8 @@ def _cl_doc() -> DocSpec:
             header_prov(3, CL_HEADER_PATHS),
             lprov,
             {
-                "metadata.notes": Pv(Ref(3, "gwnote")),
-                "samples[0].name": Pv(Ref(3, "m2")),
+                "metadata.notes": Pv(Ref(3, "gwnote.label", ("gwnote",))),
+                "samples[0].name": Pv(Ref(3, "m2.label")),
                 "samples[0].depth_from_m": Pv(Ref(3, "m2")),
                 "samples[0].depth_to_m": Pv(Ref(3, "m2")),
                 "test_results[0].value": Pv(Ref(3, "cai")),
@@ -2746,14 +2863,7 @@ def _cl_doc() -> DocSpec:
         crs_status="stated",
         crs_code="EPSG:4326",
     )
-    sv4_layers, _ = layer_records(SV4_LAYERS, [4], language=lang)
-    sv4_prov = {
-        "stratigraphy[0].depth_from_m": Pv(Ref(4, "M0.from")),
-        "stratigraphy[0].depth_to_m": Pv(Ref(4, "M0.to")),
-        "stratigraphy[0].original_description": Pv(Ref(4, "M0.desc")),
-        "stratigraphy[0].din4023_code": Pv(Ref(4, "M0.desc"), method="derived", confidence=0.86, raw=None),
-        "stratigraphy[0].spt_n_value": Pv(Ref(4, "M0.spt")),
-    }
+    sv4_layers, sv4_prov = layer_records(SV4_LAYERS, [4], language=lang, row="M")
     sv4 = BoreholeSpec(
         "SV-04",
         {
@@ -2771,7 +2881,7 @@ def _cl_doc() -> DocSpec:
                     "local_y": 1208.75,
                     "x_raw": "512,40",
                     "y_raw": "1.208,75",
-                    "axis_labels_raw": "X, Y",
+                    "axis_labels_raw": "Coord. de obra X, Coord. de obra Y",
                     "coordinate_system": "grilla local de obra",
                 },
             ),
@@ -2787,11 +2897,16 @@ def _cl_doc() -> DocSpec:
                     "metadata.coordinates.local_y": "c2",
                     "metadata.coordinates.x_raw": "c1",
                     "metadata.coordinates.y_raw": "c2",
+                    "metadata.coordinates.axis_labels_raw": at("c1.label", "c2.label"),
                     "metadata.coordinates.coordinate_system": "crs4",
                     "metadata.borehole_depth_m": "depth4",
+                    "metadata.borehole_depth_source": at("depth4", method="derived"),
                 },
             ),
-            {"metadata.project_name": Pv(None, method="guessed", confidence=0.9, raw=None)},
+            {
+                path: Pv(Ref(4, key), method="guessed", confidence=0.9)
+                for path, key in CL_FROM_NEIGHBOUR.items()
+            },
             sv4_prov,
         ),
         pages=[1, 4],
@@ -3036,9 +3151,9 @@ def render_documents(specs: Sequence[DocSpec] | None = None) -> list[RenderedDoc
 # --------------------------------------------------------------------------------------------------
 
 
-def _default_confidence(method: str, path: str, anchor: Anchor | None) -> float | None:
+def _default_confidence(method: str, path: str, anchor: Anchor) -> float | None:
     jitter = (zlib.crc32(path.encode()) % 6) / 100
-    if anchor is not None and anchor.hand:
+    if anchor.hand:
         return round(0.66 + jitter * 2, 2)
     if method == "read":
         return 0.99
@@ -3047,22 +3162,33 @@ def _default_confidence(method: str, path: str, anchor: Anchor | None) -> float 
     return None
 
 
-def _provenance(spec: DocSpec, sheets: Sequence[Sheet], prov: dict[str, Pv]) -> dict[str, ProvenanceIn]:
+def anchor_of(sheets: Mapping[str, Sequence[Sheet]], doc: str, ref: Ref) -> Anchor:
+    """The drawn text a reference points at (several anchors on one page: their union)."""
+    sheet = sheets[ref.doc or doc][ref.page - 1]
+    return union_anchor([sheet.anchors[key] for key in ref.keys])
+
+
+def build_provenance(
+    spec: DocSpec,
+    sheets: Mapping[str, Sequence[Sheet]],
+    prov: dict[str, Pv],
+    doc_ids: Mapping[str, str] | None = None,
+) -> dict[str, ProvenanceIn]:
+    """Provenance of one borehole; `sheets` and `doc_ids` by document key (other documents included)."""
     out: dict[str, ProvenanceIn] = {}
     for path, pv in prov.items():
-        anchor = sheets[pv.ref.page - 1].anchors[pv.ref.key] if pv.ref is not None else None
+        anchor = anchor_of(sheets, spec.key, pv.ref)
         method = pv.method or spec.method
-        raw = pv.raw
-        if raw == "<anchor>":
-            raw = anchor.text if anchor is not None else None
+        raw = anchor.text if pv.raw == "<anchor>" else pv.raw
         confidence = pv.confidence
-        if confidence is None and pv.state == "ok" and pv.cell is None:
-            confidence = _default_confidence(method, path, anchor)
+        if confidence is None and pv.state == "ok":
+            # A derived value is as certain as the reading of the text it was worked out from.
+            confidence = _default_confidence(spec.method if method == "derived" else method, path, anchor)
         out[path] = ProvenanceIn(
-            page=pv.ref.page if pv.ref is not None else None,
-            box=anchor.box if anchor is not None else None,
+            document_id=(doc_ids or {})[pv.ref.doc] if pv.ref.doc is not None else None,
+            page=pv.ref.page,
+            box=anchor.box,
             raw=raw,
-            cell=pv.cell,
             method=method,
             confidence=confidence,
             status=pv.status,
@@ -3079,24 +3205,14 @@ class _Ctx:
     sheets: dict[str, list[Sheet]] = field(default_factory=dict)
     uids: dict[tuple[str, str], str] = field(default_factory=dict)
 
-    def box(self, doc: str, page: int, *keys: str) -> list[float]:
-        """Union of the anchors' boxes on one page."""
-        boxes = [self.sheets[doc][page - 1].anchors[k].box for k in keys]
-        x0 = min(b[0] for b in boxes)
-        y0 = min(b[1] for b in boxes)
-        x1 = max(b[0] + b[2] for b in boxes)
-        y1 = max(b[1] + b[3] for b in boxes)
-        return [round(x0, 4), round(y0, 4), round(min(x1, 1.0) - x0, 4), round(min(y1, 1.0) - y0, 4)]
-
-    def ev(self, doc: str, page: int, *keys: str, snippet: str | None = None) -> dict[str, Any]:
-        if not keys:
-            return {"document_id": self.docs[doc].id, "page": page, "box": None, "snippet": snippet}
-        texts = " ".join(self.sheets[doc][page - 1].anchors[k].text for k in keys)
+    def ev(self, doc: str, page: int, key: str, *more: str, snippet: str | None = None) -> dict[str, Any]:
+        """Evidence on one page: the union of the anchors' boxes and their texts."""
+        anchor = anchor_of(self.sheets, doc, Ref(page, key, more))
         return {
             "document_id": self.docs[doc].id,
             "page": page,
-            "box": self.box(doc, page, *keys),
-            "snippet": snippet or texts,
+            "box": anchor.box,
+            "snippet": snippet or anchor.text,
         }
 
 
@@ -3194,7 +3310,9 @@ async def _add_boreholes(session: AsyncSession, rendered: RenderedDoc, ctx: _Ctx
             document=doc,
             group_key=f"seed:{spec.key}:{bspec.label}",
             body=bspec.body,
-            provenance=_provenance(spec, rendered.sheets, bspec.prov),
+            provenance=build_provenance(
+                spec, ctx.sheets, bspec.prov, {key: d.id for key, d in ctx.docs.items()}
+            ),
             crs_status=bspec.crs_status,
             crs_code=bspec.crs_code,
             pages=bspec.pages,

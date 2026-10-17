@@ -83,6 +83,8 @@ class Settings(BaseSettings):
     eval_data_dir: Path | None = None
     eval_expected: Path | None = None
     eval_max_usd: float = 1.0
+    # Hard cap on the summed cost of all paid provider calls recorded in provider_calls (None = no cap).
+    provider_budget_usd: float | None = None
 
     # Static inputs shipped with the repository (copied into the image)
     din_codes_path: Path = Field(
@@ -98,7 +100,7 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("eval_data_dir", "eval_expected", mode="before")
+    @field_validator("eval_data_dir", "eval_expected", "provider_budget_usd", mode="before")
     @classmethod
     def _blank_path_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():

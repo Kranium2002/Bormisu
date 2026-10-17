@@ -18,6 +18,14 @@ from tests.pdf_factory import TextItem, make_pdf
 pytestmark = pytest.mark.db
 
 
+@pytest.fixture(autouse=True)
+def triage_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests cover triage alone; later stages have their own tests with fake providers."""
+    from app.pipeline import orchestrator
+
+    monkeypatch.setattr(orchestrator, "STAGES", ("triage",))
+
+
 async def _document(data: bytes, extension: str, mime: str) -> str:
     digest = hashlib.sha256(data).hexdigest()
     key = original_key(digest, extension)

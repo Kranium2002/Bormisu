@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -14,8 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.clarify.service import clarification_out
 from app.db.models import Borehole, Clarification, Document, Event, FieldValue, Page, Revision
 from app.geo.crs_service import confirm_crs
-from app.review.service import approve_clean, to_records
-from app.seed import load_seed, remove_seed, render_documents
+from app.review.paths import get_value, uncovered_paths
+from app.review.service import approve_clean, companion_provenance, to_records
+from app.schemas.boreholes import BoreholeBody
+from app.seed import anchor_of, build_provenance, load_seed, remove_seed, render_documents
 from app.seed_pages import LONG_EDGE
 from app.services.documents import documents_out
 from app.storage import get_storage
@@ -129,8 +132,14 @@ async def test_seed_matches_contract_and_covers_every_state(session: AsyncSessio
     assert min(confidences) < 0.9 < max(confidences)
     edited = [p for _, p in provs if p["method"] == "edited"]
     assert edited and all(p["ai_value"] != by_label["KB-1"]["stratigraphy"][0]["depth_to_m"] for p in edited)
-    cells = [p for _, p in provs if p["cell"]]
-    assert cells and all(p["cell"] == "Logdata!C5" and p["page"] is None and p["box"] is None for p in cells)
+    # Every seeded value is drawn on a page of a seeded document: page and box, never a spreadsheet cell.
+    assert all(p["page"] is not None and p["box"] is not None and p["cell"] is None for _, p in provs)
+    assert all(p["document_id"] in doc_ids for _, p in provs)
+    assert any(p["document_id"] != r["document_id"] for r in records for p in r["provenance"].values())
+    # Every non-null value has a provenance entry (values the server computes need none).
+    assert {r["metadata"]["borehole_id"]: uncovered_paths(r, r["provenance"]) for r in records} == {
+        r["metadata"]["borehole_id"]: [] for r in records
+    }
     disagreeing = [p for _, p in provs if len(p["readings"]) >= 2]
     assert disagreeing and all(len({r["text"] for r in p["readings"]}) == 2 for p in disagreeing)
     assert all(_box_ok(p["box"]) for _, p in provs)
@@ -245,6 +254,37 @@ async def test_seed_twice_then_remove_leaves_other_documents(
     deleted = (await session.scalars(select(Event.document_id).where(Event.type == "document.deleted"))).all()
     assert set(deleted) == {d.id for d in docs}
     assert await remove_seed(session) == 0
+
+
+# Values written in another form than printed: ISO dates, enum codes and English country names.
+NORMALISED = (".start_date", ".end_date", ".date", ".depth_origin", ".country")
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def test_every_seed_value_points_at_its_drawn_text() -> None:
+    """No database: each spec's provenance resolves to drawn anchors and covers every non-null value."""
+    rendered = render_documents()
+    sheets = {r.spec.key: r.sheets for r in rendered}
+    doc_ids = {r.spec.key: f"doc_{r.spec.key}" for r in rendered}
+    checked = 0
+    for doc in rendered:
+        for spec in doc.spec.boreholes:
+            body = BoreholeBody.model_validate(spec.body).model_dump(mode="json")
+            prov = build_provenance(doc.spec, sheets, spec.prov, doc_ids)
+            assert uncovered_paths(body, {**prov, **companion_provenance(body, prov)}) == [], spec.label
+            for path, pv in spec.prov.items():
+                entry = prov[path]
+                assert entry.page is not None and entry.box == anchor_of(sheets, doc.spec.key, pv.ref).box
+                value = get_value(body, path)
+                if entry.raw is None or not isinstance(value, str) or path.endswith(NORMALISED):
+                    continue
+                # A copied text value is shown by the text its box covers.
+                assert _words(value) <= _words(entry.raw), (spec.label, path, value, entry.raw)
+                checked += 1
+    assert checked > 200
 
 
 def test_rendering_is_deterministic() -> None:

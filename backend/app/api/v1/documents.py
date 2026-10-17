@@ -22,12 +22,13 @@ from app.db.models import Borehole, Document, Page
 from app.db.session import get_session
 from app.errors import ApiError, error_response, not_found
 from app.events.writer import emit
-from app.geo.crs_candidates import rank_candidates
+from app.geo.crs_candidates import candidates_for_boreholes
 from app.geo.crs_service import confirm_crs
 from app.ids import new_id
 from app.pipeline.orchestrator import enqueue_document
 from app.review.service import approve_clean, to_records
 from app.schemas.boreholes import BoreholeRecord
+from app.schemas.common import review_actor
 from app.schemas.documents import (
     ApproveCleanResult,
     CrsCandidate,
@@ -78,7 +79,9 @@ async def _document(session: AsyncSession, document_id: str) -> Document:
 
 @router.get("/documents", response_model=DocumentList, operation_id="listDocuments")
 async def list_documents(session: SessionDep) -> DocumentList:
-    docs = (await session.scalars(select(Document).order_by(Document.created_at.desc(), Document.id.desc()))).all()
+    docs = (
+        await session.scalars(select(Document).order_by(Document.created_at.desc(), Document.id.desc()))
+    ).all()
     return DocumentList(documents=await documents_out(session, docs))
 
 
@@ -101,7 +104,10 @@ async def upload_document(request: Request, session: SessionDep) -> Response:
         form = await request.form(max_files=1, max_fields=5)
     except MultiPartException as exc:
         raise ApiError(
-            422, "validation_error", "The upload is not valid multipart form data.", [{"loc": ["body"], "msg": str(exc)}]
+            422,
+            "validation_error",
+            "The upload is not valid multipart form data.",
+            [{"loc": ["body"], "msg": str(exc)}],
         ) from exc
     try:
         upload = form.get("file")
@@ -189,7 +195,10 @@ async def delete_document(document_id: str, session: SessionDep) -> Response:
 
 
 @router.post(
-    "/documents/{document_id}/retry", response_model=UploadAccepted, status_code=202, operation_id="retryDocument"
+    "/documents/{document_id}/retry",
+    response_model=UploadAccepted,
+    status_code=202,
+    operation_id="retryDocument",
 )
 async def retry_document(document_id: str, session: SessionDep) -> UploadAccepted:
     doc = await _document(session, document_id)
@@ -257,7 +266,11 @@ async def get_page_image(
 )
 async def list_document_boreholes(document_id: str, session: SessionDep) -> list[BoreholeRecord]:
     await _document(session, document_id)
-    rows = (await session.scalars(select(Borehole).where(Borehole.document_id == document_id).order_by(Borehole.uid))).all()
+    rows = (
+        await session.scalars(
+            select(Borehole).where(Borehole.document_id == document_id).order_by(Borehole.uid)
+        )
+    ).all()
     return await to_records(session, rows)
 
 
@@ -265,39 +278,46 @@ async def list_document_boreholes(document_id: str, session: SessionDep) -> list
     "/documents/{document_id}/approve-clean", response_model=ApproveCleanResult, operation_id="approveClean"
 )
 async def approve_clean_values(
-    document_id: str, session: SessionDep, dry_run: Annotated[bool, Query()] = True
+    document_id: str,
+    session: SessionDep,
+    dry_run: Annotated[bool, Query()] = True,
+    confirmed_by: Annotated[str | None, Query()] = None,
 ) -> ApproveCleanResult:
     await _document(session, document_id)
-    count = await approve_clean(session, document_id, dry_run=dry_run, actor=ACTOR_API)
+    count = await approve_clean(session, document_id, dry_run=dry_run, actor=review_actor(confirmed_by))
     if not dry_run:
         await session.commit()
     return ApproveCleanResult(count=count)
 
 
-def _local_points(boreholes: list[Borehole]) -> list[tuple[str, float, float]]:
-    points = []
-    for bh in boreholes:
-        coords = (bh.record.get("metadata") or {}).get("coordinates") or {}
-        x, y = coords.get("local_x"), coords.get("local_y")
-        if isinstance(x, int | float) and isinstance(y, int | float):
-            points.append((bh.uid, float(x), float(y)))
-    return points
-
-
 @router.get(
-    "/documents/{document_id}/crs-candidates", response_model=list[CrsCandidate], operation_id="listCrsCandidates"
+    "/documents/{document_id}/crs-candidates",
+    response_model=list[CrsCandidate],
+    operation_id="listCrsCandidates",
 )
 async def list_crs_candidates(document_id: str, session: SessionDep) -> list[CrsCandidate]:
     await _document(session, document_id)
-    rows = list((await session.scalars(select(Borehole).where(Borehole.document_id == document_id))).all())
-    return await asyncio.to_thread(rank_candidates, _local_points(rows))
+    rows = list(
+        (
+            await session.scalars(
+                select(Borehole).where(Borehole.document_id == document_id).order_by(Borehole.uid)
+            )
+        ).all()
+    )
+    return await candidates_for_boreholes(session, rows)
 
 
 @router.post("/documents/{document_id}/crs", response_model=CrsConfirmResult, operation_id="confirmCrs")
-async def confirm_document_crs(document_id: str, body: CrsConfirmRequest, session: SessionDep) -> CrsConfirmResult:
+async def confirm_document_crs(
+    document_id: str, body: CrsConfirmRequest, session: SessionDep
+) -> CrsConfirmResult:
     await _document(session, document_id)
-    uids = list((await session.scalars(select(Borehole.uid).where(Borehole.document_id == document_id))).all())
-    actor = (body.confirmed_by or "").strip()[:100] or ACTOR_API
-    updated = await confirm_crs(session, uids, crs=body.crs, swap_axes=body.swap_axes, actor=actor, note=body.note)
+    uids = list(
+        (await session.scalars(select(Borehole.uid).where(Borehole.document_id == document_id))).all()
+    )
+    actor = review_actor(body.confirmed_by, ACTOR_API)
+    updated = await confirm_crs(
+        session, uids, crs=body.crs, swap_axes=body.swap_axes, actor=actor, note=body.note
+    )
     await session.commit()
     return CrsConfirmResult(updated=updated)

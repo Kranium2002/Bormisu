@@ -47,6 +47,7 @@ __all__ = [
     "OcrPage",
     "OcrRun",
     "Page",
+    "ProviderCall",
     "ResultSet",
     "Revision",
 ]
@@ -100,7 +101,7 @@ class Page(Base):
     thumb_key: Mapped[str | None] = mapped_column(Text)
     text_layer_quality: Mapped[float | None] = mapped_column(Float)
     text_layer_key: Mapped[str | None] = mapped_column(Text)
-    phash: Mapped[str | None] = mapped_column(String(32))
+    phash: Mapped[str | None] = mapped_column(String(64))
     role: Mapped[str | None] = mapped_column(String(30))
     type: Mapped[str | None] = mapped_column(String(20))
     handwriting: Mapped[str | None] = mapped_column(String(20))
@@ -388,6 +389,24 @@ EVENT_SEQ_DDL = (
 
 for _statement in EVENT_SEQ_DDL:
     listen(Event.__table__, "after_create", DDL(_statement))  # type: ignore[no-untyped-call]
+
+
+class ProviderCall(Base):
+    """Ledger of paid provider calls (cost from the provider's usage report or the price table)."""
+
+    __tablename__ = "provider_calls"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    document_id: Mapped[str | None] = mapped_column(String(40), index=True)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False)
+    model: Mapped[str | None] = mapped_column(Text)
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    pages: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False, server_default=text("0"))
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = _now_column()
 
 
 class GeocodeCache(Base):

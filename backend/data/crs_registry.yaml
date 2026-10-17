@@ -45,10 +45,28 @@ systems:
   - { code: "EPSG:32643", kind: projected,  label: "WGS 84 / UTM zone 43N",            aliases: ["WGS84 UTM 43N"] }
   - { code: "EPSG:2039",  kind: projected,  label: "Israel 1993 / Israeli TM Grid",    aliases: ["ITM", "Israeli TM"] }
   - { code: "EPSG:3112",  kind: projected,  label: "GDA94 / Geoscience Australia Lambert", aliases: ["GA Lambert"] }
-# Ranking: a candidate whose transformed points all fall inside its EPSG area of use scores highest; points
-# within `shift_margin_deg` of the area are "shifted"; the rest are "out_of_range". Compact clusters score
-# higher than scattered ones (`compact_km`).
+# Ranking (app/geo/crs_candidates.py). Every printed point set is transformed with each system (and with
+# its axes swapped); the evidence that separates candidates is generic:
+# - area of use: share of points inside the system's EPSG area of use;
+# - reference place: distance of the transformed centroid to a place geocoded from the boreholes' own
+#   location name, project name or country (uploaded places first, then the cached geocoder proxy);
+#   a place with a bounding box counts as distance 0 for points inside it;
+# - compactness: one site is compact, a scatter over continents is not;
+# - specificity: a world-wide system, or one whose area of use is huge for the spread of the points,
+#   says little about where the points are, so its score is lowered.
+# Verdicts: match = every point inside the area of use and (no reference place, or the centroid within
+# `match_km` of it); shifted = inside but farther than that, or only within `shift_margin_deg` of the area;
+# out_of_range = the rest. Order: verdict, score, smaller area of use, EPSG code (never registry order).
 ranking:
   shift_margin_deg: 1.0
-  compact_km: 50
-  max_candidates: 8
+  match_km: 50
+  weights: { area: 0.4, reference: 0.45, compactness: 0.15 }   # sum 1; no reference place = 0 for its share
+  reference_scale_km: 50        # proximity to the reference place = exp(-distance / scale)
+  compact_km: 50                # a spread wider than this lowers the score (compact_km / spread)
+  extent: { min_spread_km: 5, max_ratio: 500, exponent: 0.5, floor: 0.2 }   # sqrt(area) / spread above max_ratio is demoted
+  worldwide: { share: 0.5, factor: 0.3 }   # area of use covering at least `share` of the globe (e.g. Pseudo-Mercator)
+  bands: { match: [0.5, 1.0], shifted: [0.2, 0.5], out_of_range: [0.0, 0.2] }   # score range per verdict
+  max_candidates: 8             # a tie of matches at the cut is kept whole; anything dropped is named in the last note
+  dropped_codes_listed: 10      # how many dropped codes that note names
+  utm_from_reference: true      # also try the WGS 84 UTM zone of the reference place
+  geocode: { max_external_queries: 3, budget_s: 10 }   # external geocoder calls per ranking; total time budget

@@ -31,6 +31,7 @@ from app.db.models import (
 from app.din import din_kind
 from app.errors import ApiError, not_found
 from app.events.writer import emit
+from app.geo.crs_candidates import crs_label
 from app.geo.plotting import PLOTTABLE_CRS_STATUS, placement, to_wgs84
 from app.ids import new_id
 from app.review.paths import (
@@ -59,8 +60,9 @@ LOCAL_X = "metadata.coordinates.local_x"
 LOCAL_Y = "metadata.coordinates.local_y"
 ROCK_HEAD = "rock_head_m"
 CRS_CODE = "metadata.coordinates.crs_code"
+CRS_LABEL = "metadata.coordinates.crs_label"
 # Values the server writes itself; they are never edited through PATCH.
-SERVER_MANAGED_PATHS = frozenset({CRS_CODE})
+SERVER_MANAGED_PATHS = frozenset({CRS_CODE, CRS_LABEL})
 # Lint rules after which a position is not plotted.
 IMPLAUSIBLE_RULES = frozenset({"coordinates_out_of_range", "coordinates_zero"})
 
@@ -219,6 +221,12 @@ def _derive_rock_head(
         drop.add(ROCK_HEAD)
 
 
+def _crs_label(coords: dict[str, Any]) -> None:
+    """crs_label is the readable name of crs_code, whenever crs_code is set (stated or confirmed)."""
+    code = coords.get("crs_code")
+    coords["crs_label"] = crs_label(code) if isinstance(code, str) and code else None
+
+
 def _thicknesses(body: dict[str, Any]) -> None:
     for layer in body.get("stratigraphy") or []:
         top, bottom = layer.get("depth_from_m"), layer.get("depth_to_m")
@@ -245,6 +253,7 @@ def recompute(bh: Borehole, fvs: dict[str, FieldValue]) -> tuple[list[FieldValue
     drop: set[str] = set()
     _thicknesses(body)
     _derive_wgs84(bh, body, fvs, new_rows, drop)
+    _crs_label(body["metadata"]["coordinates"])
     _derive_rock_head(bh, body, fvs, new_rows, drop)
     for path in drop:
         fvs.pop(path, None)
@@ -574,7 +583,9 @@ async def set_crs(
     bh.crs_status = crs_status
     bh.swap_axes = swap_axes
     body = copy.deepcopy(bh.record)
-    body["metadata"].setdefault("coordinates", {})["crs_code"] = crs_code
+    coords = body["metadata"].setdefault("coordinates", {})
+    coords["crs_code"] = crs_code
+    _crs_label(coords)
     bh.record = body
     changes = {
         "action": "crs",
@@ -640,7 +651,7 @@ async def refresh_document_status(session: AsyncSession, document_id: str) -> No
     doc = await session.scalar(
         select(Document)
         .where(Document.id == document_id)
-        .with_for_update()
+        .with_for_update(key_share=True)  # NO KEY UPDATE: does not conflict with FK share locks
         .execution_options(populate_existing=True)
     )
     if doc is None or doc.status not in ("needs_review", "done"):
@@ -710,6 +721,12 @@ async def to_records(session: AsyncSession, boreholes: Sequence[Borehole]) -> li
     for bh in boreholes:
         fvs = by_uid.get(bh.uid, {})
         data = dict(bh.record)
+        coords = (data.get("metadata") or {}).get("coordinates")
+        if isinstance(coords, dict) and coords.get("crs_code") and not coords.get("crs_label"):
+            # Records stored before contract 1.1.0 get their label at read time.
+            coords = {**coords}
+            _crs_label(coords)
+            data["metadata"] = {**data["metadata"], "coordinates": coords}
         data.update(
             {
                 "uid": bh.uid,

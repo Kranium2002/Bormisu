@@ -24,6 +24,7 @@ from app.db.session import get_sessionmaker
 from app.events.writer import emit
 from app.pipeline.office import OfficeConversionError, office_to_pdf
 from app.pipeline.triage import TriagedPage, triage_image, triage_pdf
+from app.providers.base import ProviderError
 from app.queue import queue_app
 from app.services.documents import emit_document_updated
 from app.storage import FileStorage, get_storage, page_render_key, page_thumb_key
@@ -36,7 +37,7 @@ IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
 SPREADSHEET_EXTENSIONS = frozenset({".xlsx", ".csv"})
 
 # Stage order; `documents.stage` holds the last finished one.
-STAGES = ("triage",)
+STAGES = ("triage", "classify", "ocr")
 
 
 class StageError(RuntimeError):
@@ -126,10 +127,6 @@ async def stage_triage(session: AsyncSession, doc: Document) -> None:
     doc.status = "classifying"
 
 
-StageFn = Callable[[AsyncSession, Document], Awaitable[None]]
-STAGE_FUNCTIONS: dict[str, StageFn] = {"triage": stage_triage}
-
-
 async def _fail(document_id: str, stage: str, message: str, retryable: bool) -> None:
     async with get_sessionmaker()() as session:
         doc = await session.get(Document, document_id)
@@ -144,33 +141,68 @@ async def _fail(document_id: str, stage: str, message: str, retryable: bool) -> 
         await session.commit()
 
 
+async def _triage(document_id: str) -> None:
+    async with get_sessionmaker()() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            return
+        await stage_triage(session, doc)
+        await session.commit()
+
+
+async def _classify(document_id: str) -> None:
+    from app.pipeline.classify import stage_classify
+
+    await stage_classify(document_id)
+
+
+async def _ocr(document_id: str) -> None:
+    from app.pipeline.ocr import stage_ocr
+
+    await stage_ocr(document_id)
+
+
+StageFn = Callable[[str], Awaitable[None]]
+STAGE_FUNCTIONS: dict[str, StageFn] = {"triage": _triage, "classify": _classify, "ocr": _ocr}
+# Document status once a stage has finished (the UI maps classifying=0, extracting=1, needs_review=2).
+STATUS_AFTER: dict[str, str] = {"triage": "classifying", "classify": "extracting", "ocr": "extracting"}
+
+
 async def run_pipeline(document_id: str) -> None:
-    """Run every unfinished stage of one document; each stage commits on its own."""
+    """Run every unfinished stage of one document. Stages manage their own transactions; the Procrastinate
+    job lock (one job per document) keeps two workers off the same document."""
     for stage in STAGES:
         async with get_sessionmaker()() as session:
-            doc = await session.get(Document, document_id, with_for_update=True)
+            doc = await session.get(Document, document_id)
             if doc is None:
                 logger.info("document %s is gone; nothing to do", document_id)
                 return
             done = STAGES.index(doc.stage) if doc.stage in STAGES else -1
             if STAGES.index(stage) <= done:
                 continue
-            if doc.status == "queued":
-                doc.status = "classifying"
-            try:
-                await STAGE_FUNCTIONS[stage](session, doc)
-            except StageError as exc:
-                await session.rollback()
-                await _fail(document_id, stage, str(exc), exc.retryable)
-                return
-            except Exception:
-                logger.exception("stage %s failed for %s", stage, document_id)
-                await session.rollback()
-                await _fail(
-                    document_id, stage, f"Processing stopped during {stage}. Retry the document.", True
-                )
+            if doc.status in ("queued", "failed"):
+                doc.status = "classifying" if doc.stage in (None, "triage") else "extracting"
+                doc.error = None
+                await emit_document_updated(session, doc)
+                await session.commit()
+        try:
+            await STAGE_FUNCTIONS[stage](document_id)
+        except StageError as exc:
+            await _fail(document_id, stage, str(exc), exc.retryable)
+            return
+        except ProviderError as exc:
+            await _fail(document_id, stage, str(exc), exc.retryable)
+            return
+        except Exception:
+            logger.exception("stage %s failed for %s", stage, document_id)
+            await _fail(document_id, stage, f"Processing stopped during {stage}. Retry the document.", True)
+            return
+        async with get_sessionmaker()() as session:
+            doc = await session.get(Document, document_id)
+            if doc is None:
                 return
             doc.stage = stage
+            doc.status = STATUS_AFTER.get(stage, doc.status)
             doc.error = None
             doc.updated_at = _now()
             await emit_document_updated(session, doc)

@@ -58,6 +58,8 @@ class Coordinates(ApiModel):
     local_y: float | None = None
     coordinate_system: str | None = None
     crs_code: str | None = None
+    # Server-computed name of crs_code (registry label, else the EPSG name); no provenance entry.
+    crs_label: str | None = None
     x_raw: str | None = None
     y_raw: str | None = None
     axis_labels_raw: str | None = None
@@ -198,6 +200,8 @@ class ValuePatch(ApiModel):
     reason: str | None = None
     state: ValueState | None = None
     if_revision: int | None = None
+    # Who performed the action; stored (trimmed, at most 100 characters) as the revision actor.
+    confirmed_by: str | None = None
 
 
 class ProvenanceIn(ApiModel):

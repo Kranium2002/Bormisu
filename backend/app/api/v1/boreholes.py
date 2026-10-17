@@ -14,11 +14,11 @@ from app.errors import ApiError, not_found
 from app.geo.filters import filter_conditions
 from app.review.service import apply_patch, to_record, to_records
 from app.schemas.boreholes import BoreholeList, BoreholeRecord, ValuePatch
+from app.schemas.common import review_actor
 from app.schemas.map import BoreholeFilter
 
 router = APIRouter(tags=["boreholes"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-ACTOR_REVIEW = "reviewer"
 
 
 @router.get("/boreholes", response_model=BoreholeList, operation_id="listBoreholes")
@@ -61,7 +61,9 @@ async def list_boreholes(
         query = query.where(Borehole.uid > cursor)
     rows = list((await session.scalars(query.order_by(Borehole.uid).limit(limit + 1))).all())
     next_cursor = rows[limit - 1].uid if len(rows) > limit else None
-    return BoreholeList(count=total, boreholes=await to_records(session, rows[:limit]), next_cursor=next_cursor)
+    return BoreholeList(
+        count=total, boreholes=await to_records(session, rows[:limit]), next_cursor=next_cursor
+    )
 
 
 @router.get("/boreholes/{uid}", response_model=BoreholeRecord, operation_id="getBorehole")
@@ -77,6 +79,6 @@ async def patch_value(uid: str, patch: ValuePatch, session: SessionDep) -> Boreh
     if patch.action == "flag" and patch.reason is not None and len(patch.reason) > 2000:
         errors = [{"loc": ["body", "reason"], "msg": "At most 2000 characters"}]
         raise ApiError(422, "validation_error", "The flag reason is too long.", errors)
-    bh = await apply_patch(session, uid, patch, actor=ACTOR_REVIEW)
+    bh = await apply_patch(session, uid, patch, actor=review_actor(patch.confirmed_by))
     await session.commit()
     return await to_record(session, bh)

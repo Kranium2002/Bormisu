@@ -4,6 +4,21 @@ Each session updates only its own section, at the end of every milestone, and me
 
 ## Backend status
 
+- 2026-10-17 04:00 · M0 part 2 · **Done on `feat/backend`:** compose stack (db, migrate, api, worker, gotenberg, web, test), every contract endpoint except the chat tool loop (`POST /chat` returns 409 `chat_unavailable` until M3), `make seed` / `make unseed` with 8 fictional documents and 15 boreholes, pipeline triage. 300+ tests pass. **For the frontend** (from a compatibility check that ran your data layer against this API):
+  1. `contract.test.ts` maps example files with `split('.')[0].toLowerCase()`, so 29 of the examples (every `BoreholeRecord.*`, `BoreholeList.*` …) are skipped. The schema name is the case-preserved prefix (`contracts/examples/README.md`). Please also run `adaptBorehole` and `adaptDocument` over every example.
+  2. Boot calls `GET /boreholes?limit=5000` (about 15 KB per record with provenance). Please drive the map from `GET /map/boreholes.geojson` (plus `?plotted=false` for the "Not on map" list) and fetch full records per document or uid on demand.
+  3. A duplicate upload answers 200 with `document_id == duplicate_of` (the existing document). Show "already uploaded"; it is not a self-link.
+  4. `open_clarifications` and the map `attention` count unresolved questions (open **or skipped**). A skipped question can still be answered (200); 409 means it was already answered.
+  5. Every non-null value now has a provenance entry. `english_lithology` carries method `guessed` with the box of `original_description`.
+  6. SSE ids are commit-ordered (`events.seq`). Reconnecting with `Last-Event-ID` never skips a late commit.
+- 2026-10-17 05:00 · **Contract 1.1.0** (additive, see `contracts/CHANGELOG.md`):
+  - `Coordinates.crs_label`: the readable name of the coordinate system; use it wherever a system is shown.
+  - `ValuePatch.confirmed_by` and `POST /documents/{id}/approve-clean?confirmed_by=`: stored as the revision actor, so "Stored with your name" holds for review actions.
+  - `GET /clarifications/{id}/crs-candidates`: ranked candidates for every borehole a `crs_confirm` question covers, across documents. The CRS dialog inside a clarification uses it.
+  - CRS candidates are now ranked against the geocoded place of the boreholes (location name, then project, then country). When no reference place is found, the note says so and ties are ordered by area-of-use size.
+  - The examples gained about 190 provenance entries, because every value now has one. Adapter tests that count review items in the examples need updating.
+- **Seed changed:** the page images and values are new (location and country printed, axis labels as printed). Reload with `make unseed && make seed`.
+
 - 2026-10-17 03:00 · M0 part 1 · **Done:** `contracts/examples/` (78 fictional payloads: every main schema, all 9 clarification kinds, all 21 error codes, 7 event payloads, `chat/turn.sse` and `chat/error.sse`), validated by `backend/tests/contract/` (205 tests). Naming rule: `<SchemaName>.<variant>.json` validates against `#/components/schemas/<SchemaName>`; a top-level array validates per item; see `contracts/examples/README.md`. Interpretations: a duplicate upload returns the existing document's id in both `document_id` and `duplicate_of`; `Provenance.document_id` is always filled; unclassified pages are `{type: "unknown", used: false, ocr: "pending"}` without `role`. **Next:** compose stack, `make seed`, all P0/P1 endpoints (in progress on `feat/backend`).
 
 ## Frontend status

@@ -21,6 +21,7 @@ import referencing.exceptions
 import referencing.jsonschema
 from jsonschema import Draft202012Validator
 
+from app.geo.crs_candidates import crs_label
 from tests.contract_utils import (
     EXAMPLES_DIR,
     REPO_ROOT,
@@ -31,6 +32,7 @@ from tests.contract_utils import (
     resolve_pointer,
     resolve_value_path,
     schema_errors,
+    value_path_fields,
 )
 
 SPEC = load_spec()
@@ -40,6 +42,17 @@ DIN_CODES: dict[str, Any] = json.loads(
     (REPO_ROOT / "assets" / "din4023_patterns" / "din_codes.json").read_text(encoding="utf-8")
 )
 TARGET_FORMAT_MD = REPO_ROOT / "docs" / "design" / "target-format.md"
+CHANGELOG_MD = REPO_ROOT / "contracts" / "CHANGELOG.md"
+
+# Values the server computes itself; they need no provenance entry (BoreholeRecord description, 1.1.0).
+SERVER_COMPUTED_PATHS = {
+    "metadata.coordinates.crs_code",
+    "metadata.coordinates.crs_label",
+    "metadata.aliases",
+}
+SERVER_COMPUTED_LAYER_FIELDS = {"thickness_m", "description_language"}
+# Clarification statuses that still count as open questions (open_clarifications).
+UNRESOLVED = {"open", "skipped"}
 
 ID_RE = re.compile(r"^(doc|bh|rs|cl)_[0-7][0-9A-HJKMNP-TV-Z]{25}$")
 ID_PREFIX_RE = re.compile(r"^(doc|bh|rs|cl)_")
@@ -71,7 +84,9 @@ REQUIRED_FILES = {
     "ValuePatch.flag.json",
     "ValuePatch.set_state.json",
     "ValuePatch.reset.json",
+    "ValuePatch.approve_confirmed_by.json",
     "CrsCandidate.list.json",
+    "CrsCandidate.clarification.json",
     "CrsConfirmRequest.json",
     "BoreholeFilter.bbox.json",
     "BoreholeFilter.polygon.json",
@@ -774,6 +789,77 @@ def test_full_record_shows_the_demanding_cases() -> None:
     assert len(cells) == 1
 
 
+def _value_paths(record: dict[str, Any]) -> Iterator[str]:
+    """Every path of the ValuePatch grammar for this record (fields from the contract schemas)."""
+    fields = value_path_fields()
+    yield "rock_head_m"
+    yield from (f"metadata.{name}" for name in sorted(fields["metadata"]))
+    yield from (f"metadata.coordinates.{name}" for name in sorted(fields["metadata.coordinates"]))
+    for section in ("stratigraphy", "groundwater", "samples", "test_results"):
+        for index, _ in enumerate(record.get(section) or []):
+            yield from (f"{section}[{index}].{name}" for name in sorted(fields[section]))
+
+
+def _server_computed(path: str) -> bool:
+    return path in SERVER_COMPUTED_PATHS or path.rsplit(".", 1)[-1] in SERVER_COMPUTED_LAYER_FIELDS
+
+
+def test_server_computed_list_matches_the_contract() -> None:
+    description = " ".join(SCHEMAS["BoreholeRecord"]["description"].split())
+    for path in SERVER_COMPUTED_PATHS:
+        assert path in description, path
+    for field in SERVER_COMPUTED_LAYER_FIELDS:
+        assert f"stratigraphy[i].{field}" in description, field
+
+
+@pytest.mark.parametrize(
+    ("source", "record"),
+    _records(),
+    ids=[f"{source}:{record['metadata']['borehole_id']}" for source, record in _records()],
+)
+def test_every_value_has_provenance(source: str, record: dict[str, Any]) -> None:
+    """Provenance rule (1.1.0): every non-null value has an entry, except the server-computed ones."""
+    missing = []
+    for path in _value_paths(record):
+        try:
+            value = resolve_value_path(record, path)
+        except KeyError:
+            continue  # optional field absent from this example
+        if value is None or value == [] or value == "" or _server_computed(path):
+            continue
+        if path not in record["provenance"]:
+            missing.append(path)
+    assert not missing, f"{source} {record['metadata']['borehole_id']}: values without provenance: {missing}"
+
+
+def test_english_lithology_is_a_guess_boxed_on_the_description() -> None:
+    seen = 0
+    for uid, record in RECORDS.items():
+        for index, layer in enumerate(record["stratigraphy"]):
+            entry = record["provenance"].get(f"stratigraphy[{index}].english_lithology")
+            if layer.get("english_lithology") is None or entry is None:
+                continue
+            source = record["provenance"][f"stratigraphy[{index}].original_description"]
+            assert entry["method"] == "guessed", f"{uid} layer {index}"
+            assert (entry["page"], entry["box"]) == (source["page"], source["box"]), f"{uid} layer {index}"
+            seen += 1
+    assert seen
+
+
+def test_crs_label_names_crs_code() -> None:
+    labelled = 0
+    for uid, record in RECORDS.items():
+        coords = record["metadata"]["coordinates"]
+        assert "crs_label" in coords, uid
+        if coords.get("crs_code"):
+            assert coords["crs_label"] and coords["crs_label"] == crs_label(coords["crs_code"]), uid
+            labelled += 1
+        else:
+            assert coords["crs_label"] is None, f"{uid}: crs_label without crs_code"
+        assert "metadata.coordinates.crs_label" not in record["provenance"], uid
+    assert labelled >= 2
+
+
 # --------------------------------------------------------------------------------------------
 # Cross-file consistency
 # --------------------------------------------------------------------------------------------
@@ -810,7 +896,7 @@ def test_records_point_at_existing_documents_and_pages() -> None:
 
 
 def test_document_counts_match_their_records_and_clarifications() -> None:
-    open_clarifications = [c for c in CLARIFICATIONS.values() if c["status"] == "open"]
+    open_clarifications = [c for c in CLARIFICATIONS.values() if c["status"] in UNRESOLVED]
     for doc_id, doc in DOCS.items():
         records = [r for r in RECORDS.values() if r["document_id"] == doc_id]
         if doc.get("found") is not None:
@@ -920,12 +1006,15 @@ def test_requests_reference_existing_things() -> None:
             )
     for source, candidate in _instances("CrsCandidate"):
         assert {p["uid"] for p in candidate["points"]} <= set(RECORDS), source
-    verdicts = {c["verdict"]: c for _, c in _instances("CrsCandidate")}
+    verdicts = {c["verdict"]: c for c in _load(EXAMPLES_DIR / "CrsCandidate.list.json")}
     assert set(verdicts) == {"match", "shifted", "out_of_range"} and verdicts["shifted"]["swap_axes"] is True
-    picker = next(
-        f for f in _load(EXAMPLES_DIR / "Clarification.crs_confirm.json")["fields"] if f["name"] == "crs"
-    )
+    crs_question = _load(EXAMPLES_DIR / "Clarification.crs_confirm.json")
+    picker = next(f for f in crs_question["fields"] if f["name"] == "crs")
     assert {o["value"] for o in picker["options"]} <= {c["crs"] for _, c in _instances("CrsCandidate")}
+    # GET /clarifications/{id}/crs-candidates answers for the boreholes the question covers.
+    for candidate in _load(EXAMPLES_DIR / "CrsCandidate.clarification.json"):
+        assert {p["uid"] for p in candidate["points"]} <= set(crs_question["borehole_uids"])
+    assert any(patch.get("confirmed_by") for _, patch in _instances("ValuePatch"))
     context = _load(EXAMPLES_DIR / "ChatRequest.json")["context"]
     assert set(context["selected_uids"]) <= set(RECORDS)
     result_sets = {rs["result_set_id"] for _, rs in _instances("ResultSet")}
@@ -986,6 +1075,29 @@ def test_every_ref_in_openapi_resolves() -> None:
         except (KeyError, IndexError, ValueError, referencing.exceptions.Unresolvable) as exc:
             problems.append(f"{location}: {ref} ({exc})")
     assert not problems, "\n".join(problems)
+
+
+def test_version_has_a_changelog_entry() -> None:
+    version = SPEC["info"]["version"]
+    assert version.startswith("1.")
+    changelog = CHANGELOG_MD.read_text(encoding="utf-8")
+    headings = re.findall(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", changelog, flags=re.MULTILINE)
+    assert headings and headings[0][0] == version, "the newest CHANGELOG entry names info.version"
+    entry = _section(changelog, f"## {version} ", "\n## ")
+    for addition in ("crs_label", "confirmed_by", "/clarifications/{clarification_id}/crs-candidates"):
+        assert addition in entry, addition
+
+
+def test_clarification_crs_candidates_operation() -> None:
+    operation = SPEC["paths"]["/api/v1/clarifications/{clarification_id}/crs-candidates"]["get"]
+    assert operation["operationId"] == "listClarificationCrsCandidates" and operation["x-priority"] == "P1"
+    ok = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    assert ok == {"type": "array", "items": {"$ref": "#/components/schemas/CrsCandidate"}}
+    assert operation["responses"]["404"]["content"]["application/json"]["schema"]["$ref"].endswith("/Error")
+    assert SCHEMAS["ValuePatch"]["properties"]["confirmed_by"]["type"] == ["string", "null"]
+    assert SCHEMAS["Coordinates"]["properties"]["crs_label"]["type"] == ["string", "null"]
+    approve = SPEC["paths"]["/api/v1/documents/{document_id}/approve-clean"]["parameters"]
+    assert any(p.get("name") == "confirmed_by" and p.get("in") == "query" for p in approve)
 
 
 @pytest.mark.parametrize("name", sorted(SCHEMAS))

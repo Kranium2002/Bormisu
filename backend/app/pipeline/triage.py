@@ -57,16 +57,29 @@ def _fit(img: Image.Image, long_edge: int) -> Image.Image:
     return img.resize(size, Image.Resampling.LANCZOS)
 
 
+HASH_SIDE = 16
+INK_THRESHOLD = 200  # grey levels below this count as ink when cropping to the content
+
+
 def dhash(img: Image.Image) -> str:
-    """64-bit difference hash (hex). Near-identical renders differ in a few bits."""
-    small = img.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
+    """256-bit difference hash (64 hex) of the inked area of a page.
+
+    Cropping to the content and stretching the contrast make a rescaled, re-scanned or re-framed copy of a
+    page hash within a few bits, while different pages that share a printed form stay far apart.
+    """
+    grey = img.convert("L")
+    bbox = grey.point(lambda v: 255 if v < INK_THRESHOLD else 0).getbbox()
+    if bbox is not None:
+        grey = grey.crop(bbox)
+    grey = ImageOps.autocontrast(grey)
+    small = grey.resize((HASH_SIDE + 1, HASH_SIDE), Image.Resampling.LANCZOS)
     pixels = list(small.tobytes())  # mode L: one byte per pixel
     bits = 0
-    for row in range(8):
-        for col in range(8):
-            left, right = pixels[row * 9 + col], pixels[row * 9 + col + 1]
+    for row in range(HASH_SIDE):
+        for col in range(HASH_SIDE):
+            left, right = pixels[row * (HASH_SIDE + 1) + col], pixels[row * (HASH_SIDE + 1) + col + 1]
             bits = (bits << 1) | (1 if left > right else 0)
-    return f"{bits:016x}"
+    return f"{bits:0{HASH_SIDE * HASH_SIDE // 4}x}"
 
 
 def hamming(a: str, b: str) -> int:

@@ -29,6 +29,15 @@ class ApiModel(BaseModel):
 
 Box = list[float]
 
+ACTOR_MAX_LENGTH = 100
+DEFAULT_REVIEW_ACTOR = "reviewer"
+
+
+def review_actor(name: str | None, default: str = DEFAULT_REVIEW_ACTOR) -> str:
+    """Who performed a review action: trimmed, at most ACTOR_MAX_LENGTH characters, `default` when blank."""
+    return (name or "").strip()[:ACTOR_MAX_LENGTH].strip() or default
+
+
 DocumentStatus = Literal["queued", "classifying", "extracting", "needs_review", "done", "failed"]
 PageType = Literal["log", "lab_table", "text", "drawing", "photo", "unknown"]
 PageRole = Literal[

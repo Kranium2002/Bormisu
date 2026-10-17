@@ -216,7 +216,9 @@ def iter_paths(body: dict[str, Any]) -> Iterator[str]:
 
 # Values the server computes itself; they need no provenance entry of their own.
 SERVER_COMPUTED_SUFFIXES = (".thickness_m", ".description_language")
-SERVER_COMPUTED_PATHS = frozenset({"metadata.coordinates.crs_code", "metadata.aliases"})
+SERVER_COMPUTED_PATHS = frozenset(
+    {"metadata.coordinates.crs_code", "metadata.coordinates.crs_label", "metadata.aliases"}
+)
 
 
 def uncovered_paths(body: dict[str, Any], provenance: dict[str, Any]) -> list[str]:

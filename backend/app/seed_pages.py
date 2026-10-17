@@ -5,7 +5,9 @@ needs no system fonts and is deterministic (no clock, no unseeded randomness): t
 same pixels and the same PDF bytes. Every page carries a visible "FICTIONAL DEMO DATA" mark.
 
 Each drawn value a seed record points at is registered as an anchor: its normalised `[x, y, w, h]` box
-(0-1, top-left origin) and the exact text drawn, so provenance boxes highlight exactly that text.
+(0-1, top-left origin) and the exact text drawn, so provenance boxes highlight exactly that text. Labels of
+header fields and notes are anchored as `<key>.label` and column titles of table pages as `hdr.<column>`,
+because some values are printed there (axis labels, a reading date, the SPT increment).
 The built-in font covers ASCII only, so the fictional documents spell umlauts and accents out (ae, oe).
 """
 
@@ -86,6 +88,18 @@ class Anchor:
     box: Box
     text: str
     hand: bool = False
+
+
+def union_anchor(anchors: Sequence[Anchor]) -> Anchor:
+    """One anchor covering several drawn texts on a page: the union box and the texts in order."""
+    if len(anchors) == 1:
+        return anchors[0]
+    x0 = min(a.box[0] for a in anchors)
+    y0 = min(a.box[1] for a in anchors)
+    x1 = min(max(a.box[0] + a.box[2] for a in anchors), 1.0)
+    y1 = min(max(a.box[1] + a.box[3] for a in anchors), 1.0)
+    box = [round(x0, 4), round(y0, 4), round(x1 - x0, 4), round(y1 - y0, 4)]
+    return Anchor(box, " ".join(a.text for a in anchors), any(a.hand for a in anchors))
 
 
 class Sheet:
@@ -273,7 +287,7 @@ class Sheet:
             heights = []
             for i, (label, key, value) in enumerate(items[start : start + cols]):
                 x = self.MARGIN + i * col_w
-                self.text(x + 8, row_y + 6, label, size=15, fill=GREY)
+                self.text(x + 8, row_y + 6, label, size=15, fill=GREY, key=f"{key}.label")
                 used = self.cell(
                     x + 8,
                     row_y + 30,
@@ -301,8 +315,12 @@ class Sheet:
         *,
         size: int = 18,
         x: int | None = None,
+        header_key: str | None = None,
     ) -> int:
-        """A ruled table; each non-empty cell is anchored as `<row key>.<column key>`."""
+        """A ruled table; each non-empty cell is anchored as `<row key>.<column key>`.
+
+        With `header_key`, each column title is anchored as `<header_key>.<column key>`.
+        """
         x0 = self.MARGIN if x is None else x
         total = sum(c.width for c in columns)
         header_lines = max(len(c.title.split("\n")) for c in columns)
@@ -310,8 +328,13 @@ class Sheet:
         self.draw.rectangle((x0, y, x0 + total, y + header_h), fill=SHADE, outline=RULE, width=2)
         cx = x0
         for col in columns:
-            for j, line in enumerate(col.title.split("\n")):
-                self.text(cx + 8, y + 8 + j * 20, line, size=15, bold=True)
+            lines = col.title.split("\n")
+            rects = [
+                self.text(cx + 8, y + 8 + j * 20, line, size=15, bold=True) for j, line in enumerate(lines)
+            ]
+            if header_key:
+                union = (min(r[0] for r in rects), rects[0][1], max(r[2] for r in rects), rects[-1][3])
+                self.anchor(f"{header_key}.{col.key}", union, " ".join(lines))
             cx += col.width
         top = y
         y += header_h
@@ -334,9 +357,10 @@ class Sheet:
         return y + 20
 
     def notes(self, y: int, items: Sequence[tuple[str, str | None, Cell]], *, size: int = 19) -> int:
-        """Lines of 'label value'; the value is anchored by its key."""
+        """Lines of 'label value'; the value is anchored by its key and the label as `<key>.label`."""
         for label, key, value in items:
-            rect = self.text(self.MARGIN, y, label, size=size, fill=GREY if value is not None else INK)
+            fill = GREY if value is not None else INK
+            rect = self.text(self.MARGIN, y, label, size=size, fill=fill, key=f"{key}.label" if key else None)
             used = 0
             if value is not None:
                 width = self.width - self.MARGIN - rect[2] - 30
@@ -445,7 +469,7 @@ def _draw_table_page(spec: TablePage) -> Sheet:
     if spec.intro:
         y = sheet.paragraph(sheet.MARGIN, y, spec.intro, width=sheet.width - 2 * sheet.MARGIN, size=18)
     if spec.columns:
-        y = sheet.table(y, spec.columns, spec.rows)
+        y = sheet.table(y, spec.columns, spec.rows, header_key="hdr")
     if spec.notes:
         sheet.notes(y + 6, spec.notes)
     if spec.margin_note is not None:

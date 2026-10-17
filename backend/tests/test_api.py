@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import io
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
 import pytest
+import respx
 from PIL import Image
 from sqlalchemy import select
 
 from app.clarify.service import create_clarification
-from app.db.models import Borehole, Document, Event, Page
+from app.config import get_settings
+from app.db.models import Borehole, Document, Event, Page, Revision
 from app.db.session import get_sessionmaker
 from app.review.service import create_borehole
 from app.schemas.boreholes import ProvenanceIn
@@ -223,6 +226,8 @@ async def test_borehole_list_filters(client: httpx.AsyncClient) -> None:
     uid, _ = await _fixture_document(crs_status="stated", crs_code="EPSG:25832")
     everything = (await call(client, "GET", "/api/v1/boreholes", expect=200)).json()
     assert everything["count"] == 1 and everything["boreholes"][0]["plotted"] is True
+    coords = everything["boreholes"][0]["metadata"]["coordinates"]
+    assert coords["crs_code"] == "EPSG:25832" and coords["crs_label"] == "ETRS89 / UTM zone 32N"
     cases = {
         "?search=fx-9": 1,
         "?search=nothing-like-this": 0,
@@ -328,6 +333,11 @@ async def test_review_patch_flow(client: httpx.AsyncClient) -> None:
         await call(client, "POST", f"/api/v1/documents/{DOC_ID}/approve-clean?dry_run=false", expect=200)
     ).json()
     assert done["count"] == clean["count"]
+    async with get_sessionmaker()() as session:
+        last = await session.scalar(
+            select(Revision).where(Revision.uid == uid).order_by(Revision.revision.desc()).limit(1)
+        )
+    assert last is not None and last.action == "approve_clean" and last.actor == "reviewer"
 
 
 async def test_crs_answer_plots_and_map(client: httpx.AsyncClient) -> None:
@@ -475,3 +485,262 @@ async def test_event_stream_replay() -> None:
     events = [f for f in frames if f.startswith("id: ")]
     assert events and "event: borehole.created" in events[0]
     assert all(f.endswith("\n\n") for f in frames)
+
+
+# ------------------------------------------------------------------------------------------------
+# Contract 1.1.0: review actor, crs_label, skipped questions, CRS candidates per clarification
+# ------------------------------------------------------------------------------------------------
+
+SITE = "Fictional API Site"
+GEOCODER_URL = "https://geocoder.fictional.test"
+# A fictional geocoder answer for "Sampleton" near the fixture's printed coordinates (UTM 32N).
+SAMPLETON = [
+    {
+        "lat": "47.995",
+        "lon": "7.835",
+        "display_name": "Sampleton, Fictional County",
+        "boundingbox": ["47.97", "48.02", "7.80", "7.87"],
+        "addresstype": "town",
+    }
+]
+
+
+async def _extra_borehole(
+    doc_id: str, label: str, x: float, y: float, *, crs_status: str = "inferred", crs_code: str | None = None
+) -> str:
+    """A second fictional document of the same site with one borehole (no page images)."""
+    async with get_sessionmaker()() as session:
+        doc = Document(
+            id=doc_id,
+            file_name=f"fictional-{label.lower()}.pdf",
+            project=SITE,
+            sha256=doc_id[-1].lower() * 64,
+            mime_type="application/pdf",
+            size_bytes=10,
+            storage_key="originals/" + doc_id[-1].lower() * 64 + ".pdf",
+            status="needs_review",
+            page_count=1,
+        )
+        session.add(doc)
+        await session.flush()
+        body = {
+            "metadata": {
+                "borehole_id": label,
+                "project_name": SITE,
+                "location_name": "Sampleton",
+                "coordinates": {"local_x": x, "local_y": y, "x_raw": str(x), "y_raw": str(y)},
+            },
+            "stratigraphy": [{"depth_from_m": 0.0, "depth_to_m": 2.0, "din4023_code": "S"}],
+        }
+        bh = await create_borehole(
+            session,
+            document=doc,
+            group_key="g",
+            body=body,
+            provenance=full_provenance(body),
+            crs_status=crs_status,
+            crs_code=crs_code,
+            pages=[1],
+        )
+        await session.commit()
+        return bh.uid
+
+
+@pytest.fixture
+def geocoder_on(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """The server-side geocoder is configured, at a fictional URL that respx answers."""
+    monkeypatch.setenv("GEOCODER", "nominatim")
+    monkeypatch.setenv("NOMINATIM_URL", GEOCODER_URL)
+    get_settings.cache_clear()
+    yield
+    monkeypatch.undo()
+    get_settings.cache_clear()
+
+
+async def test_review_actor_is_recorded(client: httpx.AsyncClient) -> None:
+    uid, _ = await _fixture_document()
+    path = f"/api/v1/boreholes/{uid}/values"
+    patches = [
+        {"path": "metadata.borehole_depth_m", "action": "approve", "confirmed_by": "  Example Reviewer  "},
+        {"path": "stratigraphy[1].depth_to_m", "action": "flag", "reason": "unclear", "confirmed_by": "   "},
+        {"path": "stratigraphy[0].din4023_code", "action": "approve", "confirmed_by": "R" * 150},
+        {"path": "metadata.coordinates.local_x", "action": "approve", "confirmed_by": None},
+    ]
+    for patch in patches:
+        await call(client, "PATCH", path, expect=200, json=patch)
+    clean = await call(
+        client,
+        "POST",
+        f"/api/v1/documents/{DOC_ID}/approve-clean",
+        expect=200,
+        params={"dry_run": "false", "confirmed_by": " Field Lead "},
+    )
+    assert clean.json()["count"] >= 1
+    async with get_sessionmaker()() as session:
+        rows = (
+            await session.scalars(select(Revision).where(Revision.uid == uid).order_by(Revision.revision))
+        ).all()
+    actors = [r.actor for r in rows]
+    assert actors == ["pipeline", "Example Reviewer", "reviewer", "R" * 100, "reviewer", "Field Lead"]
+    assert rows[-1].action == "approve_clean"
+
+
+async def test_crs_label_follows_crs_code(client: httpx.AsyncClient) -> None:
+    uid, clar_id = await _fixture_document()
+    record = (await call(client, "GET", f"/api/v1/boreholes/{uid}", expect=200)).json()
+    assert record["metadata"]["coordinates"]["crs_code"] is None
+    assert record["metadata"]["coordinates"]["crs_label"] is None
+    await call(
+        client,
+        "POST",
+        f"/api/v1/clarifications/{clar_id}/answer",
+        expect=200,
+        json={"values": {"crs": "EPSG:25832", "swap_axes": False}},
+    )
+    record = (await call(client, "GET", f"/api/v1/boreholes/{uid}", expect=200)).json()
+    coords = record["metadata"]["coordinates"]
+    assert coords["crs_code"] == "EPSG:25832" and coords["crs_label"] == "ETRS89 / UTM zone 32N"
+    assert "metadata.coordinates.crs_label" not in record["provenance"]
+    refused = await call(
+        client,
+        "PATCH",
+        f"/api/v1/boreholes/{uid}/values",
+        expect=404,
+        json={"path": "metadata.coordinates.crs_label", "action": "edit", "value": "Anything"},
+    )
+    assert refused.json()["code"] == "path_not_found"
+    # A record stored before contract 1.1.0 (no crs_label) gets its label when it is read.
+    async with get_sessionmaker()() as session:
+        bh = await session.get(Borehole, uid)
+        assert bh is not None
+        legacy = dict(bh.record)
+        legacy["metadata"] = dict(legacy["metadata"])
+        legacy["metadata"]["coordinates"] = {
+            k: v for k, v in legacy["metadata"]["coordinates"].items() if k != "crs_label"
+        }
+        bh.record = legacy
+        await session.commit()
+    record = (await call(client, "GET", f"/api/v1/boreholes/{uid}", expect=200)).json()
+    assert record["metadata"]["coordinates"]["crs_label"] == "ETRS89 / UTM zone 32N"
+
+
+async def test_skipped_question_stays_unresolved_and_can_be_answered(client: httpx.AsyncClient) -> None:
+    uid, clar_id = await _fixture_document()
+    await call(client, "POST", f"/api/v1/clarifications/{clar_id}/skip", expect=200)
+    doc = (await call(client, "GET", f"/api/v1/documents/{DOC_ID}", expect=200)).json()
+    record = (await call(client, "GET", f"/api/v1/boreholes/{uid}", expect=200)).json()
+    assert doc["open_clarifications"] == 1 and record["open_clarifications"] == 1
+    answered = (
+        await call(
+            client,
+            "POST",
+            f"/api/v1/clarifications/{clar_id}/answer",
+            expect=200,
+            json={"values": {"crs": "EPSG:25832"}, "answered_by": "Example Reviewer"},
+        )
+    ).json()
+    assert answered["status"] == "answered" and answered["answered_by"] == "Example Reviewer"
+    doc = (await call(client, "GET", f"/api/v1/documents/{DOC_ID}", expect=200)).json()
+    assert doc["open_clarifications"] == 0
+    again = await call(client, "POST", f"/api/v1/clarifications/{clar_id}/skip", expect=409)
+    assert again.json()["code"] == "already_resolved"
+
+
+async def test_clarification_crs_candidates_span_documents(client: httpx.AsyncClient) -> None:
+    uid, _ = await _fixture_document()
+    other = await _extra_borehole("doc_01JFAKE00000000000000API2", "FX-10", 413500.0, 5316400.0)
+    picker = {
+        "name": "crs",
+        "widget": "crs_picker",
+        "label": "Coordinate system",
+        "required": True,
+        "options": [{"value": "EPSG:25832", "label": "ETRS89 / UTM zone 32N"}],
+    }
+    async with get_sessionmaker()() as session:
+        both = await create_clarification(
+            session,
+            kind="crs_confirm",
+            document_id=DOC_ID,
+            question="Which coordinate system do the coordinates of the Fictional API Site use?",
+            fields=[picker],
+            borehole_uids=[uid, other],
+            dedupe_key="test-crs-both",
+        )
+        locate = await create_clarification(
+            session,
+            kind="locate_borehole",
+            document_id=DOC_ID,
+            question="Where is FX-9?",
+            fields=[{"name": "point", "widget": "map_point", "label": "Position"}],
+            borehole_uids=[uid],
+            dedupe_key="test-locate",
+        )
+        await session.commit()
+    url = f"/api/v1/clarifications/{both.id}/crs-candidates"
+    candidates = (await call(client, "GET", url, expect=200)).json()
+    assert candidates and candidates[0]["verdict"] == "match"
+    assert {p["uid"] for p in candidates[0]["points"]} == {uid, other}
+    assert any(c["crs"] == "EPSG:25832" for c in candidates)
+    url = f"/api/v1/clarifications/{locate.id}/crs-candidates"
+    assert (await call(client, "GET", url, expect=200)).json() == []
+    missing = await call(client, "GET", "/api/v1/clarifications/cl_nope/crs-candidates", expect=404)
+    assert missing.json()["code"] == "clarification_not_found"
+
+
+async def test_crs_candidates_use_uploaded_places_first(client: httpx.AsyncClient) -> None:
+    """A plotted borehole of the same site (stated system) is the reference; no geocoder is configured."""
+    await _fixture_document()
+    await _extra_borehole(
+        "doc_01JFAKE00000000000000API3",
+        "FX-11",
+        413400.0,
+        5316300.0,
+        crs_status="stated",
+        crs_code="EPSG:25832",
+    )
+    candidates = (await call(client, "GET", f"/api/v1/documents/{DOC_ID}/crs-candidates", expect=200)).json()
+    assert candidates[0]["crs"] == "EPSG:25832" and candidates[0]["verdict"] == "match"
+    assert "(uploaded)" in candidates[0]["note"]
+    same_zone = {"EPSG:25832", "EPSG:32632"}
+    assert all(c["verdict"] != "match" for c in candidates if c["crs"] not in same_zone)
+
+
+async def test_crs_candidates_rank_with_the_geocoded_place(
+    client: httpx.AsyncClient, geocoder_on: None
+) -> None:
+    _, clar_id = await _fixture_document()
+    with respx.mock(assert_all_called=True) as router:
+        route = router.get(f"{GEOCODER_URL}/search").mock(return_value=httpx.Response(200, json=SAMPLETON))
+        by_document = (
+            await call(client, "GET", f"/api/v1/documents/{DOC_ID}/crs-candidates", expect=200)
+        ).json()
+        url = f"/api/v1/clarifications/{clar_id}/crs-candidates"
+        by_question = (await call(client, "GET", url, expect=200)).json()
+    assert by_document[0]["crs"] == "EPSG:25832" and by_document[0]["verdict"] == "match"
+    assert "Sampleton, Fictional County" in by_document[0]["note"]
+    assert by_question[0]["crs"] == "EPSG:25832"
+    assert route.call_count == 1, "the second ranking reads the geocoder cache"
+    assert route.calls[0].request.url.params["q"] == "Sampleton"
+
+
+@pytest.mark.parametrize("failure", ["status_503", "connect_error"])
+async def test_crs_candidates_survive_a_geocoder_outage(
+    client: httpx.AsyncClient, geocoder_on: None, failure: str
+) -> None:
+    _, clar_id = await _fixture_document()
+    with respx.mock(assert_all_called=True) as router:
+        route = router.get(f"{GEOCODER_URL}/search")
+        if failure == "status_503":
+            route.mock(return_value=httpx.Response(503))
+        else:
+            route.mock(side_effect=httpx.ConnectError("fictional outage"))
+        by_document = (
+            await call(client, "GET", f"/api/v1/documents/{DOC_ID}/crs-candidates", expect=200)
+        ).json()
+        url = f"/api/v1/clarifications/{clar_id}/crs-candidates"
+        by_question = (await call(client, "GET", url, expect=200)).json()
+    for candidates in (by_document, by_question):
+        assert candidates and candidates[0]["verdict"] == "match"
+        assert any(c["crs"] == "EPSG:25832" for c in candidates)
+        assert all("no reference place found" in c["note"] for c in candidates)
+    assert route.call_count == 2, "one attempt per ranking, then no further queries"
