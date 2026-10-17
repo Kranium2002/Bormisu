@@ -19,6 +19,7 @@ import {
   getJson,
   knownBug,
   mapFeatures,
+  nav,
   openApp,
   openDetail,
   openReview,
@@ -120,8 +121,10 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: `CRS confirmed for ${doc!.boreholes.length} borehole` })).toBeVisible();
 
-  // The server placed them: after a reload they are pins, not listed under NOT ON MAP.
+  // The server placed them: after a reload (which keeps Review, F4) they are pins, not listed under NOT ON MAP.
   await reload(page);
+  await expect(page.getByRole('heading', { level: 1, name: `REVIEW · ${first.metadata.borehole_id}` })).toBeVisible();
+  await nav(page, 'MAP');
   const after = await records(request, `?document_id=${doc!.id}`);
   for (const b of after) expect({ id: b.metadata.borehole_id, plotted: b.plotted, crs: b.crs_status }).toEqual({ id: b.metadata.borehole_id, plotted: true, crs: 'confirmed' });
   await expect(pins(page)).toHaveCount(plottedBefore + doc!.boreholes.length);

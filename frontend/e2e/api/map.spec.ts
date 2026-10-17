@@ -135,7 +135,9 @@ test('a RESULTS row and a NOT ON MAP item open the borehole detail', async ({ pa
   await openApp(page);
   await resultRow(page, plotted.metadata.borehole_id).click();
   await expect(page.getByRole('heading', { level: 1, name: plotted.metadata.borehole_id, exact: true })).toBeVisible();
-  await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('button', { name: 'Map' }).click();
+  await expect(page).toHaveURL(new RegExp(`/boreholes/${plotted.uid}$`));
+  await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Map' }).click();
+  await expect(page).toHaveURL(/\/map(\?|$)/);
   await page.locator(`aside button[data-uid="${unplotted.uid}"]`).click();
   await expect(page.getByRole('heading', { level: 1, name: unplotted.metadata.borehole_id, exact: true })).toBeVisible();
   await expect(page.getByLabel('Metadata')).toContainText(`${UNPLOTTED_LABEL[unplotted.unplotted_reason ?? '']}: not on the map`);

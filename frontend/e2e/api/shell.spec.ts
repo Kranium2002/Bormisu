@@ -5,7 +5,7 @@
  * and the fictional seed is loaded (`python -m app.seed`). Read-only: changes nothing.
  */
 import type { Page } from '@playwright/test';
-import { API, expect, getJson, knownBug, nav, openApp, records, test, type WireRecord } from './fixtures';
+import { API, expect, getJson, knownBug, nav, navLink, openApp, records, test, type WireRecord } from './fixtures';
 
 interface Health {
   mode: string;
@@ -37,16 +37,17 @@ test('health at boot: demo banner, upload off with the reason, accept list from 
   await expect(input).toHaveAttribute('accept', health.upload.extensions.join(','));
 });
 
-test('header: product name from config, three screens, no console errors on any screen', async ({ page }) => {
+test('header: product name from config, three screens as links with their URLs, no console errors on any screen', async ({ page }) => {
   await openApp(page);
   await expect(page).toHaveTitle('Bormisu');
   await expect(page.getByRole('banner')).toContainText('Bormisu');
+  // No inbox before M2.
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveCount(3);
+  const paths = { 'UPLOAD & QUEUE': /^\/queue$/, REVIEW: /^\/review\/[^/]+$/, MAP: /^\/map$/ };
   for (const screen of ['UPLOAD & QUEUE', 'REVIEW', 'MAP'] as const) {
     await nav(page, screen);
-    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: new RegExp(`^${screen}`) })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    await expect(navLink(page, screen)).toHaveAttribute('aria-current', 'page');
+    expect(new URL(page.url()).pathname).toMatch(paths[screen]);
   }
   await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
 });

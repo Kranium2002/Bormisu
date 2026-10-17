@@ -51,10 +51,10 @@ async function target(api: APIRequestContext): Promise<WireRecord> {
   return hit!;
 }
 
-/** Reloads the app and opens the borehole in Review again (no router yet: reload starts on the map). */
+/** Reloads the app: the URL keeps the borehole in Review (F4), with the values as the server holds them. */
 async function reopen(page: Page, id: string): Promise<void> {
   await reload(page);
-  await openReview(page, id);
+  await expect(page.getByRole('heading', { level: 1, name: `REVIEW · ${id}` })).toBeVisible();
 }
 
 const approveBtn = (page: Page, label: string) => page.getByRole('button', { name: `Approve ${label}`, exact: true });

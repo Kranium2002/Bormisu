@@ -6,7 +6,7 @@
  * the profile references are mounted and paintable (findings uiv-7, uiv-9 and the DIN checks).
  */
 import type { Page } from '@playwright/test';
-import { expect, nav, openApp, resultRow, test } from './fixtures';
+import { expect, nav, navLink, openApp, resultRow, test } from './fixtures';
 
 const CRS_DIALOG = 'CONFIRM CRS FOR THE WHOLE DOCUMENT';
 
@@ -89,6 +89,30 @@ test.describe('your name', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: 'Your name' })).toHaveCount(0);
     await expect(named).toBeFocused();
+  });
+});
+
+test.describe('route changes', () => {
+  test('the focus moves to the main region named after the new screen; a control that stays keeps it', async ({ page }) => {
+    await openApp(page);
+    await navLink(page, 'UPLOAD & QUEUE').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('main', { name: 'Upload & queue' })).toBeFocused();
+
+    await nav(page, 'MAP');
+    await resultRow(page, 'BK-07').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('main', { name: 'Borehole detail' })).toBeFocused();
+    await page.goBack();
+    await expect(page.getByRole('main', { name: 'Map' })).toBeFocused();
+
+    // The search field keeps the focus when its search changes the screen.
+    await nav(page, 'UPLOAD & QUEUE');
+    const search = page.getByLabel('Search project or borehole ID');
+    await search.fill('EQ-03');
+    await search.press('Enter');
+    await expect(page.getByRole('main', { name: 'Map' })).toBeVisible();
+    await expect(search).toBeFocused();
   });
 });
 

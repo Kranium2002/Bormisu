@@ -1,0 +1,29 @@
+/* Same look as EmptyState (centred card), with a link instead of a button. */
+.wrap {
+  composes: wrap from '../components/EmptyState.module.css';
+}
+
+.card {
+  composes: card from '../components/EmptyState.module.css';
+}
+
+.title {
+  composes: title from '../components/EmptyState.module.css';
+  margin: 0;
+}
+
+.message {
+  composes: message from '../components/EmptyState.module.css';
+  margin: 0;
+}
+
+.link {
+  composes: action from '../components/EmptyState.module.css';
+  text-decoration: none;
+  display: inline-block;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--c-dark);
+  outline-offset: 2px;
+}
