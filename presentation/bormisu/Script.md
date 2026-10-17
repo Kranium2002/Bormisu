@@ -83,7 +83,7 @@
 
 - Stuttgart 21: construction photo of the main station (`img/s21.jpg`, supplied by Mateo).
 - Profile: DIN 4023 profile of borehole BK-01 (fictional sample data, fully logged) from the Bormisu detail screen (`img/profile.png`).
-- Offenburg: screenshot of the LGRB borehole map around Offenburg (`img/offenburg-map.jpg`, supplied by Mateo). The bubbles on the screenshot add up to about 2,680 boreholes (115 clusters = 2,668, plus 13 single points); a few clusters cut off at the edges are not fully counted.
+- Offenburg: browser screenshot of the LGRB borehole map at bohrungen.lgrb-bw.de around Offenburg (`img/offenburg-lgrb.png`, supplied by Mateo). The bubbles on the screenshot add up to about 2,680 boreholes (115 clusters = 2,668, plus 13 single points); a few clusters cut off at the edges are not fully counted.
 - Reports, front: `ToughOne1` p2 (Norway, handwritten), `AF02` p1 (Spanish soil probe sheet), `SEA01` p1 (Korean). Background: 27 more pages from the challenge dataset (`img/bg/`).
 
 ### Slide 09 (sovereignty)

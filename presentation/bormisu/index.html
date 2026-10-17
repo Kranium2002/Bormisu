@@ -86,8 +86,8 @@
   @keyframes slowzoom { from { transform: scale(1.08); } to { transform: scale(1); } }
   /* 02 intro: globe → layers → site → drill → profile (intro.js) */
   .intro .introsvg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .bw .frame { width: 1500px; aspect-ratio: 1764 / 1206; }
-  .bw img { width: 100%; height: 100%; object-fit: cover; }
+  /* the screenshot brings its own browser window and shadow, so no frame around it */
+  .bw .browser-shot { height: 1040px; width: auto; display: block; }
 
   /* 06 Reports: a crowd of pages behind, the three hardest in front */
   .pile { padding: 0; background: radial-gradient(ellipse at 50% 50%, #f7efe3 0%, #e4d5c0 100%); }
@@ -207,9 +207,9 @@
     <svg class="introsvg" viewBox="0 0 1920 1080" aria-hidden="true"></svg>
   </section>
 
-  <!-- 03 OFFENBURG — boreholes around Offenburg in the LGRB borehole map -->
+  <!-- 03 OFFENBURG — the LGRB borehole map (bohrungen.lgrb-bw.de) around Offenburg, as a browser screenshot -->
   <section class="hero-img bw light center" data-label="03 Offenburg">
-    <div class="frame" data-anim style="--d: 100ms;"><img class="hero-img-zoom" src="img/offenburg-map.jpg" alt="Borehole clusters around Offenburg" /></div>
+    <img class="browser-shot" data-anim style="--d: 100ms;" src="img/offenburg-lgrb.png" alt="LGRB borehole map (bohrungen.lgrb-bw.de) with borehole clusters around Offenburg" />
   </section>
 
   <!-- 04 WORLD — zoom out from Offenburg to every country with Herrenknecht projects, one dot per machine (data/projects.js) -->
