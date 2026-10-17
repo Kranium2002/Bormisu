@@ -1,6 +1,7 @@
 # Bormisu — Speaker Script (5 min)
 
-Open `index.html` in Chrome. Arrow keys to advance.
+The slides carry almost no text. Everything is said here.
+Open `index.html` in Chrome, arrow keys to advance.
 Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it automatically.
 
 ## 01 · Title (~10 s)
@@ -11,31 +12,41 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 *TODO: to be defined.*
 
-## 03 · Herrenknecht film (~20 s, speak over the video)
+## 03 · Herrenknecht video (~30 s, talk over the footage)
 
-> This is Herrenknecht. Tunnel boring machines from Schwanau, just down the road from us.
-> They dig under cities, through mountains and under the sea.
+> This is Herrenknecht — tunnel boring machines from Schwanau, just down the road.
+> They're digging Paris's new metro, the Grand Paris Express.
+> They bored the Gotthard Base Tunnel — 57 kilometres through the Alps, the longest railway tunnel in the world.
+> In Hong Kong, they built the biggest tunnel boring machine ever — 17.6 metres — for the airport link under the sea.
+> And they also worked on Stuttgart 21…
 
-## 04 · Projects (~25 s)
+## 04 · Stuttgart 21 🤫 (~5 s)
 
-> The Gotthard Base Tunnel — 57 kilometres, the longest railway tunnel in the world.
-> Grand Paris Express — 19 Herrenknecht machines building Paris's new metro.
-> And in Hong Kong, the biggest tunnel boring machine ever built: 17.6 metres.
-> *(beat)* And Stuttgart 21… we don't talk about Stuttgart 21.
+> …but we don't talk about that.
 
-## 05 · Ground (~20 s)
+*(let the laugh happen, then move on)*
 
-> But before the first metre, every tunnel starts with a borehole.
-> Layers, strength, water — that's what decides which machine you build.
-> Thousands of data points per project. Get them wrong, and the machine is wrong.
+## 05 · Drill core (~25 s)
 
-## 06 · Formats (~25 s)
+> But for all of these amazing projects, you first need one thing: drill cores.
+> A drill core tells you what the ground is made of — soil or rock, how hard, where the water sits.
+> That decides which machine you build. Get it wrong, and the machine is wrong.
 
-> The problem: every country logs it differently. Often every company does.
-> Here: a Spanish log from Africa, Australia, South America, Southeast Asia — and handwritten sheets from Norway and Malaysia.
-> Different standards, different units, different coordinate systems. We turn all of it into one.
+## 06 · Baden-Württemberg (~25 s)
 
-## 07 · Live demo (~1:45)
+> And there are a lot of them. This is Baden-Württemberg alone — every bubble is thousands of boreholes.
+> This data is well kept and classified. But not even here is it all in the same standard.
+> Even here, someone has to pull the data out and standardise it by hand.
+
+## 07 · Reports from around the world (~25 s)
+
+> Now think internationally. Herrenknecht works in China, the Middle East, South America.
+> This is what the reports really look like:
+> Korean drill logs. Handwritten sheets from Norway and Malaysia. Spanish, Catalan. Typewriter scans.
+> Every country does it differently — often every company does.
+> So we built the thing that standardises all of it.
+
+## 08 · Demo (~1:30)
 
 > Let me show you.
 
@@ -51,47 +62,52 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 **Backup:** if the network or the app fails, play the recorded run (TODO: record `demo.mp4`).
 
-## 08 · Under the hood (~25 s)
+## 09 · Under the hood (~20 s)
 
-> Models read, Python decides.
-> A small model sorts the pages, OCR runs only where there is borehole data, and the extractor returns raw text with its source box — never a finished number.
-> Units, SPT, coordinates and DIN codes are normalised in plain Python, and every doubt becomes a question for a person.
+> Upload. A small model sorts the pages. OCR only where there's borehole data — Mistral OCR from Paris, the best we found.
+> A large model pulls out every value with its source box — never a finished number.
+> Then plain Python checks it against DIN 4023, and it lands on the map.
 
-## 09 · Deployment (~25 s)
+## 10 · Sovereignty (~25 s)
 
-> Today it runs in the cloud on Mistral from Paris — the best OCR quality we found.
-> But borehole reports are confidential. So the same pipeline runs on open models: PaddleOCR-VL for reading, Qwen 3.8 27B for the rest.
-> That fits on one 32-gigabyte GPU in your server room — or even on a Mac mini with 32 gigabytes in a site office. Slower, but nothing leaves the building.
+> Today it runs in the cloud on Mistral.
+> But borehole reports are confidential. So the same pipeline runs on open models — PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
+> That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
 
-## 10 · Team (~10 s)
+## 11 · Team (~10 s)
 
 > That's us — Team Tiramisu, built in Breisgau.
 
-## 11 · Close (~10 s)
+## 12 · Finisher (~5 s)
 
-> Questions? We'll dig into them.
+> Every borehole. One standard. Bormisu.
+
+## 13 · Questions
+
+> Questions?
 > *(beat)* Questions about Stuttgart 21 go to Deutsche Bahn.
 
 ---
 
 ## Sources
 
-### Slide 04 (projects)
+### Slide 03 (said over the video)
 
 - Gotthard Base Tunnel bored with Herrenknecht machines: [Herrenknecht press release](https://www.herrenknecht.com/en/newsroom/pressreleasedetail/gotthard-base-tunnel-mechanized-tunnelling-completed-on-the-north-side/), [Wikipedia](https://en.wikipedia.org/wiki/Herrenknecht)
 - Grand Paris Express, 19 Herrenknecht TBMs: [Tunnelbuilder](https://tunnelbuilder.com/News/Launch-of-the-first-TBM-for-the-Grand-Paris-Express-.aspx)
 - Hong Kong Tuen Mun–Chek Lap Kok, 17.6 m Mixshield, largest TBM: [Herrenknecht reference](https://herrenknecht.com/en/references/referencesdetail/hong-kong-tuen-mun-chek-lap-kok-link), [Guinness](https://www.guinnessworldrecords.com/world-records/78259-largest-tunnel-boring-machine)
 - Stuttgart 21 Filder Tunnel, Herrenknecht TBM "SUSE": [Herrenknecht press release](https://herrenknecht.com/en/newsroom/pressreleasedetail/suse-sibylle-wanda-and-kaethchen-from-baden-set-a-fast-pace-in-swabia)
-- Green `#7DB713`: the main colour in herrenknecht.com's stylesheet
 
-### Slide 06 (formats)
+### Slides 05–07 (images)
 
-Pages from the challenge dataset (`data/raw_data/BoreholeData`): AF02 p1, AUS01 p1, SAM01 p1, SEA02 p1, ToughOne1 p2, ToughOne2 p1.
+- Drill core: core box photo from the challenge dataset, `AF02.pdf` page 1.
+- Baden-Württemberg: screenshot of the LGRB borehole map (`img/bw-map.png`).
+- Reports: `SEA01` p1 (Korean), `ToughOne1` p2 (Norway, handwritten), `ToughOne2` p1 (Malaysia, handwritten), `AF02` p1 (Spanish), `profile01.jpg` (Catalan), `MEA01` p3 (typewriter), `SEA02` p1, `MEA03/BH-1.jpg` (Kuwait), `SAM01` p1.
 
-### Slide 09 (deployment)
+### Slide 10 (sovereignty)
 
 The figures are public estimates, not measured on our data.
 
 - Qwen 3.8 27B, 4-bit MLX build ~16–19 GB, tested on a 32 GB Mac mini M4 at ~5–6 tokens/s: [orcarouter](https://www.orcarouter.ai/blog/qwen-3-8-27b-mlx)
-- PaddleOCR-VL runs on Apple Silicon via mlx-vlm: [PaddleOCR docs](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL-Apple-Silicon.html); ~0.9B parameters, a few GB: [Spheron](https://www.spheron.network/blog/best-open-source-ocr-vlm-self-host-gpu-cloud-2026/)
-- Not yet confirmed: whether Qwen 3.8 27B accepts images (needed if it classifies pages from the image rather than the OCR text), and its licence.
+- PaddleOCR-VL runs on Apple Silicon via mlx-vlm: [PaddleOCR docs](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL-Apple-Silicon.html)
+- Not yet confirmed: whether Qwen 3.8 27B accepts images, and its licence.
