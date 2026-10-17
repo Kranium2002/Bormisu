@@ -11,6 +11,7 @@
                   ['Clay', '#6A4F80', 'in-tx-clay', 2.3], ['Gravel', '#D9A800', 'in-tx-gravel', 3.2],
                   ['Sandstone', '#C9502E', 'in-tx-sand', 3.3]];
   const DEPTH = 10, WATER = 4.6;             // final depth and groundwater, in m
+  const SAMPLES = [2.4, 5.1, 8.4];           // BK-01 test samples P1, P2, K1, in m
   const GROUND_PX = 650;                     // how deep the site scene's layers go on screen
   let token = 0;
 
@@ -117,6 +118,12 @@
     notes.append('line').attr('x1', COL.x - 10).attr('x2', COL.x + COL.w + 10).attr('y1', wy).attr('y2', wy)
       .attr('stroke', '#2F7FBF').attr('stroke-width', 3).attr('stroke-dasharray', '10 7');
     notes.append('path').attr('d', `M${COL.x - 32} ${wy - 26} h24 l-12 18z`).attr('fill', '#2F7FBF');
+    // test samples: a black square left of the column with a short line to it (DIN 4023)
+    SAMPLES.forEach((d) => {
+      const sy = COL.y + d * cpx;
+      notes.append('line').attr('x1', COL.x - 12).attr('x2', COL.x).attr('y1', sy).attr('y2', sy).attr('stroke', '#111').attr('stroke-width', 2);
+      notes.append('rect').attr('x', COL.x - 34).attr('y', sy - 11).attr('width', 22).attr('height', 22).attr('fill', '#111');
+    });
     // big words on the right, pushed apart where layers are thin
     const LX = COL.x + COL.w + 110;
     let prev = -Infinity;
