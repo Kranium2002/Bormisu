@@ -48,6 +48,11 @@ describe('ProfileColumn', () => {
     expect(html).not.toContain('SPT refusal');
   });
 
+  it('writes "no pattern assigned" on a layer whose DIN code has no pattern', () => {
+    const b = makeBorehole({ layers: [makeLayer({ n: 1, from: 0, to: 2, din: 'XYZ' }), makeLayer({ n: 2, from: 2, to: 4, din: 'T' })] });
+    expect(render(b).match(/no pattern assigned/g)).toHaveLength(1);
+  });
+
   it('says "ET not stated" when the final depth is unknown', () => {
     expect(render({ ...borehole(), finalDepth: null })).toContain('ET not stated');
   });

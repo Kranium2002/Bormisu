@@ -130,6 +130,11 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={dinId ? '#fff' : '#E0E0E0'} />
             {dinId && <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={`url(#${dinId})`} />}
             <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill="none" stroke={INK} />
+            {dinId === MISSING_PATTERN && h > 12 && (
+              <text x={X.layerMid} y={y((l.from + l.to) / 2) + 3} fontSize="9" fontWeight="700" textAnchor="middle" fill="#fff">
+                no pattern assigned
+              </text>
+            )}
             <line x1={X.layerX + X.layerW} y1={y(l.to)} x2={X.bottomTickTo} y2={y(l.to)} stroke={INK} />
             {!onRockHead(l.to) && (
               <text x={X.bottomLabel} y={y(l.to) + 4} fontSize="10" fill={INK}>{l.to.toFixed(2)}</text>
