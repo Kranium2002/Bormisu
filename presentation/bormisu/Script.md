@@ -1,61 +1,62 @@
 # Bormisu: Speaker Script (5 min)
 
 ## 01 · Title
-
-## 02 · Profile (~25 s)
-
 > This glas of dirt and stones is the key to building tunnels.
 > Its a soil sample.
-> This is what it looks like on a plan.
-> It tells you exactly what the ground is made of: which material sits at which depth.
-> You can take samples and determine the exact specifications of the material.
-> Or you can see where the ground water is.
+## 02 · Profile
 
-## 03 · Offenburg (~20 s)
+> Here is what it looks like on a plan.
+> It tells you exactly what the ground is made of: which material sits at which layer.
+> You can see where the ground water is.
+> And you can see where the samples are taken and can determine the  exact specifications of the material.
 
-> And you don't drill just one. In Offenburg alone, there are about 2,700 documented soil samples.
-> This data is all kept on one website.
-> However here comes the problem, doesn't follow one standard, and pieces are missing.
+## 03 · Offenburg
 
-## 04 · World (~25 s)
+> But you don't drill just ones. In Offenburg alone, there are about 2,700 documented soil samples.
+> This data is all kept on one database.
+> However here comes the problem, even this one database doesn't follow one standard, and pieces are missing.
 
-> For Herrenknecht, the problem becomes way bigger because they not only work in offenburg they work on the whole Worl.
+## 04 · World
+
+> For Herrenknecht, the problem becomes way bigger because they not only work in offenburg they work in the whole Worl.
 > They build the machines for the Paris Metro. 
 > The airport link in Hong Kong and in South America, the new metro line in Lima.
 
-## 05 · Stuttgart 21 🤫 (~5 s)
+## 05 · Stuttgart 21 🤫
 
 > They also built the machine for Stuttgart 21. But we don't talk about that.
 
-## 06 · Reports from around the world (~25 s)
+## 06 · Reports from around the world
 
 > When you work internationally, the data looks even worse.
-> This is what the reports really look like.
+> This is what the reports look like.
 > Handwritten, in Norwegian. A Spanish soil probe sheet. A Korean drill log.
 > Every country does it differently. 
 > Often every company does.
 > So we built the thing that standardises all of it.
 
-## 07 · Demo (~2:30)
+## 07 · Demo
 
 
-## 08 · Key features (~15 s)
+## 08 · Key features
 
 > So what you just saw, in three points:
 > It reads any report: scans, handwriting, any language.
-> Every value has a source. One click and you see it on the original page. And where it's unsure, it asks a person to verify.
-> And one standard comes out: the DIN 4023 profile, the map and the Herrenknecht xlsx.
+> Every value has a source. 
+> One click and you see it on the original page. 
+> And where it's unsure, it asks a human to verify.
+> One standard comes out.
 
-## 09 · Sovereignty (~25 s)
+## 09 · Sovereignty
 
-> Today it runs in the cloud on Mistral: Mistral Large and the Mistral ORC.
+> Today it runs in the Mistral cloud: Mistral Large and the Mistral ORC.
 > But borehole reports are confidential. So the same pipeline runs on open models, whcih you can run either on your on premise server or your own PC.
 
-## 10 · In a nutshell (~15 s)
+## 10 · In a nutshell
 
 > So, in a nutshell:
-> It's multilingual: any language, any format, even handwriting.
-> It's a sovereign stack: cloud today, your own server or a Mac mini tomorrow.
+> It's multilingual: any language, any format, even handwriting works.
+> It's a sovereign stack: mistral cloud today, your own server or a Mac mini tomorrow.
 > And it's ready to use. Now.
 
 ## 11 · Questions
