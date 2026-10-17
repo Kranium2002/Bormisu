@@ -146,6 +146,8 @@ async def feature_collection(session: AsyncSession, conds: Sequence[Any]) -> Fea
                     borehole_depth_m=bh.borehole_depth_m,
                     review_status=bh.review_status,
                     crs_status=bh.crs_status,
+                    crs_code=bh.crs_code,
+                    crs_label=((bh.record.get("metadata") or {}).get("coordinates") or {}).get("crs_label"),
                     revision=bh.revision,
                     attention=bool(bh.needs_attention or n_open),
                     open_clarifications=int(n_open),

@@ -168,6 +168,7 @@ async def _fail(
             return
         doc.status = "failed"
         doc.error = message
+        doc.failed_stage = stage  # contract 1.2.0 Document.failed_stage, the same name as job.failed.stage
         doc.updated_at = _now()
         stages = stages_for(doc.storage_key)
         if rewind_to in stages and doc.stage in stages and stages.index(doc.stage) > stages.index(rewind_to):
@@ -359,6 +360,7 @@ async def run_pipeline(document_id: str) -> None:
             if doc.status in ("queued", "failed"):
                 doc.status = "classifying" if doc.stage in (None, "triage") else "extracting"
                 doc.error = None
+                doc.failed_stage = None
                 await emit_document_updated(session, doc)
                 await session.commit()
         try:
@@ -381,6 +383,7 @@ async def run_pipeline(document_id: str) -> None:
             if doc.status not in REVIEW_STATUSES:  # finalisation decides needs_review or done
                 doc.status = STATUS_AFTER.get(stage, doc.status)
             doc.error = None
+            doc.failed_stage = None
             doc.updated_at = _now()
             await emit_document_updated(session, doc)
             await session.commit()

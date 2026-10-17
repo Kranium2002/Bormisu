@@ -71,6 +71,8 @@ class Document(Base):
     # Last pipeline stage that finished; retry resumes after it.
     stage: Mapped[str | None] = mapped_column(String(30))
     error: Mapped[str | None] = mapped_column(Text)
+    # The failed stage (contract 1.2.0 `failed_stage`, named like `job.failed.stage`); null unless failed.
+    failed_stage: Mapped[str | None] = mapped_column(String(30))
     page_count: Mapped[int | None] = mapped_column(Integer)
     progress: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     completeness: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

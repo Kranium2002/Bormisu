@@ -4,6 +4,7 @@
   "project": "Fictional Harbour Link",
   "status": "done",
   "error": null,
+  "failed_stage": null,
   "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "size_bytes": 48213,
   "sha256": "31cf020f85e87f76a377d6d04c7dc95021e1923880316edd7c4f37537eb83e30",

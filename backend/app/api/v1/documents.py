@@ -23,7 +23,7 @@ from app.db.session import get_session
 from app.errors import ApiError, error_response, not_found
 from app.events.writer import emit
 from app.geo.crs_candidates import candidates_for_boreholes
-from app.geo.crs_service import confirm_crs
+from app.geo.crs_service import VIA_CRS_ENDPOINT, confirm_crs
 from app.ids import new_id
 from app.pipeline.orchestrator import enqueue_document
 from app.review.service import approve_clean, to_records
@@ -204,6 +204,9 @@ async def retry_document(document_id: str, session: SessionDep) -> UploadAccepte
     doc = await _document(session, document_id)
     if doc.status != "failed":
         raise ApiError(409, "not_failed", "Only failed documents can be retried.")
+    if get_settings().mode != "live":
+        # Like upload: without provider keys no page can be read, so the document is left as it is.
+        raise ApiError(409, "demo_mode", "demo_mode")
     doc.status = "queued"
     doc.error = None
     await emit_document_updated(session, doc)
@@ -316,8 +319,15 @@ async def confirm_document_crs(
         (await session.scalars(select(Borehole.uid).where(Borehole.document_id == document_id))).all()
     )
     actor = review_actor(body.confirmed_by, ACTOR_API)
+    # Also resolves the crs_confirm questions whose boreholes all have a system now (app.geo.crs_service).
     updated = await confirm_crs(
-        session, uids, crs=body.crs, swap_axes=body.swap_axes, actor=actor, note=body.note
+        session,
+        uids,
+        crs=body.crs,
+        swap_axes=body.swap_axes,
+        actor=actor,
+        note=body.note,
+        via=VIA_CRS_ENDPOINT,
     )
     await session.commit()
     return CrsConfirmResult(updated=updated)

@@ -143,6 +143,8 @@ async def documents_out(session: AsyncSession, docs: Sequence[Document]) -> list
                     "project": doc.project,
                     "status": doc.status,
                     "error": doc.error,
+                    # Only a failed document names a failed stage, whatever a retry left in the column.
+                    "failed_stage": doc.failed_stage if doc.status == "failed" else None,
                     "mime_type": doc.mime_type,
                     "size_bytes": doc.size_bytes,
                     "sha256": doc.sha256,

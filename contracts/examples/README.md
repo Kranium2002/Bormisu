@@ -40,5 +40,7 @@ Ids are opaque (`doc_`, `bh_`, `rs_`, `cl_` plus a ULID) and are reused across f
 - Every non-null value at a `ValuePatch` path has a provenance entry, except the server-computed `thickness_m`, `description_language`, `metadata.coordinates.crs_code`, `metadata.coordinates.crs_label` and `metadata.aliases` (contract 1.1.0, `BoreholeRecord` description). `english_lithology` is a model's rendering: method `guessed`, page and box of `original_description`.
 - `metadata.coordinates.crs_label` is set exactly when `crs_code` is set, with the backend registry's label.
 - `ValuePatch.approve_confirmed_by.json` shows the optional `confirmed_by` (1.1.0).
+- `failed_stage` (1.2.0) is `null` on every document except the failed one, where it equals the `stage` of `events/job.failed.json`.
+- `events/clarification.resolved.json` carries the question's `document_id` and `borehole_uids` (1.2.0), the same as in `Clarification.answered.json`.
 - `review_status` follows the contract: `approved` only when every provenance entry is approved, `unreviewed` when none is reviewed yet, else `in_review`.
 - Clarification widgets per kind: `crs_confirm` uses `crs_picker` (options carry evidence), `locate_borehole` `map_point`, `choose_reading` `choose_reading`, `datum_convention` `select`, `unit_ambiguous` `number_unit` with `unit_options`, `borehole_boundary` `page_range`, `duplicate` `select`/`boolean`, `conflicting_sources` `select` with evidence per option, `chat_parameter` `select`.

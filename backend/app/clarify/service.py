@@ -110,16 +110,20 @@ async def resolve_clarification(
     answer: Any = None,
     answered_by: str | None = None,
 ) -> None:
-    """Mark answered or skipped and emit `clarification.resolved` (skip keeps it listable under `skipped`)."""
+    """Mark answered or skipped and emit `clarification.resolved` (skip keeps it listable under `skipped`).
+
+    The event names the question's document and boreholes (contract 1.2.0) for a targeted refresh.
+    """
     row.status = status
     if status == "answered":
         row.answer = answer
         row.answered_by = answered_by
         row.resolved_at = datetime.now(UTC)
     await session.flush()
-    await emit(
-        session,
-        "clarification.resolved",
-        {"clarification_id": row.id, "status": status},
-        document_id=row.document_id,
-    )
+    payload = {
+        "clarification_id": row.id,
+        "status": status,
+        "document_id": row.document_id,
+        "borehole_uids": list(row.borehole_uids or []),
+    }
+    await emit(session, "clarification.resolved", payload, document_id=row.document_id)

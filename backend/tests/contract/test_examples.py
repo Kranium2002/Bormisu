@@ -156,7 +156,15 @@ EVENT_SCHEMAS: dict[str, str | dict[str, Any]] = {
     ),
     "borehole.updated": _obj({"uid": _ID, "revision": {"type": "integer", "minimum": 1}}),
     "clarification.created": "Clarification",
-    "clarification.resolved": _obj({"clarification_id": _ID, "status": {"enum": ["answered", "skipped"]}}),
+    "clarification.resolved": _obj(
+        {
+            "clarification_id": _ID,
+            "status": {"enum": ["answered", "skipped"]},
+            # 1.2.0: the question's document and boreholes.
+            "document_id": _ID,
+            "borehole_uids": {"type": "array", "items": _ID},
+        }
+    ),
     "job.failed": _obj(
         {
             "document_id": _ID,
@@ -1030,10 +1038,26 @@ def test_events_reference_existing_things() -> None:
     created = events["borehole.created"]
     assert created["document_id"] == RECORDS[created["uid"]]["document_id"]
     resolved = events["clarification.resolved"]
-    assert CLARIFICATIONS[resolved["clarification_id"]]["status"] == resolved["status"]
+    question = CLARIFICATIONS[resolved["clarification_id"]]
+    assert question["status"] == resolved["status"]
+    assert resolved["document_id"] == question["document_id"]
+    assert resolved["borehole_uids"] == question["borehole_uids"]
     failed = events["job.failed"]
     assert DOCS[failed["document_id"]]["status"] == "failed"
     assert DOCS[failed["document_id"]]["error"] == failed["detail"]
+    assert DOCS[failed["document_id"]]["failed_stage"] == failed["stage"]
+
+
+def test_failed_stage_is_set_exactly_on_failed_documents() -> None:
+    """1.2.0: Document.failed_stage names the failed stage and is null unless the document failed."""
+    documents = _documents()
+    assert all("failed_stage" in doc for _, doc in documents), "every example shows failed_stage"
+    for source, doc in documents:
+        if doc["status"] == "failed":
+            assert isinstance(doc["failed_stage"], str) and doc["failed_stage"], source
+        else:
+            assert doc["failed_stage"] is None, f"{source}: {doc['document_id']} is {doc['status']}"
+    assert any(doc["status"] == "failed" for _, doc in documents)
 
 
 def test_chat_citations_point_at_provenance() -> None:
@@ -1084,8 +1108,11 @@ def test_version_has_a_changelog_entry() -> None:
     headings = re.findall(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", changelog, flags=re.MULTILINE)
     assert headings and headings[0][0] == version, "the newest CHANGELOG entry names info.version"
     entry = _section(changelog, f"## {version} ", "\n## ")
-    for addition in ("crs_label", "confirmed_by", "/clarifications/{clarification_id}/crs-candidates"):
+    for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
         assert addition in entry, addition
+    older = _section(changelog, "## 1.1.0 ", "\n## ")
+    for addition in ("crs_label", "confirmed_by", "/clarifications/{clarification_id}/crs-candidates"):
+        assert addition in older, addition
 
 
 def test_clarification_crs_candidates_operation() -> None:
@@ -1098,6 +1125,34 @@ def test_clarification_crs_candidates_operation() -> None:
     assert SCHEMAS["Coordinates"]["properties"]["crs_label"]["type"] == ["string", "null"]
     approve = SPEC["paths"]["/api/v1/documents/{document_id}/approve-clean"]["parameters"]
     assert any(p.get("name") == "confirmed_by" and p.get("in") == "query" for p in approve)
+
+
+def test_contract_1_2_additions() -> None:
+    """1.2.0: failed_stage on Document, ?last_event_id= on the event stream, defined CRS verdicts."""
+    failed_stage = SCHEMAS["Document"]["properties"]["failed_stage"]
+    assert failed_stage["type"] == ["string", "null"]
+    assert "failed_stage" not in SCHEMAS["Document"]["required"], "additive: optional inside 1.x"
+    assert "job.failed" in failed_stage["description"]
+    operation = SPEC["paths"]["/api/v1/events"]["get"]
+    params = {(p["name"], p["in"]): p for p in operation["parameters"]}
+    query = params[("last_event_id", "query")]
+    assert query.get("required", False) is False
+    assert query["schema"] == {"type": "integer", "minimum": 0}
+    assert ("Last-Event-ID", "header") in params and ("document_id", "query") in params
+    assert "header wins" in operation["description"]
+    section = _section(REALTIME_MD, "## 1.", "## 2.")
+    assert "last_event_id" in section and "header wins" in section
+    resolved_row = next(
+        line for line in section.splitlines() if line.startswith("| `clarification.resolved`")
+    )
+    assert '"document_id"' in resolved_row and '"borehole_uids"' in resolved_row
+    verdict = SCHEMAS["CrsCandidate"]["properties"]["verdict"]
+    assert verdict["enum"] == ["match", "shifted", "out_of_range"]
+    for words in ("match:", "shifted:", "out_of_range:", "area of use", "reference place", "not part of"):
+        assert words in verdict["description"], words
+    rock_head = SCHEMAS["BoreholeRecord"]["properties"]["rock_head_m"]
+    assert rock_head["type"] == ["number", "null"]
+    assert "not stated" in rock_head["description"] and "never means" in rock_head["description"]
 
 
 @pytest.mark.parametrize("name", sorted(SCHEMAS))

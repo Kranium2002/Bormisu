@@ -100,6 +100,8 @@ class DocumentOut(ApiModel):
     project: str | None = None
     status: DocumentStatus
     error: str | None = None
+    # Contract 1.2.0: the stage that failed (same name as `job.failed.stage`); null unless status is failed.
+    failed_stage: str | None = None
     mime_type: str
     size_bytes: int
     sha256: str

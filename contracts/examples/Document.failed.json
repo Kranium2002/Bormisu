@@ -4,6 +4,7 @@
   "project": null,
   "status": "failed",
   "error": "Text recognition failed on page 1 after 3 attempts. Retry when the OCR service is reachable.",
+  "failed_stage": "ocr",
   "mime_type": "image/jpeg",
   "size_bytes": 3145728,
   "sha256": "942d2294e83cb82e0dbc8cca102f95242d302a7dd561472737d75157b71a7898",
