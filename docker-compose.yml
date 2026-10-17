@@ -135,6 +135,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Local models (docker compose --profile ollama up --build). Internal only: api and worker reach it at
+  # http://ollama:11434/v1, the OpenAI-compatible API. Point the "openai" route at it in .env (section
+  # "Local models" in .env.example) and pull a vision model once:
+  #   docker compose exec ollama ollama pull <model>
+  # Models stay in the "ollama" volume. For an NVIDIA GPU add deploy.resources.reservations.devices.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:0.35.1
+    volumes:
+      - ollama:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_CONTEXT_LENGTH: "32768"
+    restart: unless-stopped
+
   # make test / make lint / make contract-test. No env_file and blank provider keys, so tests
   # can never call paid providers. Tests use TEST_DATABASE_URL (database geomemory_test).
   # Gotenberg runs alongside so the office-file integration test converts a generated DOCX for real.
@@ -167,3 +182,4 @@ services:
 volumes:
   pgdata:
   storage:
+  ollama:
