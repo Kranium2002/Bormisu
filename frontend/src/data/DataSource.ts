@@ -120,8 +120,6 @@ export interface DataSource {
   register(registration: Registration): Promise<User>;
   /** Signs out (POST /auth/logout); idempotent. */
   signOut(): Promise<void>;
-  /** Changes the password; the server signs out the user's other sessions. Throws invalid_credentials / validation_error. */
-  changePassword(currentPassword: string, newPassword: string): Promise<void>;
   /** Called whenever a request answers 401 not_authenticated (the session ended); null removes it. */
   setSessionListener(listener: (() => void) | null): void;
 }

@@ -1,0 +1,381 @@
+/* Sign-in screen, user menu and password dialog. Brand tokens only; every text pair is at least 4.5:1. */
+
+.page {
+  min-height: 100%;
+  box-sizing: border-box;
+  background: var(--c-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 48px 16px 32px;
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-card);
+  border-top: 4px solid var(--c-dark);
+  padding: 24px 24px 28px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.logo {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  background: var(--c-green);
+  color: var(--c-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 20px;
+  text-transform: uppercase;
+}
+
+.appName {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-dark);
+}
+
+.modeTitle {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: var(--c-text);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: var(--c-text);
+}
+
+.optional {
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--c-muted);
+}
+
+.input {
+  height: 40px;
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  padding: 0 10px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--c-text);
+  background: var(--c-surface);
+}
+
+.input:focus {
+  outline: 2px solid var(--c-dark);
+  outline-offset: -1px;
+}
+
+.input:read-only {
+  background: var(--c-line);
+}
+
+.invalid {
+  border-color: var(--c-red);
+}
+
+.passwordRow {
+  display: flex;
+  align-items: stretch;
+}
+
+.passwordInput {
+  flex: 1;
+  min-width: 0;
+  border-right: 0;
+  border-radius: 2px 0 0 2px;
+}
+
+.toggle {
+  flex: none;
+  min-width: 64px;
+  cursor: pointer;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 0 2px 2px 0;
+  background: var(--c-line);
+  color: var(--c-text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.toggle:focus-visible,
+.primary:focus-visible,
+.link:focus-visible,
+.menuItem:focus-visible,
+.userButton:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid var(--c-dark);
+  outline-offset: 2px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--c-muted);
+  line-height: 1.4;
+}
+
+.rules {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--c-muted);
+  line-height: 1.5;
+}
+
+.fieldError {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-red);
+}
+
+/* Top message: errors (role=alert) and the session-ended notice. */
+.alert {
+  border-left: 4px solid var(--c-red);
+  background: var(--c-red-bg);
+  color: var(--c-text);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 14px;
+}
+
+.notice {
+  border-left-color: var(--c-amber);
+  background: var(--c-amber-bg);
+}
+
+.primary {
+  cursor: pointer;
+  height: 42px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--c-green);
+  color: var(--c-on-green);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.primary:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.secondary {
+  cursor: pointer;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.switch {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--c-muted);
+}
+
+.link {
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--c-dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* Centred loading state while the session is checked. */
+.loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: var(--c-muted);
+}
+
+/* Header: the signed-in user's button and menu. */
+.userWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.userButton {
+  cursor: pointer;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--c-nav-idle);
+  border-radius: 2px;
+  background: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.userButton:hover {
+  border-color: #fff;
+}
+
+.menu {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: var(--c-text);
+}
+
+.menuName {
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  margin-bottom: 2px;
+}
+
+.menuEmail {
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.menuRole {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: var(--c-muted);
+}
+
+.menuItem {
+  cursor: pointer;
+  text-align: left;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.menuItem:hover {
+  background: var(--c-hover);
+}
+
+/* Change-password dialog. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: var(--z-dialog);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.dialog {
+  width: 420px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-dialog);
+  padding: 18px 20px 20px;
+  outline: none;
+}
+
+.dialogHead {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.dialogTitle {
+  flex: 1;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.close {
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  background: none;
+  border: 0;
+  padding: 0 4px;
+  color: var(--c-text);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.actions .primary {
+  padding: 0 18px;
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding-top: 24px;
+  }
+
+  .card {
+    padding: 20px 16px 24px;
+  }
+}
