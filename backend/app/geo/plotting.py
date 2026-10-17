@@ -11,7 +11,7 @@ is an east-orientated reconstruction) is read the same way when it is stated, ra
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache, lru_cache
 from typing import Any
 
 import yaml
@@ -48,13 +48,32 @@ def west_orientated(code: str) -> bool:
     return _code_key(code) in _west_orientated_codes()
 
 
-@lru_cache(maxsize=256)
+@cache  # one per registry system (a few hundred); building one takes ~30 ms
 def _transformer(code: str) -> Transformer:
     try:
         source = CRS.from_user_input(code)
     except CRSError as exc:
         raise CrsInvalidError(code) from exc
     return Transformer.from_crs(source, CRS.from_epsg(4326), always_xy=True)
+
+
+_warmed = False
+
+
+def warm_transformers() -> None:
+    """Build the transformer of every registry system once (ranking evaluates all of them), in the
+    background at startup so the first coordinate-system question does not wait for it. Once per process."""
+    global _warmed
+    if _warmed:
+        return
+    _warmed = True
+    with (get_settings().data_dir / "crs_registry.yaml").open(encoding="utf-8") as handle:
+        data: dict[str, Any] = yaml.safe_load(handle) or {}
+    for entry in data.get("systems") or []:
+        try:
+            _transformer(str(entry["code"]))
+        except (CrsInvalidError, CRSError, ProjError, KeyError):
+            continue
 
 
 def validate_crs(code: str) -> str:

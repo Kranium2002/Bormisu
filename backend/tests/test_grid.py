@@ -163,3 +163,12 @@ async def test_two_anchors_on_the_same_grid_point_are_refused_not_a_server_error
                 "axes": X_NORTH,
             },
         )
+
+
+def test_korean_belts_are_candidates_and_korean_points_to_korea() -> None:
+    from app.geo.crs_candidates import _language_countries, rank_candidates
+
+    assert _language_countries()["ko"] == "South Korea"
+    points = [("a", 270100.0, 171200.0), ("b", 276400.0, 175300.0)]  # fictional, X northing first
+    labels = [(c.label, c.swap_axes) for c in rank_candidates(points)]
+    assert ("Korea 2000 / East Belt 2010", True) in labels

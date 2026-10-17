@@ -167,3 +167,13 @@ local_grid:
   # Languages whose surveyors print the northing first as X on site grids (geodetic convention); the
   # site-grid question defaults to "X is north" for documents in them. Others default to X east.
   x_north_languages: [no, nb, nn, da, sv, fi, is, de, pl, cs, sk, ru, uk, ko, ja]
+
+# The country a document's language points to, used as the last place hint when ranking coordinate systems
+# for printed coordinates without a stated system (after the printed location, project and country). Only
+# languages spoken mainly in one country are listed.
+language_countries: {ko: South Korea, ja: Japan, da: Denmark, nb: Norway, nn: Norway, "no": Norway, sv: Sweden,
+                     fi: Finland, is: Iceland, pl: Poland, cs: Czechia, sk: Slovakia, hu: Hungary, ro: Romania,
+                     bg: Bulgaria, el: Greece, tr: Turkey, he: Israel, th: Thailand, vi: Vietnam, it: Italy,
+                     et: Estonia, lv: Latvia, lt: Lithuania, sl: Slovenia, hr: Croatia, ka: Georgia,
+                     hy: Armenia, az: Azerbaijan, kk: Kazakhstan, mn: Mongolia, km: Cambodia, lo: Laos,
+                     my: Myanmar, si: Sri Lanka, ne: Nepal, bn: Bangladesh, fa: Iran, uz: Uzbekistan}

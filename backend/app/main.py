@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -25,6 +26,7 @@ from app.api.v1 import (
 from app.config import get_settings
 from app.db.session import dispose_engine
 from app.errors import CatchAllMiddleware, install_error_handlers
+from app.geo.plotting import warm_transformers
 
 API_V1 = "/api/v1"
 
@@ -42,6 +44,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.chat_configured,
         settings.geocoder_configured,
     )
+    # coordinate-system ranking evaluates every registry system; build their transformers off the event loop
+    threading.Thread(target=warm_transformers, name="crs-warm", daemon=True).start()
     if app.state.open_queue:
         from app.queue import queue_app
 

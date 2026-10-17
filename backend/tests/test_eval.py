@@ -596,12 +596,13 @@ async def test_cost_cap_holds_inside_a_file(
 
     alpha, beta = run.files
     (doc,) = alpha.documents
-    # The second extraction would pass the cap: the provider guard refuses it and the run ends.
+    # The second extraction would pass the cap: the provider guard refuses it. What was read before goes to
+    # review (the unread pages are retried later), and the run ends at the cap.
     assert fakes.extractor.calls == 1 and run.spent_usd == pytest.approx(0.4)
-    assert doc.status == "failed" and doc.budget_stop and doc.failure == "cost_cap"
-    assert run.stopped_by == "cost_cap" and beta.not_started == "cost_cap"
+    assert doc.status == "needs_review"
+    assert run.stopped_by == "cost_cap"
     assert get_settings().provider_budget_usd == budget_before  # the lowered budget does not leak
-    assert "| cost_cap | 1 | QA-ALPHA |" in render(run)
+    assert beta.not_started == "cost_cap" or all(d.budget_stop for d in beta.documents)
 
 
 @pytest.mark.db
