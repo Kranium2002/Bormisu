@@ -1,8 +1,9 @@
 import type { KeyboardEvent } from 'react';
 import { K } from '../../domain/keys';
-import type { Borehole, Layer, PatternId } from '../../domain/types';
-import { COL, PATTERN_FILLS, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
+import type { Borehole, Layer } from '../../domain/types';
+import { COL, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
 import { GW_LABEL } from './detailModel';
+import { dinPatternId, patternDefs } from './dinPatterns';
 import {
   depthScale,
   depthTicks,
@@ -26,58 +27,8 @@ interface Props {
 }
 
 const INK = COL.text;
-/** Pattern ids are prefixed so they can't clash with other SVGs on the page. */
-const pat = (id: PatternId | 'nl') => `bp-${id}`;
-
-/** DIN 4023 hatchings (prototype <defs>), drawn over the pastel layer fill. */
-function PatternDefs() {
-  return (
-    <defs>
-      <pattern id={pat('topsoil')} width="22" height="16" patternUnits="userSpaceOnUse">
-        <text x="3" y="11" fontSize="8" fill={INK}>M</text>
-        <text x="14" y="15" fontSize="6" fill={INK}>u</text>
-      </pattern>
-      <pattern id={pat('fill')} width="26" height="22" patternUnits="userSpaceOnUse">
-        <text x="3" y="10" fontSize="9" fill={INK}>A</text>
-        <text x="15" y="20" fontSize="9" fill={INK}>A</text>
-      </pattern>
-      <pattern id={pat('clay')} width="28" height="12" patternUnits="userSpaceOnUse">
-        <line x1="2" y1="3" x2="14" y2="3" stroke={INK} strokeWidth="1" />
-        <line x1="15" y1="9" x2="27" y2="9" stroke={INK} strokeWidth="1" />
-      </pattern>
-      <pattern id={pat('silt')} width="24" height="14" patternUnits="userSpaceOnUse">
-        <path d="M3 4 q2 3 4 0 M15 11 q2 3 4 0" stroke={INK} fill="none" strokeWidth="1" />
-        <circle cx="11" cy="4" r=".8" fill={INK} />
-        <circle cx="22" cy="11" r=".8" fill={INK} />
-      </pattern>
-      <pattern id={pat('gravel')} width="26" height="22" patternUnits="userSpaceOnUse">
-        <circle cx="6" cy="6" r="3.2" stroke={INK} fill="none" />
-        <circle cx="19" cy="15" r="3.2" stroke={INK} fill="none" />
-        <circle cx="17" cy="4" r="1.1" fill={INK} />
-        <circle cx="6" cy="17" r="1.1" fill={INK} />
-      </pattern>
-      <pattern id={pat('sst')} width="20" height="14" patternUnits="userSpaceOnUse">
-        <line x1="0" y1="13.5" x2="20" y2="13.5" stroke={INK} strokeWidth=".7" />
-        <circle cx="5" cy="5" r="1" fill={INK} />
-        <circle cx="15" cy="9" r="1" fill={INK} />
-      </pattern>
-      <pattern id={pat('sand')} width="12" height="10" patternUnits="userSpaceOnUse">
-        <circle cx="3" cy="3" r=".9" fill={INK} />
-        <circle cx="9" cy="8" r=".9" fill={INK} />
-      </pattern>
-      <pattern id={pat('lst')} width="24" height="12" patternUnits="userSpaceOnUse">
-        <path d="M0 0.5 H24 M0 6.5 H24 M6 0.5 V6.5 M18 6.5 V12" stroke={INK} strokeWidth=".8" fill="none" />
-      </pattern>
-      <pattern id={pat('marl')} width="20" height="12" patternUnits="userSpaceOnUse">
-        <path d="M2 3 H10 M12 9 H19" stroke={INK} strokeWidth=".9" />
-        <path d="M14 2 V5 M5 8 V11" stroke={INK} strokeWidth=".9" />
-      </pattern>
-      <pattern id={pat('nl')} width="8" height="8" patternUnits="userSpaceOnUse">
-        <path d="M0 8 L8 0" stroke={COL.border} strokeWidth="1" />
-      </pattern>
-    </defs>
-  );
-}
+/** Hatching of the "not logged" band; the layers use the DIN 4023 patterns (dinPatterns.ts). */
+const NL_PATTERN = 'bp-nl';
 
 /** Enter / Space on a focusable SVG group acts like a click. */
 const onKeyActivate = (fn: () => void) => (e: KeyboardEvent) => {
@@ -101,6 +52,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
   // Measurements the reviewer marked "not in source" / "illegible" aren't drawn.
   const { refusal, groundwater, rockHead } = drawnMarks(b);
   const etY = y(depth) + 18;
+  const dinIds = b.layers.map(dinPatternId);
   // The rock head line and its label already give that depth; a bottom label there would be crossed out.
   const onRockHead = (d: number) => rockHead != null && Math.abs(d - rockHead) < 0.005;
   /** Baseline of a layer's DIN code: mid-layer, or just above the R marker's line when that would cross it. */
@@ -122,7 +74,12 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       role="group"
       aria-label={`DIN 4023 profile of ${b.id}, ${b.layers.length} layers, final depth ${b.finalDepth != null ? `${b.finalDepth.toFixed(2)} m` : 'not stated'}`}
     >
-      <PatternDefs />
+      <defs dangerouslySetInnerHTML={{ __html: patternDefs(dinIds) }} />
+      <defs>
+        <pattern id={NL_PATTERN} width="8" height="8" patternUnits="userSpaceOnUse">
+          <path d="M0 8 L8 0" stroke={COL.border} strokeWidth="1" />
+        </pattern>
+      </defs>
 
       <text x={X.stratMid} y="18" fontSize="10" fill={COL.faint} textAnchor="middle">Strat.</text>
       <text x={X.layerMid} y="18" fontSize="10" fill={COL.faint} textAnchor="middle">Lithology</text>
@@ -153,8 +110,9 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       })}
 
       {/* lithology */}
-      {b.layers.map((l) => {
+      {b.layers.map((l, i) => {
         const h = (l.to - l.from) * s;
+        const dinId = dinIds[i];
         const select = () => onSelectLayer(l.n);
         return (
           <g
@@ -168,8 +126,10 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             onKeyDown={onKeyActivate(select)}
           >
             <title>{`Layer ${l.n} · ${l.din} · ${l.lithology}`}</title>
-            <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={l.fill || PATTERN_FILLS[l.pattern]} />
-            <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={`url(#${pat(l.pattern)})`} stroke={INK} />
+            {/* white under the tile: "A" (fill) has no DIN colour; unknown code: plain #E0E0E0 (README) */}
+            <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={dinId ? '#fff' : '#E0E0E0'} />
+            {dinId && <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={`url(#${dinId})`} />}
+            <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill="none" stroke={INK} />
             <line x1={X.layerX + X.layerW} y1={y(l.to)} x2={X.bottomTickTo} y2={y(l.to)} stroke={INK} />
             {!onRockHead(l.to) && (
               <text x={X.bottomLabel} y={y(l.to) + 4} fontSize="10" fill={INK}>{l.to.toFixed(2)}</text>
@@ -196,7 +156,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             y={y(nl.from)}
             width={X.layerW}
             height={(nl.to - nl.from) * s}
-            fill={`url(#${pat('nl')})`}
+            fill={`url(#${NL_PATTERN})`}
             stroke={COL.red}
             strokeDasharray="4 3"
           />

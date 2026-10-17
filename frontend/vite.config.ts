@@ -16,6 +16,8 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
     },
     server: {
+      // The DIN 4023 patterns live in the repo's assets/, outside this folder.
+      fs: { allow: ['..'] },
       proxy: {
         '/api': { target: apiTarget, changeOrigin: true },
       },

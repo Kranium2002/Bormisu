@@ -58,7 +58,8 @@ describe('ProfileColumn', () => {
     expect(html).toContain('ET 18.00 m');
     expect(html).toContain('final depth 18.00 m');
     expect(html).toContain('log ends 6.00 ≠ ET 18.00');
-    expect(html).not.toMatch(/\d,\d\d/);
+    // DIN pattern path data ("C7.3,164.4") isn't a depth.
+    expect(html.replace(/<pattern[\s\S]*?<\/pattern>/g, '')).not.toMatch(/\d,\d\d/);
   });
 });
 
