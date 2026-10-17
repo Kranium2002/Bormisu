@@ -1,0 +1,4 @@
+{
+  "detail": "The CSV has x/y columns. Give the EPSG code of these coordinates (for example 25832 for ETRS89 / UTM zone 32N, 4326 if they are longitude/latitude); positions are never guessed.",
+  "code": "epsg_required"
+}

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: GeoMemory API
-  version: 1.2.2
+  version: 1.3.0
   description: |
     Contract v1 between the backend session and the frontend session. This file is the single
     source of truth for HTTP shapes. Streams (server-sent events and the chat stream) are specified
@@ -16,7 +16,7 @@ info:
     - Page numbers are 1-based in this API. Boxes are normalised [x, y, w, h], 0-1, origin top-left
       of the rendered page image.
     - Ids are opaque strings: documents `doc_<ULID>`, boreholes `bh_<ULID>`, result sets
-      `rs_<ULID>`, clarifications `cl_<ULID>`. Never parse them.
+      `rs_<ULID>`, clarifications `cl_<ULID>`, alignments `aln_<ULID>`. Never parse them.
     - Every non-2xx JSON response is an `Error`: `{"detail": string, "code": string, "errors"?: [...]}`.
       The UI branches on `code`, shows `detail`, and never parses `detail`. Unknown routes return
       code `route_not_found`; a missing resource on a known route returns its own code
@@ -31,6 +31,7 @@ tags:
   - name: documents
   - name: boreholes
   - name: map
+  - name: alignments
   - name: clarifications
   - name: chat
   - name: events
@@ -567,6 +568,159 @@ paths:
             application/geo+json:
               schema: { $ref: "#/components/schemas/BoreholeFeatureCollection" }
 
+  /api/v1/alignments:
+    get:
+      tags: [alignments]
+      operationId: listAlignments
+      x-priority: P1
+      summary: Planned lines uploaded so far, newest first (1.3.0).
+      responses:
+        "200":
+          description: Alignment list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlignmentList" }
+    post:
+      tags: [alignments]
+      operationId: uploadAlignment
+      x-priority: P1
+      summary: Upload the path of a planned tunnel, pipeline or drilling line (1.3.0).
+      description: |
+        Accepted files (at most 10 MB, parsed on the server, XML parsed safely):
+        - GeoJSON (.geojson, .json): LineString, MultiLineString, or a Feature, FeatureCollection or
+          GeometryCollection holding them, in WGS84 longitude/latitude (RFC 7946). Points next to the
+          line are ignored.
+        - KML (.kml): LineString elements, also inside Placemark or MultiGeometry.
+        - GPX (.gpx): tracks (each trkseg is one part) and routes.
+        - CSV (.csv): one vertex per row in path order, with a header naming lon/lat columns
+          (lon, lng, long, longitude / lat, latitude) or x/y columns (x, easting, east, rechtswert,
+          ostwert / y, northing, north, hochwert, nordwert). x/y columns need `epsg`: positions are
+          never guessed, so x/y without `epsg` is refused with `epsg_required`. Comma, semicolon or tab
+          separated; a decimal comma is read when the separator is not a comma.
+        Several lines in one file become the parts of one alignment, in file order; chainage runs on
+        across the parts. Coordinates must be in range; a line needs at least two distinct vertices.
+        Files with only points or only polygons, and unreadable files, are refused with
+        `alignment_invalid` and a readable `detail`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                name:
+                  type: [string, "null"]
+                  description: Display name. Default the line's name in the file, else the file name without extension.
+                buffer_m:
+                  type: number
+                  exclusiveMinimum: 0
+                  maximum: 1000
+                  default: 100
+                  description: Default search distance for queryAlignment, stored with the line.
+                epsg:
+                  type: [integer, "null"]
+                  description: |
+                    EPSG code of the file's coordinates, for CSV x/y columns (e.g. 25832 for ETRS89 / UTM
+                    zone 32N). With lon/lat columns it names a geographic system other than WGS84.
+                    Ignored for GeoJSON, KML and GPX, which are WGS84 by definition.
+      responses:
+        "201":
+          description: Stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alignment" }
+        "413":
+          description: File larger than 10 MB. code too_large.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "415":
+          description: Not a .geojson, .json, .kml, .gpx or .csv file. code unsupported_type.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: |
+            The file holds no usable line (code alignment_invalid: points or polygons only, fewer than
+            two distinct vertices, coordinates out of range, unreadable JSON/XML/CSV), CSV x/y columns
+            came without `epsg` (code epsg_required), `epsg` is not a known EPSG code (code
+            crs_invalid), or a form field is invalid (code validation_error).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/alignments/{alignment_id}:
+    parameters:
+      - $ref: "#/components/parameters/AlignmentId"
+    get:
+      tags: [alignments]
+      operationId: getAlignment
+      x-priority: P1
+      responses:
+        "200":
+          description: The stored line.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alignment" }
+        "404":
+          description: Unknown id. code alignment_not_found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [alignments]
+      operationId: deleteAlignment
+      x-priority: P1
+      summary: Deletes the line. Result sets issued for it stay valid until they expire.
+      responses:
+        "204":
+          description: Deleted.
+        "404":
+          description: Unknown id. code alignment_not_found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/alignments/{alignment_id}/query:
+    parameters:
+      - $ref: "#/components/parameters/AlignmentId"
+    post:
+      tags: [alignments]
+      operationId: queryAlignment
+      x-priority: P1
+      summary: Boreholes within buffer_m of the line, sorted by chainage (1.3.0).
+      description: |
+        Boreholes on the map (confirmed position) within `buffer_m` metres of the line, measured on the
+        WGS84 ellipsoid (PostGIS ST_DWithin on geography). `include_unreviewed` false (default) keeps
+        approved boreholes only, as in BoreholeFilter; matches it leaves out are counted in
+        `excluded_unreviewed`. The hits are also stored as a result set (`result_set`), so the map
+        highlight, `GET /result-sets/{id}/geojson` and chat context work as for any other selection.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlignmentQuery" }
+      responses:
+        "200":
+          description: Hits, buffer band and counts.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlignmentResult" }
+        "404":
+          description: Unknown id. code alignment_not_found.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: buffer_m out of range. code validation_error.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /api/v1/geocode:
     get:
       tags: [map]
@@ -778,6 +932,12 @@ components:
       description: Opaque borehole uid, URL-encoded.
       schema: { type: string }
 
+    AlignmentId:
+      name: alignment_id
+      in: path
+      required: true
+      schema: { type: string }
+
   schemas:
     Error:
       type: object
@@ -793,9 +953,10 @@ components:
           description: |
             Stable machine code. Codes in v1: validation_error, route_not_found, document_not_found,
             page_not_found, borehole_not_found, path_not_found, result_set_not_found,
-            clarification_not_found, demo_mode, too_large, unsupported_type, not_failed,
-            revision_conflict, unparseable_value, crs_invalid, already_resolved, answer_invalid,
-            chat_unavailable, geocoder_unavailable, rate_limited, internal_error.
+            clarification_not_found, alignment_not_found, demo_mode, too_large, unsupported_type,
+            not_failed, revision_conflict, unparseable_value, crs_invalid, alignment_invalid,
+            epsg_required, already_resolved, answer_invalid, chat_unavailable, geocoder_unavailable,
+            rate_limited, internal_error.
         errors:
           type: [array, "null"]
           description: Field errors, only with code validation_error.
@@ -1367,6 +1528,110 @@ components:
         area: { description: 'The area used, echoed for outlining on the map.' }
         definition: { $ref: "#/components/schemas/BoreholeFilter" }
         created_at: { type: string, format: date-time }
+
+    Alignment:
+      type: object
+      description: |
+        A planned line (tunnel, pipeline, drilling line) uploaded as a file (1.3.0). The geometry is
+        stored in WGS84; `source_crs` names the system the file's coordinates were in.
+      required: [alignment_id, name, file_name, format, source_crs, geometry, length_m, vertex_count, part_count, bbox, buffer_m, created_at]
+      properties:
+        alignment_id: { type: string, description: 'aln_<ULID>.' }
+        name: { type: string }
+        file_name: { type: string }
+        format: { type: string, enum: [geojson, kml, gpx, csv] }
+        source_crs: { type: string, description: 'e.g. EPSG:4326, or EPSG:25832 for a CSV with x/y columns.' }
+        geometry:
+          type: object
+          description: GeoJSON LineString (one part) or MultiLineString in WGS84, vertices in path order.
+          required: [type, coordinates]
+          properties:
+            type: { type: string, enum: [LineString, MultiLineString] }
+            coordinates: { type: array }
+        length_m: { type: number, minimum: 0, description: 'Length on the WGS84 ellipsoid, all parts.' }
+        vertex_count: { type: integer, minimum: 2 }
+        part_count: { type: integer, minimum: 1 }
+        bbox: { type: array, items: { type: number }, minItems: 4, maxItems: 4, description: "[min_lon, min_lat, max_lon, max_lat]" }
+        buffer_m: { type: number, description: 'Search distance given at upload; the default of queryAlignment.' }
+        created_at: { type: string, format: date-time }
+
+    AlignmentList:
+      type: object
+      required: [alignments]
+      properties:
+        alignments: { type: array, items: { $ref: "#/components/schemas/Alignment" } }
+
+    AlignmentQuery:
+      type: object
+      properties:
+        buffer_m:
+          type: [number, "null"]
+          exclusiveMinimum: 0
+          maximum: 1000
+          description: Search distance in metres either side of the line. null or absent uses the alignment's buffer_m (100 unless given at upload).
+        include_unreviewed:
+          type: boolean
+          default: false
+          description: false keeps only boreholes whose review_status is approved (as in BoreholeFilter).
+
+    AlignmentHit:
+      type: object
+      required: [uid, borehole_id, document_id, review_status, crs_status, position, offset_m, chainage_m, side]
+      properties:
+        uid: { type: string }
+        borehole_id: { type: string }
+        document_id: { type: string }
+        project_name: { type: [string, "null"] }
+        borehole_depth_m: { type: [number, "null"] }
+        review_status: { type: string, enum: [unreviewed, in_review, approved] }
+        crs_status: { type: string }
+        position: { type: array, items: { type: number }, minItems: 2, maxItems: 2, description: "[lon, lat] in WGS84." }
+        offset_m: { type: number, minimum: 0, description: 'Shortest distance to the line on the WGS84 ellipsoid.' }
+        chainage_m:
+          type: number
+          minimum: 0
+          description: |
+            Distance along the line from its first vertex to the foot of the perpendicular from the
+            borehole (parts in order). Measured in `AlignmentResult.metric_crs` and scaled to the
+            ellipsoidal length, so the last vertex has chainage `length_m`.
+        side:
+          type: string
+          enum: [left, right, on]
+          description: Side of the line looking from its first vertex towards its last; `on` closer than 0.5 m.
+
+    AlignmentResult:
+      type: object
+      required: [alignment_id, buffer_m, include_unreviewed, length_m, metric_crs, buffer_polygon, hits, excluded_unreviewed, not_on_map, result_set]
+      properties:
+        alignment_id: { type: string }
+        buffer_m: { type: number }
+        include_unreviewed: { type: boolean }
+        length_m: { type: number }
+        metric_crs:
+          type: string
+          description: |
+            The local metric system chainage and side are computed in: the UTM zone (WGS84) of the line's
+            centre, e.g. EPSG:32632.
+        buffer_polygon:
+          type: object
+          description: The band within buffer_m of the line, a GeoJSON Polygon or MultiPolygon in WGS84, for drawing.
+          required: [type, coordinates]
+          properties:
+            type: { type: string, enum: [Polygon, MultiPolygon] }
+            coordinates: { type: array }
+        hits:
+          type: array
+          description: Sorted by chainage_m, then offset_m.
+          items: { $ref: "#/components/schemas/AlignmentHit" }
+        excluded_unreviewed: { type: integer, minimum: 0, description: 'Boreholes inside the band left out because include_unreviewed was false.' }
+        not_on_map:
+          type: integer
+          minimum: 0
+          description: |
+            Boreholes in the same review scope (approved, or all with include_unreviewed) that have no
+            confirmed position, so they cannot be checked against the line: the "Not on map" list
+            (`GET /boreholes?plotted=false`, with `include_unreviewed` as here).
+        result_set: { $ref: "#/components/schemas/ResultSet" }
 
     BoreholeFeatureCollection:
       type: object

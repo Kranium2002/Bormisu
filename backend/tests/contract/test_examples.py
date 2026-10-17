@@ -54,9 +54,16 @@ SERVER_COMPUTED_LAYER_FIELDS = {"thickness_m", "description_language"}
 # Clarification statuses that still count as open questions (open_clarifications).
 UNRESOLVED = {"open", "skipped"}
 
-ID_RE = re.compile(r"^(doc|bh|rs|cl)_[0-7][0-9A-HJKMNP-TV-Z]{25}$")
-ID_PREFIX_RE = re.compile(r"^(doc|bh|rs|cl)_")
-ID_KEYS = {"document_id", "uid", "result_set_id", "clarification_id", "active_result_set_id"}
+ID_RE = re.compile(r"^(doc|bh|rs|cl|aln)_[0-7][0-9A-HJKMNP-TV-Z]{25}$")
+ID_PREFIX_RE = re.compile(r"^(doc|bh|rs|cl|aln)_")
+ID_KEYS = {
+    "document_id",
+    "uid",
+    "result_set_id",
+    "clarification_id",
+    "active_result_set_id",
+    "alignment_id",
+}
 ID_LIST_KEYS = {"uids", "borehole_uids", "selected_uids"}
 
 TOP_JSON = sorted(EXAMPLES_DIR.glob("*.json"))
@@ -102,6 +109,9 @@ REQUIRED_FILES = {
     "ClarificationAnswer.crs_confirm.json",
     "ClarificationAnswer.choose_reading.json",
     "Stats.json",
+    "Alignment.json",
+    "AlignmentList.json",
+    "AlignmentResult.json",
     "ChatRequest.json",
     "chat/turn.sse",
     "chat/error.sse",
@@ -118,6 +128,9 @@ REQUIRED_ERROR_CODES = {
     "revision_conflict",
     "unparseable_value",
     "chat_unavailable",
+    "alignment_not_found",
+    "alignment_invalid",
+    "epsg_required",
     "internal_error",
 }
 KIND_WIDGETS = {
@@ -1003,6 +1016,49 @@ def test_result_sets_and_lists_are_consistent() -> None:
     assert stats["layers"] == sum(len(r["stratigraphy"]) for r in RECORDS.values())
 
 
+def test_alignment_examples_are_consistent() -> None:
+    """1.3.0: hits are plotted example records at their position, in chainage order, inside the band."""
+    alignments = {a["alignment_id"]: a for _, lst in _instances("AlignmentList") for a in lst["alignments"]}
+    for source, alignment in _instances("Alignment"):
+        assert alignments.get(alignment["alignment_id"]) == alignment, f"{source}: not in AlignmentList.json"
+    for alignment_id, alignment in alignments.items():
+        geometry = alignment["geometry"]
+        parts = [geometry["coordinates"]] if geometry["type"] == "LineString" else geometry["coordinates"]
+        points = [p for part in parts for p in part]
+        assert alignment["part_count"] == len(parts) and alignment["vertex_count"] == len(points), (
+            alignment_id
+        )
+        lons, lats = [p[0] for p in points], [p[1] for p in points]
+        assert alignment["bbox"] == [min(lons), min(lats), max(lons), max(lats)], alignment_id
+    results = _instances("AlignmentResult")
+    assert results
+    for source, result in results:
+        alignment = alignments[result["alignment_id"]]
+        assert result["length_m"] == alignment["length_m"], source
+        hits = result["hits"]
+        assert [(h["chainage_m"], h["offset_m"]) for h in hits] == sorted(
+            (h["chainage_m"], h["offset_m"]) for h in hits
+        ), f"{source}: hits are sorted by chainage"
+        for hit in hits:
+            record = RECORDS[hit["uid"]]
+            coords = record["metadata"]["coordinates"]
+            assert record["plotted"] and hit["position"] == [coords["longitude"], coords["latitude"]], source
+            assert hit["borehole_id"] == record["metadata"]["borehole_id"], source
+            assert hit["document_id"] == record["document_id"], source
+            assert hit["review_status"] == record["review_status"], source
+            assert hit["offset_m"] <= result["buffer_m"] and 0 <= hit["chainage_m"] <= result["length_m"]
+            assert result["include_unreviewed"] or hit["review_status"] == "approved", source
+        rs = result["result_set"]
+        assert rs["uids"] == [h["uid"] for h in hits], f"{source}: the result set holds the hits in order"
+        assert rs["count"] == rs["located_count"] == len(hits) and rs["unlocated_count"] == 0, source
+        assert rs["definition"]["include_unreviewed"] == result["include_unreviewed"], source
+        scope = [
+            r for r in RECORDS.values() if result["include_unreviewed"] or r["review_status"] == "approved"
+        ]
+        assert result["not_on_map"] == sum(not r["plotted"] for r in scope), source
+    assert any(r["not_on_map"] > 0 for _, r in results), "keep an example with boreholes not on the map"
+
+
 def test_requests_reference_existing_things() -> None:
     provenance_keys = {p for r in RECORDS.values() for p in r["provenance"]}
     for source, patch in _instances("ValuePatch"):
@@ -1110,8 +1166,11 @@ def test_version_has_a_changelog_entry() -> None:
     headings = re.findall(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", changelog, flags=re.MULTILINE)
     assert headings and headings[0][0] == version, "the newest CHANGELOG entry names info.version"
     entry = _section(changelog, f"## {version} ", "\n## ")
-    for addition in ("/pages/{n}/words", "/pages/{n}/evidence", "PageWord", "EvidenceItem", "located"):
+    for addition in ("/alignments", "queryAlignment", "AlignmentResult", "epsg_required", "chainage"):
         assert addition in entry, addition
+    evidence = _section(changelog, "## 1.2.2 ", "\n## ")
+    for addition in ("/pages/{n}/words", "/pages/{n}/evidence", "PageWord", "EvidenceItem", "located"):
+        assert addition in evidence, addition
     patch = _section(changelog, "## 1.2.1 ", "\n## ")
     for addition in ("Document.warnings", "/documents/{id}/retry", "needs_review", "429", "crs_confirm"):
         assert addition in patch, addition

@@ -1,0 +1,37 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Fictional tunnel alignment T1 (sample)",
+        "note": "Fictional sample line for the GeoMemory demo seed."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            9.413691,
+            50.208008
+          ],
+          [
+            9.418889,
+            50.209518
+          ],
+          [
+            9.423806,
+            50.210895
+          ],
+          [
+            9.428284,
+            50.210114
+          ],
+          [
+            9.432482,
+            50.209379
+          ]
+        ]
+      }
+    }
+  ]
+}

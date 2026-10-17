@@ -20,7 +20,7 @@ A rename or a shape change therefore fails both suites. Change an example only t
 
 ## One consistent world
 
-Ids are opaque (`doc_`, `bh_`, `rs_`, `cl_` plus a ULID) and are reused across files when they refer to the same thing:
+Ids are opaque (`doc_`, `bh_`, `rs_`, `cl_`, `aln_` plus a ULID) and are reused across files when they refer to the same thing:
 
 | Id holder | What it is |
 |---|---|
@@ -28,6 +28,7 @@ Ids are opaque (`doc_`, `bh_`, `rs_`, `cl_` plus a ULID) and are reused across f
 | `Document.needs_review_scan.json` | `demo-ridge-tunnel-scan.pdf`: borehole DRT-B12 (`BoreholeRecord.crs_unconfirmed.json`), coordinates printed without a system; `CrsCandidate.list.json` and `Clarification.crs_confirm.json` belong to it. `CrsCandidate.clarification.json` is the answer of `GET /clarifications/{id}/crs-candidates` for that question (1.1.0), ranked with the geocoded place of `PlaceCandidate.harrowmere.json` as reference |
 | `Document.done.json` | `fictional-vector-log.pdf`: borehole DRT-B7 (`BoreholeRecord.approved.json`), CRS confirmed through `Clarification.answered.json` |
 | `Document.spreadsheet.json` | `fictional-harbour-link-labdata.xlsx`: source of the spreadsheet-cell value (`Logdata!C5`) in `BoreholeRecord.full.json` |
+| `Alignment.json` | `demo-ridge-tunnel-alignment.geojson`, a planned line past DRT-B7 (1.3.0); `AlignmentResult.json` is its query with `include_unreviewed` (DRT-B7 on the left, 54.6 m off the line; DRT-B12 and FHL-BH02 not on the map). `AlignmentList.json` adds an older CSV line in British National Grid |
 | `Document.queued/classifying/extracting/failed.json` | Documents in the other pipeline states; `DocumentList.json` holds all eight, newest first |
 
 `BoreholeFeatureCollection.json` holds the two plotted boreholes, `ResultSet.*.json`, `BoreholeList*.json`, `ValuePatch.*.json`, `events/` and `chat/` refer to the same ids. The contract tests check this cross-file consistency (ids exist, counts match, provenance keys resolve in their record).
