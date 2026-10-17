@@ -17,6 +17,44 @@ The contract already has fields for these, but the extraction schema does not as
 
 Add them as nullable raw values to `ExtractedHeader` and `ExtractedLayer` in `app/pipeline/schemas.py`, add the rules to `data/prompts/extractor.txt`, and bump the prompt and schema versions. Map them in `app/pipeline/finalize.py`: BoreholeLength goes through `parse_length`, with ft→m conversion. Then map them in the spreadsheet whitelist (`data/spreadsheet.yaml`) and add tests with fakes. Do not run a live test.
 
+## To do (user, 2026-10-17): support Chinese and Indian reports
+All of this is data in `backend/data/*.yaml` plus tests on fictional examples. No code branches per country, and no live test.
+
+**Text normalisation**
+- NFKC for full-width digits and punctuation (`１２．５`, `，`, `：`).
+- Devanagari digits `०-९` → 0-9.
+- Indian lakh/crore grouping `1,00,000` in `numbers.py` (data-driven grouping patterns).
+
+**Units and labels**
+- Chinese: 米, 厘米, 毫米, 千帕, 兆帕, 击, and column labels 深度/层底深度/层厚, 孔号, 孔深, 地下水位, 标贯击数.
+- Hindi: मीटर, गहराई.
+- Indian practice: kg/cm² and t/m² (already convertible).
+
+**Lithology (DIN vocabulary)**
+- Chinese: 砂/细砂/中砂/粗砂, 粉土, 粉质黏土/黏土, 砾石/卵石, 填土/杂填土, 淤泥, 泥岩, 砂岩, 灰岩, 花岗岩 …
+- Hindi: रेत, बजरी, चिकनी मिट्टी, गाद, भराव मिट्टी …
+- Indian Standard IS 1498 group symbols (CL/CI/CH, ML/MI/MH, SW/SP/SM/SC) in `uscs_group` with a mapping to DIN main components.
+
+**Dates**
+- 2026年3月4日 and Hindi month names.
+- Indian reports are day-first by convention, but only when the document says so; otherwise ambiguous dates stay as printed.
+
+**Sheets**
+- 第2页 共3页, 第2/3页, and the Hindi पृष्ठ 2 / 3.
+
+**Coordinate systems (registry and patterns)**
+- China: CGCS2000 geographic (EPSG:4490) and its 3°/6° Gauss-Krüger zones; Beijing 1954 and Xian 1980 zones. Axis labels X坐标/Y坐标: in Chinese surveying X is the northing, so swap detection must expect it.
+- India: Kalianpur 1975 / Everest zones (EPSG:24378–24383) and WGS 84 UTM 42N–46N.
+- Height datums: 1985国家高程基准 (Yellow Sea) and mean sea level.
+
+**Lab test aliases**
+- 含水率, 液限, 塑限, 塑性指数, 单轴抗压强度, 黏聚力, 内摩擦角, 渗透系数, 压缩模量, 天然重度 …
+- Hindi and Indian-English equivalents.
+
+**Prompts and tests**
+- Prompts: add Chinese and Hindi examples to the classifier and extractor role descriptions.
+- Tests: fictional Chinese and Indian logs (generated PDFs need a CJK and a Devanagari font for the text layer; check that pdfium and Pillow handle them, or use image-only pages with fake OCR).
+
 ## Rules in force
 - **No more live provider calls in tests** (the user's decision). Mistral/OpenRouter spend is about 0.29 USD of 2 USD; `.env` has `PROVIDER_BUDGET_USD=1.5`.
 - `OPENAI_API_KEY` in `.env` is pasted twice; the user has to fix it.
