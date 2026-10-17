@@ -17,6 +17,7 @@ from app.db.models import Borehole, BoreholeLayer, Clarification, Document, Even
 from app.db.session import get_sessionmaker
 from app.review.service import apply_patch, create_borehole, set_values, to_record
 from app.schemas.boreholes import ProvenanceIn, ValuePatch
+from tests.auth_utils import REVIEWER
 from tests.contract_utils import validate_response
 from tests.factories import full_provenance
 
@@ -146,13 +147,13 @@ async def test_crs_endpoint_resolves_the_questions_it_settles(client: httpx.Asyn
     assert before["open_clarifications"] == 4
 
     url = f"/api/v1/documents/{DOC_A}/crs"
-    body = {"crs": "EPSG:25832", "confirmed_by": "Example Reviewer"}
+    body = {"crs": "EPSG:25832", "confirmed_by": "Example Reviewer"}  # ignored since 1.4.0
     assert (await call(client, "POST", url, expect=200, json=body)).json() == {"updated": 2}
 
     rows = await _questions(ids["q_doc"], ids["q_project"], ids["q_skipped"], ids["q_locate"])
     for key in ("q_doc", "q_skipped"):
         row = rows[ids[key]]
-        assert row.status == "answered" and row.answered_by == "Example Reviewer"
+        assert row.status == "answered" and row.answered_by == REVIEWER.actor
         assert row.answer == {"crs": "EPSG:25832", "swap_axes": False, "via": "crs_endpoint"}
         assert row.resolved_at is not None
     # FR-3 (document B) has no system yet; a question that is not about the system is not touched.
@@ -174,7 +175,7 @@ async def test_crs_endpoint_resolves_the_questions_it_settles(client: httpx.Asyn
     url_b = f"/api/v1/documents/{DOC_B}/crs"
     await call(client, "POST", url_b, expect=200, json={"crs": "EPSG:25832", "swap_axes": False})
     project = (await _questions(ids["q_project"]))[ids["q_project"]]
-    assert project.status == "answered" and project.answered_by == "api"
+    assert project.status == "answered" and project.answered_by == REVIEWER.actor
     assert project.answer == {"crs": "EPSG:25832", "swap_axes": False, "via": "crs_endpoint"}
     final = (await call(client, "GET", f"/api/v1/documents/{DOC_A}", expect=200)).json()
     assert final["open_clarifications"] == 1  # only the locate question
@@ -194,7 +195,7 @@ async def test_crs_answer_settles_overlapping_questions(client: httpx.AsyncClien
     assert answered["status"] == "answered" and answered["answer"] == values
     rows = await _questions(ids["q_skipped"], ids["q_project"])
     skipped = rows[ids["q_skipped"]]
-    assert skipped.status == "answered" and skipped.answered_by == "Example Reviewer"
+    assert skipped.status == "answered" and skipped.answered_by == REVIEWER.actor
     assert skipped.answer == {
         "crs": "EPSG:25832",
         "swap_axes": False,

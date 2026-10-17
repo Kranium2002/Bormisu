@@ -54,6 +54,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an account and sign it in (1.4.0). The first account becomes admin, later ones reviewer.
+         * @description Sets the session cookie. Answers 403 forbidden when `Health.auth.registration` is closed and an
+         *     account exists already (accounts are then created on the server: python -m app.users).
+         */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in with email and password (1.4.0). Every sign-in starts a new session.
+         * @description Sets the session cookie. An unknown email and a wrong password get the same answer.
+         */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign out (1.4.0). Ends this session and clears the cookie; 204 with or without a session. */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user (1.4.0). */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -223,8 +298,8 @@ export interface paths {
             query?: {
                 dry_run?: boolean;
                 /**
-                 * @description Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
-                 *     cut to 100 characters; "reviewer" when absent or blank.
+                 * @description Ignored since 1.4.0: the actor of every revision this call writes is the signed-in user
+                 *     (display name, else email). Before 1.4.0: who approves (1.1.0).
                  */
                 confirmed_by?: string;
             };
@@ -670,7 +745,7 @@ export interface components {
              *     clarification_not_found, alignment_not_found, demo_mode, too_large, unsupported_type,
              *     not_failed, revision_conflict, unparseable_value, crs_invalid, alignment_invalid,
              *     epsg_required, already_resolved, answer_invalid, chat_unavailable, geocoder_unavailable,
-             *     rate_limited, internal_error.
+             *     rate_limited, internal_error, not_authenticated, invalid_credentials, forbidden, email_taken.
              */
             code: string;
             /** @description Field errors, only with code validation_error. */
@@ -701,6 +776,52 @@ export interface components {
                 /** @description Lower case with dot, e.g. ".pdf". */
                 extensions: string[];
             };
+            /**
+             * @description Sign-in (1.4.0). enabled: every operation except the health checks, register and login
+             *     needs a session. registration open: anyone may create an account (the first one becomes
+             *     admin); closed: only the first account can be registered, later ones are created on the
+             *     server. A server that does not send `auth` has no sign-in.
+             */
+            auth?: {
+                enabled: boolean;
+                /** @enum {string} */
+                registration: "open" | "closed";
+            };
+        };
+        /** @description A person who signs in (1.4.0). The server records them as the actor of their changes. */
+        User: {
+            /** @description Opaque id usr_<ULID>. */
+            user_id: string;
+            /** @description Trimmed and lower-cased. */
+            email: string;
+            /** @description At most 80 characters. The actor name of their changes; the email when null. */
+            display_name: string | null;
+            /**
+             * @description The first account is admin, later ones reviewer. Every signed-in user may read and write.
+             * @enum {string}
+             */
+            role: "reviewer" | "admin";
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description The answer of register, login and me (1.4.0). */
+        UserAnswer: {
+            user: components["schemas"]["User"];
+        };
+        /**
+         * @description 1.4.0. email: trimmed and lower-cased by the server, at most 254 characters, one "@" with text
+         *     on both sides and no spaces. password: 8 to 128 characters (the only rule). display_name:
+         *     optional, at most 80 characters after trimming; blank means none.
+         */
+        AuthRegisterRequest: {
+            email: string;
+            password: string;
+            display_name?: string | null;
+        };
+        /** @description 1.4.0. The email is compared trimmed and lower-cased. */
+        AuthLoginRequest: {
+            email: string;
+            password: string;
         };
         Stats: {
             documents: number;
@@ -1088,8 +1209,8 @@ export interface components {
             /** @description Optional optimistic concurrency check. */
             if_revision?: number | null;
             /**
-             * @description Who performed the action (1.1.0). Stored as the revision's actor, trimmed and cut to 100
-             *     characters; "reviewer" when absent or blank.
+             * @description Ignored since 1.4.0: the revision's actor is the signed-in user (display name, else email).
+             *     Before 1.4.0: who performed the action (1.1.0).
              */
             confirmed_by?: string | null;
         };
@@ -1127,6 +1248,7 @@ export interface components {
             crs: string;
             /** @default false */
             swap_axes: boolean;
+            /** @description Ignored since 1.4.0; the actor is the signed-in user (display name, else email). */
             confirmed_by?: string | null;
             note?: string | null;
         };
@@ -1361,6 +1483,7 @@ export interface components {
             fields: components["schemas"]["FormField"][];
             evidence: components["schemas"]["Evidence"][];
             answer?: unknown;
+            /** @description Who answered. Since 1.4.0 the signed-in user's display name, else their email. */
             answered_by?: string | null;
             /** Format: date-time */
             created_at: string;
@@ -1370,6 +1493,7 @@ export interface components {
         ClarificationAnswer: {
             /** @description Field name to value, validated against the clarification's fields. */
             values: Record<string, never>;
+            /** @description Ignored since 1.4.0; the server records the signed-in user. */
             answered_by?: string | null;
         };
         ChatContext: {
@@ -1398,7 +1522,17 @@ export interface components {
             context?: components["schemas"]["ChatContext"];
         };
     };
-    responses: never;
+    responses: {
+        /** @description No valid session (code not_authenticated, 1.4.0). The client shows the sign-in screen. */
+        NotAuthenticated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+    };
     parameters: {
         DocumentId: string;
         /** @description Opaque borehole uid, URL-encoded. */
@@ -1469,6 +1603,142 @@ export interface operations {
                     "application/json": components["schemas"]["Stats"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthRegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Account created and signed in (Set-Cookie gm_session). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAnswer"];
+                };
+            };
+            /** @description Registration is closed and an account exists already (code forbidden). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description An account with this email exists already (code email_taken). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description A field breaks a rule (code validation_error): one `errors[]` entry per field, `loc` ending
+             *     with the field name and `msg` a sentence the form shows as it is.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in (Set-Cookie gm_session). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAnswer"];
+                };
+            };
+            /** @description Email or password wrong (code invalid_credentials). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Email or password empty (code validation_error, `errors[]` per field). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out (Set-Cookie clears gm_session). */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user of this session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAnswer"];
+                };
+            };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     listDocuments: {
@@ -1489,6 +1759,7 @@ export interface operations {
                     "application/json": components["schemas"]["DocumentList"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     uploadDocument: {
@@ -1531,6 +1802,7 @@ export interface operations {
                     "application/json": components["schemas"]["UploadAccepted"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Demo mode (no provider keys). code and detail are both exactly "demo_mode". */
             409: {
                 headers: {
@@ -1580,6 +1852,7 @@ export interface operations {
                     "application/json": components["schemas"]["Document"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown id. */
             404: {
                 headers: {
@@ -1609,6 +1882,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     retryDocument: {
@@ -1631,6 +1905,7 @@ export interface operations {
                     "application/json": components["schemas"]["UploadAccepted"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /**
              * @description Document is not in status failed and has no unread pages (code not_failed), or the server is in
              *     demo mode (code and detail both exactly "demo_mode"; the document is not touched).
@@ -1669,6 +1944,7 @@ export interface operations {
                     "image/png": string;
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown document or page. */
             404: {
                 headers: {
@@ -1764,6 +2040,7 @@ export interface operations {
                     "application/json": components["schemas"]["BoreholeRecord"][];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     approveClean: {
@@ -1771,8 +2048,8 @@ export interface operations {
             query?: {
                 dry_run?: boolean;
                 /**
-                 * @description Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
-                 *     cut to 100 characters; "reviewer" when absent or blank.
+                 * @description Ignored since 1.4.0: the actor of every revision this call writes is the signed-in user
+                 *     (display name, else email). Before 1.4.0: who approves (1.1.0).
                  */
                 confirmed_by?: string;
             };
@@ -1795,6 +2072,7 @@ export interface operations {
                     };
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     listCrsCandidates: {
@@ -1817,6 +2095,7 @@ export interface operations {
                     "application/json": components["schemas"]["CrsCandidate"][];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     confirmCrs: {
@@ -1845,6 +2124,7 @@ export interface operations {
                     };
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description CRS code unknown or transform failed. */
             422: {
                 headers: {
@@ -1889,6 +2169,7 @@ export interface operations {
                     "application/json": components["schemas"]["BoreholeList"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     getBorehole: {
@@ -1912,6 +2193,7 @@ export interface operations {
                     "application/json": components["schemas"]["BoreholeRecord"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown uid. */
             404: {
                 headers: {
@@ -1948,6 +2230,7 @@ export interface operations {
                     "application/json": components["schemas"]["BoreholeRecord"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown uid or path. */
             404: {
                 headers: {
@@ -1998,6 +2281,7 @@ export interface operations {
                     "application/geo+json": components["schemas"]["BoreholeFeatureCollection"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     createResultSet: {
@@ -2022,6 +2306,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResultSet"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Invalid filter. */
             422: {
                 headers: {
@@ -2053,6 +2338,7 @@ export interface operations {
                     "application/json": components["schemas"]["ResultSet"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown or expired id. */
             404: {
                 headers: {
@@ -2084,6 +2370,7 @@ export interface operations {
                     "application/geo+json": components["schemas"]["BoreholeFeatureCollection"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     listAlignments: {
@@ -2303,6 +2590,7 @@ export interface operations {
                     "application/json": components["schemas"]["PlaceCandidate"][];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description External geocoder unavailable; uploaded-place results may still be empty. */
             503: {
                 headers: {
@@ -2335,6 +2623,7 @@ export interface operations {
                     "application/json": components["schemas"]["Clarification"][];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     answerClarification: {
@@ -2361,6 +2650,7 @@ export interface operations {
                     "application/json": components["schemas"]["Clarification"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /**
              * @description Already answered (code already_resolved). A skipped question is still unresolved and can
              *     be answered: that returns 200.
@@ -2404,6 +2694,7 @@ export interface operations {
                     "application/json": components["schemas"]["Clarification"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Already answered (code already_resolved). */
             409: {
                 headers: {
@@ -2435,6 +2726,7 @@ export interface operations {
                     "application/json": components["schemas"]["CrsCandidate"][];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown id (code clarification_not_found). */
             404: {
                 headers: {
@@ -2473,6 +2765,7 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     chat: {
@@ -2497,6 +2790,7 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Chat model not configured (no OPENAI_API_KEY). code is "chat_unavailable". */
             409: {
                 headers: {

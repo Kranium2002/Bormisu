@@ -1,8 +1,8 @@
-"""Opaque ids: a type prefix plus a ULID (doc_…, bh_…, rs_…, cl_…, aln_…)."""
+"""Opaque ids: a type prefix plus a ULID (doc_…, bh_…, rs_…, cl_…, aln_…, usr_…)."""
 
 from ulid import ULID
 
-PREFIXES = ("doc", "bh", "rs", "cl", "aln", "ocr", "ext", "pg")
+PREFIXES = ("doc", "bh", "rs", "cl", "aln", "ocr", "ext", "pg", "usr")
 
 
 def new_id(prefix: str) -> str:

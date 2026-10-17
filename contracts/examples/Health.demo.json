@@ -23,5 +23,9 @@
       ".xlsx",
       ".csv"
     ]
+  },
+  "auth": {
+    "enabled": true,
+    "registration": "open"
   }
 }

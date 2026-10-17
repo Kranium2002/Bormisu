@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -45,6 +45,23 @@ class Settings(BaseSettings):
     accepted_extensions: str = ".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.docx,.xlsx,.csv"
     cors_origins: str = "http://localhost:8080,http://localhost:5173"
     log_level: str = "INFO"
+
+    # Sign-in (contract 1.4.0). AUTH_ENABLED=false is a local escape hatch: every request then acts as
+    # one fixed local admin and no route needs a session. COOKIE_SECURE=true only behind HTTPS.
+    auth_enabled: bool = True
+    cookie_secure: bool = False
+    # "open": anyone may create an account (the first one becomes admin). "closed": only the first
+    # account can be registered in the browser; later ones come from `python -m app.users create`.
+    auth_registration: Literal["open", "closed"] = "open"
+    # A sign-in account the api creates at startup (admin), or updates when its password or role differs
+    # (app.auth.bootstrap). Needs an email and a password; HACKATHON_EMAIL / HACKATHON_USERNAME and
+    # HACKATHON_PASSWORD work too (the first name that is not blank wins). The password is never logged.
+    auth_bootstrap_email: str | None = None
+    auth_bootstrap_username: str | None = None
+    hackathon_email: str | None = None
+    hackathon_username: str | None = None
+    auth_bootstrap_password: SecretStr | None = None
+    hackathon_password: SecretStr | None = None
 
     # Providers (secrets)
     openrouter_api_key: SecretStr | None = Field(
@@ -148,7 +165,14 @@ class Settings(BaseSettings):
     contract_path: Path = Field(default_factory=lambda: _find_upwards("contracts/openapi.yaml"))
     data_dir: Path = Field(default_factory=lambda: BACKEND_DIR / "data")
 
-    @field_validator("openrouter_api_key", "mistral_api_key", "openai_api_key", mode="before")
+    @field_validator(
+        "openrouter_api_key",
+        "mistral_api_key",
+        "openai_api_key",
+        "auth_bootstrap_password",
+        "hackathon_password",
+        mode="before",
+    )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -171,6 +195,20 @@ class Settings(BaseSettings):
             return None
         return value
 
+    @field_validator("auth_enabled", "cookie_secure", mode="before")
+    @classmethod
+    def _blank_flag_is_default(cls, value: object, info: ValidationInfo) -> object:
+        if isinstance(value, str) and not value.strip():
+            return info.field_name == "auth_enabled"
+        return value
+
+    @field_validator("auth_registration", mode="before")
+    @classmethod
+    def _blank_registration_is_open(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower() or "open"
+        return value
+
     @field_validator("openai_base_url", mode="before")
     @classmethod
     def _blank_is_openai(cls, value: object) -> object:
@@ -184,6 +222,19 @@ class Settings(BaseSettings):
     def extensions(self) -> list[str]:
         items = [e.strip().lower() for e in self.accepted_extensions.split(",") if e.strip()]
         return [e if e.startswith(".") else f".{e}" for e in items]
+
+    @property
+    def bootstrap_account(self) -> tuple[str, SecretStr] | None:
+        """(email, password) of the startup account, or None unless both are set."""
+        names = (
+            self.auth_bootstrap_email,
+            self.auth_bootstrap_username,
+            self.hackathon_email,
+            self.hackathon_username,
+        )
+        email = next((n.strip() for n in names if n and n.strip()), None)
+        password = self.auth_bootstrap_password or self.hackathon_password
+        return (email, password) if email and password is not None else None
 
     @property
     def cors_origin_list(self) -> list[str]:

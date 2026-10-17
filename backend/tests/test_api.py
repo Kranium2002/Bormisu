@@ -19,6 +19,7 @@ from app.db.session import get_sessionmaker
 from app.review.service import create_borehole
 from app.schemas.boreholes import ProvenanceIn
 from app.storage import get_storage, page_render_key
+from tests.auth_utils import REVIEWER
 from tests.contract_utils import validate_response
 from tests.factories import full_provenance
 
@@ -337,7 +338,7 @@ async def test_review_patch_flow(client: httpx.AsyncClient) -> None:
         last = await session.scalar(
             select(Revision).where(Revision.uid == uid).order_by(Revision.revision.desc()).limit(1)
         )
-    assert last is not None and last.action == "approve_clean" and last.actor == "reviewer"
+    assert last is not None and last.action == "approve_clean" and last.actor == REVIEWER.actor
 
 
 async def test_crs_answer_plots_and_map(client: httpx.AsyncClient) -> None:
@@ -368,7 +369,8 @@ async def test_crs_answer_plots_and_map(client: httpx.AsyncClient) -> None:
             json={"values": {"crs": "EPSG:25832", "swap_axes": False}, "answered_by": "tester"},
         )
     ).json()
-    assert answered["status"] == "answered" and answered["answered_by"] == "tester"
+    # answered_by in the body is ignored since 1.4.0: the signed-in user answered.
+    assert answered["status"] == "answered" and answered["answered_by"] == REVIEWER.actor
     again = await call(
         client,
         "POST",
@@ -558,6 +560,7 @@ def geocoder_on(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 async def test_review_actor_is_recorded(client: httpx.AsyncClient) -> None:
+    """The actor is the signed-in user (1.4.0); confirmed_by in a body or the query is ignored."""
     uid, _ = await _fixture_document()
     path = f"/api/v1/boreholes/{uid}/values"
     patches = [
@@ -581,7 +584,7 @@ async def test_review_actor_is_recorded(client: httpx.AsyncClient) -> None:
             await session.scalars(select(Revision).where(Revision.uid == uid).order_by(Revision.revision))
         ).all()
     actors = [r.actor for r in rows]
-    assert actors == ["pipeline", "Example Reviewer", "reviewer", "R" * 100, "reviewer", "Field Lead"]
+    assert actors == ["pipeline", *[REVIEWER.actor] * 5]
     assert rows[-1].action == "approve_clean"
 
 
@@ -639,7 +642,7 @@ async def test_skipped_question_stays_unresolved_and_can_be_answered(client: htt
             json={"values": {"crs": "EPSG:25832"}, "answered_by": "Example Reviewer"},
         )
     ).json()
-    assert answered["status"] == "answered" and answered["answered_by"] == "Example Reviewer"
+    assert answered["status"] == "answered" and answered["answered_by"] == REVIEWER.actor
     doc = (await call(client, "GET", f"/api/v1/documents/{DOC_ID}", expect=200)).json()
     assert doc["open_clarifications"] == 0
     again = await call(client, "POST", f"/api/v1/clarifications/{clar_id}/skip", expect=409)

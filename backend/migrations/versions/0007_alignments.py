@@ -2,11 +2,10 @@
 
 Planned lines (tunnel, pipeline, drilling line) uploaded as GeoJSON, KML, GPX or CSV (contract 1.3.0
 `Alignment`): the line as a WGS84 MultiLineString with its ellipsoidal length and the default search
-distance. Revises 0005: 0006 is the users and sessions migration of the auth branch, which is not on
-main yet; when it lands, this migration's down_revision becomes 0006.
+distance. Revises 0006 (users and sessions), so the chain stays linear.
 
 Revision ID: 0007
-Revises: 0005
+Revises: 0006
 Create Date: 2026-10-17 19:40:00.000000
 
 """
@@ -19,7 +18,7 @@ from geoalchemy2 import Geometry
 
 # revision identifiers, used by Alembic.
 revision: str = "0007"
-down_revision: str | Sequence[str] | None = "0005"
+down_revision: str | Sequence[str] | None = "0006"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

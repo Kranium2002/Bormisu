@@ -2,6 +2,26 @@
 
 Rules: inside 1.x only additive changes (new endpoints, new optional fields, new enum values the other side can ignore). Anything else needs a 2.0 and both sessions' agreement in `docs/handover/COORDINATION.md`. Every change gets a dated entry here in the same commit as the change.
 
+## 1.4.0 (2026-10-17)
+
+Sign-in with email and password, agreed with both sessions (docs/handover/RESUME-backend.md) and then reduced to a minimal design by the user's decision (hackathon scope): register, login, logout and me with a cookie session; no rate limits, no Origin or Referer check on writes, no password change in the browser, no session expiry. New endpoints, schemas, error codes and an optional `Health.auth` are additive. The new requirement of a session on every other operation is the one behaviour change: a client built against 1.3.0 works only against a server with `AUTH_ENABLED=false`, which `Health.auth.enabled: false` reports.
+
+### Added
+- `POST /api/v1/auth/register` (`register`, public): `AuthRegisterRequest {email, password, display_name?}` → 201 `UserAnswer {user}` and the session cookie. The first account becomes `admin`, later ones `reviewer`. 409 `email_taken`, 422 `validation_error` (one `errors[]` entry per field with a message to show as it is), 403 `forbidden` when registration is closed and an account exists. Rules: the email is trimmed and lower-cased (one "@" with text on both sides, no spaces, at most 254 characters); the password has 8 to 128 characters, nothing else; `display_name` at most 80 characters.
+- `POST /api/v1/auth/login` (`login`, public): `AuthLoginRequest {email, password}` → 200 `UserAnswer` and a new session cookie. 401 `invalid_credentials` (the same answer for an unknown email and a wrong password), 422.
+- `POST /api/v1/auth/logout` (`logout`): 204 with or without a session (idempotent); ends this session and clears the cookie.
+- `GET /api/v1/auth/me` (`getMe`): 200 `UserAnswer`, or 401 `not_authenticated`.
+- Schemas `User {user_id: "usr_<ULID>", email, display_name|null, role: reviewer|admin, created_at}`, `UserAnswer`, `AuthRegisterRequest`, `AuthLoginRequest`.
+- `Health.auth {enabled, registration: open|closed}` (optional; a server that does not send it has no sign-in).
+- Security scheme `cookieAuth`: cookie `gm_session` (HttpOnly, SameSite=Lax, Path=/, Secure behind HTTPS). It is the default `security` of every operation; `getHealth`, `getHealthV1`, `register` and `login` declare `security: []`, and `logout` accepts both. A session lasts until logout or a password reset on the server (`python -m app.users reset-password`).
+- Shared response `NotAuthenticated` (401) on every protected operation.
+- Error codes `not_authenticated`, `invalid_credentials`, `forbidden` (closed registration), `email_taken`, each with an example.
+- Examples: `User.admin.json`, `User.reviewer.json`, `UserAnswer.json`, `AuthRegisterRequest.json`, `AuthLoginRequest.json`; `auth` in `Health.live.json` and `Health.demo.json`.
+
+### Changed behaviour
+- Every operation except `getHealth`, `getHealthV1`, `register` and `login` answers 401 `not_authenticated` without a valid session, including `GET /documents/{id}/pages/{n}.png`, `GET /events` and `POST /chat` (realtime-and-chat.md sections 1 and 2). Any signed-in user may read and write; `admin` is reserved for user management. Writes are accepted whatever `Origin` or `Referer` they carry.
+- The actor of every revision, `Clarification.answered_by` and the actor of a CRS confirmation is the signed-in user's display name, else their email. `ValuePatch.confirmed_by`, `CrsConfirmRequest.confirmed_by`, `ClarificationAnswer.answered_by` and the approve-clean `confirmed_by` query parameter are still accepted and ignored.
+
 ## 1.3.0 (2026-10-17)
 
 Additive only: planned lines (tunnel, pipeline or drilling line) and the boreholes along them. New endpoints, schemas and error codes; nothing existing changes. Clients built against 1.2.2 keep working.

@@ -15,6 +15,7 @@ from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException
 from starlette.types import Message
 
+from app.auth.deps import CurrentUser, actor_name
 from app.config import get_settings
 from app.db.models import Borehole, Document, Page
 from app.db.session import get_session
@@ -26,7 +27,6 @@ from app.ids import new_id
 from app.pipeline.orchestrator import enqueue_document
 from app.review.service import approve_clean, to_records
 from app.schemas.boreholes import BoreholeRecord
-from app.schemas.common import review_actor
 from app.schemas.documents import (
     ApproveCleanResult,
     CrsCandidate,
@@ -47,7 +47,6 @@ router = APIRouter(tags=["documents"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 # Multipart framing around the file is small; anything far above the limit is refused before parsing.
 _MULTIPART_SLACK = 1024 * 1024
-ACTOR_API = "api"
 
 
 def _limit_body(request: Request, limit: int, limit_mb: int) -> None:
@@ -281,11 +280,12 @@ async def list_document_boreholes(document_id: str, session: SessionDep) -> list
 async def approve_clean_values(
     document_id: str,
     session: SessionDep,
+    user: CurrentUser,
     dry_run: Annotated[bool, Query()] = True,
-    confirmed_by: Annotated[str | None, Query()] = None,
 ) -> ApproveCleanResult:
+    # The actor is the signed-in user (contract 1.4.0); a ?confirmed_by= query parameter is ignored.
     await _document(session, document_id)
-    count = await approve_clean(session, document_id, dry_run=dry_run, actor=review_actor(confirmed_by))
+    count = await approve_clean(session, document_id, dry_run=dry_run, actor=actor_name(user))
     if not dry_run:
         await session.commit()
     return ApproveCleanResult(count=count)
@@ -310,13 +310,13 @@ async def list_crs_candidates(document_id: str, session: SessionDep) -> list[Crs
 
 @router.post("/documents/{document_id}/crs", response_model=CrsConfirmResult, operation_id="confirmCrs")
 async def confirm_document_crs(
-    document_id: str, body: CrsConfirmRequest, session: SessionDep
+    document_id: str, body: CrsConfirmRequest, session: SessionDep, user: CurrentUser
 ) -> CrsConfirmResult:
     await _document(session, document_id)
     uids = list(
         (await session.scalars(select(Borehole.uid).where(Borehole.document_id == document_id))).all()
     )
-    actor = review_actor(body.confirmed_by, ACTOR_API)
+    actor = actor_name(user)  # the signed-in user (1.4.0); CrsConfirmRequest.confirmed_by is ignored
     # Also resolves the crs_confirm questions whose boreholes all have a system now (app.geo.crs_service).
     updated = await confirm_crs(
         session,

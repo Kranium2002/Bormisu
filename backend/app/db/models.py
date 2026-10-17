@@ -16,6 +16,7 @@ from sqlalchemy import (
     DDL,
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -35,6 +36,7 @@ from app.db.base import Base
 
 __all__ = [
     "Alignment",
+    "AuthSession",
     "Base",
     "Borehole",
     "BoreholeGroundwater",
@@ -51,6 +53,7 @@ __all__ = [
     "ProviderCall",
     "ResultSet",
     "Revision",
+    "User",
 ]
 
 
@@ -446,3 +449,31 @@ class GeocodeCache(Base):
     query_norm: Mapped[str] = mapped_column(Text, primary_key=True)
     response: Mapped[list[Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = _now_column()
+
+
+class User(Base):
+    """A person who signs in (contract 1.4.0 `User`). `email` is stored trimmed and lower-cased."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(80))
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = _now_column()
+
+    __table_args__ = (CheckConstraint("role IN ('reviewer', 'admin')", name="role"),)
+
+
+class AuthSession(Base):
+    """A signed-in browser: the sha256 of the random cookie token, never the token. Lasts until logout."""
+
+    __tablename__ = "sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = _now_column()
+    last_seen_at: Mapped[datetime] = _now_column()

@@ -544,7 +544,7 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
       expect(adaptHealth(h)).toEqual({
         mode: h.mode, status: h.status, version: h.version, providers: h.providers,
         upload: { maxMb: h.upload.max_mb, extensions: h.upload.extensions },
-        auth: { enabled: false, registration: 'closed' },
+        auth: { enabled: h.auth?.enabled ?? false, registration: h.auth?.registration ?? 'closed' },
       });
     });
 

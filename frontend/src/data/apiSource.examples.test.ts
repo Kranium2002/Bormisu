@@ -44,6 +44,7 @@ const STATUS: Record<string, number> = {
   unsupported_type: 415, not_failed: 409, revision_conflict: 409, unparseable_value: 422, crs_invalid: 422,
   already_resolved: 409, answer_invalid: 422, chat_unavailable: 409, geocoder_unavailable: 503, rate_limited: 429,
   internal_error: 500, alignment_not_found: 404, alignment_invalid: 422, epsg_required: 422,
+  not_authenticated: 401, invalid_credentials: 401, forbidden: 403, email_taken: 409,
 };
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });

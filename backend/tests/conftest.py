@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import tempfile
 from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -132,17 +133,37 @@ def queue() -> Iterator[object]:
         yield connector
 
 
-@pytest.fixture
-async def client(db: None, queue: object) -> AsyncIterator[httpx.AsyncClient]:
+@asynccontextmanager
+async def app_client() -> AsyncIterator[httpx.AsyncClient]:
+    """A fresh app and an HTTP client with no session, the queue open."""
     from app.main import create_app
-
-    app = create_app(open_queue=False)
     from app.queue import queue_app
 
+    app = create_app(open_queue=False)
     async with queue_app.open_async():
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as ac:
             yield ac
+
+
+@pytest.fixture
+async def anon_client(db: None, queue: object) -> AsyncIterator[httpx.AsyncClient]:
+    """Not signed in: every route except health, register and login answers 401 not_authenticated."""
+    async with app_client() as ac:
+        yield ac
+
+
+@pytest.fixture
+async def client(db: None, queue: object) -> AsyncIterator[httpx.AsyncClient]:
+    """Signed in as the fictional tests.auth_utils.REVIEWER, registered first (so its role is admin).
+
+    Its revisions, answers and CRS confirmations carry the actor REVIEWER.actor ("Fictional Reviewer").
+    """
+    from tests.auth_utils import register
+
+    async with app_client() as ac:
+        await register(ac)
+        yield ac
 
 
 @pytest.fixture
@@ -152,6 +173,16 @@ def live_mode(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-not-a-key")
     monkeypatch.setenv("MISTRAL_API_KEY", "test-not-a-key")
     monkeypatch.setenv("OCR_PROVIDER", "mistral")
+    get_settings.cache_clear()
+    yield
+    monkeypatch.undo()
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+def auth_off(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """AUTH_ENABLED=false: no route needs a session; every request acts as the fixed local user."""
+    monkeypatch.setenv("AUTH_ENABLED", "false")
     get_settings.cache_clear()
     yield
     monkeypatch.undo()

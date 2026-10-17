@@ -11,9 +11,9 @@ cp .env.example .env          # optional: add provider keys for live mode
 docker compose up --build     # db, migrate, api, worker, gotenberg, web
 ```
 
-Open http://localhost:8080. The API is at http://localhost:8000 (docs at `/api/docs`, health at `/api/health`).
+Open http://localhost:8080 and **register the first account**: it becomes the admin. Everyone else registers on the same screen and gets the reviewer role. The API is at http://localhost:8000 (docs at `/api/docs`, health at `/api/health`).
 
-To try the app without uploading anything, load clearly fictional demo data and remove it again later:
+To try the app without uploading anything, load clearly fictional demo data and remove it again later (the seed runs inside the container and needs no sign-in):
 
 ```bash
 make seed      # docker compose exec api python -m app.seed
@@ -22,7 +22,30 @@ make unseed    # docker compose exec api python -m app.seed --remove
 
 Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on the host.
 
-**First run without any keys** (what a fresh clone gives you): `docker compose up --build`, open http://localhost:8080, then `make seed` for fictional demo boreholes on the map. Every screen works; uploads answer "demo mode" until a provider key is set in `.env` (`OPENROUTER_API_KEY` is all it needs; any one of `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `MISTRAL_API_KEY` gives live mode), after which a dropped PDF, image, Word file or spreadsheet is processed live.
+**First run without any keys** (what a fresh clone gives you): `docker compose up --build`, open http://localhost:8080 and register (the first account becomes admin; see [Accounts and sign-in](#accounts-and-sign-in)), then `make seed` for fictional demo boreholes on the map. Every screen works; uploads answer "demo mode" until a provider key is set in `.env` (`OPENROUTER_API_KEY` is all it needs; any one of `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `MISTRAL_API_KEY` gives live mode), after which a dropped PDF, image, Word file or spreadsheet is processed live.
+
+### Accounts and sign-in
+
+- **Quickest:** create an account with one command once the stack is up (the password is asked for twice), then sign in at http://localhost:8080:
+
+  ```bash
+  docker compose exec api python -m app.users create --email you@example.org --role admin
+  ```
+
+  Or put `AUTH_BOOTSTRAP_EMAIL` and `AUTH_BOOTSTRAP_PASSWORD` in `.env` before `docker compose up`: the api creates that admin at startup (and sets the password again when you change it), so the sign-in works with no extra step.
+- Or register in the browser with an email and a password of 8 to 128 characters; the first account becomes admin. Every page and every API route except `/api/health`, register and login needs a session. Any signed-in user can read, review and upload; your name (or your email when you set no name) is recorded on every change you make.
+- Sign-in is deliberately minimal (hackathon scope): sessions last until you sign out, there are no attempt limits, and there is no password change in the browser.
+- More accounts, a forgotten password or a role change are handled on the server, because there is no email verification or reset by email:
+
+  ```bash
+  docker compose exec api python -m app.users create --email reviewer@example.org --name "A Reviewer"
+  docker compose exec api python -m app.users reset-password --email reviewer@example.org
+  docker compose exec api python -m app.users set-role --email reviewer@example.org --role admin
+  docker compose exec api python -m app.users list
+  ```
+
+  Without `--password` the password is asked for twice. A reset signs that account out everywhere.
+- `AUTH_REGISTRATION=closed` lets only the first account register in the browser. `AUTH_ENABLED=false` turns sign-in off for a local machine; every change is then recorded as "Local user".
 
 ### Demo mode and live mode
 
@@ -117,6 +140,9 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 | `PROVIDER_BUDGET_USD` | — | Stops processing before this total provider spend (every call is in a cost ledger) |
 | `REQUEST_TIMEOUT_S` / `RATE_LIMIT_WAIT_S` | `120` / `600` | Per-request timeout; how long rate limits (429) are waited out before a page is deferred |
 | `MAX_UPLOAD_MB` | `200` | Upload limit (reported in `/api/health`) |
+| `AUTH_ENABLED` / `AUTH_REGISTRATION` | `true` / `open` | Sign-in on or off; who may create accounts (reported in `/api/health`) |
+| `AUTH_BOOTSTRAP_EMAIL` / `AUTH_BOOTSTRAP_PASSWORD` | — | An admin account created or updated at api startup (aliases `HACKATHON_EMAIL` / `HACKATHON_USERNAME` / `HACKATHON_PASSWORD`) |
+| `COOKIE_SECURE` | `false` | Set `true` when the app is served over HTTPS |
 | `WEB_PORT` / `API_PORT` / `DB_PORT` | `8080` / `8000` / `5432` | Published host ports |
 
 ## Data rule
@@ -137,8 +163,8 @@ The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-bac
 - **Local site grids:** coordinates on a project's own grid (for example "Oslo lokal") cannot be converted to a map position automatically; such boreholes stay in "Not on map" with a question.
 - **Large documents:** every provider request has a timeout and rate limits are waited out, but there is no client-side pacing yet, so a very large upload on a low provider tier can take long.
 - **Handwriting:** fully handwritten logs are read, but recall is lower; check them in review.
-- **Sign-in:** the sign-in screen exists but the server-side login is not enabled in this version.
 - **Conflicting values:** a value printed differently in a summary table and in a log is only asked about once the extractor reports both readings; the question type and its answer handling are in place.
 - **Chat units:** the chat tools return metres; feet are converted in the answer text.
 - **Planned lines:** lines that cross the 180° meridian are refused, and boreholes without a confirmed position cannot be checked against a line (the result counts them).
 - **ARM machines:** `postgis/postgis` publishes amd64 images only, so on ARM the database runs under emulation.
+- **Accounts:** minimal sign-in: no email verification, no password reset by email or change in the browser (an admin resets passwords with `python -m app.users`), no sign-in attempt limits and no session expiry.
