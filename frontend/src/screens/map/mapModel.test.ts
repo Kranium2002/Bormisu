@@ -4,7 +4,6 @@ import { COL, pinColor, statusChip } from '../../theme';
 import {
   crsCell,
   depthText,
-  GERMANY_BOUNDS,
   initialBounds,
   isPlotted,
   legendEntries,
@@ -12,6 +11,7 @@ import {
   popupCrsWarning,
   resultsSummary,
   statusByUid,
+  WORLD_BOUNDS,
 } from './mapModel';
 
 const approved = (uid: string, project = 'Test Project (fictional)') =>
@@ -136,16 +136,39 @@ describe('resultsSummary', () => {
 });
 
 describe('initialBounds', () => {
-  it('keeps the prototype’s first view while every pin is inside it', () => {
-    expect(initialBounds([makeBorehole({ lat: 48.8, lng: 9.2 })])).toBe(GERMANY_BOUNDS);
-    expect(initialBounds([])).toBe(GERMANY_BOUNDS);
-  });
-
-  it('covers pins outside it, so none starts off-screen', () => {
+  it('covers every pin, so none starts off-screen', () => {
     const bs = [makeBorehole({ uid: 'a', lat: 48.8, lng: 9.2 }), makeBorehole({ uid: 'b', lat: -36.8, lng: 174.7 })];
     expect(initialBounds(bs)).toEqual([
       [-36.8, 9.2],
       [48.8, 174.7],
     ]);
+  });
+});
+
+describe('uiv-5: the first map view hard-codes no country', () => {
+  it('starts on the whole world when nothing is plotted yet (the empty start)', () => {
+    expect(WORLD_BOUNDS).toEqual([
+      [-60, -180],
+      [75, 180],
+    ]);
+    expect(initialBounds([])).toEqual(WORLD_BOUNDS);
+  });
+
+  it('fits the pins wherever they are', () => {
+    expect(initialBounds([makeBorehole({ lat: 48.8, lng: 9.2 })])).toEqual([
+      [48.8, 9.2],
+      [48.8, 9.2],
+    ]);
+  });
+});
+
+describe('uiv-1: a CRS without a printed name shows the server’s code', () => {
+  it('confirmed and stated cells name the EPSG code instead of "No coordinate system"', () => {
+    expect(crsCell({ name: null, code: 'EPSG:2193', status: 'confirmed' })).toEqual({
+      text: 'confirmed · EPSG:2193',
+      warn: false,
+      title: 'Confirmed by a reviewer: EPSG:2193',
+    });
+    expect(crsCell({ name: null, code: 'EPSG:4326', status: 'stated' }).title).toBe('Stated in the source: EPSG:4326');
   });
 });

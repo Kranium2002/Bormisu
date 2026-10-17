@@ -28,6 +28,9 @@ export function ReviewHeader({ b }: { b: Borehole }) {
   const openReview = useAppStore((s) => s.openReview);
 
   const cleanRef = useRef<HTMLDivElement>(null);
+  const cleanButton = useRef<HTMLButtonElement>(null);
+  /** The confirmation was open (or approving) at the last render: its closing gives the focus back. */
+  const wasOpen = useRef(false);
 
   // A click outside the confirm popover cancels it (Escape is handled by the store).
   useEffect(() => {
@@ -38,6 +41,17 @@ export function ReviewHeader({ b }: { b: Borehole }) {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [confirmOpen, cancelClean]);
+
+  // When the confirmation closes (Escape, Cancel, APPROVE) with the focus left on nothing, the focus
+  // goes back to APPROVE ALL CLEAN, so a keyboard user keeps their place.
+  useEffect(() => {
+    const open = confirmOpen || cleanBusy;
+    if (wasOpen.current && !open) {
+      const active = document.activeElement;
+      if (!active || active === document.body) cleanButton.current?.focus();
+    }
+    wasOpen.current = open;
+  }, [confirmOpen, cleanBusy]);
 
   const sheets = useMemo(() => sheetPages(b), [b]);
   const sibs = useMemo(() => siblings(boreholes, b), [boreholes, b]);
@@ -122,6 +136,7 @@ export function ReviewHeader({ b }: { b: Borehole }) {
 
       <div ref={cleanRef} className={styles.cleanWrap}>
         <button
+          ref={cleanButton}
           type="button"
           className={styles.cleanBtn}
           disabled={!!cleanDisabledReason}
@@ -133,38 +148,43 @@ export function ReviewHeader({ b }: { b: Borehole }) {
         </button>
         {confirmOpen && (
           <Popover width={320} label="Approve clean values" className={styles.confirm}>
-            {cleanCount === null ? (
-              <div className={styles.confirmText} role="status">
-                Counting the clean values of {fileName}…
+            {/* One live region for the whole exchange, so the count of the dry run is announced when it arrives. */}
+            <div className={styles.confirmLive} aria-live="polite" aria-atomic="true">
+              {cleanCount === null ? (
+                <div className={styles.confirmText}>Counting the clean values of {fileName}…</div>
+              ) : cleanCount === 0 ? (
+                <>
+                  <div className={styles.confirmTitle}>No clean values</div>
+                  <div className={styles.confirmText}>Nothing left to approve at once in {fileName}.</div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.confirmTitle}>
+                    Approve {cleanCount} clean value{cleanCount === 1 ? '' : 's'} in {fileName}?
+                  </div>
+                  <div className={styles.confirmText}>
+                    Unreviewed values with a source reference, no flag, no lint and no special state, read from
+                    the text layer or OCRed with at least {Math.round(CLEAN_CONFIDENCE * 100)} % confidence.
+                  </div>
+                </>
+              )}
+            </div>
+            {cleanCount === 0 && (
+              <div className={styles.confirmActions}>
+                <button type="button" className={styles.cancelBtn} onClick={cancelClean} autoFocus>
+                  Close
+                </button>
               </div>
-            ) : cleanCount === 0 ? (
-              <>
-                <div className={styles.confirmTitle}>No clean values</div>
-                <div className={styles.confirmText}>Nothing left to approve at once in {fileName}.</div>
-                <div className={styles.confirmActions}>
-                  <button type="button" className={styles.cancelBtn} onClick={cancelClean} autoFocus>
-                    Close
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className={styles.confirmTitle}>
-                  Approve {cleanCount} clean value{cleanCount === 1 ? '' : 's'} in {fileName}?
-                </div>
-                <div className={styles.confirmText}>
-                  Unreviewed values with a source reference, no flag, no lint and no special state, read from
-                  the text layer or OCRed with at least {Math.round(CLEAN_CONFIDENCE * 100)} % confidence.
-                </div>
-                <div className={styles.confirmActions}>
-                  <button type="button" className={styles.approveBtn} onClick={() => void approveClean()} autoFocus>
-                    APPROVE
-                  </button>
-                  <button type="button" className={styles.cancelBtn} onClick={cancelClean}>
-                    Cancel
-                  </button>
-                </div>
-              </>
+            )}
+            {cleanCount !== null && cleanCount > 0 && (
+              <div className={styles.confirmActions}>
+                <button type="button" className={styles.approveBtn} onClick={() => void approveClean()} autoFocus>
+                  APPROVE
+                </button>
+                <button type="button" className={styles.cancelBtn} onClick={cancelClean}>
+                  Cancel
+                </button>
+              </div>
             )}
           </Popover>
         )}

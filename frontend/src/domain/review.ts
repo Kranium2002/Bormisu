@@ -18,13 +18,14 @@ export function progress(b: Borehole): { approved: number; total: number } {
 }
 
 /**
- * The value the Review screen focuses first: the CRS when inferred, else the first open lint,
- * else the first flag, else the first unreviewed value that can be reviewed, else the first value.
+ * The value the Review screen focuses first: the CRS when inferred (the X / Y when no system was
+ * printed, so no CRS value exists), else the first open lint, else the first flag, else the first
+ * unreviewed value that can be reviewed, else the first value.
  */
 export function initialFocusKey(b: Borehole): string | null {
   const vs = b.values;
   const pick =
-    (b.crs.status === 'inferred' ? vs.find((v) => v.key === K.crs) : undefined) ??
+    (b.crs.status === 'inferred' ? (vs.find((v) => v.key === K.crs) ?? vs.find((v) => v.key === K.xy)) : undefined) ??
     vs.find((v) => v.lint && v.status !== 'approved') ??
     vs.find((v) => v.status === 'flagged') ??
     vs.find((v) => v.status === 'unreviewed' && v.hasProvenance) ??

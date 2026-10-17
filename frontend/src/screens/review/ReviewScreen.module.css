@@ -161,7 +161,7 @@
   border-radius: 4px;
   border: 0;
   background: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
   white-space: nowrap;
 }
 
@@ -173,6 +173,13 @@
 
 .confirm {
   padding: 16px;
+  gap: 10px;
+}
+
+/* The live region around the count keeps the popover's spacing. */
+.confirmLive {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
@@ -196,7 +203,7 @@
 .approveBtn {
   cursor: pointer;
   background: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
   border: 0;
   font-size: 12px;
   font-weight: 700;

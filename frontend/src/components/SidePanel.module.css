@@ -120,7 +120,7 @@
 .primary {
   cursor: pointer;
   background: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
   border: 0;
   font-size: 12px;
   font-weight: 700;

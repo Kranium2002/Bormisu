@@ -2,18 +2,21 @@
  * Pure presentation logic of the Map screen: which boreholes are plotted, legend counts,
  * the CRS column text, the NOT ON MAP reasons and the RESULTS summary line. Unit-tested.
  */
-import { metres, unplottedText } from '../../domain/format';
+import { crsLabel, metres, unplottedText } from '../../domain/format';
 import { displayStatus } from '../../domain/status';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
 import { pinColor } from '../../theme';
 
-/** Initial map view: Germany, as in the prototype (a world view with clustering follows in F9). */
-export const GERMANY_BOUNDS: [[number, number], [number, number]] = [
-  [47.3, 5.9],
-  [55.0, 15.0],
+type Bounds = [[number, number], [number, number]];
+
+/** The whole inhabited world: the first view before anything is plotted. No country is preferred. */
+export const WORLD_BOUNDS: Bounds = [
+  [-60, -180],
+  [75, 180],
 ];
-/** Fallback centre when the map container has no size yet (fitBounds needs one). */
-export const GERMANY_CENTER: [number, number] = [51.2, 10.45];
+/** Fallback centre and zoom when the map container has no size yet (fitBounds needs one). */
+export const WORLD_CENTER: [number, number] = [20, 0];
+export const WORLD_ZOOM = 2;
 
 /** Pin radius: the borehole open in Review is drawn larger, every other pin is 6 px. */
 export const PIN_RADIUS = { highlight: 8, normal: 6 } as const;
@@ -62,14 +65,18 @@ export interface CrsCell {
   title: string;
 }
 
-/** CRS column of the RESULTS table with the backend's label: "inferred · <label>", "confirmed · …", "stated", "unknown". */
+/**
+ * CRS column of the RESULTS table with the backend's label: "inferred · <label>", "confirmed · …",
+ * "stated", "unknown". The label is the system as printed, else the server's EPSG code.
+ */
 export function crsCell(crs: Borehole['crs']): CrsCell {
-  const full = crs.name ? `${crs.name}${crs.code ? ` (${crs.code})` : ''}` : 'No coordinate system';
+  const label = crsLabel(crs);
+  const full = crs.name?.trim() ? `${crs.name.trim()}${crs.code ? ` (${crs.code})` : ''}` : (label ?? 'No coordinate system');
   switch (crs.status) {
     case 'inferred':
-      return { text: crs.name ? `inferred · ${crs.name}` : 'inferred', warn: true, title: `Inferred, not stated in the source: ${full}` };
+      return { text: label ? `inferred · ${label}` : 'inferred', warn: true, title: `Inferred, not stated in the source: ${full}` };
     case 'confirmed':
-      return { text: crs.name ? `confirmed · ${crs.name}` : 'confirmed', warn: false, title: `Confirmed by a reviewer: ${full}` };
+      return { text: label ? `confirmed · ${label}` : 'confirmed', warn: false, title: `Confirmed by a reviewer: ${full}` };
     case 'unknown':
       return { text: 'unknown', warn: true, title: 'Coordinate system unknown: the borehole is not placed on the map' };
     case 'stated':
@@ -108,16 +115,13 @@ export function resultsSummary(boreholes: Borehole[]): string {
   return `${plural(boreholes.length, 'borehole', 'boreholes')} · ${plural(projects, 'project', 'projects')}`;
 }
 
-type Bounds = [[number, number], [number, number]];
-
 /**
- * First view of the map: Germany, as in the prototype, unless a pin lies outside it; then the
- * bounds of all pins, so no borehole starts off-screen.
+ * First view of the map: the bounds of all pins, wherever they are, so none starts off-screen; the
+ * whole world while nothing is plotted (the empty start). No country is built in.
  */
 export function initialBounds(boreholes: Borehole[]): Bounds {
   const pins = boreholes.filter(isPlotted);
-  const [[s, w], [n, e]] = GERMANY_BOUNDS;
-  if (pins.every((b) => b.lat >= s && b.lat <= n && b.lng >= w && b.lng <= e)) return GERMANY_BOUNDS;
+  if (!pins.length) return WORLD_BOUNDS;
   const lats = pins.map((b) => b.lat);
   const lngs = pins.map((b) => b.lng);
   return [

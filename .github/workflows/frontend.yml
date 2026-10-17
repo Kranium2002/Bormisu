@@ -82,3 +82,13 @@ jobs:
 
       - name: docker build (repository root as context)
         run: docker build -f frontend/Dockerfile -t bormisu-web:ci .
+
+      # nginx.conf is a template filled in at container start: only a started container shows that
+      # it renders and loads. No API runs here, so /api is not checked (it answers 502 by design).
+      - name: The image starts and serves the app shell on client-side routes
+        run: |
+          docker run --rm bormisu-web:ci nginx -t
+          docker run -d --name web -p 8080:80 bormisu-web:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8080/review/bh_any | grep -q '<div id="root"></div>'
+          docker rm -f web

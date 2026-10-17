@@ -206,7 +206,7 @@
 .save {
   cursor: pointer;
   background: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
   border: 0;
   font-size: 11px;
   font-weight: 700;
@@ -302,7 +302,7 @@
 .actApproved:hover {
   background: var(--c-green);
   border-color: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
 }
 
 .actFlagged,

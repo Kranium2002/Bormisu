@@ -3,7 +3,7 @@
  * groundwater row shows. One code path for every borehole (sample or API); displayed values always
  * come from the borehole's ExtractedValues, with the borehole's metadata only where no value exists.
  */
-import { printedCoordinates, unplottedText } from '../../domain/format';
+import { crsLabel, printedCoordinates, unplottedText } from '../../domain/format';
 import { K } from '../../domain/keys';
 import { progress } from '../../domain/review';
 import { formatSpt, refusalTitle, sptDepthText } from '../../domain/spt';
@@ -121,6 +121,26 @@ export const DEPTH_ORIGIN_LABEL: Record<DepthOrigin, string> = {
   relative: 'relative to a stated level',
 };
 
+/** Unit of a depth below the stated origin, e.g. "m bgl"; plain "m" when the source states no origin. */
+const DEPTH_UNIT: Record<DepthOrigin, string> = {
+  ground: 'm bgl',
+  mudline: 'm below mudline',
+  seabed: 'm below seabed',
+  relative: 'm, relative to a stated level',
+};
+
+function depthUnit(origin: DepthOrigin | null): string {
+  return origin ? DEPTH_UNIT[origin] : 'm';
+}
+
+/**
+ * What the depths of a borehole are measured from, for the profile header: "depth in m bgl" only
+ * when the source says ground level; no origin is assumed.
+ */
+export function depthOriginText(meta: Pick<Borehole['meta'], 'depthOrigin'>): string {
+  return meta.depthOrigin ? `depth in ${DEPTH_UNIT[meta.depthOrigin]}` : 'depth in m, origin not stated';
+}
+
 /** The elevation datum: the reviewed value when stated, else the borehole metadata, else null. */
 function elevationDatum(b: Borehole): string | null {
   const v = valueOf(b, K.elevationDatum);
@@ -128,13 +148,18 @@ function elevationDatum(b: Borehole): string | null {
   return b.meta.elevationDatum;
 }
 
-/** The surface elevation row with its datum ("241.35 m · datum NHN"), or a chip when no datum is stated. */
+/**
+ * The surface elevation row with its datum ("241.35 m · datum NHN"), or a chip when no datum is
+ * stated. A unit that already names the datum ("m NHN", from the backend record) isn't repeated.
+ */
 function elevationRow(b: Borehole): MetaRow {
   const datum = elevationDatum(b);
-  const row = metaRow(b, 'Surface elevation', K.elevation, (v) =>
-    v && v.state === 'ok' && v.value && !datum ? [{ label: 'DATUM NOT STATED', tone: 'grey', title: 'The source names no height datum' }] : [],
+  const v = valueOf(b, K.elevation);
+  const row = metaRow(b, 'Surface elevation', K.elevation, (x) =>
+    x && x.state === 'ok' && x.value && !datum ? [{ label: 'DATUM NOT STATED', tone: 'grey', title: 'The source names no height datum' }] : [],
   );
-  return datum && !row.shown.missing ? { ...row, shown: { ...row.shown, text: `${row.shown.text} · datum ${datum}` } } : row;
+  const named = !!datum && !!v?.unit.trim().endsWith(datum);
+  return datum && !named && !row.shown.missing ? { ...row, shown: { ...row.shown, text: `${row.shown.text} · datum ${datum}` } } : row;
 }
 
 /** The X / Y row; the coordinates as printed go underneath. */
@@ -144,13 +169,23 @@ function xyRow(b: Borehole): MetaRow {
   return printed ? { ...row, sub: `as printed: ${printed}` } : row;
 }
 
+/**
+ * The CRS row. Without a CRS value (nothing printed and no provenance entry), a CRS the server
+ * holds anyway, e.g. one a reviewer confirmed, shows its EPSG code: no source icon, no method.
+ */
+function crsRow(b: Borehole): MetaRow {
+  const row = metaRow(b, 'CRS', K.crs, () => [crsChip(b)]);
+  if (row.key || !b.crs.code) return row;
+  return { ...row, shown: { text: b.crs.code, missing: false }, method: null, source: 'none' };
+}
+
 /** The METADATA card rows: the prototype rows, plus every other field the source states. */
 export function metadataRows(b: Borehole): MetaRow[] {
   const rock = valueOf(b, K.rockHead);
   const rockRow: MetaRow = rock
     ? metaRow(b, 'Rock head', K.rockHead)
-    : // No rock layer in the log: rock head is derived as "not reached", nothing to point at.
-      { label: 'Rock head', key: null, shown: { text: 'not reached', missing: true }, chips: [], method: 'Derived', source: 'dim' };
+    : // The backend states no rock head: unknown, not "not reached" (that would be an interpretation).
+      { label: 'Rock head', key: null, shown: { text: 'not in source', missing: true }, chips: [], method: null, source: 'none' };
   const origin = b.meta.depthOrigin ? DEPTH_ORIGIN_LABEL[b.meta.depthOrigin] : null;
   const rows: (MetaRow | null)[] = [
     optionalRow(b, 'Borehole name', K.boreholeName),
@@ -166,7 +201,7 @@ export function metadataRows(b: Borehole): MetaRow[] {
     elevationRow(b),
     optionalRow(b, 'Depth origin', K.depthOrigin, origin),
     xyRow(b),
-    metaRow(b, 'CRS', K.crs, () => [crsChip(b)]),
+    crsRow(b),
     optionalRow(b, 'Drilling date', K.drillingDate),
     optionalRow(b, 'Start date', K.startDate),
     optionalRow(b, 'End date', K.endDate),
@@ -206,10 +241,12 @@ export function locationInfo(b: Borehole): LocationInfo {
     return { text: `${unplottedText(b)}: not on the map`, tone: missing ? 'red' : 'amber' };
   }
   const at = `${b.lat.toFixed(4)}, ${b.lng.toFixed(4)}`;
-  const { name, status } = b.crs;
+  const { status } = b.crs;
+  // The system as printed, else the server's code: a confirmed CRS often has only the code.
+  const name = crsLabel(b.crs);
   if (status === 'inferred') return { text: `${at} · from inferred CRS${name ? ` ${name}` : ''}, confirm in review`, tone: 'amber' };
-  if (status === 'unknown' || !name) return { text: `${at} · CRS unknown`, tone: 'red' };
-  return { text: `${at} · from ${name} (${status})`, tone: 'muted' };
+  if (status === 'unknown') return { text: `${at} · CRS unknown`, tone: 'red' };
+  return { text: name ? `${at} · from ${name} (${status})` : `${at} · CRS ${status}`, tone: 'muted' };
 }
 
 /* ---------- layers ---------- */
@@ -319,9 +356,12 @@ export const GW_LABEL: Record<GroundwaterReading['type'], string> = {
   strike: 'Strike', rest: 'Rest level', standpipe: 'Standpipe', other: 'Reading',
 };
 
-/** Depth of a reading without a value: the depth, else what was printed (an elevation, "dry"), never a made-up 0. */
-function readingDepth(g: GroundwaterReading): Shown {
-  if (g.depth != null) return { text: `${g.depth.toFixed(2)} m bgl`, missing: false };
+/**
+ * Depth of a reading without a value: the depth below the stated origin, else what was printed (an
+ * elevation, "dry"), never a made-up 0.
+ */
+function readingDepth(g: GroundwaterReading, origin: DepthOrigin | null): Shown {
+  if (g.depth != null) return { text: `${g.depth.toFixed(2)} ${depthUnit(origin)}`, missing: false };
   if (g.elevation != null) return { text: `elevation ${g.elevation.toFixed(2)} m`, missing: false };
   return { text: 'depth not stated', missing: true };
 }
@@ -334,7 +374,7 @@ export function groundwaterRows(b: Borehole): GroundwaterRow[] {
     return {
       key: g.key,
       type: GW_LABEL[g.type],
-      depth: v ? shown(v) : readingDepth(g),
+      depth: v ? shown(v) : readingDepth(g, b.meta.depthOrigin),
       raw: raw ? `“${raw}”` : '',
       method: v?.method ?? null,
       confidence: v?.confidence,

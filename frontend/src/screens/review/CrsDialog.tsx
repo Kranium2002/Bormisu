@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useFocusTrap } from '../../components/useFocusTrap';
 import type { CrsVerdict } from '../../domain/types';
 import { useAppStore, useReviewBorehole } from '../../store/appStore';
 import styles from './CrsDialog.module.css';
@@ -46,9 +47,8 @@ export function CrsDialog() {
         ? 'Confirming…'
         : undefined;
 
-  useEffect(() => {
-    dialog.current?.focus();
-  }, []);
+  // Modal: the focus moves in, stays inside on Tab / Shift+Tab, and goes back to the opener on close.
+  useFocusTrap(dialog);
 
   const onConfirm = async () => {
     if (!canConfirm) return;

@@ -5,11 +5,11 @@
  * loaded on demand.
  */
 import { APP_NAME } from '../config';
-import { parseNumber } from '../domain/format';
+import { crsLabel, parseNumber } from '../domain/format';
 import { K } from '../domain/keys';
 import { refusalText } from '../domain/spt';
 import type { Borehole, ExtractedValue, Layer, Sample, TestResult } from '../domain/types';
-import { EXTRA_FIELDS, MULTI_FIELD_SEPARATOR, section, type FieldDef } from '../schema/targetFormat';
+import { EXTRA_FIELDS, MULTI_FIELD_SEPARATOR, section, type FieldDef, type TargetFieldName } from '../schema/targetFormat';
 
 export type Cell = string | number | null;
 export interface SheetData {
@@ -43,6 +43,7 @@ export const EXTRA_LOGDATA: readonly FieldDef[] = [
 
 const SAMPLE_NAME = 'SampleName';
 const SAMPLE_DEPTH = 'SampleDepth';
+const CRS_FIELD: TargetFieldName = 'CoordinateSystem';
 
 /** True if a value goes into an export: approved, or any value in a draft. */
 export function isExported(v: ExtractedValue, o: ExportOptions): boolean {
@@ -96,6 +97,9 @@ function metadataRow(b: Borehole, fields: readonly FieldDef[], o: ExportOptions)
   return fields.map((f, i) => {
     if (i === 0) return exportId(b, o);
     const hit = findField(boreholeLevel, f.name);
+    // A CRS a reviewer confirmed for the document is reviewed, even when the record has no CRS value
+    // for it (nothing printed): the X / Y would be unusable without it.
+    if (!hit && f.name === CRS_FIELD && b.crs.status === 'confirmed') return crsLabel(b.crs);
     return cellOf(hit?.v, f, o, hit?.part);
   });
 }

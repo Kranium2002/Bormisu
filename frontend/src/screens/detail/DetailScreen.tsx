@@ -3,7 +3,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { StatusChip } from '../../components/StatusChip';
 import { displayStatus } from '../../domain/status';
 import { useAppStore, useIsReviewable, useSelectedBorehole } from '../../store/appStore';
-import { reviewedText } from './detailModel';
+import { depthOriginText, reviewedText } from './detailModel';
 import { ExportMenu } from './ExportMenu';
 import { GroundwaterTable } from './GroundwaterTable';
 import { LayersTable } from './LayersTable';
@@ -77,7 +77,7 @@ export function DetailScreen() {
         <section className={card.card} aria-label="Profile">
           <div className={`${card.head} ${styles.profileHead}`}>
             <span>PROFILE</span>
-            <span className={styles.profileNote}>DIN 4023 · depth in m bgl</span>
+            <span className={styles.profileNote}>DIN 4023 · {depthOriginText(b.meta)}</span>
           </div>
           <ProfileColumn borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
           <ProfileLegend borehole={b} />

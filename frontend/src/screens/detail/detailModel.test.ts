@@ -136,12 +136,12 @@ describe('metadataRows', () => {
     expect(row(shortLog(), 'CRS')?.chips.map((c) => c.label)).toEqual(['STATED']);
   });
 
-  it('says "not reached" for a missing rock head, with nothing to point at', () => {
+  it('says "not in source" for a rock head the source does not state, with nothing to point at (uiv-2)', () => {
     const rock = row(makeBorehole(), 'Rock head');
-    expect(rock?.shown).toEqual({ text: 'not reached', missing: true });
+    expect(rock?.shown).toEqual({ text: 'not in source', missing: true });
     expect(rock?.key).toBeNull();
-    expect(rock?.method).toBe('Derived');
-    expect(rock?.source).toBe('dim');
+    expect(rock?.method).toBeNull();
+    expect(rock?.source).toBe('none');
   });
 
   it('fades the source icon for values that are not in the source; no icon without provenance', () => {

@@ -29,6 +29,14 @@ export function unplottedText(b: Pick<Borehole, 'unplottedReason'>): string {
   return b.unplottedReason ? UNPLOTTED_LABELS[b.unplottedReason] : 'Not placed on the map';
 }
 
+/**
+ * Name of a borehole's coordinate system: the system as printed, else the server's EPSG code (a CRS
+ * confirmed by a reviewer often has only the code). Null when the server knows neither.
+ */
+export function crsLabel(crs: Pick<Borehole['crs'], 'name' | 'code'>): string | null {
+  return crs.name?.trim() || crs.code?.trim() || null;
+}
+
 /** Coordinates as printed, e.g. "512 000 / 5 540 000 (E / N)"; '' when the source gives none. */
 export function printedCoordinates(meta: Pick<Borehole['meta'], 'xRaw' | 'yRaw' | 'axisLabelsRaw'>): string {
   const xy = [meta.xRaw, meta.yRaw].filter((t): t is string => !!t?.trim()).join(' / ');
