@@ -139,7 +139,15 @@ SYSTEM_HEADER = (
     "Return only JSON with exactly the requested keys; use null when a value is not present in the text. "
     "Dates as YYYY-MM-DD when possible. Numbers as plain decimal strings in metres (convert feet). "
     "'Surface Elevation' is the ground/collar level; if only start and end elevations are given, BoreholeDepth = start - end. "
-    "Never guess values that are not in the text."
+    "Never guess values that are not in the text. "
+    "BoreholeName: the hole's own name or number copied character by character, never an archive, registry or "
+    "file number stamped on the page when a name or number field is printed. StartDate / EndDate only from a "
+    "field naming the drilling or boring date or period (e.g. Bohrzeit, Bohrdatum, date drilled, drilling "
+    "date); dates of logging, interpretation, data entry (e.g. Bearbeiter), letters or stamps are null. "
+    "Contractor only from a printed drilling-company field, never an archive, authority or received stamp or a "
+    "letterhead. BoreholeDepth only from a printed total or final depth (e.g. Endteufe, total depth), never the "
+    "last depth of one sheet. A coordinate with raised or smaller prefix digits is one value, the prefix "
+    "digits first; they never go to CoordinateSystem."
 )
 
 
