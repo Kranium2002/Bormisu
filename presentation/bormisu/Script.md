@@ -14,7 +14,7 @@
 
 *(borehole map of Offenburg — every bubble is a cluster of boreholes)*
 
-> And you don't drill just one. In Offenburg alone, there are almost 3,000.
+> And you don't drill just one. In Offenburg alone, there are about 2,700.
 > This data is all kept on one website. But even here, it doesn't follow one standard — and pieces are missing.
 
 ## 04 · World (~25 s)
@@ -22,7 +22,7 @@
 *(the map zooms out from Offenburg to the world; countries with Herrenknecht projects light up, one dot per machine)*
 
 > But Herrenknecht — one of Europe's hidden champions — doesn't only work in Offenburg. It works all over the world.
-> They build the machines for the Paris Metro. The airport link in Hong Kong. And in South America, SOUTH_AMERICA_EXAMPLE.
+> They build the machines for the Paris Metro. The airport link in Hong Kong. And in South America, the new metro in Lima.
 
 ## 05 · Stuttgart 21 🤫 (~5 s)
 
@@ -81,14 +81,15 @@
 - Gotthard Base Tunnel bored with Herrenknecht machines: [Herrenknecht press release](https://www.herrenknecht.com/en/newsroom/pressreleasedetail/gotthard-base-tunnel-mechanized-tunnelling-completed-on-the-north-side/), [Wikipedia](https://en.wikipedia.org/wiki/Herrenknecht)
 - London Crossrail / Elizabeth line, TBMs built by Herrenknecht: [gfxspeak](https://gfxspeak.com/archives/burrowing-machines-crossrail/), [The Construction Index](https://www.theconstructionindex.co.uk/news/view/crossrail-tbm-ellie-breaks-through-in-docklands?amp=1)
 - Grand Paris Express, 19 Herrenknecht TBMs: [Tunnelbuilder](https://tunnelbuilder.com/News/Launch-of-the-first-TBM-for-the-Grand-Paris-Express-.aspx)
+- Lima Metro Line 2 (Peru), two TBMs built by Herrenknecht: [Tunnelbuilder](https://tunnelbuilder.com/News/Assembly-started-of-TBM-for-metro-Line-2-in-Peru-.aspx), [Webuild](https://www.webuildvalue.com/en/stories-behind-projects/delia-arrives-at-the-e17-station-on-limas-new-subway-line.html)
 - Hong Kong Tuen Mun–Chek Lap Kok, 17.6 m Mixshield, largest TBM: [Herrenknecht reference](https://herrenknecht.com/en/references/referencesdetail/hong-kong-tuen-mun-chek-lap-kok-link), [Guinness](https://www.guinnessworldrecords.com/world-records/78259-largest-tunnel-boring-machine)
 - Stuttgart 21 Filder Tunnel, Herrenknecht TBM "SUSE": [Herrenknecht press release](https://herrenknecht.com/en/newsroom/pressreleasedetail/suse-sibylle-wanda-and-kaethchen-from-baden-set-a-fast-pace-in-swabia)
 
 ### Images
 
 - Stuttgart 21: construction photo of the main station (`img/s21.jpg`, supplied by Mateo).
-- Profile: screenshot of borehole BK-07 (fictional sample data) on the Bormisu detail screen (`img/profile.png`).
-- Offenburg: screenshot of the LGRB borehole map around Offenburg (`img/offenburg-map.jpg`, supplied by Mateo).
+- Profile: DIN 4023 profile of borehole BK-01 (fictional sample data, fully logged) from the Bormisu detail screen (`img/profile.png`).
+- Offenburg: screenshot of the LGRB borehole map around Offenburg (`img/offenburg-map.jpg`, supplied by Mateo). The bubbles on the screenshot add up to about 2,680 boreholes (115 clusters = 2,668, plus 13 single points); a few clusters cut off at the edges are not fully counted.
 - Reports, front: `ToughOne1` p2 (Norway, handwritten), `AF02` p1 (Spanish soil probe sheet), `SEA01` p1 (Korean). Background: 27 more pages from the challenge dataset (`img/bg/`).
 
 ### Slide 09 (sovereignty)
