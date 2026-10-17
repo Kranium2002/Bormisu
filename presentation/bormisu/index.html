@@ -133,23 +133,33 @@
   /* 08 Key features: a bento grid full of features; each click grows one key tile and pushes others out (bento.js) */
   .bento-slide { padding: 70px 80px; justify-content: center; }
   .bento { display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(4, 1fr); grid-auto-flow: dense; gap: 18px; height: 940px; }
-  .tile { background: #fff; border-radius: 28px; padding: 26px 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; overflow: hidden; will-change: transform; }
-  .tile .k { font-size: 18px; font-weight: 600; color: var(--faint); }
-  .tile .v { font: 700 48px/1.02 var(--display); letter-spacing: -0.03em; background: linear-gradient(120deg, var(--cocoa), #C9502E 55%, var(--ladyfinger)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .tile .c { font-size: 20px; line-height: 1.25; color: var(--muted); }
+  .tile { background: #fff; border-radius: 28px; display: flex; flex-direction: column; overflow: hidden; will-change: transform; position: relative; }
   .tile.out { display: none; }
-  .tile.key { grid-column: span 2; color: var(--cream); align-items: flex-start; text-align: left; justify-content: flex-end; padding: 30px 34px; }
-  .tile.key .ic { width: 64px; height: 64px; margin-bottom: auto; }
-  .tile.key .t { font: 700 46px/1.05 var(--display); letter-spacing: -0.025em; }
-  .tile.key .more { font-size: 27px; line-height: 1.35; max-width: 26ch; opacity: 0; max-height: 0; transition: opacity .4s ease .25s; }
+  /* small tiles: icon in the top half, the feature in the bottom half */
+  .tile .half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 14px; }
+  .tile .half.top { background: var(--line); }
+  .tile .si { width: 60px; height: 60px; color: var(--cocoa); }
+  .tile .v { font: 700 34px/1.05 var(--display); letter-spacing: -0.02em; color: var(--espresso); }
+  .tile .c { font-size: 18px; line-height: 1.25; color: var(--muted); margin-top: 4px; }
+  /* key tiles: text on the left, a picture from the product on the right */
+  .tile.key { grid-column: span 2; color: var(--cream); flex-direction: row; }
+  .tile.key .txt { flex: 1 0 auto; max-width: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding: 28px 32px; z-index: 1; }
+  .tile.key .ic { width: 58px; height: 58px; margin-bottom: auto; }
+  .tile.key .t { font: 700 44px/1.05 var(--display); letter-spacing: -0.025em; }
+  .tile.key .more { font-size: 26px; line-height: 1.35; max-width: 18ch; display: none; margin-top: 14px; }
+  .tile.key .shot { position: absolute; right: -40px; top: 22px; bottom: -30px; width: 46%; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.35); transform: rotate(-3deg); opacity: .45; }
+  .tile.key .shot img { width: 100%; height: 100%; object-fit: cover; object-position: left top; display: block; }
+  .tile.key .shot .sel { position: absolute; inset: 0; width: 100%; height: 100%; }
   .tile.key.big { grid-column: span 3; grid-row: span 2; }
   /* where each key tile lands when it grows; the rest flow around it */
   .tile.k1.big { grid-column: 1 / span 3; grid-row: 1 / span 2; }
   .tile.k2.big { grid-column: 3 / span 3; grid-row: 2 / span 2; }
   .tile.k3.big { grid-column: 4 / span 3; grid-row: 3 / span 2; }
-  .tile.key.big .t { font-size: 76px; }
-  .tile.key.big .ic { width: 96px; height: 96px; }
-  .tile.key.big .more { opacity: 1; max-height: 400px; margin-top: 14px; }
+  .tile.key.big .t { font-size: 72px; }
+  .tile.key.big .ic { width: 92px; height: 92px; }
+  .tile.key.big .more { display: block; }
+  .tile.key.big .txt { flex: 0 0 44%; }
+  .tile.key.big .shot { position: relative; right: auto; top: auto; bottom: auto; flex: 1; margin: 34px 34px 34px 0; width: auto; transform: rotate(-1.5deg); opacity: 1; }
   .tile.k1 { background: linear-gradient(140deg, #3B2418, #6B4226); }
   .tile.k2 { background: linear-gradient(140deg, #8B5A3C, #C9502E); }
   .tile.k3 { background: linear-gradient(140deg, #C78A2E, #E6BE78); color: var(--espresso); }
@@ -289,27 +299,27 @@
   <!-- 08 KEY FEATURES — bento grid; 3 clicks: each grows one key tile (Reads any report, Area scraping, Export) and pushes the tiles marked data-out off the grid -->
   <section class="light bento-slide" data-label="08 Key features" data-steps="3">
     <div class="bento">
-      <div class="tile key k1" data-key="1"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21H11"/><path d="M13 3l5 5v2.5"/><path d="M13 3v5h5"/><path d="M8 12h4M8 15h2.5"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg><div class="t">Reads any report</div><div class="more">Scans, handwriting, any language. Edge cases are flagged for manual verification.</div></div>
-      <div class="tile" data-name="a"><div class="v">1 click</div><div class="c">to the source on the scan</div></div>
-      <div class="tile" data-name="b"><div class="v">DIN 4023</div><div class="c">borehole profiles</div></div>
-      <div class="tile" data-name="c"><div class="v">✓ ? ! –</div><div class="c">certainty on every value</div></div>
-      <div class="tile" data-name="d"><div class="v">Read twice</div><div class="c">handwriting and low confidence</div></div>
-      <div class="tile" data-name="e"><div class="v">Any grid</div><div class="c">Korean and national coordinate systems</div></div>
-      <div class="tile" data-name="f"><div class="v">Side by side</div><div class="c">scan next to the data</div></div>
-      <div class="tile key k2" data-key="2"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z" opacity=".55"/><rect x="6.5" y="8" width="11" height="8" rx="1.5" stroke-dasharray="2 1.6"/><circle cx="9.5" cy="11" r="1" fill="currentColor"/><circle cx="13.5" cy="12.5" r="1" fill="currentColor"/><circle cx="11" cy="14" r="1" fill="currentColor"/></svg><div class="t">Area scraping</div><div class="more">Draw an area or a planned line and get an overview of many soil samples at once.</div></div>
-      <div class="tile" data-name="g"><div class="v">Planned line</div><div class="c">boreholes along the route</div></div>
-      <div class="tile" data-name="h"><div class="v">Questions,</div><div class="c">not guesses</div></div>
-      <div class="tile" data-name="i"><div class="v">EN | DE</div><div class="c">interface</div></div>
-      <div class="tile" data-name="j"><div class="v">Live</div><div class="c">updates while it reads</div></div>
-      <div class="tile" data-name="k"><div class="v">Nearest</div><div class="c">boreholes to your location</div></div>
-      <div class="tile" data-name="l"><div class="v">Printable</div><div class="c">borehole sheet</div></div>
-      <div class="tile key k3" data-key="3"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6.5A2 2 0 0 0 4.5 5v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5z"/><path d="M14 3v5.5h5.5"/><path d="M12 11.5v6M9.5 15l2.5 2.5 2.5-2.5"/></svg><div class="t">Export</div><div class="more">Your data in your format: PDF, JPEG or CSV.</div></div>
-      <div class="tile" data-name="m"><div class="v">Duplicates</div><div class="c">caught automatically</div></div>
-      <div class="tile" data-name="n"><div class="v">Filters</div><div class="c">on map and list</div></div>
-      <div class="tile" data-name="o" data-out><div class="v">Copy</div><div class="c">the profile as an image</div></div>
-      <div class="tile" data-name="p" data-out><div class="v">1 command</div><div class="c">Docker Compose</div></div>
-      <div class="tile" data-name="q" data-out><div class="v">PostGIS</div><div class="c">spatial database</div></div>
-      <div class="tile" data-name="r" data-out><div class="v">Cost cap</div><div class="c">per run</div></div>
+      <div class="tile key k1" data-key="1"><div class="txt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21H11"/><path d="M13 3l5 5v2.5"/><path d="M13 3v5h5"/><path d="M8 12h4M8 15h2.5"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg><div class="t">Reads any report</div><div class="more">Scans, handwriting, any language. Edge cases are flagged for manual verification.</div></div><div class="shot"><img src="img/feat-source.jpg" alt="" /></div></div>
+      <div class="tile" data-name="a"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v3M4.5 5l2 2M3 9.5h3"/><path d="M10 10l9.5 4-4 1.5L14 19.5z"/></svg></div><div class="half"><div class="v">1 click</div><div class="c">to the source on the scan</div></div></div>
+      <div class="tile" data-name="b"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2.5" width="8" height="19" rx="1"/><path d="M8 7h8M8 12.5h8M8 17h8"/><path d="M5 2.5v19M3.5 7H5M3.5 12.5H5M3.5 17H5"/></svg></div><div class="half"><div class="v">DIN 4023</div><div class="c">borehole profiles</div></div></div>
+      <div class="tile" data-name="c"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg></div><div class="half"><div class="v">✓ ? ! –</div><div class="c">certainty on every value</div></div></div>
+      <div class="tile" data-name="d"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/><path d="M19 3.5a3 3 0 0 1 1.5 2.6M17.5 2.5"/></svg></div><div class="half"><div class="v">Read twice</div><div class="c">handwriting and low confidence</div></div></div>
+      <div class="tile" data-name="e"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></svg></div><div class="half"><div class="v">Any grid</div><div class="c">national coordinate systems</div></div></div>
+      <div class="tile" data-name="f"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="8.5" height="16" rx="1.5"/><rect x="13" y="4" width="8.5" height="16" rx="1.5"/><path d="M5 9h3.5M5 12h3.5M15.5 9h3.5M15.5 12h3.5"/></svg></div><div class="half"><div class="v">Side by side</div><div class="c">scan next to the data</div></div></div>
+      <div class="tile key k2" data-key="2"><div class="txt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z" opacity=".55"/><rect x="6.5" y="8" width="11" height="8" rx="1.5" stroke-dasharray="2 1.6"/><circle cx="9.5" cy="11" r="1" fill="currentColor"/><circle cx="13.5" cy="12.5" r="1" fill="currentColor"/><circle cx="11" cy="14" r="1" fill="currentColor"/></svg><div class="t">Area scraping</div><div class="more">Draw an area or a planned line and get an overview of many soil samples at once.</div></div><div class="shot"><img src="img/feat-map.jpg" alt="" /><svg class="sel" viewBox="0 0 1500 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><path d="M480 120 L1010 140 L990 720 L520 700 Z" fill="rgba(230,190,120,.22)" stroke="#E6BE78" stroke-width="6" stroke-dasharray="22 14"/></svg></div></div>
+      <div class="tile" data-name="g"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18c4-1 5-9 9-9s5 6 9 4" stroke-dasharray="2.5 2"/><circle cx="3" cy="18" r="1.6" fill="currentColor"/><circle cx="21" cy="13" r="1.6" fill="currentColor"/><circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="16" r="1.2" fill="currentColor"/></svg></div><div class="half"><div class="v">Planned line</div><div class="c">boreholes along the route</div></div></div>
+      <div class="tile" data-name="h"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M10 8.7a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6 1v.4M12 13.6v.1"/></svg></div><div class="half"><div class="v">Questions</div><div class="c">not guesses</div></div></div>
+      <div class="tile" data-name="i"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h9M7.5 3v2M5 5c.5 3 3 6 6 7.5M10 5c-.5 3-3 6-6 7.5"/><path d="M12.5 21l4-10 4 10M14 17.5h5"/></svg></div><div class="half"><div class="v">EN | DE</div><div class="c">interface</div></div></div>
+      <div class="tile" data-name="j"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12h4l2.5-6 4 12 2.5-6h6"/></svg></div><div class="half"><div class="v">Live</div><div class="c">updates while it reads</div></div></div>
+      <div class="tile" data-name="k"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-11a6.5 6.5 0 0 1 13 0c0 5.6-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg></div><div class="half"><div class="v">Nearest</div><div class="c">boreholes to you</div></div></div>
+      <div class="tile" data-name="l"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/></svg></div><div class="half"><div class="v">Printable</div><div class="c">borehole sheet</div></div></div>
+      <div class="tile key k3" data-key="3"><div class="txt"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6.5A2 2 0 0 0 4.5 5v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5z"/><path d="M14 3v5.5h5.5"/><path d="M12 11.5v6M9.5 15l2.5 2.5 2.5-2.5"/></svg><div class="t">Export</div><div class="more">Your data in your format: PDF, JPEG or CSV.</div></div><div class="shot"><img src="img/feat-export.jpg" alt="" /></div></div>
+      <div class="tile" data-name="m"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="1.5"/><path d="M16 8V4.5A1.5 1.5 0 0 0 14.5 3h-9A1.5 1.5 0 0 0 4 4.5v11A1.5 1.5 0 0 0 5.5 17H8"/></svg></div><div class="half"><div class="v">Duplicates</div><div class="c">caught automatically</div></div></div>
+      <div class="tile" data-name="n"><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4.5h17l-6.5 8v6l-4 2v-8z"/></svg></div><div class="half"><div class="v">Filters</div><div class="c">on map and list</div></div></div>
+      <div class="tile" data-name="o" data-out><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 21h11a2 2 0 0 0 2-2V8"/><path d="M6 12l3-3 2.5 2.5L14 9"/></svg></div><div class="half"><div class="v">Copy</div><div class="c">the profile as an image</div></div></div>
+      <div class="tile" data-name="p" data-out><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="16" rx="2"/><path d="M6.5 9.5l3 2.5-3 2.5M12 15h5"/></svg></div><div class="half"><div class="v">1 command</div><div class="c">Docker Compose</div></div></div>
+      <div class="tile" data-name="q" data-out><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg></div><div class="half"><div class="v">PostGIS</div><div class="c">spatial database</div></div></div>
+      <div class="tile" data-name="r" data-out><div class="half top"><svg class="si" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1.3" fill="currentColor"/></svg></div><div class="half"><div class="v">Cost cap</div><div class="c">per run</div></div></div>
     </div>
   </section>
 
