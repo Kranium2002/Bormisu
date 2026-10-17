@@ -23,7 +23,7 @@ export const createEventsSlice: SliceCreator<EventsSlice> = (ctx) => {
   let unsubscribe: (() => void) | null = null;
   /** Bumped by every start and stop, so callbacks of an ended subscription are ignored. */
   let run = 0;
-  /** What each clarification seen in this session concerns (clarification.resolved names only its id). */
+  /** What each clarification seen in this session concerns (an older server's clarification.resolved names only its id). */
   const clarifications = new Map<string, Pick<Clarification, 'documentId' | 'boreholeUids'>>();
 
   /**
@@ -163,13 +163,16 @@ export const createEventsSlice: SliceCreator<EventsSlice> = (ctx) => {
         }
         case 'clarification.resolved': {
           const listed = ctx.clarificationEvents.resolved(event.clarificationId, event.status);
-          const target = listed ?? clarifications.get(event.clarificationId);
+          // 1.2.0 names the question's document and boreholes in the event itself: used directly.
+          const sent = event.documentId ? { documentId: event.documentId, boreholeUids: event.boreholeUids ?? [] } : undefined;
+          const target = sent ?? listed ?? clarifications.get(event.clarificationId);
           if (event.status === 'answered') clarifications.delete(event.clarificationId);
           if (target) {
             refreshClarification(target);
             return;
           }
-          // Asked before this page loaded and not in the list: refetch whatever shows open questions.
+          // An older server (1.1.0) names only the id of a question asked before this page loaded and
+          // not in the list: refetch whatever shows open questions.
           const s = get();
           for (const d of s.documents) if (d.openClarifications > 0) refetchDocument(d.id);
           for (const b of s.boreholes) if (b.openClarifications > 0) refetchBorehole(b.uid, null);

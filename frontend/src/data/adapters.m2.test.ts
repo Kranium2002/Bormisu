@@ -47,15 +47,30 @@ describe('map features (GET /map/boreholes.geojson)', () => {
     expect(features).toHaveLength(5);
     expect(features[0]).toEqual({
       uid: HL01, id: 'HL-01', project: 'Harbourline Tunnel (fictional)', documentId: D1, lat: -36.8441, lng: 174.7682,
-      depth: 15.5, reviewStatus: 'in_review', crsStatus: 'stated', revision: 4, attention: true, openClarifications: 0,
+      depth: 15.5, reviewStatus: 'in_review', crsStatus: 'stated', crsCode: null, crsLabel: null, revision: 4, attention: true,
+      openClarifications: 0,
     });
     expect(features[3]).toMatchObject({ id: 'TQ-01', project: null, reviewStatus: 'approved', crsStatus: 'confirmed' });
     // MP-01 sends only the required properties: unknown stays null, never 0 or a guessed status.
     expect(features[4]).toEqual({
       uid: 'bh_01JFICT00000000000000MP01', id: 'MP-01', project: null, documentId: null, lat: 40.7003, lng: -74.0121,
-      depth: null, reviewStatus: 'in_review', crsStatus: 'stated', revision: null, attention: false, openClarifications: 0,
+      depth: null, reviewStatus: 'in_review', crsStatus: 'stated', crsCode: null, crsLabel: null, revision: null, attention: false,
+      openClarifications: 0,
     });
     expect(info).not.toHaveBeenCalled();
+  });
+
+  it('names the stated or confirmed system when the server sends it (1.2.0 crs_code, crs_label), never a made-up one', () => {
+    const fc = fixture<WireFeatureCollection>('map-features');
+    const p = fc.features[0].properties as Record<string, unknown>;
+    p.crs_code = 'EPSG:0001';
+    p.crs_label = 'Fictional grid A';
+    (fc.features[1].properties as Record<string, unknown>).crs_code = '  ';
+    const features = adaptFeatures(fc);
+    expect(features[0]).toMatchObject({ crsCode: 'EPSG:0001', crsLabel: 'Fictional grid A' });
+    // Blank or absent (an older server): null, and the UI names only the status.
+    expect(features[1]).toMatchObject({ crsCode: null, crsLabel: null });
+    expect(features[4]).toMatchObject({ crsCode: null, crsLabel: null });
   });
 
   it('leaves a feature with an unknown status string out, with one console.info for the batch', () => {

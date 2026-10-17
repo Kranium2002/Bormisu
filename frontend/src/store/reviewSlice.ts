@@ -90,6 +90,7 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
     cleanBusy: false,
     listScroll: null,
     crsDialogOpen: false,
+    crsDocumentId: null,
     crsLoading: false,
     crsCandidates: [],
     crsPick: 0,
@@ -257,24 +258,26 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       set({ confirmCleanOpen: false });
     },
 
-    async openCrsDialog() {
+    async openCrsDialog(forDocument) {
       const { source } = get();
-      const documentId = find(get().reviewUid)?.documentId;
+      const documentId = forDocument ?? find(get().reviewUid)?.documentId;
       if (!source || !documentId) return;
       const run = nextNonce();
       lastCrsRun = run;
       cleanRun += 1;
-      set({ crsDialogOpen: true, crsLoading: true, crsCandidates: [], crsPick: 0, editing: null, confirmCleanOpen: false });
+      set({ crsDialogOpen: true, crsDocumentId: documentId, crsLoading: true, crsCandidates: [], crsPick: 0, editing: null, confirmCleanOpen: false });
       try {
         const crsCandidates = await source.crsCandidates(documentId);
         // Ignore a late answer for a dialog that was closed or reopened meanwhile.
         if (run !== lastCrsRun) return;
-        const current = find(get().reviewUid)?.crs.code;
+        // The system the document's boreholes hold now is picked first (the review borehole's when it is of this document).
+        const review = find(get().reviewUid);
+        const current = (review?.documentId === documentId ? review : get().boreholes.find((b) => b.documentId === documentId && b.crs.code))?.crs.code;
         const pick = Math.max(0, crsCandidates.findIndex((c) => c.code === current));
         set({ crsCandidates, crsPick: pick, crsLoading: false });
       } catch (e) {
         if (run !== lastCrsRun) return;
-        set({ crsDialogOpen: false, crsLoading: false });
+        set({ crsDialogOpen: false, crsDocumentId: null, crsLoading: false });
         get().showToast(errorText(e));
       }
     },
@@ -286,7 +289,7 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
     async confirmCrs() {
       const { source, crsCandidates, crsPick, reviewerName } = get();
       const c = crsCandidates[crsPick];
-      const documentId = find(get().reviewUid)?.documentId;
+      const documentId = get().crsDocumentId ?? find(get().reviewUid)?.documentId;
       if (!source || !c || !documentId || c.verdict === 'out_of_range') return;
       const run = lastCrsRun;
       let updated: number;
@@ -297,20 +300,28 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
         return;
       }
       // The answer closes only the dialog it came from, not one opened meanwhile.
-      if (run === lastCrsRun) set({ crsDialogOpen: false, crsLoading: false });
-      // The server placed the boreholes; reload them, the pins and the NOT ON MAP list instead of moving pins here.
-      void get().refreshMap();
+      if (run === lastCrsRun) set({ crsDialogOpen: false, crsDocumentId: null, crsLoading: false });
+      // 1.2.0: the confirmation also resolves the crs_confirm questions it settles; the list follows
+      // the server (live events say so too, but not while the stream is down).
+      void get().loadClarifications();
+      // The server placed the boreholes; reload them, the pins and the NOT ON MAP list instead of
+      // moving pins here, then fly the map to the document's pins.
+      const map = get().refreshMap();
+      let text: string;
       try {
         takeBoreholes(await source.documentBoreholes(documentId), documentId);
-        get().showToast(`CRS confirmed for ${boreholes(updated)} in this report: ${c.name}`);
+        text = `CRS confirmed for ${boreholes(updated)} in this report: ${c.name}`;
       } catch (e) {
-        get().showToast(`CRS confirmed (${c.name}). Reloading the boreholes failed: ${errorText(e)}`);
+        text = `CRS confirmed (${c.name}). Reloading the boreholes failed: ${errorText(e)}`;
       }
+      await map;
+      // "… · N boreholes placed" with the map flown there (SHOW ON MAP off the map); without pins the text alone.
+      if (!get().revealPlaced({ documentId }, text)) get().showToast(text);
     },
 
     closeCrsDialog() {
       lastCrsRun = -1;
-      set({ crsDialogOpen: false, crsLoading: false });
+      set({ crsDialogOpen: false, crsDocumentId: null, crsLoading: false });
     },
   };
 };

@@ -42,6 +42,7 @@ import {
   POPUP_NO_DEPTH_PAGE,
   POPUP_NO_DEPTH_SOURCE,
   POPUP_NOT_REVIEWABLE,
+  popupCrs,
   popupCrsWarning,
   popupDepthText,
   popupView,
@@ -459,6 +460,39 @@ describe('crsCell', () => {
   });
 });
 
+describe('1.2.0: the CRS a map feature names (crs_code, crs_label)', () => {
+  const pin = (o: Partial<MapFeature>): MapFeature => ({ ...featureOf(makeBorehole())!, ...o });
+
+  it('a pin without its record names the server’s label, else the code, else only the status', () => {
+    const labelled = featureRow(pin({ crsStatus: 'confirmed', crsCode: 'EPSG:0001', crsLabel: 'Fictional grid A' }));
+    expect(labelled.crs).toEqual({ name: null, code: 'EPSG:0001', label: 'Fictional grid A', status: 'confirmed' });
+    expect(crsCell(labelled.crs)).toMatchObject({ text: 'confirmed · Fictional grid A', title: expect.stringContaining('Fictional grid A (EPSG:0001)') });
+    const coded = featureRow(pin({ crsStatus: 'stated', crsCode: 'EPSG:0002', crsLabel: null }));
+    expect(popupCrs(coded.crs)).toEqual({ text: 'CRS: EPSG:0002', warn: false });
+    // An older server (1.1.0) sends neither: the status only, nothing made up.
+    const bare = featureRow(pin({ crsStatus: 'stated', crsCode: undefined, crsLabel: undefined }));
+    expect(bare.crs).toEqual({ name: null, code: null, label: null, status: 'stated' });
+    expect(popupCrs(bare.crs)).toEqual({ text: 'CRS stated', warn: false });
+  });
+
+  it('the popup’s CRS line: the label for a stated or confirmed system, amber for an inferred or unknown one', () => {
+    expect(popupCrs({ name: 'As printed', code: 'EPSG:0001', label: 'Fictional grid A', status: 'confirmed' })).toEqual({
+      text: 'CRS confirmed: Fictional grid A', warn: false,
+    });
+    expect(popupCrs({ name: 'As printed', code: null, status: 'stated' })).toEqual({ text: 'CRS: As printed', warn: false });
+    expect(popupCrs({ name: 'x', code: null, status: 'inferred' })).toEqual({ text: 'CRS inferred, not stated: x', warn: true });
+    expect(popupCrs({ name: null, code: null, status: 'inferred' })).toEqual({ text: 'CRS inferred, not stated', warn: true });
+    expect(popupCrs({ name: null, code: null, status: 'unknown' })).toEqual({ text: 'CRS unknown', warn: true });
+    expect(popupCrs({ name: null, code: null, status: 'confirmed' })).toEqual({ text: 'CRS confirmed', warn: false });
+  });
+
+  it('the popup view carries the CRS line of the row', () => {
+    const b = makeBorehole();
+    const v = popupView(featureRow(pin({ crsStatus: 'confirmed', crsCode: 'EPSG:0001', crsLabel: 'Fictional grid A' })), b, undefined);
+    expect(v.crs).toEqual({ text: 'CRS confirmed: Fictional grid A', warn: false });
+  });
+});
+
 describe('popupCrsWarning', () => {
   it('warns only for inferred or unknown CRS', () => {
     expect(popupCrsWarning({ name: 'x', code: null, status: 'inferred' })).toBe('CRS inferred, not stated');
@@ -509,7 +543,7 @@ describe('mapRows', () => {
   it('a pin without its full record shows the feature: CRS status only, its depth, no label made up', () => {
     const f = featureOf(makeBorehole({ crs: { name: 'Fictional grid', code: 'EPSG:0001', status: 'inferred' }, finalDepth: null }))!;
     const row = featureRow(f);
-    expect(row.crs).toEqual({ name: null, code: null, status: 'inferred' });
+    expect(row.crs).toEqual({ name: null, code: null, label: null, status: 'inferred' });
     expect(crsCell(row.crs).text).toBe('inferred');
     expect(depthText(row.depth)).toBe('–');
     expect(row.project).toBe('Test Project (fictional)');

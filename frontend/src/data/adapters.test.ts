@@ -244,11 +244,11 @@ describe('adaptBorehole: coordinates and CRS', () => {
 
   it('never invents a CRS: name and code are what the server sent', () => {
     const inferred = adaptBorehole(caseOf('SP-02')).borehole;
-    expect(inferred.crs).toEqual({ name: null, code: null, status: 'inferred' });
+    expect(inferred.crs).toEqual({ name: null, code: null, label: null, status: 'inferred' });
     expect(val(inferred, K.crs)).toBeUndefined();
     expect(inferred.meta).toMatchObject({ xRaw: '7.395.120', yRaw: '333.410', axisLabelsRaw: 'N, E', localX: 333410, localY: 7395120 });
     const local = adaptBorehole(caseOf('SP-01')).borehole;
-    expect(local.crs).toEqual({ name: 'Malha local da obra', code: null, status: 'unknown' });
+    expect(local.crs).toEqual({ label: null, name: 'Malha local da obra', code: null, status: 'unknown' });
     expect(val(local, K.crs)).toMatchObject({ value: 'Malha local da obra', kind: 'crs' });
     expect(val(local, K.elevation)).toMatchObject({ unit: 'm', note: 'datum: COTA' });
   });

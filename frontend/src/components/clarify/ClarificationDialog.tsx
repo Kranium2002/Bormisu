@@ -342,10 +342,13 @@ export function ClarificationDialog() {
   const pageCount = doc && doc.pages.length > 0 ? doc.pages.length : null;
   const id = c.id;
 
-  /** Closes the dialog unless another question took its place meanwhile. */
+  /**
+   * Closes the dialog unless another question took its place meanwhile. A toast with an action (the
+   * answer already placed boreholes: "… placed · SHOW ON MAP") is not replaced.
+   */
   const done = (text: string) => {
     if (useAppStore.getState().activeClarificationId === id) closeClarification();
-    showToast(text);
+    if (!useAppStore.getState().toast?.action) showToast(text);
   };
 
   const onAnswer = async (values: Record<string, unknown>) => {

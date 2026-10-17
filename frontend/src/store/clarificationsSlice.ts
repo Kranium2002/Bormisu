@@ -9,7 +9,7 @@
  * list as skipped: it is still unresolved and can be answered later.
  */
 import { ApiError, errorText, isApiError, type FieldError } from '../data/errors';
-import type { Clarification, FormField } from '../domain/types';
+import type { Clarification, ClarificationKind, FormField } from '../domain/types';
 import type { SliceCreator } from './context';
 import type { AnswerResult, ClarificationsSlice } from './types';
 
@@ -17,6 +17,11 @@ import type { AnswerResult, ClarificationsSlice } from './types';
 export const ALREADY_ANSWERED = 'This question was already answered elsewhere; it has left the list.';
 /** Note when the server no longer knows the question. */
 export const QUESTION_GONE = 'This question no longer exists; it has left the list.';
+/** Lead of the toast after an answer placed boreholes ("Answer stored · 3 boreholes placed"). */
+export const ANSWER_STORED = 'Answer stored';
+
+/** Questions whose answer places boreholes on the map: a coordinate system, a position. */
+const PLACING_KINDS = new Set<ClarificationKind | undefined>(['crs_confirm', 'locate_borehole']);
 
 /** Oldest first by creation time, as the server lists them (stable for equal times). */
 export function oldestFirst(list: Clarification[]): Clarification[] {
@@ -79,9 +84,9 @@ export const createClarificationsSlice: SliceCreator<ClarificationsSlice> = (ctx
 
   /**
    * After a question was resolved: its document(s) and cached records, so counts and badges are
-   * right, and the map (an answer can place or move boreholes).
+   * right, and the map (an answer can place or move boreholes). Returns the map reload.
    */
-  function refreshAfterAnswer(c: Pick<Clarification, 'documentId' | 'boreholeUids'> | undefined): void {
+  function refreshAfterAnswer(c: Pick<Clarification, 'documentId' | 'boreholeUids'> | undefined): Promise<void> {
     if (c) {
       const documents = new Set([c.documentId]);
       for (const uid of c.boreholeUids) {
@@ -91,7 +96,7 @@ export const createClarificationsSlice: SliceCreator<ClarificationsSlice> = (ctx
       }
       for (const id of documents) refetchDocument(id);
     }
-    void get().refreshMap();
+    return get().refreshMap();
   }
 
   ctx.clarificationEvents = {
@@ -154,13 +159,20 @@ export const createClarificationsSlice: SliceCreator<ClarificationsSlice> = (ctx
       try {
         const answered = await source.answerClarification(id, values, reviewerName);
         remove(id);
-        refreshAfterAnswer({ documentId: answered.documentId, boreholeUids: [...new Set([...(asked?.boreholeUids ?? []), ...answered.boreholeUids])] });
+        const target = { documentId: answered.documentId, boreholeUids: [...new Set([...(asked?.boreholeUids ?? []), ...answered.boreholeUids])] };
+        const map = refreshAfterAnswer(target);
+        // A coordinate system or a position places boreholes: once the pins are reloaded, the map
+        // flies to them (and, off the map, the toast offers SHOW ON MAP). This toast follows the
+        // dialog's own "Answer stored".
+        if (PLACING_KINDS.has(answered.kind ?? asked?.kind)) {
+          void map.then(() => get().revealPlaced({ uids: target.boreholeUids }, ANSWER_STORED));
+        }
         return { ok: true };
       } catch (e) {
         if (isApiError(e, 'already_resolved') || isApiError(e, 'clarification_not_found')) {
           const text = isApiError(e, 'already_resolved') ? ALREADY_ANSWERED : QUESTION_GONE;
           remove(id);
-          refreshAfterAnswer(asked);
+          void refreshAfterAnswer(asked);
           get().showToast(text);
           return { ok: false, message: text, fieldErrors: {} };
         }
@@ -184,7 +196,7 @@ export const createClarificationsSlice: SliceCreator<ClarificationsSlice> = (ctx
       } catch (e) {
         if (isApiError(e, 'already_resolved') || isApiError(e, 'clarification_not_found')) {
           remove(id);
-          refreshAfterAnswer(asked);
+          void refreshAfterAnswer(asked);
           get().showToast(isApiError(e, 'already_resolved') ? ALREADY_ANSWERED : QUESTION_GONE);
           return;
         }

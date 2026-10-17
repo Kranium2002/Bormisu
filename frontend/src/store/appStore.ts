@@ -41,6 +41,7 @@ export type {
   PanelState,
   SourcePanel,
   Toast,
+  ToastAction,
 } from './types';
 export { isReviewable } from './context';
 

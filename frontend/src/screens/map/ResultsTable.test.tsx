@@ -41,7 +41,8 @@ describe('ResultsTableView', () => {
     const headers = [...html.matchAll(/role="columnheader"[^>]*>(.*?)<\/div>/g)].map((m) => m[1].replace(/<[^>]+>/g, ''));
     expect(headers).toEqual(['BOREHOLE', 'PROJECT', 'FINAL DEPTH', 'STATUS', 'CRS', 'DOCUMENT', '']);
     const [row] = bodyRows(html);
-    expect(cellTexts(row)).toEqual(['TB-01', 'Test Project (fictional)', '12.50 m', 'Unreviewed', 'stated', 'alpha_report.pdf', 'MAPOPEN DETAIL ›']);
+    // The light layer names the stated system since 1.2.0 (here its code: the fixture has no label).
+    expect(cellTexts(row)).toEqual(['TB-01', 'Test Project (fictional)', '12.50 m', 'Unreviewed', 'stated · EPSG:25832', 'alpha_report.pdf', 'MAPOPEN DETAIL ›']);
   });
 
   it('a depth that is not stated says so, never 0; attention wins over the server status', () => {
@@ -111,10 +112,16 @@ describe('CRS column', () => {
     expect(html).toMatch(/role="cell" title="Coordinate system confirmed by a reviewer: EPSG:2193">confirmed · EPSG:2193</);
   });
 
-  it('a pin without its record shows the status only, and never claims there is no system', () => {
+  it('a pin without its record from an older server shows the status only, and never claims there is no system', () => {
     const b = makeBorehole({ uid: 'bh_C', crs: { name: null, code: 'EPSG:2193', status: 'confirmed' } });
-    const html = render(allRows([featureOf(b)!], [], [], []));
+    const html = render(allRows([{ ...featureOf(b)!, crsCode: undefined, crsLabel: undefined }], [], [], []));
     expect(html).toMatch(/role="cell" title="Coordinate system confirmed by a reviewer">confirmed</);
     expect(html).not.toContain('No coordinate system');
+  });
+
+  it('1.2.0: a pin without its record names the server’s label of the system (code in the title)', () => {
+    const b = makeBorehole({ uid: 'bh_C', crs: { name: null, code: 'EPSG:0001', label: 'Fictional grid A', status: 'confirmed' } });
+    const html = render(allRows([featureOf(b)!], [], [], []));
+    expect(html).toMatch(/role="cell" title="Coordinate system confirmed by a reviewer: Fictional grid A \(EPSG:0001\)">confirmed · Fictional grid A</);
   });
 });

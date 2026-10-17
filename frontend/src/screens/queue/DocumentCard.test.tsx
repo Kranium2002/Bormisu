@@ -5,9 +5,9 @@ import { makeClarification } from '../../components/clarify/clarifyFixtures';
 import { resetTestStore } from '../../components/clarify/testStore';
 import { placeholderPage } from '../../domain/pages';
 import type { Health } from '../../domain/types';
-import { makeHealth } from '../../store/testing';
+import { featureOf, makeHealth } from '../../store/testing';
 import { retryBlockedReason } from '../../store/uploads';
-import { makeDocument, makePage } from '../../test/fixtures';
+import { makeBorehole, makeDocument, makePage } from '../../test/fixtures';
 import { CLASSIFIED_UNKNOWN_PAGE, PAGE_TYPE_META } from '../../theme';
 import { DocumentCard } from './DocumentCard';
 import { PageTip, THUMBNAIL_WIDTH } from './PageStrip';
@@ -104,14 +104,95 @@ describe('DocumentCard', () => {
 
     it('names the stage and the server’s detail, with RETRY', () => {
       const html = render(true);
-      expect(html).toContain('Extraction failed at ocr: Text recognition failed on page 2.');
+      expect(html).toContain('Extraction failed at text recognition (OCR): Text recognition failed on page 2.');
       expect(html.match(/<button[^>]*>RETRY<\/button>/)?.[0]).not.toContain('disabled');
+    });
+
+    it('marks the step of the failed stage', () => {
+      const html = renderToStaticMarkup(
+        <DocumentCard
+          doc={makeDocument({ status: 'failed', step: 1, error: 'x' })}
+          failure={{ stage: 'classify', detail: 'Page 1 could not be read.', retryable: true }}
+          onShowDocument={noop}
+        />,
+      );
+      expect(html).toContain('title="classifying: failed at page classification"');
+      expect(html).toContain('title="extracting: not started"');
     });
 
     it('disables RETRY with the reason when the server says a retry cannot fix it', () => {
       const retry = render(false).match(/<button[^>]*>RETRY<\/button>/)?.[0];
       expect(retry).toContain('disabled=""');
       expect(retry).toContain(`title="${NOT_RETRYABLE}"`);
+    });
+  });
+
+  describe('1.2.0: the failed stage of a document (failed_stage)', () => {
+    it('marks the failed step and names the stage in the error', () => {
+      const doc = makeDocument({ status: 'failed', step: 1, error: 'The OCR provider timed out.', failedStage: 'ocr' });
+      const html = renderToStaticMarkup(<DocumentCard doc={doc} onShowDocument={noop} />);
+      expect(html).toContain('Extraction failed at text recognition (OCR): The OCR provider timed out.');
+      expect(html).toContain('title="extracting: failed at text recognition (OCR)"');
+      expect(html).toContain('title="classifying: done"');
+    });
+
+    it('in demo mode RETRY is off with the reason (the server answers 409 demo_mode too)', () => {
+      const doc = makeDocument({ status: 'failed', step: 1, error: 'x', failedStage: 'extract' });
+      const html = renderToStaticMarkup(<DocumentCard doc={doc} retryBlocked={retryBlockedReason(makeHealth({ mode: 'demo' }))} onShowDocument={noop} />);
+      const retry = html.match(/<button[^>]*>RETRY<\/button>/)?.[0] ?? '';
+      expect(retry).toContain('disabled=""');
+      expect(retry).toContain('title="Live extraction needs API keys"');
+    });
+  });
+
+  describe('upload → map: the next step of a processed card', () => {
+    const D = 'doc_TEST0000000000000000000001';
+    const doc = makeDocument({ id: D, status: 'needs_review', step: 2 });
+    const card = () => renderToStaticMarkup(<DocumentCard doc={doc} onShowDocument={noop} />);
+    const stepButtons = (html: string) => (html.match(/<button[^>]*data-map-step="[^"]+"[^>]*>[^<]*<\/button>/g) ?? []);
+    const pinned = makeBorehole({ uid: 'bh_P', documentId: D });
+    const noXy = makeBorehole({ uid: 'bh_N', id: 'TB-02', documentId: D, onMap: false, lat: null, lng: null, unplottedReason: 'no_coordinates' });
+    const noCrs = makeBorehole({ uid: 'bh_C', id: 'TB-03', documentId: D, onMap: false, lat: null, lng: null, unplottedReason: 'crs_unconfirmed' });
+
+    it('"N on the map · SHOW" when its boreholes are pinned', () => {
+      resetTestStore({ features: [featureOf(pinned)!], boreholes: [pinned] });
+      const [show] = stepButtons(card());
+      expect(show).toContain('data-map-step="onMap"');
+      expect(show).toContain('>1 on the map · SHOW</button>');
+    });
+
+    it('a coordinate-system question: CONFIRM opens it', () => {
+      resetTestStore({
+        boreholes: [noCrs], unplottedUids: [noCrs.uid], clarificationsState: 'ready',
+        clarifications: [makeClarification({ id: 'cl_crs', kind: 'crs_confirm', documentId: D, boreholeUids: [noCrs.uid] })],
+      });
+      const buttons = stepButtons(card());
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]).toContain('data-map-step="crs"');
+      expect(buttons[0]).toContain('>1 borehole needs a coordinate system · CONFIRM</button>');
+    });
+
+    it('a position question: PLACE opens it', () => {
+      resetTestStore({
+        boreholes: [noXy], unplottedUids: [noXy.uid], clarificationsState: 'ready',
+        clarifications: [makeClarification({ id: 'cl_loc', kind: 'locate_borehole', documentId: D, boreholeUids: [noXy.uid] })],
+      });
+      expect(stepButtons(card())[0]).toContain('>1 borehole needs a position · PLACE</button>');
+    });
+
+    it('boreholes without coordinates and without a question: "N not on the map · WHY"', () => {
+      resetTestStore({ boreholes: [noXy], unplottedUids: [noXy.uid] });
+      const [why] = stepButtons(card());
+      expect(why).toContain('data-map-step="notOnMap"');
+      expect(why).toContain('>1 not on the map · WHY</button>');
+      expect(why).toContain('title="Open the NOT ON MAP list');
+    });
+
+    it('a failed document offers no map step, only RETRY', () => {
+      resetTestStore({ features: [featureOf(pinned)!], boreholes: [pinned] });
+      const html = renderToStaticMarkup(<DocumentCard doc={{ ...doc, status: 'failed', error: 'x' }} onShowDocument={noop} />);
+      expect(stepButtons(html)).toEqual([]);
+      expect(html).toContain('>RETRY</button>');
     });
   });
 
