@@ -133,7 +133,8 @@
   /* 08 Key features: three facts after the demo */
   .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 72px; }
   .feat { background: #fff; border: 1px solid var(--line); border-radius: 24px; padding: 52px 44px; display: flex; flex-direction: column; gap: 22px; }
-  .feat .n { width: 64px; height: 64px; border-radius: 50%; background: var(--espresso); color: var(--ladyfinger); display: flex; align-items: center; justify-content: center; font: 700 30px var(--display); }
+  .feat .n { width: 88px; height: 88px; border-radius: 24px; background: var(--espresso); color: var(--ladyfinger); display: flex; align-items: center; justify-content: center; }
+  .feat .n svg { width: 50px; height: 50px; }
   .feat .h { font: 600 52px/1.05 var(--display); letter-spacing: -0.02em; color: var(--espresso); }
   .feat .b { font-size: 28px; line-height: 1.4; color: var(--muted); }
 
@@ -270,9 +271,9 @@
   <section class="light vcenter" data-label="08 Key features">
     <div class="eyebrow" data-anim>Key features</div>
     <div class="feats">
-      <div class="feat" data-anim style="--d: 200ms;"><div class="n">1</div><div class="h">Reads any report</div><div class="b">Scans, handwriting, any language, any coordinate system.</div></div>
-      <div class="feat" data-anim style="--d: 350ms;"><div class="n">2</div><div class="h">Every value has a source</div><div class="b">Edge cases are flagged for manual verification.</div></div>
-      <div class="feat" data-anim style="--d: 500ms;"><div class="n">3</div><div class="h">One standard out</div><div class="b">DIN 4023 profile, world map, Herrenknecht xlsx.</div></div>
+      <div class="feat" data-anim style="--d: 200ms;"><div class="n"><svg viewBox="0 0 24 24" role="img" aria-label="Reads any report" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21H11"/><path d="M13 3l5 5v2.5"/><path d="M13 3v5h5"/><path d="M8 12h4M8 15h2.5"/><circle cx="16.5" cy="16.5" r="3"/><path d="M18.7 18.7L21 21"/></svg></div><div class="h">Reads any report</div><div class="b">Scans, handwriting, any language, any coordinate system.</div></div>
+      <div class="feat" data-anim style="--d: 350ms;"><div class="n"><svg viewBox="0 0 24 24" role="img" aria-label="Every value has a source" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2"/><circle cx="12" cy="12" r="3.2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></div><div class="h">Every value has a source</div><div class="b">Edge cases are flagged for manual verification.</div></div>
+      <div class="feat" data-anim style="--d: 500ms;"><div class="n"><svg viewBox="0 0 24 24" role="img" aria-label="One standard out" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5L12 21l9-4.5"/></svg></div><div class="h">One standard out</div><div class="b">DIN 4023 profile, world map, Herrenknecht xlsx.</div></div>
     </div>
   </section>
 
