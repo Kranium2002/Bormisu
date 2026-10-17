@@ -83,6 +83,22 @@ async def database() -> AsyncIterator[None]:
     await dispose_engine()
 
 
+@pytest.fixture(autouse=True)
+def fresh_provider_failover() -> Iterator[None]:
+    """Every test starts without the per-process memory of refused keys and refused OpenAI parameters."""
+    from app.pipeline import ocr
+    from app.providers import llm
+
+    def clear() -> None:
+        ocr._REFUSED_ROUTES.clear()
+        llm._REFUSED.clear()
+        llm._PLAIN_OPENAI_MODELS.clear()
+
+    clear()
+    yield
+    clear()
+
+
 @pytest.fixture
 async def db(database: None) -> AsyncIterator[None]:
     """Empty every application table before the test."""

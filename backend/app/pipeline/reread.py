@@ -56,7 +56,7 @@ from app.ids import new_id
 from app.normalize.numbers import MINUS_SIGNS, learn_style, load_data, parse_number
 from app.pipeline.extract import page_segment
 from app.providers.base import ProviderError, token_cost
-from app.providers.llm_openrouter import image_part, text_part
+from app.providers.llm import active_model, image_part, text_part
 from app.review.service import commit_change, load_field_values
 from app.schemas.clarifications import Evidence, FormField
 from app.storage import get_storage
@@ -202,17 +202,18 @@ def input_tokens_for(crops: int) -> int:
 
 
 class OpenRouterRereader:
-    """The extractor model on OpenRouter, strict RereadAnswer schema; the client checks the budget."""
+    """The extractor model on the configured provider (OpenRouter or OpenAI, app.providers.llm), strict
+    RereadAnswer schema; the client checks the budget."""
 
     def __init__(self) -> None:
-        from app.providers.llm_openrouter import OpenRouterClient
+        from app.providers.llm import LlmClient
 
-        self.client = OpenRouterClient()
+        self.client = LlmClient()
 
     async def reread(
         self, crops: Sequence[CropImage], *, document_id: str
     ) -> tuple[RereadAnswer, str | None, float]:
-        model = get_settings().extractor_model
+        model = self.client.model_for("extractor")
         content: list[dict[str, Any]] = [
             text_part(f"{len(crops)} crop(s). Transcribe each one exactly as written.")
         ]
@@ -221,7 +222,7 @@ class OpenRouterRereader:
             content.append(image_part("data:image/png;base64," + base64.b64encode(crop.png).decode("ascii")))
         max_tokens = output_tokens_for(len(crops))
         result = await self.client.structured(
-            model=model,
+            role="extractor",
             output=RereadAnswer,
             system=system_prompt(),
             content=content,
@@ -735,7 +736,7 @@ async def _start_run(document_id: str, key: str, crops: int) -> str:
                 document_id=document_id,
                 group_id=group_id_for(document_id),
                 cache_key=key,
-                model=get_settings().extractor_model,
+                model=active_model("extractor"),
                 prompt_version=PROMPT_VERSION,
                 schema_version=SCHEMA_VERSION,
                 input_tokens=input_tokens_for(crops),
@@ -1059,7 +1060,7 @@ async def _stage_reread(document_id: str, rereader: Rereader | None) -> RereadSu
     if not loaded.count:
         return summary  # nothing handwritten or uncertain: no crops, no calls
     config = reread_config()
-    model = get_settings().extractor_model
+    model = active_model("extractor")
     renders = await asyncio.to_thread(_read_renders, loaded.render_keys)
     crops = await asyncio.to_thread(
         make_crops, renders, loaded.regions, loaded.blocks, model=model, config=config
