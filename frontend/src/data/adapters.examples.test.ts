@@ -14,6 +14,7 @@ import {
   adaptCrsCandidates,
   adaptDocument,
   adaptHealth,
+  valueAt,
   type AdaptedBorehole,
   type WireBorehole,
   type WireBoreholeList,
@@ -43,7 +44,10 @@ function allDocuments(): [string, WireDocument][] {
 
 const val = (b: Borehole, key: string) => b.values.find((v) => v.key === key);
 
-/** Every scalar in the record body (not provenance or lint): what a value's text may come from. */
+/**
+ * Every scalar in the record body (not provenance or lint): what a value's text may come from. A list
+ * of scalars also counts as its items joined with ", " (how a list value is shown, e.g. SPT increments).
+ */
 function bodyScalars(rec: WireBorehole): { strings: Set<string>; numbers: number[]; booleans: boolean } {
   const strings = new Set<string>();
   const numbers: number[] = [];
@@ -53,8 +57,10 @@ function bodyScalars(rec: WireBorehole): { strings: Set<string>; numbers: number
     if (typeof x === 'string') strings.add(x);
     else if (typeof x === 'number') numbers.push(x);
     else if (typeof x === 'boolean') booleans = true;
-    else if (Array.isArray(x)) x.forEach(walk);
-    else if (typeof x === 'object') Object.values(x).forEach(walk);
+    else if (Array.isArray(x)) {
+      if (x.length && x.every((i) => typeof i === 'string' || typeof i === 'number')) strings.add(x.join(', '));
+      x.forEach(walk);
+    } else if (typeof x === 'object') Object.values(x).forEach(walk);
   };
   const { provenance: _p, lint: _l, ...body } = rec;
   walk(body);
@@ -69,6 +75,9 @@ function fromRecord(part: string, s: ReturnType<typeof bodyScalars>): boolean {
   const n = Number(part);
   return s.numbers.some((x) => Math.abs(x - n) <= 0.005 + 1e-9);
 }
+
+/** Domain method of a wire method. */
+const METHOD = { read: 'Read', ocr: 'OCR', derived: 'Derived', guessed: 'Guessed', edited: 'Edited' } as const;
 
 /** The provenance entries a value stands for (its patch target paths). */
 const provOf = (a: AdaptedBorehole, rec: WireBorehole, v: ExtractedValue) => (a.targets[v.key]?.paths ?? []).map((p) => rec.provenance[p]);
@@ -153,7 +162,6 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
 
     it.each(allRecords())('%s: method, status, state, flag, readings and confidence come from the provenance; null confidence stays null', (_, rec) => {
       const a = adaptBorehole(rec);
-      const METHOD = { read: 'Read', ocr: 'OCR', derived: 'Derived', guessed: 'Guessed', edited: 'Edited' } as const;
       for (const v of a.borehole.values) {
         const ps = provOf(a, rec, v);
         if (!ps.length) {
@@ -216,6 +224,77 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
         expect(row?.label).toBe(l.spt_depth_m == null ? 'SPT (depth not stated)' : `SPT @ ${l.spt_depth_m.toFixed(2)} m`);
       });
     });
+
+    it.each(allRecords())('%s: FE-PROV-1 the lithology row targets english_lithology when tracked, else original_description', (_, rec) => {
+      const { borehole: b, targets } = adaptBorehole(rec);
+      rec.stratigraphy.forEach((l, i) => {
+        const en = `stratigraphy[${i}].english_lithology`;
+        const desc = `stratigraphy[${i}].original_description`;
+        const path = en in rec.provenance ? en : desc in rec.provenance ? desc : null;
+        const row = val(b, K.lithology(i + 1));
+        expect(targets[K.lithology(i + 1)]?.paths ?? null, `layer ${i + 1}`).toEqual(path ? [path] : null);
+        if (l.english_lithology) expect(row?.value).toBe(l.english_lithology);
+        if (row) expect(row.raw).toBe((path && rec.provenance[path].raw) || l.original_description || '');
+        // The description has its own row only when the lithology row does not stand for it.
+        expect(b.values.some((v) => v.key === desc), `layer ${i + 1}`).toBe(path !== desc && desc in rec.provenance);
+        expect([b.layers[i].method, b.layers[i].confidence]).toEqual([row?.method ?? null, row?.confidence ?? null]);
+      });
+    });
+
+    it.each(allRecords())('%s: DV-11, DV-14 a value names its source document only when it is another one; no invented page', (_, rec) => {
+      const a = adaptBorehole(rec);
+      for (const v of a.borehole.values) {
+        const ps = provOf(a, rec, v);
+        const source = ps.find((p) => p.cell) ?? ps.find((p) => p.page != null) ?? ps[0];
+        const other = source?.document_id && source.document_id !== rec.document_id ? source.document_id : undefined;
+        expect(v.documentId, v.key).toBe(other);
+      }
+      expect(a.borehole.primaryPage).toBe(a.borehole.pages[0] ?? null);
+    });
+
+    it.each(allRecords())('%s: uiv-B3, uiv-B4, uiv-B7, FE-DISP-2 units, notes and read-only values', (_, rec) => {
+      const { borehole: b, targets } = adaptBorehole(rec);
+      const elevation = val(b, K.elevation);
+      if (elevation) {
+        expect(elevation.unit).toBe('m');
+        expect(elevation.note).toBe(rec.metadata.elevation_datum ? `datum: ${rec.metadata.elevation_datum}` : undefined);
+      }
+      for (const v of b.values) {
+        if (v.unit.includes('bgl')) expect(rec.metadata.depth_origin, v.key).toBe('ground');
+        const paths = targets[v.key]?.paths ?? [];
+        if (paths.includes('metadata.coordinates.crs_code')) expect(v.readOnlyReason, v.key).toBe('Set the coordinate system with CHOOSE CRS…');
+        // Generic rows (keyed by their path): depths in m, latitude and longitude in degrees.
+        if (v.key !== paths[0]) continue;
+        if (/_m$/.test(v.key)) expect(v.unit, v.key).toBe('m');
+        if (/\.(latitude|longitude)$/.test(v.key)) {
+          expect(v.unit, v.key).toBe('°');
+          if (v.method === 'Derived') expect(v.value.split('.')[1]?.length ?? 0, v.key).toBeLessThanOrEqual(7);
+          else expect(v.value, v.key).toBe(String(valueAt(rec, v.key)));
+        }
+      }
+    });
+  });
+
+  describe('boreholes: the backend examples shaped like the seed (layer text tracked at original_description)', () => {
+    it('every lithology row is reviewable there; no duplicate description row', () => {
+      const rec = example<WireBorehole>('BoreholeRecord.full.json');
+      for (const path of Object.keys(rec.provenance)) if (path.endsWith('.english_lithology')) delete rec.provenance[path];
+      const { borehole: b, targets, unsourced } = adaptBorehole(rec);
+      const tracked = rec.stratigraphy.filter((_, i) => `stratigraphy[${i}].original_description` in rec.provenance);
+      expect(tracked.length).toBeGreaterThan(0);
+      rec.stratigraphy.forEach((l, i) => {
+        const desc = rec.provenance[`stratigraphy[${i}].original_description`];
+        if (!desc) return;
+        expect(targets[K.lithology(i + 1)].paths).toEqual([`stratigraphy[${i}].original_description`]);
+        expect(val(b, K.lithology(i + 1))).toMatchObject({
+          hasProvenance: true, value: l.english_lithology, raw: desc.raw, method: METHOD[desc.method], confidence: desc.confidence,
+        });
+      });
+      expect(b.values.filter((v) => v.label === 'Description as printed')).toEqual([]);
+      const untracked = rec.stratigraphy.flatMap((l, i) =>
+        tracked.includes(l) || l.english_lithology == null ? [] : [`stratigraphy[${i}].english_lithology`]);
+      expect(unsourced.filter((p) => p.includes('lithology') || p.includes('description'))).toEqual(untracked);
+    });
   });
 
   describe('boreholes: what the full example pins down', () => {
@@ -252,6 +331,9 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
         { reader: 'second_read', text: '9,80', confidence: 0.71 },
       ]);
       expect(val(b, K.test(1))).toMatchObject({ cell: 'Logdata!C5', page: null, box: null, value: '41', raw: '41' });
+      // DV-11: that cell is in the lab spreadsheet (Document.spreadsheet.json), not in the record's own document.
+      expect(val(b, K.test(1))?.documentId).toBe(example<WireDocument>('Document.spreadsheet.json').document_id);
+      expect(b.values.filter((v) => v.documentId).map((v) => v.key)).toEqual([K.test(1)]);
       expect(val(b, K.test(3))).toMatchObject({ value: '', page: 9, hasProvenance: true });
     });
 
@@ -313,6 +395,11 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
       }
       if (d.status === 'failed') expect(doc.error).toBe(d.error || 'Extraction failed');
       else expect(doc.error).toBeNull();
+      // CONTRACT-1: a failed document failed during extraction once every page was classified.
+      if (d.status === 'failed') {
+        const classified = !!d.progress && d.progress.pages_total > 0 && d.progress.pages_classified >= d.progress.pages_total;
+        expect(doc.step).toBe(classified ? 1 : 0);
+      }
       const pr = d.progress;
       expect(doc.progress).toEqual(
         pr ? { pagesTotal: pr.pages_total, pagesClassified: pr.pages_classified, pagesOcrTotal: pr.pages_ocr_total, pagesOcrDone: pr.pages_ocr_done, boreholesExtracted: pr.boreholes_extracted } : null,
@@ -326,6 +413,11 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
       const doc = adaptDocument(example<WireDocument>('Document.classifying.json'));
       expect(doc.pages.map((p) => p.classified)).toEqual([true, true, true, true, true, false, false, false]);
       expect(doc.step).toBe(0);
+    });
+
+    it('CONTRACT-1: the failed example failed during text recognition, after every page was classified', () => {
+      const doc = adaptDocument(example<WireDocument>('Document.failed.json'));
+      expect([doc.status, doc.step, doc.progress?.pagesClassified, doc.progress?.pagesTotal]).toEqual(['failed', 1, 1, 1]);
     });
 
     it('keeps a page duplicated inside the same document and a blank page of type unknown as classified', () => {
