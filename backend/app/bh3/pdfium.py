@@ -32,6 +32,17 @@ def open_pdf(path: str) -> pdfium.PdfDocument:
         return doc
 
 
+def close(path: str) -> None:
+    """Close one cached document (the worker reads many files over its life; never keep handles open)."""
+    with _lock:
+        doc = _docs.pop(path, None)
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
 def close_all() -> None:
     with _lock:
         for doc in _docs.values():

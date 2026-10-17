@@ -21,7 +21,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
-from . import din
+from . import din, pdfium
 from .assemble import build_boreholes
 from .extract import RouteConfig, process_page
 from .inputs import Document, PageSource, _pdf_document
@@ -102,6 +102,16 @@ def read_pages(source_file: str, *, vlm: VLM, workdir: Path, pdf_path: Optional[
     workdir.mkdir(parents=True, exist_ok=True)
     cfg = cfg or RouteConfig()
     results: list[PageResult] = []
+    try:
+        _read(doc, wanted, vlm, cfg, workdir, source_file, results)
+    finally:
+        if pdf_path is not None:
+            pdfium.close(str(pdf_path))
+    return results
+
+
+def _read(doc: Document, wanted: Optional[set[int]], vlm: VLM, cfg: RouteConfig, workdir: Path, source_file: str,
+          results: list[PageResult]) -> None:
     for src in doc.pages:
         if wanted is not None and src.page_no not in wanted:
             continue
@@ -114,7 +124,6 @@ def read_pages(source_file: str, *, vlm: VLM, workdir: Path, pdf_path: Optional[
             pr = PageResult(src.source_file, src.page_no, "error", page_type="unread")
             pr.issues.append(f"page could not be read: {type(exc).__name__}: {str(exc)[:200]}")
             results.append(pr)
-    return results
 
 
 def _in_points(pr: PageResult, src: PageSource, cfg: RouteConfig, workdir: Path) -> PageResult:
