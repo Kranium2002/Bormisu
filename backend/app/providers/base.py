@@ -166,10 +166,18 @@ def price_table() -> dict[str, Any]:
     return data
 
 
+# Models without a row in data/prices.yaml seen in this process (warned about once; e.g. local models).
+_UNPRICED: set[str] = set()
+
+
 def token_cost(model: str, input_tokens: int | None, output_tokens: int | None) -> float:
+    """Cost from data/prices.yaml; 0 for a model it has no row for (expected for local models, e.g. on
+    Ollama; logged once per model)."""
     entry = price_table().get("models", {}).get(model)
     if entry is None:
-        logger.warning("no price for model %s; cost logged as 0", model)
+        if model not in _UNPRICED:
+            _UNPRICED.add(model)
+            logger.warning("no price for model %s; its calls are logged at cost 0", model)
         return 0.0
     return (input_tokens or 0) / 1e6 * float(entry["input_per_million"]) + (output_tokens or 0) / 1e6 * float(
         entry["output_per_million"]

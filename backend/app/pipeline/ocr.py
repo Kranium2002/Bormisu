@@ -6,8 +6,9 @@ are normalised (ids p{n}.b{i}, boxes [x, y, w, h] on the page render).
 
 Routes (Settings.ocr_routes): openrouter_vision (a vision model on OpenRouter, Gemini by default, reads the
 page render and returns text blocks with boxes), mistral (direct, chunks of pages, boxes and confidence),
-openrouter (Mistral OCR through the file-parser plugin) and openai (a vision model transcribes the page
-render); the last two are text only. Every route but mistral takes one page per request. In auto mode a
+openrouter (Mistral OCR through the file-parser plugin), openai (a vision model transcribes the page
+render) and openai_vision (the openrouter_vision reading on OPENAI_BASE_URL, e.g. a local model on Ollama);
+openrouter and openai are text only. Every route but mistral takes one page per request. In auto mode a
 401/403 moves the rest of the run to the next configured route, and later runs of this process try the
 refused route last.
 
@@ -304,6 +305,10 @@ def _engine_for(route: str, engine: OcrEngine | None) -> tuple[OcrEngine, str, s
         from app.providers.ocr_openrouter import MODEL_TAG, OpenRouterOcrClient
 
         return OpenRouterOcrClient(), MODEL_TAG, "openrouter"
+    if route == "openai_vision":
+        from app.providers.ocr_vision import OpenAIVisionOcrClient, openai_vision_tag
+
+        return OpenAIVisionOcrClient(), openai_vision_tag(settings.openai_ocr_model_name), "openai"
     if route == "openai":
         from app.providers.ocr_openai import OpenAIOcrClient, model_tag
 
@@ -337,9 +342,9 @@ async def route_limit(route: str) -> AsyncIterator[None]:
 
 
 # One page per request, so every text maps to its page (the text-only routes and the vision model).
-ONE_PAGE_ROUTES = frozenset({"openrouter_vision", "openrouter", "openai"})
+ONE_PAGE_ROUTES = frozenset({"openrouter_vision", "openrouter", "openai", "openai_vision"})
 # Routes sent the stored page render itself (a vision model reads images); the others get a PDF.
-IMAGE_ROUTES = frozenset({"openrouter_vision", "openai"})
+IMAGE_ROUTES = frozenset({"openrouter_vision", "openai", "openai_vision"})
 OCR_PDF_DPI = 150.0  # page size of the rebuilt PDF; the pixels are the stored render's
 
 

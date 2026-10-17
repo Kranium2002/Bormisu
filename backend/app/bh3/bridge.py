@@ -65,13 +65,13 @@ def make_vlm(base_url: str, api_key: str, model: str, on_call: Optional[Callable
              cache_dir: Path, guard: Optional[Callable[[], None]] = None, workers: int = 1,
              max_tokens: Optional[int] = None, supports_schema: bool = True,
              extra_headers: Optional[dict] = None, extra_body: Optional[dict] = None,
-             reasoning_effort: str = "low", reasoning_extra_tokens: int = 4096) -> VLM:
+             reasoning_effort: str = "low", reasoning_extra_tokens: int = 4096, timeout_s: float = 120.0) -> VLM:
     """The vision reader. ``on_call`` gets {purpose, model, input_tokens, output_tokens, ok} after every request
     that reached the server; ``guard`` runs before every paid call and raises BudgetExceeded to stop the run.
     Answers are cached under ``cache_dir`` by (model, prompt, image), so a retry repeats no paid call."""
     llm = make_llm(base_url, api_key, model, cache_dir=cache_dir, on_call=on_call, supports_schema=supports_schema,
                    extra_headers=extra_headers, extra_body=extra_body, reasoning_effort=reasoning_effort,
-                   reasoning_extra_tokens=reasoning_extra_tokens)
+                   reasoning_extra_tokens=reasoning_extra_tokens, timeout_s=timeout_s)
     return VLM(llm, workers=workers, max_tokens=max_tokens, guard=guard)
 
 

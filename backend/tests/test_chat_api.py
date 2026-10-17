@@ -189,7 +189,7 @@ class FakeResponses:
 
 @pytest.fixture(autouse=True)
 def no_real_openai(monkeypatch: pytest.MonkeyPatch) -> None:
-    def refuse(api_key: str) -> Any:
+    def refuse(*_: Any) -> Any:
         raise AssertionError("tests never build a real OpenAI client")
 
     monkeypatch.setattr(loop, "_client", refuse)
@@ -466,7 +466,7 @@ async def test_the_openai_adapter_streams_sdk_events_and_hides_provider_errors(
     """The real adapter against respx at a fictional base URL: nothing can reach OpenAI."""
     base = "https://openai.fictional.test/v1"
     monkeypatch.setattr(
-        loop, "_client", lambda key: openai.AsyncOpenAI(api_key=key, base_url=base, max_retries=0)
+        loop, "_client", lambda key, *_: openai.AsyncOpenAI(api_key=key, base_url=base, max_retries=0)
     )
     events = Script("resp_sdk").text("A fictional ", "answer.").completed()
     sse = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)

@@ -382,7 +382,8 @@ class LLM:
                     _set_format(schema_mode)
                     log.info("server rejected json_schema; falling back to json_object for %s", name)
                     continue
-                if "timeout" in low or "connection" in low or "502" in msg or "503" in msg or "500" in msg:
+                if ("timeout" in low or "timed out" in low or "connection" in low or "502" in msg or "503" in msg
+                        or "500" in msg):
                     time.sleep(delay)
                     delay = min(delay * 2, 60)
                     continue

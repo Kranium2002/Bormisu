@@ -126,7 +126,7 @@ def vision_route(settings: Settings) -> VisionRoute | None:
 def openrouter_options(bridge: ModuleType, route: VisionRoute, model: str) -> dict[str, Any]:
     """bh3's request options for one model: on OpenRouter the reasoning field per model
     (app.providers.reasoning) and what bh3 does when a model refuses reasoning off; none elsewhere."""
-    if route.provider != "openrouter":
+    if route.provider != "openrouter" or "openrouter.ai" not in route.base_url:
         return {}
     cfg = reasoning.config()
     return {
@@ -240,6 +240,7 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         on_call,
         cache_dir=cache,
         guard=guard,
+        timeout_s=settings.request_timeout_s,
         **openrouter_options(bridge, route, route.model),
     )
     llm = bridge.make_llm(
@@ -248,6 +249,7 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         route.text_model,
         cache_dir=cache,
         on_call=on_call,
+        timeout_s=settings.request_timeout_s,
         **openrouter_options(bridge, route, route.text_model),
     )
     source = str(pdf_path if pdf_path is not None else file_name)
