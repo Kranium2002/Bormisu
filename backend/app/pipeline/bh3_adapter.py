@@ -44,6 +44,7 @@ from sqlalchemy import select
 from app.config import Settings, get_settings
 from app.db.models import Document, Page
 from app.db.session import get_sessionmaker
+from app.pipeline.group import clean_label
 from app.pipeline.schemas import (
     ExtractedCoreRun,
     ExtractedGroundwater,
@@ -57,6 +58,7 @@ from app.pipeline.schemas import (
 )
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
 from app.providers.base import BudgetExceededError, Usage, record_usage, spent_usd, token_cost
+from app.review.service import canonical_label
 from app.storage import get_storage
 
 logger = logging.getLogger("geomemory.pipeline.bh3")
@@ -276,7 +278,8 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
     }
     long_side = _long_sides(pdf_path, infos)
     out = Bh3Read(failed=failed)
-    for bh in built:
+    listed = table_ids(infos)
+    for bh in merge_same_label(built):
         if too_thin(bh, infos):
             logger.warning(
                 "bh3 read at most one layer on log sheet(s) %s of %s; the classic extractor takes them",
@@ -284,12 +287,70 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
                 document_id,
             )
             continue
-        mapped = map_borehole(bh, infos=infos, languages=languages, long_side=long_side, model=route.model)
+        mapped = map_borehole(
+            bh, infos=infos, languages=languages, long_side=long_side, model=route.model, listed=listed
+        )
         if mapped is None:
             continue
         out.boreholes.append(mapped)
         out.pages.update(mapped[0].pages)
     return out
+
+
+TABLE_ROLES = frozenset({"summary_table", "coordinate_table"})
+
+
+def table_ids(infos: dict[int, _PageInfo]) -> set[str]:
+    """Canonical borehole IDs the document's summary and coordinate tables list (the classifier's labels)."""
+    return {
+        canonical_label(label) for info in infos.values() if info.role in TABLE_ROLES for label in info.labels
+    }
+
+
+def not_listed_name(name: str, listed: set[str]) -> bool:
+    """A name with no digit that the tables do not list: likely a contractor, client or place, not an ID."""
+    return not any(ch.isdigit() for ch in name) and canonical_label(name) not in listed
+
+
+def merge_same_label(holes: list[Any]) -> list[Any]:
+    """Holes of one document whose printed names are the same ID once a "borehole number" prefix is dropped
+    ("502" and "Holt nr 502") are one borehole: pages, layers and points are joined, the first name and header
+    values win and later ones fill gaps."""
+    merged: dict[str, Any] = {}
+    out: list[Any] = []
+    for hole in holes:
+        metadata = getattr(hole, "metadata", {}) or {}
+        name = None if metadata.get("_name_generated") else _text(metadata.get("BoreholeName"))
+        key = canonical_label(clean_label(name)) if name else None
+        if not key or key not in merged:
+            if key:
+                merged[key] = hole
+            out.append(hole)
+            continue
+        base = merged[key]
+        base.pages = sorted({*(base.pages or []), *(hole.pages or [])})
+        base.layers = sorted([*(base.layers or []), *(hole.layers or [])], key=_layer_order)
+        base.points = [*(base.points or []), *(hole.points or [])]
+        base.issues = [*(getattr(base, "issues", None) or []), *(getattr(hole, "issues", None) or [])]
+        for field, value in metadata.items():
+            if field not in base.metadata or base.metadata.get(field) in (None, ""):
+                base.metadata[field] = value
+        raw = {**(metadata.get("_raw") or {}), **(base.metadata.get("_raw") or {})}
+        if raw:
+            base.metadata["_raw"] = raw
+        base_prov = getattr(base, "meta_prov", None)
+        if isinstance(base_prov, dict):
+            for field, prov in (getattr(hole, "meta_prov", {}) or {}).items():
+                base_prov.setdefault(field, prov)
+        logger.info("bh3 holes %r and %r are one borehole (same ID)", base.metadata.get("BoreholeName"), name)
+    return out
+
+
+def _layer_order(layer: Any) -> tuple[float, float]:
+    top = getattr(layer, "top", None)
+    bottom = getattr(layer, "bottom", None)
+    as_float = [v if isinstance(v, int | float) and not math.isnan(v) else math.inf for v in (top, bottom)]
+    return as_float[0], as_float[1]
 
 
 def too_thin(bh: Any, infos: dict[int, _PageInfo]) -> bool:
@@ -453,6 +514,7 @@ def map_borehole(
     languages: dict[int, str | None],
     long_side: dict[int, float],
     model: str,
+    listed: set[str] | None = None,
 ) -> tuple[PageGroup, ExtractionOutcome] | None:
     """One bh3 Borehole as a page group and an extraction outcome (None when it has no pages here)."""
     pages = tuple(sorted({int(n) for n in (getattr(bh, "pages", None) or []) if int(n) in infos}))
@@ -470,9 +532,17 @@ def map_borehole(
 
     generated = bool(metadata.get("_name_generated"))
     name = None if generated else _text(metadata.get("BoreholeName"))
-    # bh3 found no name: the page classifier's label, when it read exactly one on the hole's first page
+    if name is not None:
+        name = clean_label(name)  # "Holt nr 502" -> "502"
     classified = sorted({label for label in infos[first].labels if label.strip()})
-    label = name or (classified[0] if len(classified) == 1 else UNLABELLED.format(page=first))
+    single = classified[0] if len(classified) == 1 else None
+    if name is not None and listed and single is not None and not_listed_name(name, listed):
+        # the report's tables list the IDs; a name with no digit that is none of them (a contractor, a
+        # place) gives way to the listed ID the classifier read on the page
+        if canonical_label(single) in listed:
+            name = None
+    # bh3 found no name: the page classifier's label, when it read exactly one on the hole's first page
+    label = name or (single if single is not None else UNLABELLED.format(page=first))
     label_value = header("BoreholeName") if name else RawValue.absent()
     head = ExtractedHeader(
         borehole_label=label_value,

@@ -112,7 +112,9 @@ def _label_prefix() -> re.Pattern[str]:
         return re.compile(r"(?!)")
     word = "|".join(re.escape(w).replace(r"\ ", r"\s*") for w in words)
     sign = "|".join(re.escape(s) for s in signs)
-    return re.compile(rf"^\s*(?:{word})\s*(?:{sign})\s*[:.\-]?\s*(?=\S)", re.IGNORECASE)
+    # a listed borehole word, or any one word ("Hull nr 502", a misread "Holt nr 502"), then a number sign,
+    # then an ID with a digit in it
+    return re.compile(rf"^\s*(?:{word}|[^\W\d_]+\.?)\s*(?:{sign})\s*[:.\-]?\s*(?=\S*\d)", re.IGNORECASE)
 
 
 def clean_label(text: str) -> str:
