@@ -10,6 +10,9 @@ assets/din4023_patterns/
 ├── din_codes.json   # DIN code → colour, symbol colour, svg file, pattern id, tile size
 ├── patterns.svg     # all 49 patterns as <pattern> definitions (for SVG)
 ├── svg/<file>.svg   # one seamless tile per DIN code (for CSS / images)
+├── symbols.svg      # the same 49 tiles without colour (black symbol, transparent), id din-sym-<file>
+├── symbols/<file>.svg  # for drawing a symbol over another fill (secondary components)
+├── secondary_codes.json  # Table 1 secondary components: s, u, g, fs … → their symbol
 ├── properties.json  # Table 6: property symbols drawn right of the column
 ├── properties/<group>_<key>.svg  # vertical tiles (repeat in y)
 ├── left_symbols.json  # Table 5: samples, groundwater, joints drawn left of the column
@@ -84,6 +87,29 @@ svg_file, w, h = c["svg"], c["tile_width"], c["tile_height"]
 File names are `<kind>_<code>` with `ö` → `oe` (e.g. `geological_Loe.svg`), because file systems may ignore case (`mG` vs `Mg`). Always go through `din_codes.json`, don't build file names yourself.
 
 Sparse symbols are intended: `Mu` (topsoil), `A` (fill) and `Stk` (hard coal) show one symbol per tile, as in the norm.
+
+## Secondary components and mixed layers (DIN 4023 §4.2, §4.3)
+A layer code like `U, s` (silt, sandy) has a **main component** (capital, first: `U`) and **secondary components** (lowercase, after commas: `s`).
+`secondary_codes.json` is keyed by the lowercase code and points to the main code's symbol:
+```json
+"s": { "main": "S", "name_de": "sandig", "name_en": "sandy", "colour": "#C6542F",
+       "symbol_svg": "symbols/soil_S.svg", "symbol_pattern_id": "din-sym-soil_S",
+       "tile_width": 59.053, "tile_height": 19.882 }
+```
+Every DIN code also has `symbol_svg` / `symbol_pattern_id` in `din_codes.json`: its tile without the colour, to draw over another fill. Same tile size and the same tiling rules as the coloured tiles.
+
+| case | how to draw the column |
+|---|---|
+| `U, s` (main + secondary) | main tile (`svg/`) over the full width; secondary **symbol** (`symbols/`) over it in the **right half** only |
+| `U, s` in colour | main colour on the left; secondary colour on the right, width = its share of the mass; main symbol full width, secondary symbol right half |
+| `S/G` (two parts, about equal) | each colour on one half; **both** symbols (`symbols/`) over the full width |
+| very thin layer | main tile in the left half, secondary symbol in the right half |
+| made ground (`A, …`), decomposed rock (`Pl (S, g)`) | left half: made ground / parent rock; right half: the soil |
+
+- Only the first secondary component is drawn; a second only when it matters geotechnically (Table 6), third never.
+- Weak / strong marks (`u'` slightly silty, `fs̄` or `fs*` strongly fine sandy) are text only: strip `'`, `̄`, `*` before the lookup.
+- Rock: secondary component in lower density (§4.3.3). Cross-sections and maps: one secondary component, lower density (§4.2.9).
+- Symbols are black. On a dark fill (e.g. `H` peat) they are hard to read; the coloured tiles switch those to white (`symbol_colour`).
 
 ## Property symbols (Table 6, right of the column)
 Black vector symbols on transparent, drawn in a strip **next to** the layer, right of the column, over the layer's full height.

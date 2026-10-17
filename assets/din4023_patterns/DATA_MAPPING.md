@@ -9,6 +9,8 @@ Every category of a group is shown with one example. How to draw the files is in
 | soil | `"G"` → Kies / gravel, `#DBAB06` <img src="svg/soil_G.svg" height="36"> |
 | rock | `"Kst"` → Kalkstein / limestone, `#2A4C67` <img src="svg/rock_Kst.svg" height="36"> |
 | geological | `"Mg"` → Geschiebemergel / till marl, `#41496C` <img src="svg/geological_Mg.svg" height="36"> |
+| secondary component | `"U, s"` → `U` tile over the full width, `s` symbol (`secondary_codes.json`) over it in the right half <img src="svg/soil_U.svg" height="36"> + <img src="symbols/soil_S.svg" height="36"> |
+| two equal parts | `"S/G"` → each colour on one half, both symbols over the full width <img src="symbols/soil_S.svg" height="36"> <img src="symbols/soil_G.svg" height="36"> |
 
 ## Consistency / density — `stratigraphy[].consistency_density` (Table 6)
 
