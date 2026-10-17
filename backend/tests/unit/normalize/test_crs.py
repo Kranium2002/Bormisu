@@ -7,7 +7,12 @@ import re
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from pyproj import CRS, Transformer
+from pyproj.database import query_crs_info
+from pyproj.enums import PJType
 
+from app.geo.crs_candidates import area_of_use
+from app.geo.plotting import to_wgs84
 from app.normalize.coordinates import parse_coordinates
 from app.normalize.crs import resolve_printed_system
 from app.normalize.numbers import load_data
@@ -18,6 +23,22 @@ STATED = [
     ("nz alias", "Mt Eden 2000", "EPSG:2105"),
     ("uk alias", "OSGB36", "EPSG:27700"),
     ("de alias", "UTM32E89", "EPSG:25832"),
+    ("hk alias", "HK80", "EPSG:2326"),
+    ("dk alias", "S34S", "EPSG:10250"),
+    ("dk alias words", "System 34 Sjælland", "EPSG:10250"),
+    ("dk alias short words", "S34 Sjælland", "EPSG:10250"),
+    ("dk alias upper case", "SYSTEM 34 SJÆLLAND", "EPSG:10250"),
+    ("dk alias jutland", "System 34 Jylland", "EPSG:10160"),
+    # named systems found anywhere in the printed text (crs_patterns.yaml named_systems)
+    ("dk transliterated", "System 34, Sjaelland", "EPSG:10250"),
+    ("dk with field label", "Koordinatsystem: S34S (Sjælland)", "EPSG:10250"),
+    ("dk hyphenated", "S34-S", "EPSG:10250"),
+    ("nz full name", "NZGD2000 / New Zealand Transverse Mercator", "EPSG:2193"),
+    ("nz datum and grid", "NZGD2000 NZTM", "EPSG:2193"),
+    ("nz grid and datum", "NZTM2000 (NZGD2000)", "EPSG:2193"),
+    ("nz long name", "New Zealand Transverse Mercator 2000", "EPSG:2193"),
+    ("nz spaced", "NZGD 2000 / NZTM 2000", "EPSG:2193"),
+    ("nz circuit with datum", "NZGD2000 / Mt Eden Circuit 2000", "EPSG:2105"),
     # UTM with datum and hemisphere or latitude band (worldwide)
     ("wgs84 north", "WGS84 UTM 32N", "EPSG:32632"),
     ("wgs84 south", "WGS 84 / UTM zone 55S", "EPSG:32755"),
@@ -73,6 +94,12 @@ NOT_STATED = [
     ("Kartenblatt 7", "no known coordinate system"),
     ("", "no coordinate system printed"),
     (None, "no coordinate system printed"),
+    # System 34 without its region, two named systems, a named system next to another datum
+    ("System 34", "no known coordinate system"),
+    ("S34S / S34J", "more than one system"),
+    ("WGS84 NZTM", "disagree"),
+    ("ETRS89 System 34 Sjælland", "disagree"),
+    ("NZGD2000", "datum only"),
 ]
 
 
@@ -123,6 +150,58 @@ def test_patterns_name_only_existing_epsg_templates() -> None:
         assert datum.get("default_grid") in (None, *(g["id"] for g in data["grids"])), datum
     for grid in data["grids"]:
         assert grid.get("default_datum") in (None, *datum_names), grid
+    projected = [
+        info.name
+        for info in query_crs_info(auth_name="EPSG", pj_types=[PJType.PROJECTED_CRS], allow_deprecated=False)
+    ]
+    for name in [d["national_grid"] for d in data["datums"] if d.get("national_grid")]:
+        assert projected.count(name) == 1, name
+    for system in data["named_systems"]:
+        assert projected.count(system["epsg_name"]) == 1, system["epsg_name"]
+        assert system.get("datum") in (None, *datum_names), system
+
+
+def test_every_term_of_a_named_system_states_it() -> None:
+    for system in load_data("crs_patterns.yaml")["named_systems"]:
+        for term in system["terms"]:
+            result = resolve_printed_system(term)
+            assert result.code is not None, (term, result.reason)
+            assert CRS.from_user_input(result.code).name == system["epsg_name"], term
+
+
+# A fictional point near Copenhagen (55.676 N, 12.568 E) in System 34 Sjælland. The system's easting grows
+# westward, so it is printed positive; EPSG's reconstruction (EPSG:10250) is east-orientated.
+S34S_EAST, S34S_NORTH = "72 048,15", "140 505,76"
+
+
+def test_system_34_easting_is_negated_before_the_east_orientated_reconstruction() -> None:
+    coords = parse_coordinates(S34S_EAST, S34S_NORTH, "E N")
+    assert (coords.local_x, coords.local_y) == (72048.15, 140505.76)
+    result = resolve_printed_system("System 34 Sjælland", coords)
+    assert result.code == "EPSG:10250" and result.reason is None  # inside the area of use as printed
+    assert coords.local_x is not None and coords.local_y is not None
+    point = to_wgs84(result.code, coords.local_x, coords.local_y)
+    assert point == pytest.approx((55.676, 12.568), abs=1e-3)
+    bounds = area_of_use(result.code)
+    assert bounds is not None
+    west, south, east, north = bounds
+    assert south <= point[0] <= north and west <= point[1] <= east  # on Sjælland
+    # Taken as an east-orientated easting, the same value would lie far east of the island.
+    lon, _ = Transformer.from_crs("EPSG:10250", "EPSG:4326", always_xy=True).transform(72048.15, 140505.76)
+    assert lon > east + 1.0
+
+
+def test_nzgd2000_alone_reads_grid_values_in_its_national_grid_only_when_they_fit() -> None:
+    nztm = parse_coordinates("1757000", "5920000", "E N")  # fictional NZTM-sized values, North Island
+    result = resolve_printed_system("NZGD2000", nztm)
+    assert result.code == "EPSG:2193" and result.reason is not None and "national grid" in result.reason
+    swapped = parse_coordinates("5920000", "1757000", "X Y")
+    assert resolve_printed_system("NZGD 2000", swapped).code == "EPSG:2193"
+    # Values the size of a meridional circuit or of a UTM zone are not NZTM positions on land.
+    for x, y in (("400000", "800000"), ("300000", "5900000"), ("700000", "5100000")):
+        other = resolve_printed_system("NZGD2000", parse_coordinates(x, y, "E N"))
+        assert other.code is None and other.reason is not None and "no projection" in other.reason
+    assert resolve_printed_system("NZGD2000").code is None  # no values to check: a datum only
 
 
 # -------------------------------------------------------------------------------------------------

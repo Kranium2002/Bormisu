@@ -46,6 +46,10 @@ datums:
     default_grid: gk
   - epsg_name: "NZGD2000"
     aliases: [NZGD2000, NZGD 2000]
+    # Grid values printed with this datum alone are read in its one national projection, but only when
+    # they fall inside that system's area of use on or near land (app.geo.land, the ranking's land margin):
+    # meridional-circuit or UTM values do not, and stay unstated.
+    national_grid: "NZGD2000 / New Zealand Transverse Mercator 2000"
   - epsg_name: "SVY21"
     aliases: [SVY21]
 
@@ -71,6 +75,26 @@ grids:
     default_datum: DHDN
     # The zone is the millions digit of a 7-digit easting (Rechtswert 3 512 345 -> zone 3).
     zone_from_easting_millions: true
+
+# Systems a printed name states on its own, without a datum + grid + zone reading: national grids with a
+# single projection and local systems with an EPSG reconstruction. Their terms are found anywhere in the
+# printed text ("NZTM2000 (NZGD2000)", "Koordinatsystem: S34S"), after printed EPSG codes and local-grid
+# terms. `datum` is the datum the system is defined on: a different datum printed next to it, or a datum
+# next to a system without one listed, contradicts it. Two different systems named state nothing.
+# "System 34" without its region (Sjælland / Jylland) names no system.
+named_systems:
+  - epsg_name: "NZGD2000 / New Zealand Transverse Mercator 2000"
+    datum: NZGD2000
+    terms: [NZTM, NZTM 2000, New Zealand Transverse Mercator, New Zealand Transverse Mercator 2000,
+            NZ Transverse Mercator, New Zealand TM, New Zealand TM 2000]
+  - epsg_name: "NZGD2000 / Mount Eden 2000"
+    datum: NZGD2000
+    terms: [Mt Eden 2000, Mount Eden 2000, Mt Eden Circuit 2000, Mount Eden Circuit 2000]
+  - epsg_name: "S34S reconstruction east-orientated"
+    terms: [S34S, S34 S, System 34 S, System 34 Sjælland, System 34 Sjaelland, System 34 Zealand,
+            S34 Sjælland, S34 Sjaelland, S34 Zealand]
+  - epsg_name: "S34J reconstruction east-orientated"
+    terms: [S34J, S34 J, System 34 J, System 34 Jylland, System 34 Jutland, S34 Jylland, S34 Jutland]
 
 # Words that introduce a zone number ("Zone 32", "Zona 18", "3. Streifen", "Z56").
 zone_words: [zone, zona, fuseau, fuso, streifen, sone, zon, z]

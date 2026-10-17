@@ -4,8 +4,9 @@ Every label, place, coordinate, note and value below is invented. Families: a Ge
 zone 32N, an Australian-style log in English, a US-style site in feet, a Pacific site on the antimeridian,
 a French and a Scandinavian-style log. No provider is called.
 
-Covered: positions far from the document's cluster (unplotted as implausible, recomputed when a member
-changes), identical coordinates, `duplicate` (page copies and repeated boreholes, answered with aliases),
+Covered: positions far from the document's cluster (unplotted as implausible, always beyond the 100 km
+ceiling, recomputed when a member changes, pinned once a person places them), identical coordinates,
+`duplicate` (page copies and repeated boreholes, answered with aliases),
 `conflicting_sources` (hand-built readings: the extraction output cannot express two readings yet),
 `datum_convention` (sign notes against the printed depths) and `locate_borehole`.
 """
@@ -36,6 +37,7 @@ from app.review.service import (
     canonical_label,
     create_borehole,
     refresh_document_checks,
+    set_manual_location,
     to_record,
 )
 from app.schemas.boreholes import BoreholeRecord, ValuePatch
@@ -125,6 +127,31 @@ def test_cluster_needs_enough_points_and_respects_second_sites_and_people() -> N
     # Positions without WGS84 values, or the (0, 0) placeholder, take no part.
     partial = [member("a", lat, lon), member("b", None, None), member("c", 0.0, 0.0)]
     assert cluster_outliers(partial) == {}
+
+
+def test_a_position_beyond_the_ceiling_is_flagged_however_spread_the_others_are() -> None:
+    lat, lon = SITES["de_utm"]
+    # Four boreholes some 10-15 km apart: 20 x their spread would allow a position over 200 km away.
+    spread_out = [
+        member("a", lat, lon),
+        member("b", lat + 0.1, lon),
+        member("c", lat, lon + 0.15),
+        member("d", lat - 0.1, lon - 0.1),
+    ]
+    flagged = cluster_outliers([*spread_out, member("e", lat + 1.35, lon)])  # about 150 km north
+    assert list(flagged) == ["e"]
+    distance, spread = flagged["e"]
+    assert distance > 100 and 20 * spread > distance  # only the 100 km ceiling flags it
+    # Within the ceiling and the spread-scaled threshold: part of the site.
+    assert cluster_outliers([*spread_out, member("e", lat + 0.8, lon)]) == {}
+
+
+def test_two_other_positions_are_enough_to_flag_one_300_km_away() -> None:
+    lat, lon = SITES["au_mga"]
+    near = [member("a", lat, lon), member("b", lat + 0.002, lon + 0.001)]
+    far = member("c", lat + 2.7, lon)  # about 300 km away
+    assert list(cluster_outliers([*near, far])) == ["c"]
+    assert cluster_outliers([near[0], far]) == {}  # one other position: nothing to compare with
 
 
 def test_identical_coordinates_on_different_boreholes() -> None:
@@ -386,6 +413,41 @@ async def test_far_position_is_unplotted_and_recomputed_when_a_member_changes(db
         )
         await session.commit()
     assert (await record_of(uids["KB 3"])).revision == 2
+
+
+@pytest.mark.db
+async def test_a_hole_300_km_from_the_other_three_is_flagged_not_pinned_until_a_person_places_it(
+    db: None,
+) -> None:
+    points = {label: DE_POINTS[label] for label in ("KB 1", "KB 2", "KB 3")}
+    points["KB 9"] = (413301.0, 5616210.0)  # northing misread: 300 km north of the site
+    doc_id = "doc_01JCHECKS0000000000000DE3"
+    async with get_sessionmaker()() as session:
+        doc = await new_document(session, doc_id, file_name="fictional-site-far.pdf")
+        uids = {}
+        for i, (label, (x, y)) in enumerate(points.items()):
+            uids[label] = (await add_borehole(session, doc, f"g{i}", utm_body(label, x, y))).uid
+        await session.commit()
+    await finalize_document(doc_id)  # closing the document runs the lint across its boreholes
+
+    recs = await records(list(uids.values()))
+    far = recs[uids["KB 9"]]
+    assert (far.plotted, far.unplotted_reason, far.crs_status) == (False, "implausible", "stated")
+    assert far.metadata.coordinates.latitude is not None  # the position is kept, only not pinned
+    assert [(lint.rule, lint.severity) for lint in far.lint] == [("coordinates_far_from_cluster", "error")]
+    assert "km from the other boreholes" in far.lint[0].message
+    for label in ("KB 1", "KB 2", "KB 3"):
+        assert (recs[uids[label]].plotted, recs[uids[label]].lint) == (True, [])
+    async with get_sessionmaker()() as session:
+        bh = await session.get(Borehole, uids["KB 9"])
+        assert bh is not None and bh.geom is None and bh.needs_attention
+
+    # A person places it on the map: pinned where they put it, no longer flagged.
+    async with get_sessionmaker()() as session:
+        await set_manual_location(session, uids["KB 9"], lat=48.0, lon=7.84, actor="fictional reviewer")
+        await session.commit()
+    placed = await record_of(uids["KB 9"])
+    assert (placed.plotted, placed.unplotted_reason, placed.lint) == (True, None, [])
 
 
 @pytest.mark.db

@@ -4,9 +4,10 @@
 document:
 
 * `coordinates_far_from_cluster` (error, unplots): a WGS84 position far from the document's robust centre
-  (median latitude and longitude) and from every other position. The distance threshold scales with the
-  document's own spread and never falls below a floor; both live in data/lint_rules.yaml. A position a
-  person placed is never flagged.
+  (median latitude and longitude) and from every other position, once at least two other boreholes of
+  the document have a position. The distance threshold scales with the document's own spread between a
+  floor and a ceiling (a position beyond the ceiling, 100 km, is always flagged); all live in
+  data/lint_rules.yaml. A position a person placed is never flagged.
 * `coordinates_shared` (warning): identical printed coordinates on boreholes with different labels.
 * `duplicate_borehole` (warning): a person confirmed that the borehole repeats one of an earlier document.
 
@@ -106,8 +107,9 @@ def cluster_outliers(members: Sequence[Member]) -> dict[str, tuple[float, float]
     """uid -> (distance to the centre in km, typical spread in km) for every implausible position.
 
     The spread is the median distance of the positions to their robust centre. A position is an outlier
-    when it lies farther than the threshold from the centre and from every other position. Runs in
-    O(n log n) plus O(n) per candidate, so it is cheap enough to repeat on every change.
+    when it lies farther than the threshold, max(floor, factor x spread) capped at the ceiling, from the
+    centre and from every other position. Runs in O(n log n) plus O(n) per candidate, so it is cheap
+    enough to repeat on every change.
     """
     cfg = rule_config(FAR)
     located = [(m, point) for m in members if (point := _located(m)) is not None]
@@ -116,7 +118,10 @@ def cluster_outliers(members: Sequence[Member]) -> dict[str, tuple[float, float]
     centre = robust_centre([point for _, point in located])
     to_centre = [haversine_km(*centre, *point) for _, point in located]
     spread = median(to_centre)
-    threshold = max(float(cfg["min_distance_km"]), float(cfg["median_factor"]) * spread)
+    threshold = min(
+        float(cfg["max_distance_km"]),
+        max(float(cfg["min_distance_km"]), float(cfg["median_factor"]) * spread),
+    )
     flagged: dict[str, tuple[float, float]] = {}
     for i, (member, (lat, lon)) in enumerate(located):
         if member.person_placed or to_centre[i] <= threshold:

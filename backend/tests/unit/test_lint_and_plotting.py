@@ -110,6 +110,8 @@ def test_placement_never_uses_zero_defaults() -> None:
         ("EPSG:25832", 413_000.0, 5_316_000.0, 47.99, 7.84),
         ("EPSG:28355", 320_000.0, 5_810_000.0, -37.83, 144.95),
         ("EPSG:32618", 583_000.0, 4_507_000.0, 40.71, -74.01),
+        # System 34 Sjælland: the printed easting grows westward (registry flag west_orientated).
+        ("EPSG:10250", 72_048.15, 140_505.76, 55.676, 12.568),
     ],
 )
 def test_to_wgs84(code: str, x: float, y: float, lat: float, lon: float) -> None:

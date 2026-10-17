@@ -1907,6 +1907,7 @@ class SheetDraft:
     crs_code: str | None
     guessed: list[tuple[str, str, float]]  # (cell, text, metres) of depths stored as metres without a unit
     warnings: list[str]
+    swap_axes: bool = False  # the stated system holds the point only with easting and northing swapped
 
 
 class _Result:
@@ -2192,6 +2193,7 @@ def draft_borehole(document_id: str, bh: BoreholeRows) -> SheetDraft:
         crs_code=draft.crs_code,
         guessed=guessed,
         warnings=warnings,
+        swap_axes=draft.swap_axes,
     )
 
 
@@ -2358,6 +2360,7 @@ async def _create(document_id: str, draft: SheetDraft) -> str | None:
                 provenance=draft.provenance,
                 crs_status=draft.crs_status,
                 crs_code=draft.crs_code,
+                swap_axes=draft.swap_axes,
                 pages=(),
                 actor=ACTOR,
             )
