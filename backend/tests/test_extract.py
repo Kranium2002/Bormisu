@@ -647,3 +647,36 @@ def test_text_only_ocr_pages_also_send_the_page_image() -> None:
         handwriting="none",
     )
     assert extract_module.needs_image(positioned, "none", 0.75) is False
+
+
+def test_the_prompt_says_which_printed_fields_fill_the_header() -> None:
+    """Rules from the audit of scanned logs: generic, in the prompt (data/prompts/extractor.txt)."""
+    prompt = extract_module.system_prompt()
+    assert extract_module.PROMPT_VERSION == "5"  # changed rules: stored extractions are read again
+    for rule in (
+        # drilling dates only from a drilling-date field; logging, data-entry and stamp dates are not
+        "only from a field or note that names the drilling or boring date or period",
+        '"Bohrzeit"',
+        '"Bearbeiter"',
+        '"Geolog. Aufnahme"',
+        "are never drilling dates",
+        "roman-numeral month",
+        # the contractor never from a stamp or a logo
+        "only from a printed driller or drilling-company field",
+        "never an archive, authority or survey stamp",
+        # the final depth only when printed as such
+        "only a printed final depth",
+        '"Endteufe"',
+        "Never the base of the last stratum of one sheet",
+        # kilometre prefixes are part of the value
+        "the prefix digits first as ordinary digits",
+        "prefix digits never go to system_raw",
+        # a depth column with one depth per stratum lists the bases; tops are never invented
+        "lists the base of each stratum",
+        "never write a top that is not printed",
+        # names copied as printed; an archive stamp is not the label
+        "copied character by character",
+        "is not the label when a name or number field is printed",
+    ):
+        assert rule in prompt, rule
+    assert "{{" not in prompt  # the DIN codes and Test Results names are filled in
