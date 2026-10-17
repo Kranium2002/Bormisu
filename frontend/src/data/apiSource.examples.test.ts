@@ -12,7 +12,21 @@ import { useAppStore } from '../store/appStore';
 import { readyStore } from '../store/testing';
 import { EXAMPLES, EXAMPLES_MISSING, EXAMPLES_PRESENT, example, examplesOf, schemaFiles } from '../test/contract/examples';
 import { contractErrors } from '../test/contract/schema';
-import type { WireBorehole, WireBoreholeList, WireDocumentList, WireError, WireUploadAccepted, WireValuePatch } from './adapters';
+import {
+  adaptFilter,
+  toWireFilter,
+  type WireBorehole,
+  type WireBoreholeList,
+  type WireClarification,
+  type WireClarificationAnswer,
+  type WireDocumentList,
+  type WireError,
+  type WireFeatureCollection,
+  type WireFilter,
+  type WireResultSet,
+  type WireUploadAccepted,
+  type WireValuePatch,
+} from './adapters';
 import { createApiSource, MAX_BACKOFF_MS, SPT_N_ONLY } from './apiSource';
 import { ApiError, SaveError } from './errors';
 import { MockXhr } from './testing';
@@ -57,27 +71,30 @@ function setAt(rec: WireBorehole, path: string, value: unknown): void {
 }
 
 /**
- * A fictional backend made of the contract examples. Records: every BoreholeRecord example. The list:
- * BoreholeList.json, then (cursor "fictional-cursor-page-2") the remaining records. PATCH behaves like
- * the backend's review service: if_revision check, path check, the action, the next revision.
+ * A fictional backend made of the contract examples. Records: every BoreholeRecord example. The map
+ * layer: BoreholeFeatureCollection.json (by document when asked). The "Not on map" list:
+ * BoreholeList.not_on_map.json with the records as the backend holds them now. PATCH behaves like the
+ * backend's review service: if_revision check, path check, the action, the next revision.
  */
 function examplesBackend(route: Route = () => undefined) {
   const calls: Call[] = [];
   const records = new Map(examplesOf<WireBorehole>('BoreholeRecord').map(([, r]) => [r.uid, r]));
   const documents = example<WireDocumentList>('DocumentList.json').documents;
-  const page1 = example<WireBoreholeList>('BoreholeList.json');
+  const features = example<WireFeatureCollection>('BoreholeFeatureCollection.json');
+  const notOnMap = example<WireBoreholeList>('BoreholeList.not_on_map.json');
   const answer = async (call: Call): Promise<Response> => {
     const own = await route(call);
     if (own) return own;
     const path = call.url.slice(BASE.length);
     if (call.method === 'GET' && path === '/health') return json(200, example('Health.live.json'));
     if (call.method === 'GET' && path === '/documents') return json(200, { documents });
-    if (call.method === 'GET' && path === '/boreholes?limit=5000') {
-      return json(200, { ...page1, boreholes: page1.boreholes.map((b) => records.get(b.uid) ?? b) });
+    const map = /^\/map\/boreholes\.geojson(?:\?document_id=(.+))?$/.exec(path);
+    if (call.method === 'GET' && map) {
+      const doc = map[1] ? decodeURIComponent(map[1]) : null;
+      return json(200, { ...features, features: features.features.filter((f) => !doc || f.properties.document_id === doc) });
     }
-    if (call.method === 'GET' && path === `/boreholes?limit=5000&cursor=${page1.next_cursor}`) {
-      const rest = [...records.values()].filter((r) => !page1.boreholes.some((b) => b.uid === r.uid));
-      return json(200, { count: page1.count, boreholes: rest, next_cursor: null });
+    if (call.method === 'GET' && path === '/boreholes?plotted=false&limit=5000') {
+      return json(200, { ...notOnMap, boreholes: notOnMap.boreholes.map((b) => records.get(b.uid) ?? b) });
     }
     let m = /^\/boreholes\/([^/?]+)(\/values)?$/.exec(path);
     if (m) {
@@ -122,6 +139,10 @@ function examplesBackend(route: Route = () => undefined) {
 }
 
 const patches = (calls: Call[]) => calls.filter((c) => c.method === 'PATCH').map((c) => c.body);
+
+/** A wire filter without the unset fields the client leaves out when it sends one (null, empty lists). */
+const withoutUnset = (w: WireFilter) =>
+  Object.fromEntries(Object.entries(w).filter(([, v]) => v != null && !(Array.isArray(v) && v.length === 0)));
 const pdf = (name: string) => new File(['%PDF-1.7 fictional'], name, { type: 'application/pdf' });
 
 let warn: MockInstance<typeof console.warn>;
@@ -140,24 +161,76 @@ afterEach(() => {
 
 describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES_PRESENT ? '' : ` — skipped: ${EXAMPLES_MISSING}`}`, () => {
   describe('load', () => {
-    it('follows next_cursor to the end and adapts every record and every document', async () => {
+    it('reads the documents, the map layer and the "Not on map" list, and adapts every feature, record and document', async () => {
       const { calls } = examplesBackend();
-      const { boreholes, documents } = await createApiSource(BASE).load();
+      const { documents, features, unplotted } = await createApiSource(BASE).load();
       expect(calls.map((c) => c.url).sort()).toEqual([
-        '/api/v1/boreholes?limit=5000', '/api/v1/boreholes?limit=5000&cursor=fictional-cursor-page-2', '/api/v1/documents',
+        '/api/v1/boreholes?plotted=false&limit=5000', '/api/v1/documents', '/api/v1/map/boreholes.geojson',
       ]);
-      const list = example<WireBoreholeList>('BoreholeList.json');
-      expect(boreholes).toHaveLength(list.count);
-      expect(new Set(boreholes.map((b) => b.uid)).size).toBe(list.count);
-      expect(boreholes.slice(0, 2).map((b) => b.uid)).toEqual(list.boreholes.map((b) => b.uid));
+      const fc = example<WireFeatureCollection>('BoreholeFeatureCollection.json');
+      expect(features.map((f) => [f.uid, f.lng, f.lat])).toEqual(fc.features.map((f) => [f.id, f.geometry.coordinates[0], f.geometry.coordinates[1]]));
+      const list = example<WireBoreholeList>('BoreholeList.not_on_map.json');
+      expect(unplotted.map((b) => [b.uid, b.onMap, b.unplottedReason])).toEqual(list.boreholes.map((b) => [b.uid, false, b.unplotted_reason]));
       const wire = example<WireDocumentList>('DocumentList.json').documents;
       expect(documents.map((d) => [d.id, d.status, d.pages.length])).toEqual(wire.map((d) => [d.document_id, d.status, d.page_count ?? 0]));
-      // A document in review opens its first borehole.
-      const review = documents.find((d) => d.id === 'doc_01M54BPP80DBVM60TJD6V5NPM0');
-      expect(review?.reviewBoreholeUid).toBe(boreholes.find((b) => b.documentId === review?.id)?.uid);
+      // A document in review opens its first borehole: a placed one from the map layer, else one of the "Not on map" list.
+      const byId = new Map(documents.map((d) => [d.id, d]));
+      expect(byId.get('doc_01M54BPP80DBVM60TJD6V5NPM0')?.reviewBoreholeUid).toBe(FULL);
+      expect(byId.get('doc_01M54CCNC0Q4F0EZR24EA9NNGS')?.reviewBoreholeUid).toBe('bh_01M54CX9K86N0N3D5HSA8R6AQ7');
       // Sparse provenance is allowed: at most one summary line for the load, no warning per value.
       expect(warn).not.toHaveBeenCalled();
       expect(info.mock.calls.length).toBeLessThanOrEqual(1);
+    });
+
+    it('the map layer of one document', async () => {
+      const { calls } = examplesBackend();
+      const features = await createApiSource(BASE).mapFeatures('doc_01M54AV7B076NM6GKCF4BXQMCH');
+      expect(features.map((f) => f.id)).toEqual(['DRT-B7']);
+      expect(calls.map((c) => c.url)).toEqual(['/api/v1/map/boreholes.geojson?document_id=doc_01M54AV7B076NM6GKCF4BXQMCH']);
+    });
+  });
+
+  describe('M2 answers: result sets, places, clarifications', () => {
+    it('ResultSet.*.json answer createResultSet and getResultSet; BoreholeFilter.*.json are what the filter sends back', async () => {
+      for (const [file, rs] of examplesOf<WireResultSet>('ResultSet')) {
+        vi.stubGlobal('fetch', vi.fn(async () => json(201, rs)));
+        const api = createApiSource(BASE);
+        const created = await api.createResultSet(adaptFilter(rs.definition));
+        expect(created, file).toMatchObject({ id: rs.result_set_id, count: rs.count, uids: rs.uids });
+        const sent = JSON.parse(String((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body)) as WireFilter;
+        expect(contractErrors('BoreholeFilter', sent), file).toEqual([]);
+      }
+      for (const [file, filter] of examplesOf<WireFilter>('BoreholeFilter')) {
+        const roundTrip = toWireFilter(adaptFilter(filter));
+        expect(contractErrors('BoreholeFilter', roundTrip), file).toEqual([]);
+        expect(roundTrip, file).toEqual(withoutUnset(filter));
+      }
+    });
+
+    it('PlaceCandidate.*.json answer a place search; Error.geocoder_unavailable.json is an ApiError', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => json(200, example('PlaceCandidate.list.json'))));
+      const places = await createApiSource(BASE).geocode('Lindenwick');
+      expect(places.map((p) => [p.source, p.boreholeCount])).toEqual([['uploaded', 1], ['geocoder', 1]]);
+      vi.stubGlobal('fetch', vi.fn(async () => apiError('geocoder_unavailable')));
+      await expect(createApiSource(BASE).geocode('Lindenwick')).rejects.toMatchObject({ name: 'ApiError', status: 503, code: 'geocoder_unavailable' });
+    });
+
+    it('Clarification.*.json answer the list, an answer and a skip; the ClarificationAnswer examples are what an answer sends', async () => {
+      const list = examplesOf<WireClarification>('Clarification').map(([, c]) => c);
+      vi.stubGlobal('fetch', vi.fn(async () => json(200, list)));
+      const adapted = await createApiSource(BASE).clarifications();
+      expect(adapted.map((c) => c.id)).toEqual(list.map((c) => c.clarification_id));
+      for (const [file, body] of examplesOf<WireClarificationAnswer>('ClarificationAnswer')) {
+        const answered = example<WireClarification>('Clarification.answered.json');
+        const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => json(200, answered));
+        vi.stubGlobal('fetch', fetchMock);
+        await createApiSource(BASE).answerClarification('cl_FICT', body.values as Record<string, unknown>, body.answered_by ?? null);
+        expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)), file).toEqual({ ...body, answered_by: body.answered_by ?? null });
+      }
+      for (const code of ['answer_invalid', 'already_resolved', 'clarification_not_found']) {
+        vi.stubGlobal('fetch', vi.fn(async () => apiError(code)));
+        await expect(createApiSource(BASE).answerClarification('cl_FICT', {}, null)).rejects.toMatchObject({ code, status: STATUS[code] });
+      }
     });
   });
 
@@ -185,7 +258,7 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
       const patch = build();
       const { calls } = examplesBackend();
       const api = createApiSource(BASE);
-      await api.load();
+      await api.getBorehole(FULL); // Review loads the record on demand
       const saved = await api.updateValue(FULL, key, patch);
       expect(patches(calls)).toEqual([example<WireValuePatch>(file)]);
       expect(contractErrors('ValuePatch', patches(calls)[0])).toEqual([]);
@@ -200,7 +273,7 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
     it('two saves of one borehole fired at once run in order, each with the revision of the answer before', async () => {
       const { calls } = examplesBackend();
       const api = createApiSource(BASE);
-      await api.load();
+      await api.getBorehole(FULL);
       const [a, b] = await Promise.all([
         api.updateValue(FULL, K.xy, { status: 'flagged', flag: 'check the easting' }),
         api.updateValue(FULL, K.bottom(3), { value: '9.8', method: 'Edited', status: 'approved' }),
@@ -219,7 +292,7 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
     it('a conflict refetches the record; the SaveError carries it, and the next save uses its revision', async () => {
       const { calls, records } = examplesBackend();
       const api = createApiSource(BASE);
-      await api.load();
+      await api.getBorehole(FULL);
       (records.get(FULL) as WireBorehole).revision = 9;
       const failed = await api.updateValue(FULL, K.finalDepth, { status: 'unreviewed' }).catch((e: unknown) => e);
       expect(failed).toBeInstanceOf(SaveError);
@@ -233,8 +306,8 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
       // FHL-BH01's client as a backend with sparse provenance sends it: printed, without an entry.
       delete (records.get(FULL) as WireBorehole).provenance['metadata.client'];
       const api = createApiSource(BASE);
-      await api.load();
-      // One summary for the whole load, never a warning per value.
+      await api.getBorehole(FULL);
+      // One summary for the fetch, never a warning per value.
       expect(info).toHaveBeenCalledTimes(1);
       expect(String(info.mock.calls[0][0])).toMatch(/values? in \d+ boreholes? (has|have) no provenance entry/);
       expect(warn).not.toHaveBeenCalled();
@@ -251,7 +324,7 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
       const raw = prov['stratigraphy[1].spt_raw'];
       delete prov['stratigraphy[1].spt_raw'];
       const api = createApiSource(BASE);
-      await api.load();
+      await api.getBorehole(FULL);
       const refused = await api.updateValue(FULL, K.spt(2), { value: '50/12', method: 'Edited' }).catch((e: unknown) => e);
       expect(refused).toMatchObject({ name: 'SaveError', message: SPT_N_ONLY });
       expect(patches(calls)).toEqual([]);
@@ -270,7 +343,7 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
       const APPROVED = 'bh_01M54B3F0GBNJ9N3650KGFT5AE';
       const { calls } = examplesBackend();
       const api = createApiSource(BASE);
-      await api.load();
+      await api.getBorehole(APPROVED);
       const failed = await api.updateValue(APPROVED, K.crs, { value: 'EPSG:4326', method: 'Edited' }).catch((e: unknown) => e);
       expect(failed).toMatchObject({ name: 'SaveError', message: 'Set the coordinate system with CHOOSE CRS…' });
       expect(patches(calls)).toEqual([]);

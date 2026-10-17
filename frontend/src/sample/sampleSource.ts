@@ -1,7 +1,10 @@
 // DEMO ONLY: fictional sample data. Used only when VITE_DATA_SOURCE=sample. Not part of the production data path.
 /**
  * DataSource over the fictional sample: in-memory, mutations persist for the session, simulated
- * uploads (byte progress, then document.updated events to the subscribers).
+ * uploads (byte progress, then document.updated events to the subscribers). Map features, result
+ * sets, place search and clarification questions follow the backend's semantics (./query,
+ * ./clarifications); the open-question counts of boreholes and documents are the unresolved questions
+ * that name them, and every change a question brings is announced as live events.
  */
 import type { DataSource } from '../data/DataSource';
 import { ApiError, SaveError, UploadCancelledError } from '../data/errors';
@@ -11,6 +14,7 @@ import { applyValuePatch } from '../domain/review';
 import { deriveReviewStatus, isClean } from '../domain/status';
 import type {
   Borehole,
+  Clarification,
   CrsCandidate,
   DocumentPage,
   DocumentSummary,
@@ -20,12 +24,15 @@ import type {
   PageContent,
   PageItem,
   PageType,
+  ResultSet,
   UploadResult,
 } from '../domain/types';
+import { checkAnswer, mapPoint, sampleQuestions, withDatum, withFinalDepth, withLocation } from './clarifications';
 import { crsCandidatesFor, EQ_DOC_ID, EQ_FILE, FIRST_GENERATED_PAGE, REPORT_TITLES, sampleDocuments, type PrintedIds } from './documents';
 import { generateBorehole, makeSeeds, type Placement, type Seed } from './generate';
 import { genericPage, pageMap } from './helpers';
 import { bk07, bk07Sheet, BK07_PAGES, NB_DOC_ID, NB_FILE } from './neckarbogen';
+import { featuresOf, isLocated, runResultSet, searchPlaces, toFeature } from './query';
 
 /** Simulated transfer of one upload (ms), reported in UPLOAD_TICKS progress steps. */
 export const SAMPLE_UPLOAD_MS = 1000;
@@ -96,24 +103,34 @@ function revised(b: Borehole): Borehole {
 
 /**
  * Confirms a CRS for one borehole: status `confirmed`, its CRS value approved with the candidate name,
- * the position from the candidate's point (which puts it on the map), and the CRS question answered.
- * A candidate that contradicts the AI's guess marks the value as Edited.
+ * and the position from the candidate's point (which puts it on the map). A candidate that contradicts
+ * the AI's guess marks the value as Edited. No revision change here: the caller bumps it once.
  */
-function confirmOn(b: Borehole, c: CrsCandidate): Borehole {
+function withCrs(b: Borehole, c: CrsCandidate): Borehole {
   const point = c.points.find((p) => p.uid === b.uid);
-  const asked = b.crs.status === 'inferred' || b.crs.status === 'unknown';
-  return revised({
+  return {
     ...b,
     ...(point ? { lat: point.lat, lng: point.lng, onMap: true, unplottedReason: null } : {}),
     crs: { name: c.name, code: c.code, status: 'confirmed' },
-    openClarifications: asked ? Math.max(0, b.openClarifications - 1) : b.openClarifications,
     values: b.values.map((v) =>
       v.key === K.crs
         ? { ...v, value: c.name, status: 'approved', state: 'ok', method: c.verdict === 'match' ? v.method : 'Edited' }
         : v,
     ),
-  });
+  };
 }
+
+/** True when a borehole has printed coordinates a coordinate system can place. */
+const hasLocalPoint = (b: Borehole) => b.meta.localX != null && b.meta.localY != null;
+
+/** A question counts against its boreholes and document until it is answered (open or skipped). */
+const unresolved = (q: Clarification) => q.status !== 'answered';
+
+/** Oldest first, like GET /clarifications. */
+const byCreation = (a: Clarification, b: Clarification) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
+
+/** The 422 of an answer that doesn't fit the question's form. */
+const ANSWER_INVALID = "The answer does not match the question's fields.";
 
 /** Creates the in-memory sample data source. */
 export function createSampleSource(): DataSource {
@@ -130,6 +147,117 @@ export function createSampleSource(): DataSource {
   /** The subscribers' event handlers. */
   const listeners = new Set<(event: LiveEvent) => void>();
   let uploads = 0;
+  /** The clarification questions by id; the open-question counts below follow them. */
+  const questions = new Map(sampleQuestions(boreholes, candidatesOf(NB_DOC_ID)).map((q) => [q.id, q]));
+  /** Stored result sets by id (`rs_` and a counter). */
+  const resultSets = new Map<string, ResultSet>();
+  let resultSetCount = 0;
+
+  /** Tells every subscriber, each with its own copy. */
+  const emit = (event: LiveEvent) => {
+    for (const listener of [...listeners]) listener(structuredClone(event));
+  };
+
+  /**
+   * Brings every open-question count in line with the questions: a borehole or document counts the
+   * unresolved (open or skipped) questions that name it. No revision change here.
+   */
+  function recount(): void {
+    const ofBorehole = new Map<string, number>();
+    const ofDoc = new Map<string, number>();
+    for (const q of questions.values()) {
+      if (!unresolved(q)) continue;
+      for (const uid of q.boreholeUids) ofBorehole.set(uid, (ofBorehole.get(uid) ?? 0) + 1);
+      ofDoc.set(q.documentId, (ofDoc.get(q.documentId) ?? 0) + 1);
+    }
+    for (const [uid, b] of byUid) {
+      const n = ofBorehole.get(uid) ?? 0;
+      if (b.openClarifications !== n) byUid.set(uid, { ...b, openClarifications: n });
+    }
+    docs = docs.map((d) => {
+      const n = ofDoc.get(d.id) ?? 0;
+      return d.openClarifications === n ? d : { ...d, openClarifications: n };
+    });
+  }
+  recount();
+
+  /**
+   * One change of the sample "server": `change` replaces boreholes (without revision changes) and may
+   * resolve a question, which it returns. Then the counts follow the questions, every changed borehole
+   * gets the next revision once (its review status derived like the backend's), and the subscribers
+   * hear of it as in API mode: clarification.resolved, borehole.updated per changed borehole and
+   * document.updated per changed queue document.
+   */
+  function commit(change: () => Clarification | null): void {
+    const before = new Map(byUid);
+    const docsBefore = new Map(docs.map((d) => [d.id, d]));
+    const resolved = change();
+    recount();
+    const changed: Borehole[] = [];
+    for (const [uid, b] of byUid) {
+      if (before.get(uid) === b) continue;
+      const next = revised(b);
+      byUid.set(uid, next);
+      changed.push(next);
+    }
+    if (resolved && resolved.status !== 'open') emit({ type: 'clarification.resolved', clarificationId: resolved.id, status: resolved.status });
+    for (const b of changed) emit({ type: 'borehole.updated', uid: b.uid, revision: b.revision });
+    for (const d of docs) if (docsBefore.get(d.id) !== d) emit({ type: 'document.updated', document: d });
+  }
+
+  /** Marks a question answered (who answered is stored only when given, never invented). */
+  function markAnswered(q: Clarification, values: Record<string, unknown>, by: string | null): Clarification {
+    const name = by?.trim() ? by.trim().slice(0, 100) : null;
+    const next: Clarification = { ...q, status: 'answered', answer: structuredClone(values), answeredBy: name, resolvedAt: new Date().toISOString() };
+    questions.set(q.id, next);
+    return next;
+  }
+
+  /** A candidate of a document that can place its boreholes, else the backend's crs_invalid. */
+  function placingCandidate(documentId: string, code: string, swapAxes: boolean): CrsCandidate {
+    const c = candidatesOf(documentId).find((x) => x.code === code && x.swapAxes === swapAxes);
+    if (!c || c.verdict === 'out_of_range') {
+      throw new ApiError(422, 'crs_invalid', `${code}${swapAxes ? ' with swapped axes' : ''} cannot place the boreholes of this document.`);
+    }
+    return c;
+  }
+
+  /**
+   * What an accepted answer changes, where the effect is simple (the backend's kinds with a direct
+   * record change): a CRS for the question's boreholes with printed coordinates, the datum, the chosen
+   * reading of the final depth, a position placed on the map. Other kinds only store the answer.
+   * Throws (nothing changed) when the answer can't be applied.
+   */
+  function effectOf(q: Clarification, v: Record<string, unknown>): () => void {
+    const each = (fn: (b: Borehole) => Borehole) => () => {
+      for (const uid of q.boreholeUids) {
+        const b = byUid.get(uid);
+        if (b) byUid.set(uid, fn(b));
+      }
+    };
+    switch (q.kind) {
+      case 'crs_confirm': {
+        if (typeof v.crs !== 'string') return () => undefined;
+        const c = placingCandidate(q.documentId, v.crs, v.swap_axes === true);
+        return each((b) => (hasLocalPoint(b) ? withCrs(b, c) : b));
+      }
+      case 'datum_convention': {
+        const datum = v.datum;
+        return typeof datum === 'string' ? each((b) => withDatum(b, datum)) : () => undefined;
+      }
+      case 'choose_reading': {
+        const reading = q.fields.find((f) => f.widget === 'choose_reading');
+        const value = reading ? v[reading.name] : undefined;
+        return q.path === 'metadata.borehole_depth_m' && typeof value === 'number' ? each((b) => withFinalDepth(b, value)) : () => undefined;
+      }
+      case 'locate_borehole': {
+        const point = Object.values(v).map(mapPoint).find((p) => p != null);
+        return point ? each((b) => withLocation(b, point)) : () => undefined;
+      }
+      default:
+        return () => undefined;
+    }
+  }
 
   /**
    * The simulated server accepts an uploaded file: a new document in classification, which reaches
@@ -186,7 +314,84 @@ export function createSampleSource(): DataSource {
     },
 
     async load() {
-      return structuredClone({ boreholes: [...byUid.values()], documents: docs });
+      const all = [...byUid.values()];
+      return structuredClone({ documents: docs, features: featuresOf(all), unplotted: all.filter((b) => !b.onMap) });
+    },
+
+    async mapFeatures(documentId) {
+      const all = [...byUid.values()];
+      return structuredClone(featuresOf(documentId ? all.filter((b) => b.documentId === documentId) : all));
+    },
+
+    async unplotted() {
+      return structuredClone([...byUid.values()].filter((b) => !b.onMap));
+    },
+
+    async createResultSet(filter) {
+      if (filter.area?.type === 'circle' && !(filter.area.radiusM > 0)) {
+        throw new ApiError(422, 'validation_error', 'Request validation failed.', [{ loc: ['body', 'area', 'radius_m'], msg: 'Input should be greater than 0' }]);
+      }
+      resultSetCount += 1;
+      const rs = runResultSet([...byUid.values()], filter, `rs_${resultSetCount}`, new Date().toISOString());
+      resultSets.set(rs.id, rs);
+      return structuredClone(rs);
+    },
+
+    async getResultSet(id) {
+      const rs = resultSets.get(id);
+      if (!rs) throw new ApiError(404, 'result_set_not_found', 'Result set not found or expired.');
+      return structuredClone(rs);
+    },
+
+    async resultSetFeatures(id) {
+      const rs = resultSets.get(id);
+      if (!rs) throw new ApiError(404, 'result_set_not_found', 'Result set not found or expired.');
+      // The members as they are now; only placed ones are features (the set counts the others).
+      const members = rs.uids.map((uid) => byUid.get(uid)).filter((b): b is Borehole => b != null && isLocated(b));
+      return structuredClone(members.map(toFeature));
+    },
+
+    async geocode(query) {
+      if (query.trim().length < 2) {
+        throw new ApiError(422, 'validation_error', 'Request validation failed.', [{ loc: ['query', 'q'], msg: 'String should have at least 2 characters' }]);
+      }
+      return structuredClone(searchPlaces([...byUid.values()], query));
+    },
+
+    async clarifications(options = {}) {
+      const status = options.status ?? 'open';
+      const list = [...questions.values()].filter((q) => q.status === status && (!options.documentId || q.documentId === options.documentId));
+      return structuredClone(list.sort(byCreation));
+    },
+
+    async answerClarification(id, values, answeredBy) {
+      const q = questions.get(id);
+      if (!q) throw new ApiError(404, 'clarification_not_found', 'Clarification not found.');
+      if (q.status === 'answered') throw new ApiError(409, 'already_resolved', 'This question has already been answered.');
+      const { accepted, errors } = checkAnswer(q.fields, values ?? {});
+      if (errors.length) throw new ApiError(422, 'answer_invalid', ANSWER_INVALID, errors);
+      const effect = effectOf(q, accepted);
+      let answered = q;
+      commit(() => {
+        effect();
+        answered = markAnswered(q, accepted, answeredBy);
+        return answered;
+      });
+      return structuredClone(answered);
+    },
+
+    async skipClarification(id) {
+      const q = questions.get(id);
+      if (!q) throw new ApiError(404, 'clarification_not_found', 'Clarification not found.');
+      if (q.status === 'answered') throw new ApiError(409, 'already_resolved', 'This question has already been answered.');
+      if (q.status === 'skipped') return structuredClone(q);
+      const skipped: Clarification = { ...q, status: 'skipped' };
+      // Still unresolved: the counts and the badges stay.
+      commit(() => {
+        questions.set(id, skipped);
+        return skipped;
+      });
+      return structuredClone(skipped);
     },
 
     async getBorehole(uid) {
@@ -301,20 +506,17 @@ export function createSampleSource(): DataSource {
       return structuredClone(candidatesOf(documentId));
     },
 
-    async confirmCrs(documentId, { code, swapAxes }) {
-      const c = candidatesOf(documentId).find((x) => x.code === code && x.swapAxes === swapAxes);
-      if (!c || c.verdict === 'out_of_range') {
-        throw new ApiError(422, 'crs_invalid', `${code} cannot place the boreholes of this document.`);
-      }
+    async confirmCrs(documentId, { code, swapAxes, confirmedBy }) {
+      const c = placingCandidate(documentId, code, swapAxes);
       // Like the backend, only boreholes with printed coordinates get the system; the count says how many.
-      let updated = 0;
-      for (const b of ofDocument(documentId)) {
-        if (b.meta.localX == null || b.meta.localY == null) continue;
-        byUid.set(b.uid, confirmOn(b, c));
-        updated += 1;
-      }
-      docs = docs.map((d) => (d.id === documentId ? { ...d, openClarifications: Math.max(0, d.openClarifications - 1) } : d));
-      return updated;
+      const targets = ofDocument(documentId).filter(hasLocalPoint);
+      commit(() => {
+        for (const b of targets) byUid.set(b.uid, withCrs(b, c));
+        // The sample also answers the report's open CRS question with it (the prototype's behaviour).
+        const q = [...questions.values()].find((x) => x.kind === 'crs_confirm' && x.documentId === documentId && unresolved(x));
+        return q ? markAnswered(q, { crs: code, swap_axes: swapAxes }, confirmedBy) : null;
+      });
+      return targets.length;
     },
   };
 }

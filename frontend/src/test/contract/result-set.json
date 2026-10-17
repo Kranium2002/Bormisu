@@ -1,0 +1,20 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "ResultSet",
+  "example": {
+    "result_set_id": "rs_01JFICT000000000000000RS01",
+    "count": 3,
+    "located_count": 2,
+    "unlocated_count": 1,
+    "excluded_unreviewed": 0,
+    "uids": ["bh_01JFICT00000000000000HL01", "bh_01JFICT00000000000000HL02", "bh_01JFICT00000000000000TQ02"],
+    "bbox": [174.7682, -36.8452, 174.7701, -36.8441],
+    "area": null,
+    "definition": {
+      "min_depth_m": 5,
+      "include_unreviewed": true,
+      "area": null
+    },
+    "created_at": "2026-10-17T09:00:00Z"
+  }
+}

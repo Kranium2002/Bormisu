@@ -1,24 +1,69 @@
 // DEMO ONLY: fictional sample data. Used only when VITE_DATA_SOURCE=sample. Not part of the production data path.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import dinCodes from '@din/din_codes.json';
+import type { DataSource } from '../data/DataSource';
 import { ApiError, SaveError, UploadCancelledError } from '../data/errors';
 import { K } from '../domain/keys';
 import { pageUsageText } from '../domain/pages';
 import { cleanKeys, deriveReviewStatus, displayStatus } from '../domain/status';
-import type { Borehole, BoreholeStatus, LiveEvent, LiveStatus, UploadProgress, UploadResult } from '../domain/types';
+import type { Borehole, BoreholeStatus, DocumentSummary, LiveEvent, LiveStatus, MapFeature, UploadProgress, UploadResult } from '../domain/types';
 import { fmtN, hashS, mulberry32, wrapT } from './generate';
 import { createSampleSource, SAMPLE_UPLOAD_MS } from './sampleSource';
 
-const load = () => createSampleSource().load();
+/**
+ * Everything a source holds, as the old full load had it: the documents, the map features, and every
+ * full record in prototype order (the placed ones fetched by uid, like the app does on demand).
+ */
+async function snapshot(src: DataSource = createSampleSource()): Promise<{ boreholes: Borehole[]; documents: DocumentSummary[]; features: MapFeature[] }> {
+  const { documents, features, unplotted } = await src.load();
+  const placed = await Promise.all(features.map((f) => src.getBorehole(f.uid)));
+  const order = new Map([...placed, ...unplotted].map((b) => [b.uid, b]));
+  const all = [...order.values()].sort((a, b) => PROTOTYPE_ORDER.indexOf(a.id) - PROTOTYPE_ORDER.indexOf(b.id));
+  return { boreholes: all, documents, features };
+}
+const load = () => snapshot();
+/** Borehole IDs in prototype order (projects in order, then their list). */
+const PROTOTYPE_ORDER = [
+  ...['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '13', '14'].map((n) => `BK-${n}`),
+  ...Array.from({ length: 9 }, (_, i) => `EQ-0${i + 1}`), ...Array.from({ length: 7 }, (_, i) => `MS-0${i + 1}`),
+  ...Array.from({ length: 6 }, (_, i) => `EM-0${i + 1}`), ...Array.from({ length: 5 }, (_, i) => `SK-0${i + 1}`),
+  ...Array.from({ length: 4 }, (_, i) => `RB-0${i + 1}`), ...Array.from({ length: 4 }, (_, i) => `CL-0${i + 1}`),
+];
 const byId = (bs: Borehole[], id: string) => bs.find((b) => b.id === id) as Borehole;
-/** Pins per display status, as the map legend counts them. */
-const legend = (bs: Borehole[]) => {
+/** Pins per display status, as the map legend counts them (from the light map features). */
+const legend = (features: MapFeature[]) => {
   const out: Record<BoreholeStatus, number> = { approved: 0, in_review: 0, unreviewed: 0, attention: 0 };
-  for (const b of bs.filter((x) => x.onMap)) out[displayStatus(b)] += 1;
+  for (const f of features) out[f.attention ? 'attention' : f.reviewStatus] += 1;
   return out;
 };
 
 describe('sample data', () => {
+  it('loads documents, 45 map features and the 3 unplotted records, never every full record', async () => {
+    const { documents, features, unplotted } = await createSampleSource().load();
+    expect(documents).toHaveLength(3);
+    expect(features).toHaveLength(45);
+    expect(new Set(features.map((f) => f.uid)).size).toBe(45);
+    expect(unplotted.map((b) => [b.id, b.onMap, b.unplottedReason, b.lat, b.lng])).toEqual([
+      ['BK-13', false, 'no_coordinates', null, null], ['BK-14', false, 'no_coordinates', null, null], ['SK-05', false, 'crs_unknown', null, null],
+    ]);
+    // A feature is light: no layers, no values.
+    expect(Object.keys(features[0]).sort()).toEqual(
+      ['attention', 'crsStatus', 'depth', 'documentId', 'id', 'lat', 'lng', 'openClarifications', 'project', 'reviewStatus', 'revision', 'uid'],
+    );
+  });
+
+  it('every feature matches its full record: position, depth, statuses, revision, attention and open questions', async () => {
+    const { boreholes, features } = await load();
+    for (const f of features) {
+      const b = boreholes.find((x) => x.uid === f.uid) as Borehole;
+      expect(f, b.id).toEqual({
+        uid: b.uid, id: b.id, project: b.project, documentId: b.documentId, lat: b.lat, lng: b.lng, depth: b.finalDepth,
+        reviewStatus: b.reviewStatus, crsStatus: b.crs.status, revision: b.revision, attention: displayStatus(b) === 'attention',
+        openClarifications: b.openClarifications,
+      });
+    }
+  });
+
   it('has the prototype archive: 48 boreholes in 7 projects, 3 not on the map with reason codes', async () => {
     const { boreholes, documents } = await load();
     expect(boreholes).toHaveLength(48);
@@ -93,8 +138,8 @@ describe('sample data', () => {
   });
 
   it('shows the map legend the e2e suite expects: 23 approved, 8 unreviewed, 14 attention', async () => {
-    const { boreholes } = await load();
-    expect(legend(boreholes)).toEqual({ approved: 23, in_review: 0, unreviewed: 8, attention: 14 });
+    const { boreholes, features } = await load();
+    expect(legend(features)).toEqual({ approved: 23, in_review: 0, unreviewed: 8, attention: 14 });
     expect(displayStatus(byId(boreholes, 'EQ-01'))).toBe('approved');
     expect(displayStatus(byId(boreholes, 'MS-05'))).toBe('attention');
     expect(displayStatus(byId(boreholes, 'MS-03'))).toBe('unreviewed');
@@ -119,7 +164,7 @@ describe('sample data', () => {
 
   it('every value page can be rendered and every box lies on the page', async () => {
     const src = createSampleSource();
-    const { boreholes } = await src.load();
+    const { boreholes } = await snapshot(src);
     for (const b of boreholes) {
       for (const v of b.values) {
         if (v.page == null) continue;
@@ -186,8 +231,9 @@ describe('sample source mutations', () => {
     expect(saved.values.find((v) => v.key === K.finalDepth)?.status).toBe('approved');
     const undone = await src.updateValue('nb:BK-07', K.finalDepth, { status: 'unreviewed' });
     expect(undone).toMatchObject({ revision: 3, reviewStatus: 'unreviewed' });
-    const { boreholes } = await src.load();
+    const { boreholes, features } = await snapshot(src);
     expect(byId(boreholes, 'BK-07').revision).toBe(3);
+    expect(features.find((f) => f.id === 'BK-07')?.revision).toBe(3);
     await expect(src.updateValue('nope', K.finalDepth, { status: 'approved' })).rejects.toBeInstanceOf(SaveError);
     await expect(src.updateValue('nb:BK-07', 'nope', { status: 'approved' })).rejects.toMatchObject({ code: 'path_not_found' });
   });
@@ -209,18 +255,30 @@ describe('sample source mutations', () => {
     const cands = await src.crsCandidates('nb');
     expect(cands.map((c) => [c.verdict, c.swapAxes])).toEqual([['match', false], ['shifted', false], ['out_of_range', false]]);
     await expect(src.confirmCrs('nb', { code: 'EPSG:25832', swapAxes: false, confirmedBy: null })).rejects.toMatchObject({ code: 'crs_invalid' });
-    const before = (await src.load()).boreholes;
+    const before = (await snapshot(src)).boreholes;
+    const events: LiveEvent[] = [];
+    src.subscribe((e) => events.push(e), () => undefined);
     // Like the backend: only boreholes with printed coordinates get the system (BK-13 and BK-14 have none).
-    await expect(src.confirmCrs('nb', { code: 'EPSG:31467', swapAxes: false, confirmedBy: null })).resolves.toBe(11);
-    const { boreholes, documents } = await src.load();
+    await expect(src.confirmCrs('nb', { code: 'EPSG:31467', swapAxes: false, confirmedBy: 'A. Reviewer (fictional)' })).resolves.toBe(11);
+    const { boreholes, documents, features } = await snapshot(src);
     const nb = boreholes.filter((b) => b.documentId === 'nb');
     const located = nb.filter((b) => b.meta.localX != null && b.meta.localY != null);
     expect(located).toHaveLength(11);
     expect(located.every((b) => b.crs.status === 'confirmed' && b.openClarifications === 0 && b.revision === 2)).toBe(true);
-    for (const id of ['BK-13', 'BK-14']) expect(byId(boreholes, id), id).toEqual(byId(before, id));
+    // BK-13 and BK-14 keep their (unknown) position and CRS; the report's question no longer counts against them.
+    for (const id of ['BK-13', 'BK-14']) {
+      expect(byId(boreholes, id), id).toEqual({ ...byId(before, id), openClarifications: 0, revision: 2 });
+    }
     expect(displayStatus(byId(boreholes, 'BK-01'))).toBe('approved');
-    expect(legend(boreholes).attention).toBe(4);
+    expect(legend(features).attention).toBe(4);
     expect(documents[0].openClarifications).toBe(0);
+    // The report's CRS question is answered with the confirmation.
+    await expect(src.clarifications({ status: 'answered' })).resolves.toMatchObject([
+      { id: 'cl_sample_nb_crs', answer: { crs: 'EPSG:31467', swap_axes: false }, answeredBy: 'A. Reviewer (fictional)' },
+    ]);
+    expect(events.filter((e) => e.type === 'clarification.resolved')).toEqual([{ type: 'clarification.resolved', clarificationId: 'cl_sample_nb_crs', status: 'answered' }]);
+    expect(events.filter((e) => e.type === 'borehole.updated')).toHaveLength(13);
+    expect(events.filter((e) => e.type === 'document.updated').map((e) => e.type === 'document.updated' && e.document.openClarifications)).toEqual([0]);
   });
 
   it('approving or resetting a flagged value clears its flag, as the backend does', async () => {

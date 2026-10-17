@@ -1,0 +1,39 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "array:PlaceCandidate",
+  "example": [
+    {
+      "label": "Harbourline Tunnel (fictional) project site (uploaded)",
+      "lat": -36.8446,
+      "lon": 174.7691,
+      "bbox": [174.7672, -36.8462, 174.7711, -36.8431],
+      "source": "uploaded",
+      "kind": "project_site",
+      "borehole_count": 2
+    },
+    {
+      "label": "Harbourville, Example Region (fictional)",
+      "lat": -36.85,
+      "lon": 174.76,
+      "bbox": [174.7, -36.9, 174.8, -36.8],
+      "source": "geocoder",
+      "kind": "city",
+      "borehole_count": 2
+    },
+    {
+      "label": "Quietmoor, Example Region (fictional)",
+      "lat": -41.29,
+      "lon": 174.78,
+      "bbox": [174.7, -41.35, 174.85, -41.2],
+      "source": "geocoder",
+      "kind": "city",
+      "borehole_count": 0
+    },
+    {
+      "label": "12 Example Street, Quietmoor (fictional)",
+      "lat": -41.2901,
+      "lon": 174.7802,
+      "source": "geocoder"
+    }
+  ]
+}

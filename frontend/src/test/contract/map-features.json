@@ -1,0 +1,88 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "BoreholeFeatureCollection",
+  "example": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "bh_01JFICT00000000000000HL01",
+        "geometry": { "type": "Point", "coordinates": [174.7682, -36.8441] },
+        "properties": {
+          "uid": "bh_01JFICT00000000000000HL01",
+          "borehole_id": "HL-01",
+          "project_name": "Harbourline Tunnel (fictional)",
+          "document_id": "doc_01JFICT0000000000000000D1",
+          "borehole_depth_m": 15.5,
+          "review_status": "in_review",
+          "crs_status": "stated",
+          "revision": 4,
+          "attention": true,
+          "open_clarifications": 0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "bh_01JFICT00000000000000HL02",
+        "geometry": { "type": "Point", "coordinates": [174.7701, -36.8452] },
+        "properties": {
+          "uid": "bh_01JFICT00000000000000HL02",
+          "borehole_id": "HL-02",
+          "project_name": "Harbourline Tunnel (fictional)",
+          "document_id": "doc_01JFICT0000000000000000D1",
+          "borehole_depth_m": 6,
+          "review_status": "unreviewed",
+          "crs_status": "stated",
+          "revision": 1,
+          "attention": true,
+          "open_clarifications": 1
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "bh_01JFICT00000000000000KR01",
+        "geometry": { "type": "Point", "coordinates": [10.7522, 59.9139] },
+        "properties": {
+          "uid": "bh_01JFICT00000000000000KR01",
+          "borehole_id": "KR-01",
+          "project_name": "Kestrel Ridge Bypass (fictional)",
+          "document_id": "doc_01JFICT0000000000000000D2",
+          "borehole_depth_m": 4,
+          "review_status": "unreviewed",
+          "crs_status": "stated",
+          "revision": 2,
+          "attention": false,
+          "open_clarifications": 0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "bh_01JFICT00000000000000TQ01",
+        "geometry": { "type": "Point", "coordinates": [103.8607, 1.2834] },
+        "properties": {
+          "uid": "bh_01JFICT00000000000000TQ01",
+          "borehole_id": "TQ-01",
+          "project_name": null,
+          "document_id": "doc_01JFICT0000000000000000D6",
+          "borehole_depth_m": 12,
+          "review_status": "approved",
+          "crs_status": "confirmed",
+          "revision": 9,
+          "attention": false,
+          "open_clarifications": 0
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "bh_01JFICT00000000000000MP01",
+        "geometry": { "type": "Point", "coordinates": [-74.0121, 40.7003] },
+        "properties": {
+          "uid": "bh_01JFICT00000000000000MP01",
+          "borehole_id": "MP-01",
+          "review_status": "in_review",
+          "crs_status": "stated"
+        }
+      }
+    ]
+  }
+}
