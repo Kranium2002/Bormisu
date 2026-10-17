@@ -114,9 +114,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
     <div className={styles.page}>
       <main className={styles.card} aria-labelledby="auth-app-name">
         <div className={styles.brand}>
-          <div className={styles.logo} aria-hidden="true">
-            {APP_NAME.charAt(0)}
-          </div>
+          <img className={styles.logo} src={`${import.meta.env.BASE_URL}logo.png`} width="40" height="40" alt="" />
           <h1 id="auth-app-name" className={styles.appName}>
             {APP_NAME}
           </h1>

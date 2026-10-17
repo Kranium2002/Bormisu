@@ -136,13 +136,12 @@ describe('navigation actions go through the navigator', () => {
     expect(calls).toEqual([{ to: `/map?sel=${UID2}`, replace: true }]);
   });
 
-  it('search for a borehole not on the map goes to the map and keeps its message', () => {
+  it('search for a borehole not on the map goes to LIST and keeps its message', () => {
     st().go('queue');
     useAppStore.setState({ query: 'TB-03' });
     st().search();
-    expect(calls.at(-1)).toEqual({ to: '/map', replace: false });
-    expect(st().screen).toBe('map');
-    expect(st().searchMessage).toBe('TB-03: No coordinates in source. Listed under Not on map.');
+    expect(calls.at(-1)).toEqual({ to: '/list', replace: false });
+    expect(st().searchMessage).toBe('TB-03: No coordinates in source. Shown in LIST.');
     expect(st().mapFocus).toBeNull();
   });
 

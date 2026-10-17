@@ -1,27 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink } from 'react-router';
+import { Link } from 'react-router';
 import { APP_NAME } from '../config';
-import { mapHref, reviewHref, reviewOffReason } from '../routing/navLinks';
+import { LANGS, useLang, useT } from '../i18n';
+import { mapHref } from '../routing/navLinks';
 import { useLocationRoute } from '../routing/RouteSync';
-import { inboxPath, type RouteKind } from '../routing/urlState';
+import { inboxPath, ROUTE, type RouteKind } from '../routing/urlState';
 import { useAppStore } from '../store/appStore';
 import { questionCountText, unresolvedCount } from './clarify/clarifyModel';
 import { ChatButton } from './header/ChatButton';
 import { UserMenu } from './header/UserMenu';
 import styles from './Header.module.css';
 
-type Section = 'map' | 'queue' | 'review' | 'inbox';
+type Section = 'map' | 'list' | 'queue' | 'inbox';
 
-/** The nav section a route belongs to: a borehole's detail is part of MAP. */
+/**
+ * The nav section a route belongs to: a borehole's detail and sheet are part of MAP, Review is part
+ * of UPLOAD & QUEUE (it opens from a document there; there is no REVIEW tab).
+ */
 const SECTION: Record<RouteKind, Section | null> = {
   map: 'map',
   detail: 'map',
-  queue: 'queue',
-  reviewIndex: 'review',
-  review: 'review',
-  inbox: 'inbox',
-  list: 'map',
   sheet: 'map',
+  list: 'list',
+  queue: 'queue',
+  reviewIndex: 'queue',
+  review: 'queue',
+  inbox: 'inbox',
   notFound: null,
 };
 
@@ -45,19 +49,43 @@ function useCountAnnouncement(n: number, ready: boolean): string {
   return text;
 }
 
+/** EN | DE: the UI language, remembered in this browser. */
+function LangSwitch() {
+  const lang = useLang((s) => s.lang);
+  const setLang = useLang((s) => s.setLang);
+  const t = useT();
+  return (
+    <div className={styles.lang} role="group" aria-label={t('Language')}>
+      {LANGS.map((l) => (
+        <button
+          key={l}
+          type="button"
+          className={`${styles.langButton} ${lang === l ? styles.langActive : ''}`}
+          aria-pressed={lang === l}
+          title={l === 'en' ? 'English' : 'Deutsch'}
+          onClick={() => setLang(l)}
+        >
+          {l.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /**
- * App bar: brand, navigation links (amber badge = documents waiting for review), search with a message
- * popover, your name. The link to the current page carries aria-current="page"; its section is
- * underlined (MAP also on a borehole's detail). MAP returns to the last map view; REVIEW goes to the
- * last reviewed borehole or the first document in review, and is off with the reason when there is none.
- * INBOX carries the number of unresolved clarification questions (in its name, and announced
- * politely when it changes); the question dialog is mounted here once, over every screen.
+ * App bar (frontend_din's black bar): the logo and product name (back to the map), the navigation MAP
+ * · LIST · UPLOAD & QUEUE (amber badge = documents waiting for review) · INBOX (unresolved questions,
+ * in its name and announced politely when the count changes), the search, EN | DE, CHAT and the user.
+ *
+ * The search filters while it is typed (the map keeps only the matching pins, LIST only the matching
+ * rows); Enter jumps to the best match: the map flies to it, or LIST shows one without coordinates.
+ * The link of the current section carries aria-current="page" and is underlined (MAP also on a
+ * borehole's detail and sheet, UPLOAD & QUEUE on Review). MAP returns to the last map view.
  */
 export function Header() {
+  const t = useT();
   const section = SECTION[useLocationRoute().kind];
   const mapTo = useAppStore(mapHref);
-  const reviewTo = useAppStore(reviewHref);
-  const reviewOff = useAppStore((s) => reviewOffReason(s.loadState));
   const needsReview = useAppStore((s) => s.documents.filter((d) => d.step === 2).length);
   const query = useAppStore((s) => s.query);
   const setQuery = useAppStore((s) => s.setQuery);
@@ -68,77 +96,91 @@ export function Header() {
   const loadClarifications = useAppStore((s) => s.loadClarifications);
   const dataReady = useAppStore((s) => s.loadState === 'ready');
   const announcement = useCountAnnouncement(questions, questionsState === 'ready');
+  const input = useRef<HTMLInputElement>(null);
 
   // The badge needs the questions on every screen: load them once the data is there, unless done.
   useEffect(() => {
     if (dataReady && questionsState === 'idle') void loadClarifications();
   }, [dataReady, questionsState, loadClarifications]);
 
-  const itemClass = (s: Section) => ({ isActive }: { isActive: boolean }) =>
-    `${styles.navItem} ${isActive || section === s ? styles.active : ''}`;
+  const item = (s: Section) => ({
+    className: `${styles.navItem} ${section === s ? styles.active : ''}`,
+    'aria-current': section === s ? ('page' as const) : undefined,
+  });
 
   return (
     <header className={styles.header}>
-      <div className={styles.brand}>
-        <div className={styles.logo} aria-hidden="true">{APP_NAME.charAt(0)}</div>
-        <div className={styles.name}>{APP_NAME}</div>
-        <div className={styles.tagline}>Borehole Intelligence</div>
-      </div>
+      <Link to={mapTo} className={styles.brand} aria-label={`${APP_NAME}: ${t('go to the map')}`} data-main-nav="">
+        <img className={styles.logo} src={`${import.meta.env.BASE_URL}logo.png`} width="40" height="40" alt="" />
+        <span className={styles.name}>{APP_NAME}</span>
+        <span className={styles.tagline}>{t('Borehole Intelligence')}</span>
+      </Link>
       <nav className={styles.nav} aria-label="Main" data-main-nav="">
-        <NavLink to={mapTo} end className={itemClass('map')}>
-          MAP
-        </NavLink>
-        <NavLink to="/queue" end className={itemClass('queue')}>
-          UPLOAD &amp; QUEUE
+        <Link to={mapTo} {...item('map')}>
+          {t('MAP')}
+        </Link>
+        <Link to={`/${ROUTE.list}`} {...item('list')}>
+          {t('LIST')}
+        </Link>
+        <Link to={`/${ROUTE.queue}`} {...item('queue')}>
+          {t('UPLOAD & QUEUE')}
           {needsReview > 0 && (
-            <span className={styles.badge} title={`${needsReview} documents need review`}>{needsReview}</span>
+            <span className={styles.badge} title={`${needsReview} ${t('documents need review')}`}>
+              {needsReview}
+            </span>
           )}
-        </NavLink>
-        {reviewTo ? (
-          <NavLink to={reviewTo} end className={itemClass('review')}>
-            REVIEW
-          </NavLink>
-        ) : (
-          // Off: focusable, so keyboard and screen-reader users also get the reason.
-          <span
-            role="link"
-            aria-disabled="true"
-            tabIndex={0}
-            title={reviewOff}
-            className={`${styles.navItem} ${styles.off} ${section === 'review' ? styles.active : ''}`}
-          >
-            REVIEW
-          </span>
-        )}
-        <NavLink to={inboxPath()} end className={itemClass('inbox')} aria-label={inboxLinkLabel(questions)}>
-          INBOX
+        </Link>
+        <Link to={inboxPath()} {...item('inbox')} aria-label={inboxLinkLabel(questions)}>
+          {t('INBOX')}
           {questions > 0 && (
             <span className={styles.badge} aria-hidden="true">
               {questions}
             </span>
           )}
-        </NavLink>
+        </Link>
       </nav>
       <span className={styles.srOnly} aria-live="polite" aria-atomic="true">
         {announcement}
       </span>
       <div className={styles.search}>
         <input
+          ref={input}
           className={styles.input}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') search();
+            else if (e.key === 'Escape' && query) {
+              // Clears the search first; the app's Escape (panels, dialogs) waits for the next press.
+              e.stopPropagation();
+              e.nativeEvent.stopImmediatePropagation();
+              setQuery('');
+            }
           }}
-          placeholder="Search project or borehole ID  ⏎"
-          aria-label="Search project or borehole ID"
+          placeholder={t('Search')}
+          aria-label={t('Search project or borehole ID')}
+          title={t('Filters the map and the list while you type; Enter jumps to the borehole')}
         />
+        {query && (
+          <button
+            type="button"
+            className={styles.clear}
+            aria-label={t('Clear the search')}
+            onClick={() => {
+              setQuery('');
+              input.current?.focus();
+            }}
+          >
+            ×
+          </button>
+        )}
         {searchMessage && (
           <div className={styles.message} role="status">
             {searchMessage}
           </div>
         )}
       </div>
+      <LangSwitch />
       <ChatButton />
       <UserMenu />
     </header>

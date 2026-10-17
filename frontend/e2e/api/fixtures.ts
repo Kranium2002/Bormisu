@@ -30,7 +30,7 @@ const BLANK_TILE = Buffer.from(
 export const API = '/api/v1';
 
 /** Pin and chip colours (src/theme.ts COL). */
-export const COLOR = { approved: '#7DB713', attention: '#E39B00', grey: '#A3A3A2', unknownDin: '#E0E0E0' } as const;
+export const COLOR = { approved: '#1E7B34', attention: '#E39B00', grey: '#A3A3A2', unknownDin: '#E0E0E0' } as const;
 
 /** Status chip labels (src/theme.ts statusChip). */
 export const STATUS_LABEL = {
@@ -351,13 +351,24 @@ export async function reload(page: Page): Promise<void> {
   await loaded(page);
 }
 
-/** A link of the header nav (MAP, UPLOAD & QUEUE with its badge, REVIEW). */
-export const navLink = (page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW') =>
+/** A link of the header nav (MAP, LIST, UPLOAD & QUEUE and INBOX with their badges). */
+export type NavName = 'MAP' | 'LIST' | 'UPLOAD & QUEUE' | 'INBOX';
+export const navLink = (page: Page, name: NavName) =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: new RegExp(`^${name}`) });
 
-/** Goes to one of the three main screens through the header nav. */
-export async function nav(page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
-  await navLink(page, name).click();
+/**
+ * Goes to a main screen through the header nav. Review has no tab (it opens from UPLOAD & QUEUE and
+ * the detail): 'REVIEW' goes to /review in the page (no reload), which opens the review target.
+ */
+export async function nav(page: Page, name: NavName | 'REVIEW'): Promise<void> {
+  if (name !== 'REVIEW') {
+    await navLink(page, name).click();
+    return;
+  }
+  await page.evaluate(() => {
+    window.history.pushState(null, '', '/review');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
 }
 
 /** A RESULTS row by its borehole ID as printed. */

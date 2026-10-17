@@ -50,7 +50,7 @@ describe('CrsDialog', () => {
   it('colours each candidate by its verdict; no verdict stays neutral', () => {
     const r = radios(render());
     expect(r.map((x) => /data-verdict="([^"]+)"/.exec(x)?.[1])).toEqual(['match', 'match', 'shifted', 'out_of_range', 'none']);
-    expect(r[0]).toContain('border-left-color:#7DB713');
+    expect(r[0]).toContain('border-left-color:#1E7B34');
     expect(r[2]).toContain('border-left-color:#E39B00');
     expect(r[3]).toContain('border-left-color:#C8102E');
     expect(r[4]).toContain('border-left-color:#A3A3A2');

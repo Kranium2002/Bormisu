@@ -29,7 +29,7 @@ test.describe('every control works', () => {
   test.beforeEach(async ({ page }) => openApp(page));
 
   test('header: the nav links, the inbox badge, your name and the borehole search', async ({ page }) => {
-    for (const [name, path] of [['UPLOAD & QUEUE', '/queue'], ['REVIEW', '/review/'], ['MAP', '/map']] as const) {
+    for (const [name, path] of [['UPLOAD & QUEUE', '/queue'], ['LIST', '/list'], ['MAP', '/map']] as const) {
       await nav(page, name);
       await expect(page).toHaveURL(new RegExp(path));
     }

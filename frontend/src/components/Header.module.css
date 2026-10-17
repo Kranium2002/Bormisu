@@ -1,31 +1,39 @@
+/* The black app bar (frontend_din): brand, nav, search, EN | DE, CHAT and the user on the right. */
 .header {
   flex: none;
   height: 56px;
   background: var(--c-dark);
-  color: #fff;
+  color: var(--c-surface);
   display: flex;
   align-items: stretch;
-  padding: 0 24px;
-  gap: 36px;
+  padding: 0 var(--space-5);
+  gap: var(--space-5);
 }
 
+/* A link that looks like the brand: back to the map. */
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
+  color: inherit;
+  text-decoration: none;
+  flex: none;
 }
 
+.brand:hover {
+  color: inherit;
+}
+
+.brand:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: -2px;
+}
+
+/* Brand mark: its sizes are the logo's, not the type scale's. */
 .logo {
-  width: 30px;
-  height: 30px;
-  background: var(--c-green);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  font-size: 19px;
-  color: var(--c-on-green);
-  text-transform: uppercase;
+  width: 40px;
+  height: 40px;
+  display: block;
 }
 
 /* APP_NAME from config, shown upper case. */
@@ -37,63 +45,57 @@
 }
 
 .tagline {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 300;
   color: var(--c-nav-idle);
+  white-space: nowrap;
 }
 
+/* Items are padded so the focus ring clears the label; gap + padding keep 28 px between labels. */
 .nav {
   display: flex;
-  gap: 28px;
+  gap: var(--space-3);
   align-items: stretch;
 }
 
-/* Nav links (NavLink renders <a>); REVIEW without a target is a span with aria-disabled. */
 .navItem {
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-2);
   font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-caps);
   color: var(--c-nav-idle);
   text-decoration: none;
   background: none;
-  padding: 0;
+  padding: 0 var(--space-2);
   border: 0;
   border-top: 3px solid transparent;
   border-bottom: 3px solid transparent;
+  white-space: nowrap;
 }
 
 .navItem:hover {
-  color: #fff;
+  color: var(--c-surface);
 }
 
+/* White on the black bar, drawn inside the item so the bar doesn't clip it. */
 .navItem:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 2px;
-}
-
-/* Off (no target): dimmed, no hover; the reason is its tooltip. */
-.off,
-.off:hover {
-  cursor: not-allowed;
-  color: var(--c-nav-idle);
-  opacity: 0.55;
+  outline: var(--focus-ring-on-dark);
+  outline-offset: -3px;
 }
 
 .active {
-  color: #fff;
-  border-bottom-color: var(--c-green);
+  color: var(--c-surface);
+  border-bottom-color: var(--c-on-dark-accent);
 }
 
 .badge {
+  composes: chip from '../styles/chips.module.css';
   background: var(--c-amber);
   color: var(--c-text);
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 2px;
+  letter-spacing: 0;
 }
 
 /* Read by screen readers only (the inbox count announcement). */
@@ -121,28 +123,78 @@
   height: 32px;
   border: 0;
   border-radius: 2px;
-  padding: 0 10px;
-  font-size: 13px;
+  padding: 0 32px 0 var(--space-3);
+  font-size: var(--fs-md);
   font-family: inherit;
-  background: #fff;
+  background: var(--c-surface);
   color: var(--c-text);
   box-sizing: border-box;
+}
+
+.input:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: 2px;
+}
+
+/* × inside the search box while it holds a query. */
+.clear {
+  composes: iconButton from '../styles/buttons.module.css';
+  position: absolute;
+  right: 2px;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
 }
 
 .message {
   position: absolute;
   top: 48px;
   right: 0;
-  background: #fff;
+  background: var(--c-surface);
   color: var(--c-text);
-  font-size: 12px;
-  padding: 9px 12px;
+  font-size: var(--fs-sm);
+  padding: var(--space-2) var(--space-3);
   box-shadow: var(--shadow-search);
   z-index: var(--z-search);
   white-space: nowrap;
 }
 
-/* "Your name" button and its form */
+/* EN | DE switch right of the search box. */
+.lang {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  flex: none;
+  border: 1px solid var(--c-nav-idle);
+  border-radius: 2px;
+}
+
+.langButton {
+  border: 0;
+  background: none;
+  color: var(--c-nav-idle);
+  font: 700 var(--fs-xs) var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  padding: 7px var(--space-2);
+  cursor: pointer;
+}
+
+.langButton:hover {
+  color: var(--c-surface);
+}
+
+.langActive,
+.langActive:hover {
+  background: var(--c-surface);
+  color: var(--c-text);
+}
+
+.langButton:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: 1px;
+}
+
+/* "Your name" button (no sign-in on the server) and its form */
 .nameWrap {
   position: relative;
   display: flex;
@@ -160,14 +212,19 @@
   border: 1px solid var(--c-nav-idle);
   border-radius: 2px;
   background: none;
-  color: #fff;
-  font-size: 12px;
+  color: var(--c-surface);
+  font-size: var(--fs-sm);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--ls-caps);
 }
 
 .nameButton:hover {
-  border-color: #fff;
+  border-color: var(--c-surface);
+}
+
+.nameButton:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: 2px;
 }
 
 .nameUnset {
@@ -176,78 +233,67 @@
 }
 
 .nameForm {
-  padding: 14px;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   color: var(--c-text);
 }
 
 .nameLabel {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 800;
-  letter-spacing: 0.07em;
+  letter-spacing: var(--ls-head);
 }
 
 .nameInput {
   height: 30px;
   border: 1px solid var(--c-border-strong);
   border-radius: 2px;
-  padding: 0 8px;
-  font-size: 13px;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-md);
   font-family: inherit;
 }
 
 .nameInput:focus {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: -1px;
 }
 
 .nameNote {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--c-muted);
   line-height: 1.4;
 }
 
 .nameActions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
 .nameSave {
-  cursor: pointer;
-  background: var(--c-green);
-  color: var(--c-on-green);
-  border: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 8px 14px;
-  border-radius: 4px;
+  composes: primary from '../styles/buttons.module.css';
 }
 
 .nameClear {
-  cursor: pointer;
-  background: none;
-  border: 0;
-  color: var(--c-text);
-  font-size: 12px;
-  padding: 8px 4px;
+  composes: quiet from '../styles/buttons.module.css';
+  font-weight: 400;
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
 }
 
 /*
- * Narrower than 1280 px (FRONTEND.md section 6): the bar wraps instead of pushing the page wider.
- * Row 1 keeps the brand, the search and the controls on the right (chat, your name); the nav moves
- * to a compact row of its own under it.
+ * Narrower than 1280 px: the bar wraps instead of pushing the page wider. Row 1 keeps the brand, the
+ * search and the controls on the right (EN | DE, chat, the user); the nav moves to a row of its own.
  */
 @media (max-width: 1279px) {
   .header {
     height: auto;
     flex-wrap: wrap;
     align-items: center;
-    padding: 0 16px;
-    column-gap: 16px;
+    padding: 0 var(--space-4);
+    column-gap: var(--space-3);
     row-gap: 0;
   }
 
@@ -278,7 +324,7 @@
     order: 1;
     flex: 1 0 100%;
     height: 38px;
-    gap: 22px;
+    gap: var(--space-2);
     /* A long badge never pushes the page wider: the row scrolls on its own. */
     overflow-x: auto;
     scrollbar-width: none;
@@ -287,50 +333,57 @@
 
   .navItem {
     flex: none;
-    white-space: nowrap;
-  }
-
-  /* The row clips what sticks out of it, so the outline goes inside. */
-  .navItem:focus-visible {
-    outline-offset: -2px;
   }
 }
 
-/* Phones: the search gets a row of its own under the brand and the controls. */
+/*
+ * Phones: row 1 the brand (logo and name) with chat and the user, row 2 the search, row 3 the nav with
+ * EN | DE at its end. Nothing is wider than the screen; the nav row scrolls on its own when it must.
+ */
 @media (max-width: 767px) {
   .header {
-    column-gap: 10px;
+    column-gap: var(--space-2);
   }
 
   .brand {
     min-height: 48px;
     margin-right: auto;
+    gap: var(--space-2);
+  }
+
+  .logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .name {
+    font-size: 16px;
   }
 
   .search {
     order: 1;
     flex: 1 0 100%;
     margin-left: 0;
-    padding-bottom: 8px;
+    padding-bottom: var(--space-2);
   }
 
   .nav {
     order: 2;
-    gap: 18px;
-  }
-
-  .nameButton {
-    max-width: 140px;
-  }
-}
-
-/* Small phones (360 px): the four nav links still fit their row without scrolling. */
-@media (max-width: 389px) {
-  .nav {
-    gap: 12px;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 0;
   }
 
   .navItem {
-    letter-spacing: 0.05em;
+    padding: 0 6px;
+    letter-spacing: 0.04em;
+  }
+
+  .lang {
+    order: 3;
+  }
+
+  .nameButton {
+    max-width: 120px;
   }
 }
