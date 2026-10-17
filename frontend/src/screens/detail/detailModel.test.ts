@@ -11,8 +11,10 @@ import {
   layerRows,
   locationInfo,
   metadataRows,
+  markOf,
   reviewedText,
   shown,
+  testTable,
   unreviewedCount,
 } from './detailModel';
 
@@ -273,13 +275,66 @@ describe('layerLint', () => {
 describe('groundwaterRows', () => {
   it('shows type, depth and the raw text', () => {
     expect(groundwaterRows(shortLog())).toEqual([
-      { key: K.gw(0), type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', method: 'Read', confidence: 0.9, hasSource: true },
+      {
+        key: K.gw(0), type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', method: 'Read', confidence: 0.9, hasSource: true,
+        certainty: { kind: 'sure', title: 'AI sure (90 %)' },
+      },
     ]);
   });
 
   it('never makes up a depth for a reading without one', () => {
     const b = makeBorehole({ groundwater: [{ type: 'other', depth: null, elevation: null, date: null, raw: 'dry', key: 'GW[7]' }] });
     expect(groundwaterRows(b)[0]).toMatchObject({ depth: { text: 'depth not stated', missing: true }, raw: '“dry”', hasSource: false });
+  });
+});
+
+describe('status dots', () => {
+  it('gives a value its certainty and opens it only with a provenance entry', () => {
+    const b = shortLog();
+    b.values.push(makeValue({ key: 'X1', value: '1', status: 'flagged', flag: 'smudged' }), makeValue({ key: 'X2', value: '2', hasProvenance: false }));
+    expect(markOf(b, 'X1')).toEqual({ certainty: { kind: 'flagged', title: 'Flagged: smudged' }, key: 'X1' });
+    expect(markOf(b, 'X2')?.key).toBeNull();
+    expect(markOf(b, 'nope')).toBeNull();
+  });
+
+  it('puts a dot on every metadata row with a value and the mono face on numbers only', () => {
+    const rows = metadataRows(shortLog());
+    const fd = rows.find((r) => r.label === 'Final depth');
+    expect(fd).toMatchObject({ numeric: true });
+    expect(fd?.certainty?.kind).toBeDefined();
+    expect(rows.find((r) => r.label === 'CRS')?.numeric).toBe(false);
+  });
+
+  it('marks the layer columns that have a value behind them', () => {
+    const [first] = layerRows(shortLog());
+    expect(first.marks.spt?.key).toBe(K.spt(1));
+    expect(first.marks.tcr).toBeNull();
+  });
+});
+
+describe('testTable', () => {
+  it('puts results on their sample row, one column per test, sorted by depth, never inventing a depth', () => {
+    const b = makeBorehole({
+      layers: [makeLayer({ n: 1, from: 0, to: 2 }), makeLayer({ n: 2, from: 2, to: 6 })],
+      samples: [
+        { name: 'P2', typeCode: 'GP', from: 4, to: 4.5, key: K.sampleName(0) },
+        { name: 'P1', typeCode: null, from: 1, to: null, key: K.sampleName(1) },
+      ],
+      testResults: [
+        { name: 'Water content', value: 21.5, qualifier: null, unit: '%', sampleName: 'P1', depth: 1, key: K.test(0) },
+        { name: 'UCS', value: 0.5, qualifier: '<', unit: 'MPa', sampleName: 'P2', depth: 4.2, key: K.test(1) },
+        { name: 'UCS', value: 12, qualifier: null, unit: 'MPa', sampleName: null, depth: null, key: K.test(2) },
+      ],
+    });
+    b.values.push(makeValue({ key: K.test(1), group: 'test', value: '0.5', status: 'approved' }));
+    const { columns, rows } = testTable(b);
+    expect(columns).toEqual(['Water content', 'UCS']);
+    expect(rows.map((r) => r.sample)).toEqual(['P1', 'P2', '–']);
+    expect(rows[0]).toMatchObject({ depth: { text: '1.00', missing: false }, layer: 1, sampleIndex: 1 });
+    expect(rows[0].cells['Water content'].text).toBe('21.5 %');
+    expect(rows[1]).toMatchObject({ depth: { text: '4.00–4.50' }, layer: 2, typeCode: 'GP' });
+    expect(rows[1].cells.UCS).toEqual({ text: '<0.5 MPa', mark: { certainty: { kind: 'sure', title: 'Reviewed' }, key: K.test(1) } });
+    expect(rows[2]).toMatchObject({ depth: { text: 'not stated', missing: true }, layer: null, sampleIndex: null });
   });
 });
 

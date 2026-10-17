@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { Popover } from '../../components/Popover';
 import { Toggle } from '../../components/Toggle';
 import { errorText } from '../../data/errors';
 import type { Borehole } from '../../domain/types';
 import { useAppStore, type ExportKind } from '../../store/appStore';
 import { exportScope } from '../../export/scope';
+import { useT } from '../../i18n';
+import { sheetPath } from '../../routing/urlState';
 import { excludedText, unreviewedCount } from './detailModel';
 import styles from './ExportMenu.module.css';
 
@@ -24,11 +27,13 @@ interface Props {
 
 /**
  * EXPORT ▾ button with its menu: the three exports of the borehole's project (same scope as the
- * store's exportFile) and the "Include unreviewed values" switch. Off by default; on stamps DRAFT.
+ * store's exportFile), the generated sheet of this borehole (printable as PDF) and the "Include
+ * unreviewed values" switch. Off by default; on stamps DRAFT.
  * Opening the menu loads the full records of the borehole's document (once; then cached), so the
  * count of excluded values covers every borehole the export will hold.
  */
 export function ExportMenu({ borehole }: Props) {
+  const t = useT();
   const open = useAppStore((s) => s.exportOpen);
   const toggleExport = useAppStore((s) => s.toggleExport);
   const include = useAppStore((s) => s.includeUnreviewed);
@@ -72,21 +77,25 @@ export function ExportMenu({ borehole }: Props) {
   return (
     <div className={styles.wrap} ref={wrapRef}>
       <button type="button" className={styles.button} aria-haspopup="dialog" aria-expanded={open} onClick={toggleExport}>
-        EXPORT ▾
+        {t('EXPORT ▾')}
       </button>
       {open && (
         <Popover width={360} label="Export">
           <div className={styles.head}>EXPORT PROJECT · {borehole.project.toUpperCase()}</div>
           {OPTIONS.map((o) => (
             <button key={o.kind} type="button" className={styles.option} onClick={() => void exportFile(o.kind)}>
-              <span className={styles.optionLabel}>{o.label}</span>
-              <span className={styles.optionDesc}>{o.desc}</span>
+              <span className={styles.optionLabel}>{t(o.label)}</span>
+              <span className={styles.optionDesc}>{t(o.desc)}</span>
             </button>
           ))}
+          <Link className={styles.option} to={sheetPath(borehole.uid)} onClick={toggleExport}>
+            <span className={styles.optionLabel}>{t('Borehole sheet (PDF)')}</span>
+            <span className={styles.optionDesc}>{t('This borehole as a DIN 4023 sheet: print it or save it as PDF')}</span>
+          </Link>
           <div className={styles.include} onClick={toggleInclude}>
             <Toggle on={include} onToggle={toggleInclude} id="export-include-unreviewed" />
             <label className={styles.includeText} htmlFor="export-include-unreviewed" onClick={(e) => e.stopPropagation()}>
-              <span className={styles.includeLabel}>Include unreviewed values</span>
+              <span className={styles.includeLabel}>{t('Include unreviewed values')}</span>
               <span className={`${styles.includeNote} ${include && !counting && !failed ? styles.draft : ''}`} aria-live="polite">
                 {note}
               </span>

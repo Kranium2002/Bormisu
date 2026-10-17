@@ -3,12 +3,13 @@
  * groundwater row shows. One code path for every borehole (sample or API); displayed values always
  * come from the borehole's ExtractedValues, with the borehole's metadata only where no value exists.
  */
+import { certaintyOf, type Certainty } from '../../domain/certainty';
 import { crsLabel, lintText, printedCoordinates, unplottedText } from '../../domain/format';
 import { K } from '../../domain/keys';
 import { fromOtherDocument, progress } from '../../domain/review';
 import { formatSpt, refusalTitle, sptDepthText } from '../../domain/spt';
 import { displayStatus } from '../../domain/status';
-import type { Borehole, DepthOrigin, ExtractedValue, GroundwaterReading, Layer, Lint, Method, Spt } from '../../domain/types';
+import type { Borehole, DepthOrigin, ExtractedValue, GroundwaterReading, Layer, Lint, Method, Sample, Spt, TestResult } from '../../domain/types';
 
 /** Colour family of a small chip next to a value. */
 export type ChipTone = 'red' | 'amber' | 'green' | 'grey';
@@ -35,6 +36,18 @@ export function shown(v: ExtractedValue | undefined, missingText = 'not in sourc
 /** Plain cell text for numeric table columns (TCR, RQD): the value or a dash. */
 function cell(v: ExtractedValue | undefined): string {
   return v && v.state === 'ok' && v.value ? v.value : DASH;
+}
+
+/**
+ * The status dot of one value (green sure, yellow unsure, red flagged, grey not in source) and the key
+ * its click opens in the document view; null key = the backend sent no provenance entry, nothing to open.
+ */
+export interface ValueMark { certainty: Certainty; key: string | null }
+
+/** The dot of a value key, or null when the borehole has no such value. */
+export function markOf(b: Borehole, key: string): ValueMark | null {
+  const v = valueOf(b, key);
+  return v ? { certainty: certaintyOf(v), key: v.hasProvenance ? key : null } : null;
 }
 
 /** Chips every value can carry: an open lint (red error / amber warning) and a review flag. */
@@ -79,7 +92,16 @@ export interface MetaRow {
   /** Second line, e.g. the coordinates exactly as printed under the converted X / Y. */
   sub?: string;
   source: SourceLink;
+  /** The status dot; null when there is no value behind the row. */
+  certainty: Certainty | null;
+  /** A number, date or coordinate pair: shown in the mono face. Words stay in the sans. */
+  numeric: boolean;
 }
+
+/** Rows whose values are numbers, dates or coordinates (mono face). */
+const NUMERIC = new Set<string>([
+  K.finalDepth, K.boreholeLength, K.inclination, K.rockHead, K.elevation, K.xy, K.drillingDate, K.startDate, K.endDate,
+]);
 
 function sourceLink(v: ExtractedValue | undefined): SourceLink {
   if (!v) return 'dim';
@@ -98,6 +120,8 @@ function metaRow(b: Borehole, label: string, key: string, extraChips: (v: Extrac
     confidence: v?.confidence,
     formula: v?.formula,
     source: sourceLink(v),
+    certainty: v ? certaintyOf(v) : null,
+    numeric: NUMERIC.has(key),
   };
 }
 
@@ -109,7 +133,7 @@ function metaRow(b: Borehole, label: string, key: string, extraChips: (v: Extrac
 function optionalRow(b: Borehole, label: string, key: string, fallback: string | null = null): MetaRow | null {
   const v = valueOf(b, key);
   if (v && (v.value.trim() || v.hasProvenance || v.state !== 'ok')) return metaRow(b, label, key);
-  if (fallback) return { label, key: null, shown: { text: fallback, missing: false }, chips: [], method: null, source: 'none' };
+  if (fallback) return { label, key: null, shown: { text: fallback, missing: false }, chips: [], method: null, source: 'none', certainty: null, numeric: false };
   return null;
 }
 
@@ -185,7 +209,7 @@ export function metadataRows(b: Borehole): MetaRow[] {
   const rockRow: MetaRow = rock
     ? metaRow(b, 'Rock head', K.rockHead)
     : // The backend states no rock head: unknown, not "not reached" (that would be an interpretation).
-      { label: 'Rock head', key: null, shown: { text: 'not in source', missing: true }, chips: [], method: null, source: 'none' };
+      { label: 'Rock head', key: null, shown: { text: 'not in source', missing: true }, chips: [], method: null, source: 'none', certainty: null, numeric: true };
   const origin = b.meta.depthOrigin ? DEPTH_ORIGIN_LABEL[b.meta.depthOrigin] : null;
   const rows: (MetaRow | null)[] = [
     optionalRow(b, 'Borehole name', K.boreholeName),
@@ -279,6 +303,10 @@ export interface LayerRow {
   confidence: number | null;
   /** Key of the layer's lithology value: the row's source icon opens it (null without a provenance entry). */
   sourceKey: string | null;
+  /** Status dots of the layer's values, per column (null: no such value). */
+  marks: Record<'range' | 'lithology' | 'strat' | 'spt' | 'tcr' | 'rqd', ValueMark | null>;
+  /** The layer's other fields as text ('–' when the record has none), for the optional columns. */
+  extra: Record<'consistency' | 'moisture' | 'weathering' | 'colour' | 'soilUnit' | 'age' | 'core', string>;
 }
 
 /** "at 10.50 m" or "depth not stated": a test outside the profile never gets an invented depth. */
@@ -325,6 +353,23 @@ export function layerRows(b: Borehole): LayerRow[] {
       method: lith?.method ?? l.method,
       confidence: lith?.confidence ?? l.confidence,
       sourceKey: lith?.hasProvenance ? lith.key : null,
+      marks: {
+        range: markOf(b, K.bottom(l.n)),
+        lithology: lith ? markOf(b, lith.key) : l.method ? { certainty: certaintyOf(l), key: null } : null,
+        strat: markOf(b, K.strat(l.n)),
+        spt: markOf(b, K.spt(l.n)),
+        tcr: markOf(b, K.tcr(l.n)),
+        rqd: markOf(b, K.rqd(l.n)),
+      },
+      extra: {
+        consistency: l.consistency || DASH,
+        moisture: l.moisture || DASH,
+        weathering: l.weathering || DASH,
+        colour: l.colour || DASH,
+        soilUnit: l.engineeringSoilUnit || DASH,
+        age: l.geologicAge || DASH,
+        core: l.isCore == null ? DASH : l.isCore ? 'yes' : 'no',
+      },
     };
   });
 }
@@ -354,6 +399,7 @@ export interface GroundwaterRow {
   confidence?: number | null;
   /** The reading has a provenance entry: its source icon opens it. */
   hasSource: boolean;
+  certainty: Certainty | null;
 }
 
 export const GW_LABEL: Record<GroundwaterReading['type'], string> = {
@@ -383,8 +429,72 @@ export function groundwaterRows(b: Borehole): GroundwaterRow[] {
       method: v?.method ?? null,
       confidence: v?.confidence,
       hasSource: !!v?.hasProvenance,
+      certainty: v ? certaintyOf(v) : null,
     };
   });
+}
+
+/* ---------- test results ---------- */
+
+/** One lab or in-situ value in the TEST RESULTS table ("< 0.5 MPa") with its dot. */
+export interface TestCell { text: string; mark: ValueMark | null }
+
+/**
+ * One row of the TEST RESULTS table: a sample (its depth range from the samples list), or the depth
+ * of results that name no listed sample. `cells` holds its results by test name.
+ */
+export interface TestRow {
+  id: string;
+  sample: string;
+  /** Index into `borehole.samples`, null for results that name no listed sample. */
+  sampleIndex: number | null;
+  typeCode: string;
+  depth: Shown;
+  /** Depth the row sorts by and its layer is found at (the sample's bottom, else its top); null when unstated. */
+  at: number | null;
+  /** The layer at that depth, null when there is none. */
+  layer: number | null;
+  cells: Record<string, TestCell>;
+}
+
+/** "< 0.5 MPa": qualifier, value and unit as the record states them. */
+export const testText = (r: Pick<TestResult, 'value' | 'qualifier' | 'unit'>) =>
+  r.value == null ? 'not stated' : `${r.qualifier ?? ''}${r.value}${r.unit ? ` ${r.unit}` : ''}`;
+
+function sampleRange(s: Pick<Sample, 'from' | 'to'>): Shown {
+  if (s.from == null && s.to == null) return { text: 'not stated', missing: true };
+  if (s.from != null && s.to != null && s.to !== s.from) return { text: `${s.from.toFixed(2)}–${s.to.toFixed(2)}`, missing: false };
+  return { text: (s.from ?? s.to)!.toFixed(2), missing: false };
+}
+
+/**
+ * The TEST RESULTS table: its columns (every test name the borehole has, in first-seen order) and
+ * one row per sample, or per depth of results without a listed sample, sorted by depth. A result
+ * joins the row of its sample (same name), else the row of its depth.
+ */
+export function testTable(b: Borehole): { columns: string[]; rows: TestRow[] } {
+  const layerAt = (d: number | null) => (d == null ? null : (b.layers.find((l) => d >= l.from && d <= l.to)?.n ?? null));
+  const rows: TestRow[] = b.samples.map((s, i) => {
+    const at = s.to ?? s.from;
+    return { id: `s${i}`, sample: s.name || DASH, sampleIndex: i, typeCode: s.typeCode || DASH, depth: sampleRange(s), at, layer: layerAt(at), cells: {} };
+  });
+  const columns: string[] = [];
+  b.testResults.forEach((r, i) => {
+    if (!columns.includes(r.name)) columns.push(r.name);
+    let row = r.sampleName ? rows.find((x) => x.sampleIndex != null && b.samples[x.sampleIndex].name === r.sampleName) : undefined;
+    row ??= rows.find((x) => x.sampleIndex == null && x.sample === (r.sampleName || DASH) && x.at === r.depth);
+    if (!row) {
+      row = {
+        id: `t${i}`, sample: r.sampleName || DASH, sampleIndex: null, typeCode: DASH,
+        depth: r.depth == null ? { text: 'not stated', missing: true } : { text: r.depth.toFixed(2), missing: false },
+        at: r.depth, layer: layerAt(r.depth), cells: {},
+      };
+      rows.push(row);
+    }
+    row.cells[r.name] = { text: testText(r), mark: markOf(b, r.key) };
+  });
+  rows.sort((x, y) => (x.at ?? Infinity) - (y.at ?? Infinity));
+  return { columns, rows };
 }
 
 /* ---------- export ---------- */

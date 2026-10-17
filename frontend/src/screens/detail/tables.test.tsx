@@ -38,7 +38,7 @@ describe('GroundwaterTable', () => {
     });
     b.values = [makeValue({ key: K.gw(0), group: 'groundwater', value: '1.80', unit: 'm' })];
     const html = renderToStaticMarkup(<GroundwaterTable borehole={b} onOpenSource={noop} />);
-    expect(html.match(/aria-label="Show source"/g)).toHaveLength(1);
+    expect(html.match(/title="Show source"/g)).toHaveLength(1);
     expect(html).toContain('depth not stated');
     expect(html).toContain('“dry”');
   });

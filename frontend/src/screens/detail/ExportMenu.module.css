@@ -2,33 +2,30 @@
   position: relative;
 }
 
+/* The screen's one primary action. */
 .button {
-  cursor: pointer;
+  composes: primary from '../../styles/buttons.module.css';
   display: block;
-  border: 0;
-  background: var(--c-green);
-  color: var(--c-on-green);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 10px 16px;
-  border-radius: 4px;
-}
-
-.button:hover {
-  filter: brightness(0.95);
 }
 
 .head {
-  padding: 12px 16px;
-  font-size: 11px;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
   font-weight: 800;
-  letter-spacing: 0.07em;
+  letter-spacing: var(--ls-head);
   border-bottom: 1px solid var(--c-border);
 }
 
+/* The project name is data: as printed, not in caps (like the profile's "DIN 4023" note). */
+.headProject {
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--c-muted);
+}
+
 .option {
-  padding: 11px 16px;
+  text-decoration: none;
+  padding: var(--space-3) var(--space-4);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -38,29 +35,38 @@
   background: var(--c-surface);
   text-align: left;
   color: var(--c-text);
+  font-family: var(--font-sans);
 }
 
-.option:hover,
-.option:focus-visible {
+.option:hover {
   background: var(--c-hover);
-  outline: none;
+}
+
+.option:active {
+  background: var(--c-selected);
+}
+
+/* Inset, so the ring stays inside the menu and doesn't overlap the neighbouring options. */
+.option:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .optionLabel {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 700;
 }
 
 .optionDesc {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
 }
 
 .include {
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   cursor: pointer;
   background: var(--c-bg);
 }
@@ -73,12 +79,12 @@
 }
 
 .includeLabel {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
 }
 
 .includeNote {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
 }
 
