@@ -204,7 +204,8 @@ test.describe('map canvas', () => {
     await expect(page.getByRole('group', { name: 'Final depth legend' })).toBeVisible();
     const rows = await legendRows(page);
     expect(rows.map(([label]) => label)).toEqual(DEPTH_LABELS);
-    expect(rows.reduce((a, [, n]) => a + n, 0)).toBe(SAMPLE_PINS);
+    // The search keeps only BK-11 on the map, and the legend counts what the map shows.
+    expect(rows.reduce((a, [, n]) => a + n, 0)).toBe(1);
     await expect.poll(async () => (await canvasColours(page)).filter((c) => DEPTH_COLOURS.includes(c)).length).toBeGreaterThan(0);
     const depthColours = await canvasColours(page);
     expect(depthColours.filter((c) => c === AMBER || c === GREEN), 'no status colour left on the canvas').toEqual([]);
