@@ -1,21 +1,41 @@
 # Bormisu — Speaker Script (5 min)
 
 Open `index.html` in Chrome. Arrow keys to advance.
+Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it automatically.
 
-## 01 · Title (~15 s)
+## 01 · Title (~10 s)
 
 > Hi, we're **Team Tiramisu**, and this is **Bormisu**.
-> Every borehole report, on one verified map.
 
-## 02 · Today (~40 s)
+## 02 · Hook (~15 s)
 
-> Herrenknecht needs to know the ground before it picks a machine.
-> That knowledge exists — in borehole reports. Scanned, handwritten, Word, Excel.
-> Every report has its own language, its own units, its own coordinate system.
-> Today someone types each layer into the Herrenknecht format by hand. And afterwards, nobody can say where a number came from.
-> One misread layer can mean the wrong machine underground.
+*TODO: to be defined.*
 
-## 03 · Live demo (~2:00)
+## 03 · Herrenknecht film (~20 s, speak over the video)
+
+> This is Herrenknecht. Tunnel boring machines from Schwanau, just down the road from us.
+> They dig under cities, through mountains and under the sea.
+
+## 04 · Projects (~25 s)
+
+> The Gotthard Base Tunnel — 57 kilometres, the longest railway tunnel in the world.
+> Grand Paris Express — 19 Herrenknecht machines building Paris's new metro.
+> And in Hong Kong, the biggest tunnel boring machine ever built: 17.6 metres.
+> *(beat)* And Stuttgart 21… we don't talk about Stuttgart 21.
+
+## 05 · Ground (~20 s)
+
+> But before the first metre, every tunnel starts with a borehole.
+> Layers, strength, water — that's what decides which machine you build.
+> Thousands of data points per project. Get them wrong, and the machine is wrong.
+
+## 06 · Formats (~25 s)
+
+> The problem: every country logs it differently. Often every company does.
+> Here: a Spanish log from Africa, Australia, South America, Southeast Asia — and handwritten sheets from Norway and Malaysia.
+> Different standards, different units, different coordinate systems. We turn all of it into one.
+
+## 07 · Live demo (~1:45)
 
 > Let me show you.
 
@@ -25,53 +45,53 @@ Open `index.html` in Chrome. Arrow keys to advance.
 2. The boreholes appear on the map, coloured by review status.
 3. Open one: the profile drawn to DIN 4023 — layers, groundwater, samples.
 4. Click a value → the scan opens with the exact box. Correct one value live.
-5. Confirm the coordinate system → pins turn from amber to normal.
-6. Export → the Herrenknecht standard xlsx, approved values only.
+5. Export → the Herrenknecht standard xlsx, approved values only.
 
 *(back to the deck)*
 
 **Backup:** if the network or the app fails, play the recorded run (TODO: record `demo.mp4`).
 
-## 04 · Trust (~20 s)
-
-> Every value carries one of four marks. Sure, unsure, flagged, or not in the source.
-> We never invent a value and never guess a position. If we don't know, the field is empty — with the reason.
-
-## 05 · Under the hood (~30 s)
+## 08 · Under the hood (~25 s)
 
 > Models read, Python decides.
 > A small model sorts the pages, OCR runs only where there is borehole data, and the extractor returns raw text with its source box — never a finished number.
 > Units, SPT, coordinates and DIN codes are normalised in plain Python, and every doubt becomes a question for a person.
 
-## 06 · Models (~30 s)
+## 09 · Deployment (~25 s)
 
-> Today this runs on cloud models — and providers that store or train on prompts are excluded.
-> But borehole reports are confidential, so here's what local looks like.
-> Every step has an open-weight replacement: PaddleOCR-VL for OCR, Qwen3-VL to sort pages, gpt-oss for extraction and chat.
-> One server with two GPUs. The LLM steps already speak the OpenAI API, so it's a config change; OCR needs one adapter. The reports never leave the building.
+> Today it runs in the cloud on Mistral from Paris — the best OCR quality we found.
+> But borehole reports are confidential. So the same pipeline runs on open models: PaddleOCR-VL for reading, Qwen 3.8 27B for the rest.
+> That fits on one 32-gigabyte GPU in your server room — or even on a Mac mini with 32 gigabytes in a site office. Slower, but nothing leaves the building.
 
-## 07 · Next (~20 s)
-
-> Next: draw your tunnel and get a section from real boreholes only, with the gaps marked.
-> Click a point and see the nearest evidence — and if there is none within 200 metres, it says so.
-
-## 08 · Team (~15 s)
+## 10 · Team (~10 s)
 
 > That's us — Team Tiramisu, built in Breisgau.
 
-## 09 · Close (~10 s)
+## 11 · Close (~10 s)
 
-> Every value has a source. Thank you — questions?
+> Questions? We'll dig into them.
+> *(beat)* Questions about Stuttgart 21 go to Deutsche Bahn.
 
 ---
 
-## Sources for slide 06 (example local stack)
+## Sources
 
-The figures are public estimates, not measured on our data. Check the model cards before sizing hardware.
+### Slide 04 (projects)
 
-- PaddleOCR-VL ~0.9B, Apache 2.0, a few GB VRAM: [Spheron](https://www.spheron.network/blog/best-open-source-ocr-vlm-self-host-gpu-cloud-2026/), [docsumo](https://www.docsumo.com/blog/best-ocr-models)
-- Qwen3-VL-30B-A3B, MoE 30B / 3B active, ~17 GB at 4-bit (AWQ): [vLLM recipe](https://recipes.vllm.ai/Qwen/Qwen3-VL-30B-A3B-Instruct), [AWQ quant page](https://dev.co/ai/llms/qwen3-vl-30b-a3b-thinking-awq)
-- gpt-oss-120b on one 80 GB GPU, gpt-oss-20b in 16 GB, Apache 2.0, structured outputs and tool calling: [morphllm](https://www.morphllm.com/gpt-oss), [LM Studio](https://lmstudio.ai/models/gpt-oss)
-- Why not Mistral Large locally: 675B MoE, needs a full 8-GPU node: [Mistral 3](https://mistral.ai/news/mistral-3), [premai](https://blog.premai.io/how-to-self-host-mistral-large-3-hardware-vllm-setup-function-calling-2026)
-- Why not Mistral Small 4 locally: 119B MoE, ~242 GB weights: [Simon Willison](https://feeds.simonwillison.net/tags/mistral/)
-- Qwen3-Embedding-8B ~16 GB is our estimate (8B parameters at bf16), not a published figure.
+- Gotthard Base Tunnel bored with Herrenknecht machines: [Herrenknecht press release](https://www.herrenknecht.com/en/newsroom/pressreleasedetail/gotthard-base-tunnel-mechanized-tunnelling-completed-on-the-north-side/), [Wikipedia](https://en.wikipedia.org/wiki/Herrenknecht)
+- Grand Paris Express, 19 Herrenknecht TBMs: [Tunnelbuilder](https://tunnelbuilder.com/News/Launch-of-the-first-TBM-for-the-Grand-Paris-Express-.aspx)
+- Hong Kong Tuen Mun–Chek Lap Kok, 17.6 m Mixshield, largest TBM: [Herrenknecht reference](https://herrenknecht.com/en/references/referencesdetail/hong-kong-tuen-mun-chek-lap-kok-link), [Guinness](https://www.guinnessworldrecords.com/world-records/78259-largest-tunnel-boring-machine)
+- Stuttgart 21 Filder Tunnel, Herrenknecht TBM "SUSE": [Herrenknecht press release](https://herrenknecht.com/en/newsroom/pressreleasedetail/suse-sibylle-wanda-and-kaethchen-from-baden-set-a-fast-pace-in-swabia)
+- Green `#7DB713`: the main colour in herrenknecht.com's stylesheet
+
+### Slide 06 (formats)
+
+Pages from the challenge dataset (`data/raw_data/BoreholeData`): AF02 p1, AUS01 p1, SAM01 p1, SEA02 p1, ToughOne1 p2, ToughOne2 p1.
+
+### Slide 09 (deployment)
+
+The figures are public estimates, not measured on our data.
+
+- Qwen 3.8 27B, 4-bit MLX build ~16–19 GB, tested on a 32 GB Mac mini M4 at ~5–6 tokens/s: [orcarouter](https://www.orcarouter.ai/blog/qwen-3-8-27b-mlx)
+- PaddleOCR-VL runs on Apple Silicon via mlx-vlm: [PaddleOCR docs](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL-Apple-Silicon.html); ~0.9B parameters, a few GB: [Spheron](https://www.spheron.network/blog/best-open-source-ocr-vlm-self-host-gpu-cloud-2026/)
+- Not yet confirmed: whether Qwen 3.8 27B accepts images (needed if it classifies pages from the image rather than the OCR text), and its licence.
