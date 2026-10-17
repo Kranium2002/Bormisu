@@ -82,8 +82,8 @@
   .hero-img img { display: block; }
   .is-active .hero-img-zoom { animation: slowzoom 14s ease-out both; }
   @keyframes slowzoom { from { transform: scale(1.08); } to { transform: scale(1); } }
-  .core .frame { width: 1460px; height: 900px; }
-  .core img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; }
+  .core .frame { height: 940px; aspect-ratio: 1125 / 1500; }
+  .core img { width: 100%; height: 100%; object-fit: cover; }
   .bw .frame { height: 940px; aspect-ratio: 564 / 824; }
   .bw img { width: 100%; height: 100%; object-fit: cover; }
   .core-bg { background: radial-gradient(ellipse at 50% 40%, #4a3122 0%, var(--espresso-2) 70%); }
@@ -212,9 +212,9 @@
     <div class="name" data-anim style="--d: 300ms;">Stuttgart 21</div>
   </section>
 
-  <!-- 05 DRILL CORE — core box photo from the challenge dataset (AF02) -->
+  <!-- 05 DRILLING — auger rig on site -->
   <section class="hero-img core core-bg center" data-label="05 Drill core">
-    <div class="frame" data-anim style="--d: 100ms;"><img class="hero-img-zoom" src="img/core.jpg" alt="Drill cores in a core box" /></div>
+    <div class="frame" data-anim style="--d: 100ms;"><img class="hero-img-zoom" src="img/drill-rig.jpg" alt="Auger drilling rig on site" /></div>
   </section>
 
   <!-- 06 BADEN-WÜRTTEMBERG — boreholes in the LGRB borehole map -->

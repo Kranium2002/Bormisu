@@ -118,7 +118,7 @@ The slide uses the conservative per-year figure: **4 lifetimes** (30 minutes sav
 
 ### Slides 05–07 (images)
 
-- Drill core: core box photo from the challenge dataset, `AF02.pdf` page 1.
+- Drilling: photo of an auger drilling rig on site (`img/drill-rig.jpg`, supplied by Mateo).
 - Baden-Württemberg: screenshot of the LGRB borehole map (`img/bw-map.png`).
 - Reports: `SEA01` p1 (Korean), `ToughOne1` p2 (Norway, handwritten), `ToughOne2` p1 (Malaysia, handwritten), `AF02` p1 (Spanish), `profile01.jpg` (Catalan), `MEA01` p3 (typewriter), `SEA02` p1, `MEA03/BH-1.jpg` (Kuwait), `SAM01` p1.
 
