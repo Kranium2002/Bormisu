@@ -20,12 +20,12 @@ describe('FieldRow', () => {
     expect(html).toContain('Larger source view');
   });
 
-  it('a value without a provenance entry shows no method and disables every action with the reason', () => {
+  it('a value without a provenance entry says the method is missing (dot tooltip) and disables every action with the reason', () => {
     const html = render(makeValue({ key: K.casing, label: 'Casing', value: '3.00', hasProvenance: false, method: null, page: null }), true);
     expect(html.match(/disabled=""/g)).toHaveLength(6);
     expect(html.split(`title="${NO_SOURCE_REFERENCE}"`).length - 1).toBe(6);
     expect(html).toContain('no source reference');
-    expect(html).toContain('The backend sent no method for this value');
+    expect(html).toContain('the backend sent no method for this value');
   });
 
   it('shows the readings side by side and a spreadsheet cell instead of a page', () => {

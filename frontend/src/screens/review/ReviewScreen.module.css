@@ -11,39 +11,47 @@
   flex: none;
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-border);
-  padding: 10px 24px;
+  padding: var(--space-3) var(--space-5);
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: var(--space-4);
 }
 
+/* Title and subtitle give way first (ellipsis, full text on hover), so the actions never leave the screen. */
 .titleBlock {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex-shrink: 6;
 }
 
 .title {
   margin: 0;
+  min-width: 0;
+  font-size: var(--fs-title);
   font-weight: 900;
-  font-size: 18px;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--ls-title);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .subtitle {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .switcher {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--c-faint);
+  gap: var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
   white-space: nowrap;
 }
 
@@ -57,10 +65,19 @@
   background: var(--c-surface);
   color: var(--c-text);
   border-radius: 2px;
-  font-size: 14px;
+  font-size: var(--fs-lg);
   line-height: 1;
   padding: 0;
   cursor: pointer;
+}
+
+.switchBtn:not(:disabled):hover {
+  border-color: var(--c-border-strong);
+  background: var(--c-hover);
+}
+
+.switchBtn:not(:disabled):active {
+  transform: translateY(1px);
 }
 
 .switchBtn:disabled {
@@ -68,23 +85,27 @@
   cursor: default;
 }
 
-.switchBtn:not(:disabled):hover {
-  border-color: var(--c-faint);
-}
-
+/* Sheet tabs: a bounded flex item that scrolls sideways when there are many sheets or long IDs.
+   The negative margin + padding keep the tabs in place and leave room for the focus ring. */
 .tabs {
   display: flex;
-  gap: 18px;
+  gap: var(--space-4);
   align-self: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  margin: calc(-1 * var(--space-1)) 0;
+  padding: var(--space-1);
 }
 
 .tab {
+  flex: none;
   cursor: pointer;
   display: flex;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
   color: var(--c-faint);
   background: none;
   border: 0;
@@ -99,20 +120,20 @@
 
 .tabActive {
   color: var(--c-text);
-  border-bottom-color: var(--c-green);
+  border-bottom-color: var(--c-accent);
 }
 
 .progress {
   margin-left: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   width: 170px;
   flex: none;
 }
 
 .progressText {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
   white-space: nowrap;
 }
@@ -129,21 +150,49 @@
 }
 
 .detailBtn {
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 9px 14px;
-  border: 1px solid var(--c-text);
-  border-radius: 4px;
-  background: var(--c-surface);
-  color: var(--c-text);
+  composes: secondary from '../../styles/buttons.module.css';
   white-space: nowrap;
   flex: none;
 }
 
-.detailBtn:hover {
-  background: var(--c-hover);
+/* SHEET ›: the printable borehole sheet, a quiet link next to OPEN DETAIL. */
+.sheetLink {
+  composes: quiet link from '../../styles/buttons.module.css';
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* ---------- document warnings (contract 1.2.1): pages that were not read ---------- */
+.warnings {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  background: var(--c-amber-bg);
+  border-bottom: 1px solid var(--c-amber);
+  color: var(--c-amber-text);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.warningList {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.warningRetry {
+  composes: secondary small from '../../styles/buttons.module.css';
+  flex: none;
+  white-space: nowrap;
 }
 
 .cleanWrap {
@@ -152,123 +201,162 @@
 }
 
 .cleanBtn {
-  cursor: pointer;
+  composes: primary from '../../styles/buttons.module.css';
   display: block;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 10px 16px;
-  border-radius: 4px;
-  border: 0;
-  background: var(--c-green);
-  color: var(--c-on-green);
   white-space: nowrap;
 }
 
-.cleanBtn:disabled {
-  background: var(--c-line);
-  color: var(--c-faint);
-  cursor: default;
-}
-
 .confirm {
-  padding: 16px;
-  gap: 10px;
+  padding: var(--space-4);
+  gap: var(--space-2);
 }
 
 /* The live region around the count keeps the popover's spacing. */
 .confirmLive {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .confirmTitle {
   font-weight: 800;
-  font-size: 14px;
+  font-size: var(--fs-lg);
   overflow-wrap: anywhere;
 }
 
 .confirmText {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
   line-height: 1.45;
 }
 
 .confirmActions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .approveBtn {
-  cursor: pointer;
-  background: var(--c-green);
-  color: var(--c-on-green);
-  border: 0;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 8px 14px;
-  border-radius: 4px;
+  composes: primary from '../../styles/buttons.module.css';
 }
 
 .cancelBtn {
-  cursor: pointer;
-  background: none;
-  border: 0;
-  color: var(--c-text);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px 10px;
+  composes: quiet from '../../styles/buttons.module.css';
 }
 
 /* ---------- body ---------- */
+/* The scan gets half the width (at least 600 px) and grows with the screen; the list keeps 620 px. */
 .body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 660px minmax(0, 1fr);
+  grid-template-columns: minmax(600px, 1fr) minmax(620px, 1fr);
 }
 
-/* scan pane */
+/* scan pane: the page is scaled to the pane width at runtime (ScanPane) and centred */
 .scan {
+  /* the pane's padding, shared with the sticky caption bar that spans it */
+  --scan-pad-top: var(--space-5);
+  --scan-pad-x: var(--space-6);
   position: relative;
   overflow: auto;
+  /* a stable gutter keeps the measured width, and so the scale, from flipping with the scrollbar */
+  scrollbar-gutter: stable;
   background: var(--c-scan-bg);
-  padding: 22px 50px 40px;
+  padding: var(--scan-pad-top) var(--scan-pad-x) var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-4);
 }
 
-.pagePlaceholder {
-  width: 560px;
-  height: 780px;
+/* Sticky at the very top of the pane. A sticky inset is measured from the scroller's padding edge,
+   so the negative top (= the pane's top padding) keeps the bar flush while the page scrolls under it;
+   top: 0 would leave a 24 px strip of page above the bar. The margin aligns its unscrolled position. */
+.captionBar {
+  position: sticky;
+  top: calc(-1 * var(--scan-pad-top));
+  z-index: 2;
   flex: none;
+  margin: calc(-1 * var(--scan-pad-top)) calc(-1 * var(--scan-pad-x)) 0;
+  padding: var(--space-2) var(--scan-pad-x);
+  background: var(--c-scan-bg);
+  display: flex;
+  font-size: var(--fs-sm);
+}
+
+/* ScanPane sets its width to the page's; the legend wraps below the caption when both don't fit */
+.captionInner {
+  max-width: 100%;
+  margin-inline: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+}
+
+.caption {
+  color: var(--c-muted);
+}
+
+/* amber text on the amber tint (5.6:1); on the grey scan background alone it would be just under 4.5:1 */
+.captionWarn {
+  color: var(--c-amber-text);
+  font-weight: 700;
+  background: var(--c-amber-bg);
+  padding: 2px var(--space-1);
+  margin-left: calc(-1 * var(--space-1));
+  border-radius: 2px;
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+/* A box of the scan (ScanPage.module.css .box + variant) drawn in the legend instead of on the page. */
+.legend .swatch {
+  position: static;
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 10px;
+  background: var(--c-paper);
+}
+
+.pageWrap {
+  flex: none;
+  margin-inline: auto;
+}
+
+/* loading / error stand-in for the page; ScanPane sets its scaled size */
+.pagePlaceholder {
   background: var(--c-paper);
   box-shadow: var(--shadow-page);
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 24px;
+  padding: var(--space-5);
   box-sizing: border-box;
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--c-muted);
 }
 
 .pageError {
   color: var(--c-red);
-  font-weight: 700;
-}
-
-.caption {
-  font-size: 12px;
-  color: var(--c-muted);
-}
-
-.captionWarn {
-  color: var(--c-amber-text);
   font-weight: 700;
 }
 
@@ -285,12 +373,12 @@
   z-index: 5;
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr) 78px 112px;
-  gap: 12px;
-  padding: 8px 16px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
   background: var(--c-line);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--ls-caps);
   color: var(--c-muted);
 }
 
@@ -299,18 +387,49 @@
 }
 
 .groupHead {
-  padding: 14px 16px 6px;
-  font-size: 11px;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  font-size: var(--fs-sm);
   font-weight: 800;
-  letter-spacing: 0.07em;
+  letter-spacing: var(--ls-head);
   color: var(--c-dark);
   border-bottom: 1px solid var(--c-border);
 }
 
 .emptyList {
-  padding: 24px 16px;
-  font-size: 13px;
+  padding: var(--space-5) var(--space-4);
+  font-size: var(--fs-md);
   color: var(--c-muted);
+}
+
+/* keyboard hint, sticky at the bottom of the list */
+.keys {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-border);
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.keys kbd {
+  display: inline-block;
+  min-width: 10px;
+  margin-right: 2px;
+  padding: 1px var(--space-1);
+  font: 600 var(--fs-2xs) / 1.2 var(--font-mono);
+  text-align: center;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-bottom-width: 2px;
+  border-radius: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -321,13 +440,13 @@
 
 /*
  * Narrower than 1280 px (FRONTEND.md section 6): the header wraps, and the scan page sits above the
- * field list instead of beside it; each keeps its own scroll box (a 560 px page scrolls inside its pane).
+ * field list instead of beside it; each keeps its own scroll box.
  */
 @media (max-width: 1279px) {
   .header {
     flex-wrap: wrap;
-    padding: 10px 16px;
-    gap: 10px 18px;
+    padding: var(--space-2) var(--space-4);
+    gap: var(--space-2) var(--space-4);
   }
 
   .subtitle {
@@ -340,13 +459,18 @@
     margin-left: auto;
   }
 
+  .warnings {
+    padding: var(--space-2) var(--space-4);
+  }
+
   .body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .scan {
-    padding: 16px 16px 24px;
+    --scan-pad-top: var(--space-4);
+    --scan-pad-x: var(--space-4);
     border-bottom: 1px solid var(--c-border);
   }
 }
@@ -362,7 +486,7 @@
   }
 
   .title {
-    font-size: 16px;
+    font-size: var(--fs-lg);
     white-space: normal;
     overflow-wrap: anywhere;
   }
@@ -370,12 +494,11 @@
   .tabs {
     max-width: 100%;
     min-height: 32px;
-    overflow-x: auto;
   }
 
   /* The tab row clips what sticks out of it, so the focus outline goes inside the tab. */
   .tab:focus-visible {
-    outline: 2px solid var(--c-green);
+    outline: var(--focus-ring);
     outline-offset: -2px;
   }
 
@@ -385,6 +508,10 @@
     width: auto;
   }
 
+  .warnings {
+    flex-wrap: wrap;
+  }
+
   .body {
     flex: 1 0 0;
     min-height: 520px;
@@ -392,18 +519,19 @@
   }
 
   .scan {
-    padding: 12px;
+    --scan-pad-top: var(--space-3);
+    --scan-pad-x: var(--space-3);
   }
 
-  .pagePlaceholder {
-    width: 100%;
-    height: 320px;
+  .legend {
+    margin-left: 0;
+    flex-wrap: wrap;
   }
 
-  /* FIELD and ACTIONS only: each row puts its value and method under the label (FieldRow). */
+  /* FIELD and ACTIONS only: each row puts its value and mark under the label (FieldRow). */
   .colHead {
     grid-template-columns: minmax(0, 1fr) auto;
-    padding: 8px 12px;
+    padding: var(--space-2) var(--space-3);
   }
 
   .colHead > :nth-child(2),
@@ -412,6 +540,11 @@
   }
 
   .groupHead {
-    padding: 12px 12px 6px;
+    padding: var(--space-3) var(--space-3) var(--space-1);
+  }
+
+  /* The key hint is for keyboards. */
+  .keys {
+    display: none;
   }
 }

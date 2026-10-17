@@ -149,7 +149,7 @@ for (const size of SIZES) {
       await expectOnScreen(page.getByRole('button', { name: 'Previous borehole' }));
       await expectOnScreen(page.getByRole('button', { name: 'Next borehole' }));
       await expectOnScreen(page.getByRole('tab', { name: 'SHEET 1 · P.7' }));
-      await expectOnScreen(page.getByRole('button', { name: '› BOREHOLE DETAIL' }));
+      await expectOnScreen(page.getByRole('button', { name: '› OPEN DETAIL' }));
       await expectOnScreen(page.getByRole('button', { name: 'APPROVE ALL CLEAN' }));
       // The current value (the inferred CRS) with its actions.
       const row = page.locator('[data-key="CoordinateSystem"]');

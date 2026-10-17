@@ -24,7 +24,7 @@ test.describe('review', () => {
 
   test('opens on the inferred CRS with the scan, sheet tabs and progress', async ({ page }) => {
     await expect(page.getByText('0 of 30 values reviewed')).toBeVisible();
-    await expect(page.getByRole('tab')).toHaveText(['SHEET 1 · P.7', 'SHEET 2 · P.8']);
+    await expect(page.getByRole('tab')).toHaveText(['SHEET 1 · p.7', 'SHEET 2 · p.8']);
     await expect(row(page, 'CoordinateSystem')).toHaveAttribute('aria-current', 'true');
     // The note says where the CRS came from, without guessing a CRS family.
     await expect(row(page, 'CoordinateSystem').getByText(/^not stated in source · inferred/)).toBeVisible();
@@ -59,7 +59,7 @@ test.describe('review', () => {
     await expect(elev.getByText(/^241\.40/)).toBeVisible();
     await expect(elev.locator('s')).toHaveText('241.35');
     await expect(elev).toContainText('(AI value)');
-    await expect(elev.getByText('Edited', { exact: true })).toBeVisible();
+    await expect(elev.getByRole('img', { name: /^Reviewed · edited by a reviewer/ })).toBeVisible();
     await expect(page.getByText('1 of 30 values reviewed')).toBeVisible();
   });
 

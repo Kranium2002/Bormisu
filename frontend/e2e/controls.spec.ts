@@ -206,7 +206,7 @@ test.describe('every control works', () => {
     await expect(page.getByRole('heading', { name: 'REVIEW · BK-08' })).toBeVisible();
     await page.getByRole('button', { name: /^Previous borehole/ }).click();
     await expect(page.getByRole('heading', { name: 'REVIEW · BK-07' })).toBeVisible();
-    await page.getByRole('button', { name: '› BOREHOLE DETAIL' }).click();
+    await page.getByRole('button', { name: '› OPEN DETAIL' }).click();
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
     expect(await disabledWithoutReason(page)).toEqual([]);
   });
