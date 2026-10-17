@@ -3,8 +3,9 @@
 Accepted: year first ("2026-03-04", "2026/03/04", "2026.03.04", "20260304"), day.month.year with dots
 (the dot convention is day first everywhere: "04.03.2026", "4.3.26"), month names in several languages
 (data/units.yaml `dates.months`: "4 March 2026", "March 4, 2026", "4. März 2026", "4 de marzo de 2026",
-"04-Mar-2026"). "03/04/2026" is ambiguous (day/month order differs by country) unless one part is above
-12 or both parts are equal. A time after the date is ignored. Two-digit years follow the documented
+"04-Mar-2026"), day/month-year with a slash then a dash ("19/8-08", day first; data/units.yaml
+`slash_dash_day_first`). "03/04/2026" is ambiguous (day/month order differs by country) unless one part
+is above 12 or both parts are equal. A time after the date is ignored. Two-digit years follow the documented
 pivot in data/units.yaml (YY below the pivot is 20YY, otherwise 19YY).
 """
 
@@ -33,6 +34,7 @@ class _Config:
     pivot: int | None
     year_min: int
     year_max: int
+    slash_dash_day_first: bool = False
 
 
 def _fold(text: str) -> str:
@@ -61,6 +63,7 @@ def _config() -> _Config:
         pivot=None if pivot is None else int(pivot),
         year_min=int(years[0]),
         year_max=int(years[1]),
+        slash_dash_day_first=bool(data.get("slash_dash_day_first", False)),
     )
 
 
@@ -114,6 +117,11 @@ def _numeric(raw: str, text: str) -> DateResult | None:
         if first > 12 and second > 12:
             return DateResult(None, raw=raw, reason="neither part can be a month")
         return DateResult(None, raw=raw, reason="day and month order is ambiguous")
+    if (match := re.fullmatch(r"([0-9]{1,2})/([0-9]{1,2})-([0-9]{4}|[0-9]{2})", text)) and (
+        _config().slash_dash_day_first
+    ):
+        year, why = _year(match.group(3))
+        return _build(raw, year, int(match.group(2)), int(match.group(1)), why)
     if re.fullmatch(r"[0-9]{1,2}[-/.][0-9]{4}|[0-9]{4}[-/.][0-9]{1,2}", text):
         return DateResult(None, raw=raw, reason="month and year only; no day printed")
     if re.fullmatch(r"[0-9]{4}", text):

@@ -55,6 +55,7 @@ from app.normalize import dates, datums, lithology, numbers, units
 from app.normalize import spt as spt_parser
 from app.normalize.api import CoordinateResult
 from app.pipeline import textlayer
+from app.pipeline.layer_ranges import merge_declared_ranges
 from app.pipeline.provenance import Citations, MethodLiteral, method_of, printed, union_box
 from app.pipeline.schemas import ExtractedLayer, ExtractionResult, RawValue
 from app.pipeline.textlayer import PageText
@@ -264,6 +265,11 @@ class _Builder:
         origin = datums.parse_depth_origin(printed(h.depth_origin_note), printed(h.elevation_datum))
         self.negative_down = origin.negative_down is True
         self.depth_unit = self._group_depth_unit()
+        if self.depth_unit in (None, "m"):
+            # sub-interval notes read as strata of their own go back into their printed stratum
+            merged = merge_declared_ranges(list(self.result.layers))
+            if len(merged) != len(self.result.layers):
+                self.result = self.result.model_copy(update={"layers": merged})
         if text_layers:
             # Where each printed value is in the text layers, resolved once for the whole record. Tight
             # boxes are a refinement: if they cannot be worked out, the values keep their OCR blocks.
@@ -452,6 +458,9 @@ class _Builder:
             if default is None:
                 default, guessed = "m", True
             value = units.parse_length(raw, default_unit=default, style=self.style).metres
+            if value is None and (bare := numbers.after_field_label(raw)) is not None:
+                # the cell's own label printed with the value ("EL(+) 5.7 M"): the value after it
+                value = units.parse_length(bare, default_unit=default, style=self.style).metres
             if value is None:
                 self.warnings.append(f"ground level '{raw}' is not a length")
         meta["surface_elevation_mASL"] = value

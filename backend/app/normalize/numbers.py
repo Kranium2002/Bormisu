@@ -69,6 +69,27 @@ def str_list(value: Any) -> list[str]:
     return [str(value)]
 
 
+# A short field label printed in the same cell before the value ("EL(+) 5.7 M", "GL. 12,3 m", "H = 4.0"):
+# letters and dots, an optional bracketed sign convention, then an optional ":" or "=".
+_FIELD_LABEL = re.compile(
+    r"^\s*[^\W\d_][^\d+\-\u2212=:()]{0,15}?\s*(?:\(\s*[+\-\u2212\u00b1]\s*\))?\s*[:=]?\s*"
+    r"(?=[+\-\u2212]?\s*[0-9])"
+)
+
+
+def after_field_label(raw: str | None) -> str | None:
+    """The value after a short field label the cell prints before it, or None when there is no such label.
+
+    Only a fallback for a value that does not parse as printed: a qualifier ("ca.", "approx.") parses on
+    its own and keeps its meaning."""
+    if raw is None:
+        return None
+    match = _FIELD_LABEL.match(raw)
+    if match is None or match.end() == 0:
+        return None
+    return raw[match.end() :].strip() or None
+
+
 def ascii_digits(text: str) -> str:
     """Decimal digits of any script as ASCII digits (superscripts are left alone)."""
     if text.isascii():
