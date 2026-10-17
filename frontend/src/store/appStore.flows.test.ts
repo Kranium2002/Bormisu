@@ -4,7 +4,7 @@ import type { DataSource } from '../data/DataSource';
 import { K } from '../domain/keys';
 import { boreholeStatus } from '../domain/review';
 import type { Borehole, CrsCandidate, DocumentSummary } from '../domain/types';
-import { makeBorehole, makeValue } from '../test/fixtures';
+import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { useAppStore } from './appStore';
 
 vi.mock('../export/download', async (orig) => ({
@@ -13,10 +13,8 @@ vi.mock('../export/download', async (orig) => ({
 }));
 const { downloadBlob } = await import('../export/download');
 
-const doc: DocumentSummary = {
-  id: 'doc', name: 'test_report.pdf', project: 'Test Project (fictional)', pageTypes: ['text', 'log'], step: 2,
-  counts: null, completeness: null, reviewBoreholeUid: 'doc:TB-01',
-};
+const UID = makeBorehole().uid;
+const doc: DocumentSummary = makeDocument({ reviewBoreholeUid: UID });
 
 function fakeSource(over: Partial<DataSource> = {}): DataSource {
   return {
@@ -32,10 +30,10 @@ function fakeSource(over: Partial<DataSource> = {}): DataSource {
 }
 
 const st = () => useAppStore.getState();
-const bh = (uid = 'doc:TB-01') => st().boreholes.find((b) => b.uid === uid);
-const value = (key: string, uid = 'doc:TB-01') => bh(uid)?.values.find((v) => v.key === key);
+const bh = (uid = UID) => st().boreholes.find((b) => b.uid === uid);
+const value = (key: string, uid = UID) => bh(uid)?.values.find((v) => v.key === key);
 
-async function ready(source: DataSource = fakeSource(), reviewUid = 'doc:TB-01') {
+async function ready(source: DataSource = fakeSource(), reviewUid = UID) {
   useAppStore.setState({
     source, boreholes: [], documents: [], pages: {}, panel: null, editing: null, toast: null,
     crsDialogOpen: false, crsLoading: false, crsCandidates: [], crsPick: 0, confirmCleanOpen: false,
@@ -176,13 +174,13 @@ describe('CRS confirmation', () => {
     await st().openCrsDialog();
     expect(boreholeStatus(bh('doc:TB-05')!)).toBe('attention');
     await st().confirmCrs();
-    expect(confirmCrs).toHaveBeenCalledWith('doc', 'EPSG:31467');
+    expect(confirmCrs).toHaveBeenCalledWith(doc.id, 'EPSG:31467');
     expect(st().crsDialogOpen).toBe(false);
     expect(bh('doc:TB-05')).toMatchObject({ crs: { status: 'confirmed', code: 'EPSG:31467' }, lat: 48.8, lng: 9.2 });
     expect(value(K.crs, 'doc:TB-05')).toMatchObject({ status: 'approved', method: 'Guessed', value: 'DHDN / 3-degree Gauss-Krüger zone 3' });
     expect(boreholeStatus(bh('doc:TB-05')!)).toBe('unreviewed');
     // The other borehole of the same document is confirmed too.
-    expect(bh('doc:TB-01')?.crs.status).toBe('confirmed');
+    expect(bh(UID)?.crs.status).toBe('confirmed');
     expect(st().toast?.text).toBe('CRS confirmed for all boreholes in this report: EPSG:31467');
   });
 
@@ -232,7 +230,7 @@ describe('search ranking', () => {
   it('falls back to the project name', () => {
     useAppStore.setState({ query: 'test project' });
     st().search();
-    expect(st().mapFocus?.uid).toBe('doc:TB-01');
+    expect(st().mapFocus?.uid).toBe(UID);
   });
 
   it('ignores an empty query', () => {

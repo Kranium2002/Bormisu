@@ -2,13 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataSource } from '../data/DataSource';
 import { K } from '../domain/keys';
 import type { Borehole, DocumentSummary } from '../domain/types';
-import { makeBorehole, makeValue } from '../test/fixtures';
+import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { useAppStore } from './appStore';
 
-const doc: DocumentSummary = {
-  id: 'doc', name: 'test_report.pdf', project: 'Test Project (fictional)', pageTypes: ['text', 'log'], step: 2,
-  counts: null, completeness: null, reviewBoreholeUid: 'doc:TB-01',
-};
+const UID = makeBorehole().uid;
+const doc: DocumentSummary = makeDocument({ reviewBoreholeUid: UID });
 
 function fakeSource(over: Partial<DataSource> = {}): DataSource {
   const other: Borehole = makeBorehole({ uid: 'doc:TB-02', id: 'TB-02', onMap: false, lat: null, lng: null, unplottedReason: 'No coordinates in source' });
@@ -25,13 +23,13 @@ function fakeSource(over: Partial<DataSource> = {}): DataSource {
 }
 
 const st = () => useAppStore.getState();
-const value = (key: string) => st().boreholes.find((b) => b.uid === 'doc:TB-01')?.values.find((v) => v.key === key);
+const value = (key: string) => st().boreholes.find((b) => b.uid === UID)?.values.find((v) => v.key === key);
 
 async function ready(source: DataSource = fakeSource()) {
   useAppStore.setState({ source, boreholes: [], documents: [], pages: {}, panel: null, editing: null, toast: null });
   // Bypass init(), which would create the configured data source instead of the fake one.
   const { boreholes, documents } = await source.load();
-  useAppStore.setState({ loadState: 'ready', boreholes, documents, reviewUid: 'doc:TB-01', focusKey: null, screen: 'map' });
+  useAppStore.setState({ loadState: 'ready', boreholes, documents, reviewUid: UID, focusKey: null, screen: 'map' });
 }
 
 describe('review actions', () => {
@@ -95,13 +93,13 @@ describe('escape', () => {
   it('closes one layer per press: editing, confirm, export, CRS dialog, panel', () => {
     useAppStore.setState({
       editing: { key: 'x', mode: 'edit', text: '' }, confirmCleanOpen: true, exportOpen: true, crsDialogOpen: true,
-      panel: { kind: 'completeness', documentId: 'doc' },
+      panel: { kind: 'completeness', documentId: doc.id },
     });
     const open = () => [!!st().editing, st().confirmCleanOpen, st().exportOpen, st().crsDialogOpen, !!st().panel];
     expect(open()).toEqual([true, true, true, true, true]);
     for (let i = 0; i < 5; i++) st().escape();
     expect(open()).toEqual([false, false, false, false, false]);
-    useAppStore.setState({ exportOpen: true, panel: { kind: 'completeness', documentId: 'doc' } });
+    useAppStore.setState({ exportOpen: true, panel: { kind: 'completeness', documentId: doc.id } });
     st().escape();
     expect(open()).toEqual([false, false, false, false, true]);
   });
@@ -114,7 +112,7 @@ describe('search', () => {
     useAppStore.setState({ screen: 'queue', query: 'tb-01' });
     st().search();
     expect(st().screen).toBe('map');
-    expect(st().mapFocus).toMatchObject({ uid: 'doc:TB-01', zoom: 13 });
+    expect(st().mapFocus).toMatchObject({ uid: UID, zoom: 13 });
   });
 
   it('explains boreholes that are not on the map', () => {
@@ -134,11 +132,11 @@ describe('navigation and panels', () => {
   beforeEach(() => ready());
 
   it('opens a borehole on the detail screen and a value in the source panel', () => {
-    st().openBorehole('doc:TB-01');
+    st().openBorehole(UID);
     expect(st().screen).toBe('detail');
-    expect(st().selectedUid).toBe('doc:TB-01');
-    st().openSource('doc:TB-01', K.finalDepth);
-    expect(st().panel).toEqual({ kind: 'source', uid: 'doc:TB-01', key: K.finalDepth, documentId: 'doc', page: 1, box: null });
+    expect(st().selectedUid).toBe(UID);
+    st().openSource(UID, K.finalDepth);
+    expect(st().panel).toEqual({ kind: 'source', uid: UID, key: K.finalDepth, documentId: doc.id, page: 1, box: null });
   });
 
   it('opens review on the CRS when it is inferred', () => {
@@ -154,10 +152,10 @@ describe('navigation and panels', () => {
   it('loads pages into the cache once', async () => {
     const getPage = vi.fn(fakeSource().getPage);
     await ready(fakeSource({ getPage }));
-    await st().loadPage('doc', 2);
-    await st().loadPage('doc', 2);
+    await st().loadPage(doc.id, 2);
+    await st().loadPage(doc.id, 2);
     expect(getPage).toHaveBeenCalledTimes(1);
-    expect(st().pages['doc:2']?.status).toBe('ready');
+    expect(st().pages[`${doc.id}:2`]?.status).toBe('ready');
   });
 });
 
@@ -172,6 +170,6 @@ describe('uploads', () => {
     await st().addFiles([new File(['x'], 'a.pdf'), new File(['x'], 'notes.txt')]);
     expect(st().dropError).toBe('File type not supported: notes.txt');
     expect(upload.mock.calls[0][0].map((f) => f.name)).toEqual(['a.pdf']);
-    expect(st().documents.map((d) => d.id)).toEqual(['new', 'doc']);
+    expect(st().documents.map((d) => d.id)).toEqual(['new', doc.id]);
   });
 });

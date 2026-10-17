@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PartialSaveError, type DataSource } from '../data/DataSource';
 import { K } from '../domain/keys';
 import type { CrsCandidate, DocumentSummary } from '../domain/types';
-import { makeBorehole, makeValue } from '../test/fixtures';
+import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 
 /** init() asks createDataSource once; it gets a proxy that forwards to the current fake source. */
 let current: DataSource;
@@ -24,10 +24,8 @@ vi.mock('../data/createDataSource', () => ({
 }));
 const { useAppStore } = await import('./appStore');
 
-const doc: DocumentSummary = {
-  id: 'doc', name: 'test_report.pdf', project: 'Test Project (fictional)', pageTypes: ['text', 'log'], step: 2,
-  counts: null, completeness: null, reviewBoreholeUid: 'doc:TB-01',
-};
+const UID = makeBorehole().uid;
+const doc: DocumentSummary = makeDocument({ reviewBoreholeUid: UID });
 
 function fakeSource(over: Partial<DataSource> = {}): DataSource {
   return {
@@ -43,8 +41,8 @@ function fakeSource(over: Partial<DataSource> = {}): DataSource {
 }
 
 const st = () => useAppStore.getState();
-const bh = (uid = 'doc:TB-01') => st().boreholes.find((b) => b.uid === uid);
-const value = (key: string, uid = 'doc:TB-01') => bh(uid)?.values.find((v) => v.key === key);
+const bh = (uid = UID) => st().boreholes.find((b) => b.uid === uid);
+const value = (key: string, uid = UID) => bh(uid)?.values.find((v) => v.key === key);
 /** Lets every queued promise reaction run. */
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
@@ -56,7 +54,7 @@ async function ready(source: DataSource = fakeSource()) {
     searchMessage: '', mapFocus: null, query: '',
   });
   const { boreholes, documents } = await source.load();
-  useAppStore.setState({ loadState: 'ready', boreholes, documents, reviewUid: 'doc:TB-01', selectedUid: 'doc:TB-01', focusKey: null });
+  useAppStore.setState({ loadState: 'ready', boreholes, documents, reviewUid: UID, selectedUid: UID, focusKey: null });
 }
 
 function editFinalDepth(text: string) {
@@ -181,11 +179,11 @@ describe('pages', () => {
       .mockRejectedValueOnce(new Error('timeout'))
       .mockImplementation(async (documentId, page) => ({ documentId, page, type: 'log', usage: 'used', label: 'p', items: [] }));
     await ready(fakeSource({ getPage }));
-    await st().loadPage('doc', 2);
-    expect(st().pages['doc:2']).toEqual({ status: 'error', error: 'timeout' });
-    await st().loadPage('doc', 2);
-    expect(st().pages['doc:2']?.status).toBe('ready');
-    await st().loadPage('doc', 2);
+    await st().loadPage(doc.id, 2);
+    expect(st().pages[`${doc.id}:2`]).toEqual({ status: 'error', error: 'timeout' });
+    await st().loadPage(doc.id, 2);
+    expect(st().pages[`${doc.id}:2`]?.status).toBe('ready');
+    await st().loadPage(doc.id, 2);
     expect(getPage).toHaveBeenCalledTimes(2);
   });
 });
@@ -196,7 +194,7 @@ describe('navigation', () => {
   it('c21: leaving Review drops a hidden edit, so Escape closes the export menu', () => {
     useAppStore.setState({ screen: 'review' });
     st().startEdit(K.finalDepth, 'edit');
-    st().openBorehole('doc:TB-01');
+    st().openBorehole(UID);
     expect(st().editing).toBeNull();
     st().toggleExport();
     st().escape();
@@ -221,14 +219,14 @@ describe('navigation', () => {
     }
     useAppStore.setState({ query: 'tb 01' });
     st().search();
-    expect(st().mapFocus?.uid).toBe('doc:TB-01');
+    expect(st().mapFocus?.uid).toBe(UID);
   });
 });
 
 describe('CRS dialog', () => {
   it('c23: a late confirmation does not close a dialog opened meanwhile', async () => {
     const candidates: CrsCandidate[] = [
-      { name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', note: '', verdict: 'match', points: [{ uid: 'doc:TB-01', lat: 48, lng: 9 }] },
+      { name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', note: '', verdict: 'match', points: [{ uid: UID, lat: 48, lng: 9 }] },
     ];
     let answer: () => void = () => undefined;
     const b = makeBorehole({ crs: { name: 'guess', code: null, status: 'inferred' } });
