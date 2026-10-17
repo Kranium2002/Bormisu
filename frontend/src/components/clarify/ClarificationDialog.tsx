@@ -1,6 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { errorText } from '../../data/errors';
 import type { Clarification } from '../../domain/types';
+import { useT } from '../../i18n';
+import { fill } from '../../screens/review/fill';
 import { useAppStore, useSignedName } from '../../store/appStore';
 import { ANSWER_STORED } from '../../store/clarificationsSlice';
 import { useFocusTrap } from '../useFocusTrap';
@@ -98,9 +100,10 @@ export function ClarificationDialogView({
 
   useFocusTrap(dialog);
   useModalKeys(dialog, onClose);
+  const t = useT();
 
   const errors = { ...localErrors, ...(outcome?.fieldErrors ?? {}) };
-  const message = Object.keys(localErrors).length ? MISSING_FIELDS : (outcome?.message ?? null);
+  const message = Object.keys(localErrors).length ? t(MISSING_FIELDS) : (outcome?.message ?? null);
   const swapAxes = swapAxesInput(c.fields, inputs);
   const widgetCtx: WidgetContext = { ...ctx, swapAxes };
   const titleId = `${ids}-title`;
@@ -162,21 +165,21 @@ export function ClarificationDialogView({
         <div className={styles.head}>
           <div className={styles.headText}>
             <h2 id={titleId} className={styles.title}>
-              QUESTION · {kindLabel(c.kind).toUpperCase()}
+              {t('QUESTION')} · {t(kindLabel(c.kind)).toUpperCase()}
             </h2>
             <div className={styles.subtitle}>
-              {documentName ?? `Document ${c.documentId} (not loaded)`}
+              {documentName ?? fill(t('Document {id} (not loaded)'), { id: c.documentId })}
               {boreholes && ` · ${boreholes}`}
               {created && (
                 <>
-                  {' · asked '}
+                  {` · ${t('asked')} `}
                   <time dateTime={c.createdAt}>{created}</time>
                 </>
               )}
-              {skipped && <span className={styles.skippedChip}>SKIPPED</span>}
+              {skipped && <span className={styles.skippedChip}>{t('SKIPPED')}</span>}
             </div>
           </div>
-          <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>
+          <button type="button" className={styles.close} aria-label={t('Close')} onClick={onClose}>
             ×
           </button>
         </div>
@@ -186,7 +189,7 @@ export function ClarificationDialogView({
           <form
             className={styles.form}
             noValidate
-            aria-label="Answer"
+            aria-label={t('Answer')}
             onSubmit={(e) => {
               e.preventDefault();
               answer();
@@ -200,7 +203,7 @@ export function ClarificationDialogView({
                 {message}
               </div>
             )}
-            {c.fields.length === 0 && <p className={styles.help}>The backend sent no fields for this question.</p>}
+            {c.fields.length === 0 && <p className={styles.help}>{t('The backend sent no fields for this question.')}</p>}
             {c.fields.map((f, i) => (
               <FieldWidget
                 key={f.name}
@@ -217,7 +220,7 @@ export function ClarificationDialogView({
                 <span className={styles.req} aria-hidden="true">
                   *
                 </span>{' '}
-                required
+                {t('required')}
               </p>
             )}
             {/* Enter in a text input answers. */}
@@ -226,21 +229,21 @@ export function ClarificationDialogView({
         </div>
 
         <div className={styles.foot}>
-          <button type="button" className={styles.answer} disabled={!!busy} title={busy ? 'Working…' : undefined} onClick={answer}>
-            {busy === 'answer' ? 'ANSWERING…' : 'ANSWER'}
+          <button type="button" className={styles.answer} disabled={!!busy} title={busy ? t('Working…') : undefined} onClick={answer}>
+            {busy === 'answer' ? t('ANSWERING…') : t('ANSWER')}
           </button>
           <button
             type="button"
             className={styles.skip}
             disabled={!!skipOff}
-            title={skipOff}
-            aria-description={skipOff}
+            title={skipOff && t(skipOff)}
+            aria-description={skipOff && t(skipOff)}
             onClick={onSkip}
           >
-            {busy === 'skip' ? 'SKIPPING…' : 'SKIP FOR NOW'}
+            {busy === 'skip' ? t('SKIPPING…') : t('SKIP FOR NOW')}
           </button>
           <span className={styles.footNote}>
-            {reviewerName ? `Stored with your name (${reviewerName}).` : 'No name is set: the answer is stored without one.'}
+            {reviewerName ? fill(t('Stored with your name ({name}).'), { name: reviewerName }) : t('No name is set: the answer is stored without one.')}
           </span>
         </div>
       </div>

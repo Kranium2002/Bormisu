@@ -1,5 +1,7 @@
 import { useEffect, useMemo } from 'react';
-import { boreholeText, createdText, groupByDocument, kindLabel, questionCountText, unresolvedCount, type QuestionGroup } from '../../components/clarify/clarifyModel';
+import { useT } from '../../i18n';
+import { fill } from '../review/fill';
+import { boreholeText, createdText, groupByDocument, kindLabel, unresolvedCount, type QuestionGroup } from '../../components/clarify/clarifyModel';
 import { useAppStore } from '../../store/appStore';
 import type { ClarificationsSlice } from '../../store/types';
 import styles from './InboxScreen.module.css';
@@ -20,53 +22,55 @@ interface ViewProps {
 
 /** The inbox (pure; rendered in tests): questions grouped by document, each opening the dialog. */
 export function InboxView({ state, groups, known, notOpen, onOpen, onRetry }: ViewProps) {
+  const t = useT();
   const count = groups.reduce((n, g) => n + unresolvedCount(g.questions), 0);
   const loading = (state === 'idle' || state === 'loading') && count === 0;
   return (
     <div className={styles.scroll}>
       <div className={styles.page} data-screen-label="Inbox">
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>INBOX</h1>
+          <h1 className={styles.title}>{t('INBOX')}</h1>
           {/* The count is announced when it changes (an answer, a skip, a new question). */}
           <span className={styles.count} aria-live="polite" aria-atomic="true">
-            {state === 'ready' || count > 0 ? questionCountText(count) : ''}
+            {state === 'ready' || count > 0 ? fill(t(count === 1 ? '{n} unresolved question' : '{n} unresolved questions'), { n: count }) : ''}
           </span>
         </div>
         <p className={styles.intro}>
-          Small questions the backend asks where a report is unclear. Open one to see its source and answer it, or skip it for later:
-          a skipped question stays here until it is answered.
+          {t(
+            'Small questions the backend asks where a report is unclear. Open one to see its source and answer it, or skip it for later: a skipped question stays here until it is answered.',
+          )}
         </p>
         {notOpen && state === 'ready' && (
           <div className={styles.notice} role="status">
-            {INBOX_NOT_OPEN}
+            {t(INBOX_NOT_OPEN)}
           </div>
         )}
         {loading && (
           <div className={styles.state} role="status">
-            Loading questions…
+            {t('Loading questions…')}
           </div>
         )}
         {state === 'error' && (
           <div className={`${styles.state} ${styles.error}`} role="alert">
-            The questions could not be loaded.
+            {t('The questions could not be loaded.')}
             <button type="button" className={styles.retry} onClick={onRetry}>
-              RETRY
+              {t('RETRY')}
             </button>
           </div>
         )}
         {state === 'ready' && count === 0 && (
           <div className={styles.state} role="status">
-            {INBOX_EMPTY}
+            {t(INBOX_EMPTY)}
           </div>
         )}
         {groups.map((g) => (
           <section key={g.documentId} className={styles.group} aria-labelledby={`inbox-doc-${g.documentId}`} data-doc-id={g.documentId}>
             <div className={styles.groupHead}>
               <h2 id={`inbox-doc-${g.documentId}`} className={styles.docName}>
-                {g.name ?? `Document ${g.documentId} (not loaded)`}
+                {g.name ?? fill(t('Document {id} (not loaded)'), { id: g.documentId })}
               </h2>
               <span className={styles.groupCount}>
-                {g.questions.length} question{g.questions.length === 1 ? '' : 's'}
+                {fill(t(g.questions.length === 1 ? '{n} question' : '{n} questions'), { n: g.questions.length })}
               </span>
             </div>
             <ul className={styles.list}>
@@ -77,15 +81,15 @@ export function InboxView({ state, groups, known, notOpen, onOpen, onRetry }: Vi
                   <li key={q.id}>
                     <button type="button" className={styles.item} data-clarification-id={q.id} onClick={() => onOpen(q.id)}>
                       <span className={styles.itemHead}>
-                        <span className={styles.kind}>{kindLabel(q.kind).toUpperCase()}</span>
-                        {q.status === 'skipped' && <span className={styles.skipped}>SKIPPED</span>}
+                        <span className={styles.kind}>{t(kindLabel(q.kind)).toUpperCase()}</span>
+                        {q.status === 'skipped' && <span className={styles.skipped}>{t('SKIPPED')}</span>}
                       </span>
                       <span className={styles.question}>{q.question}</span>
                       <span className={styles.meta}>
-                        {bh ? `Boreholes: ${bh}` : 'No borehole named'}
+                        {bh ? `${t('Boreholes')}: ${bh}` : t('No borehole named')}
                         {created && (
                           <>
-                            {' · asked '}
+                            {` · ${t('asked')} `}
                             <time dateTime={q.createdAt}>{created}</time>
                           </>
                         )}
