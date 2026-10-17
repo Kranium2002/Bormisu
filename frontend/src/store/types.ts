@@ -397,22 +397,45 @@ export interface AuthSlice {
   sessionEnded(): void;
 }
 
-/** The chat drawer's state; the conversation itself lives in useChat (FRONTEND.md F14, F15). */
+/**
+ * The chat drawer's state and the store actions the chat's commands need (FRONTEND.md F14, F15). The
+ * conversation itself lives in the AI SDK chat (src/chat/session.ts, rendered through useChat).
+ */
 export interface ChatSlice {
   chatOpen: boolean;
   /** The include-unreviewed toggle next to the input (context.include_unreviewed). */
   chatIncludeUnreviewed: boolean;
+  /** "This map area": the visible map goes with the next messages as context.map_view (on the map only). */
+  chatUseView: boolean;
   /** A request_area command: the map is in draw mode with this hint until an area is drawn or cancelled. */
   chatAreaRequest: { prompt: string } | null;
   /** The area drawn for the chat; it goes with the next message as context.map_view, then clears. */
   chatArea: Area | null;
+  /** The server answered 409 chat_unavailable: the drawer shows the chat as not configured. */
+  chatUnavailable: boolean;
 
   openChat(): void;
   closeChat(): void;
   toggleChat(): void;
   setChatIncludeUnreviewed(on: boolean): void;
+  setChatUseView(on: boolean): void;
+  /** Puts the map into draw mode with the prompt as a hint (request_area); the next drawn shape becomes chatArea. */
   requestChatArea(prompt: string): void;
+  /** The area drawn for the chat (ends the request), or null to forget it. */
   setChatArea(area: Area | null): void;
+  /** Ends a request_area without an area (the hint's CANCEL). */
+  cancelChatAreaRequest(): void;
+  setChatUnavailable(on: boolean): void;
+  /** fit_bounds: the map flies to the bbox (on the map screen) and outlines it dashed when asked. */
+  fitChatBounds(bbox: [number, number, number, number], outline: boolean): void;
+  /** focus_borehole: the map with the borehole selected (its popup opens); Detail when it has no pin. */
+  focusChatBorehole(uid: string): void;
+  /** open_detail: the Detail screen of a borehole, at a layer when given. */
+  openChatDetail(uid: string, layer: number | null): void;
+  /** The Source panel at a page of a document with a box highlighted (a citation, open_evidence). */
+  showChatEvidence(documentId: string, page: number | null, box: Box | null): void;
+  /** Adds a question the chat sent (data-clarification) to the list unless it is there or resolved. */
+  addChatClarification(question: Clarification): void;
 }
 
 export type AppState = DataSlice & ReviewSlice & MapSlice & MapDataSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice & ClarificationsSlice & AuthSlice & ChatSlice;
