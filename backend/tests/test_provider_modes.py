@@ -42,12 +42,15 @@ def test_health_and_mode_for_every_key_combination(
     # Any one key gives live mode: Mistral, OpenRouter and OpenAI each run OCR and the models.
     assert health.mode == ("live" if llm else "demo")
     settings = get_settings()
-    expected_ocr = [
-        r for r, on in (("mistral", mistral), ("openrouter", openrouter), ("openai", openai)) if on
-    ]
-    assert settings.ocr_routes == expected_ocr
+    ocr_order = (
+        ("openrouter_vision", openrouter),
+        ("mistral", mistral),
+        ("openrouter", openrouter),
+        ("openai", openai),
+    )
+    assert settings.ocr_routes == [r for r, on in ocr_order if on]
     expected_llm = [
-        r for r, on in (("mistral", mistral), ("openrouter", openrouter), ("openai", openai)) if on
+        r for r, on in (("openrouter", openrouter), ("openai", openai), ("mistral", mistral)) if on
     ]
     assert settings.llm_routes == expected_llm
 

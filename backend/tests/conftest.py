@@ -87,14 +87,18 @@ async def database() -> AsyncIterator[None]:
 
 @pytest.fixture(autouse=True)
 def fresh_provider_failover() -> Iterator[None]:
-    """Every test starts without the per-process memory of refused keys and refused OpenAI parameters."""
+    """Every test starts without the per-process memory of refused keys, refused OpenAI parameters and models
+    that required reasoning."""
+    from app.bh3 import llm as bh3_llm
     from app.pipeline import ocr
-    from app.providers import llm
+    from app.providers import llm, reasoning
 
     def clear() -> None:
         ocr._REFUSED_ROUTES.clear()
         llm._REFUSED.clear()
         llm._PLAIN_OPENAI_MODELS.clear()
+        reasoning._LEARNED.clear()
+        bh3_llm._REASONING_REQUIRED.clear()
 
     clear()
     yield
@@ -143,9 +147,11 @@ async def client(db: None, queue: object) -> AsyncIterator[httpx.AsyncClient]:
 
 @pytest.fixture
 def live_mode(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Pretend provider keys are configured (values are fake; providers are never called in tests)."""
+    """Pretend provider keys are configured (values are fake; providers are never called in tests). OCR is
+    forced to the Mistral route, the client the tests replace with their fake OCR engine."""
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-not-a-key")
     monkeypatch.setenv("MISTRAL_API_KEY", "test-not-a-key")
+    monkeypatch.setenv("OCR_PROVIDER", "mistral")
     get_settings.cache_clear()
     yield
     monkeypatch.undo()

@@ -1,0 +1,24 @@
+# Reasoning ("thinking") per model on OpenRouter (app.providers.reasoning; bh3 gets the same through the
+# bridge). Document calls copy printed text and are sent with reasoning off ({"enabled": false}), unless
+# LLM_REASONING asks for it or the model cannot run without it.
+
+# Model ids (shell-style patterns, case ignored) that answer 400 "Reasoning is mandatory for this endpoint
+# and cannot be disabled" to reasoning off. They get reasoning {"effort": <effort>} from the first call.
+# A model missing here that answers that 400 is retried once with reasoning on and remembered until the
+# worker restarts, so this list only saves the first refused request. Checked on OpenRouter 2026-10-17.
+mandatory:
+  - "google/gemini-3.5-*"
+  - "google/gemini-3.6-*"
+  - "google/gemini-3.7-*"
+  - "google/gemini-3.8-*"
+  - "openai/gpt-6.1-sol*"
+  - "anthropic/claude-sonnet-5.5*"
+  - "x-ai/grok-4.7*"
+  - "qwen/qwen3.8-max*"
+
+# Reasoning effort sent to a model that requires reasoning (OpenRouter "reasoning.effort").
+effort: low
+
+# Reasoning tokens count against max_tokens: a call with reasoning on may use this many more output tokens,
+# so the answer still fits after the model has thought.
+extra_output_tokens: 4096

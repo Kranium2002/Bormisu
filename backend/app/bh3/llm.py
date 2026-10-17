@@ -11,6 +11,11 @@ later. In the backend the settings come from app.config through bh3.bridge (no .
 Determinism measures: temperature 0, fixed seed, JSON-schema constrained output where the
 server supports it (fallback: json_object + validation), and an on-disk cache keyed by
 sha256(model + prompt) so re-runs never call the model twice for the same input.
+
+Reasoning: requests carry the ``reasoning`` field of ``extra_body`` (OpenRouter; off by default). A model that
+answers 400 "Reasoning is mandatory" to reasoning off is asked again with reasoning ``{"effort":
+reasoning_effort}`` and remembered for the rest of the process; a vision call with reasoning on gets
+``reasoning_extra_tokens`` more output tokens, so the answer still fits after the thinking.
 """
 from __future__ import annotations
 
@@ -29,6 +34,17 @@ log = logging.getLogger(__name__)
 class BudgetExceeded(RuntimeError):
     """Raised before (guard) or after (on_call) a model call when the run's budget is used up; never retried."""
 
+
+REASONING_MANDATORY = "reasoning is mandatory"
+# models that answered "Reasoning is mandatory" in this process: sent with reasoning on from then on
+_REASONING_REQUIRED: set[str] = set()
+
+
+def _reasoning_on(extra: dict) -> bool:
+    field = extra.get("reasoning")
+    return isinstance(field, dict) and field.get("enabled") is not False
+
+
 DEFAULT_BASE_URL = "https://api.mistral.ai/v1"
 DEFAULT_MODEL = "mistral-small-latest"
 
@@ -38,7 +54,8 @@ class LLMConfig:
                  vision_model: Optional[str] = None, base_url: str = DEFAULT_BASE_URL, api_key: str = "",
                  supports_schema: bool = True, max_batch: int = 25, extra_headers: Optional[dict] = None,
                  on_call: Optional[Callable[[dict], None]] = None, timeout_s: float = 120.0,
-                 extra_body: Optional[dict] = None):
+                 extra_body: Optional[dict] = None, reasoning_effort: str = "low",
+                 reasoning_extra_tokens: int = 4096):
         self.enabled = enabled and bool(api_key)
         self.base_url = base_url
         self.api_key = api_key
@@ -54,6 +71,9 @@ class LLMConfig:
         self.timeout_s = timeout_s
         # provider-specific request fields, e.g. OpenRouter {"reasoning": {"enabled": False}, "usage": {"include": True}}
         self.extra_body = dict(extra_body or {})
+        # reasoning for a model that refuses reasoning off, and the output tokens added while it is on
+        self.reasoning_effort = reasoning_effort
+        self.reasoning_extra_tokens = reasoning_extra_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +164,26 @@ class LLM:
                                   max_retries=0)
         return self._client
 
+    # -- reasoning -----------------------------------------------------------
+    def _extra_body(self, model: str) -> dict:
+        """The request's extra fields: reasoning on for a model that refused it off earlier in this process."""
+        extra = dict(self.cfg.extra_body)
+        if model in _REASONING_REQUIRED and "reasoning" in extra and not _reasoning_on(extra):
+            extra["reasoning"] = {"effort": self.cfg.reasoning_effort}
+        return extra
+
+    def _needs_reasoning(self, model: str, kwargs: dict, msg: str) -> bool:
+        """The server refused reasoning off: remember the model and switch the request to reasoning on."""
+        extra = kwargs.get("extra_body") or {}
+        if REASONING_MANDATORY not in msg.lower() or "reasoning" not in extra or _reasoning_on(extra):
+            return False
+        _REASONING_REQUIRED.add(model)
+        kwargs["extra_body"] = {**extra, "reasoning": {"effort": self.cfg.reasoning_effort}}
+        if "max_tokens" in kwargs:
+            kwargs["max_tokens"] += self.cfg.reasoning_extra_tokens
+        log.info("model %s requires reasoning; sent again with it on", model)
+        return True
+
     # -- cache ---------------------------------------------------------------
     def _cache_key(self, model: str, messages: list[dict], schema: dict) -> Path:
         h = hashlib.sha256(json.dumps([model, messages, schema], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -164,7 +204,7 @@ class LLM:
         else:
             kwargs["seed"] = 0
         if self.cfg.extra_body:
-            kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self.cfg.extra_body}
+            kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
         if self.cfg.supports_schema:
             kwargs["response_format"] = {"type": "json_schema",
                                          "json_schema": {"name": name, "strict": True, "schema": schema}}
@@ -185,6 +225,8 @@ class LLM:
             except Exception as e:  # noqa: BLE001
                 msg = str(e)
                 log.warning("LLM call failed (%s): %s", attempt, msg[:200])
+                if self._needs_reasoning(model, kwargs, msg):
+                    continue
                 if "json_schema" in msg or "response_format" in msg or "400" in msg:
                     # server does not support structured outputs → degrade gracefully
                     kwargs["response_format"] = {"type": "json_object"}
@@ -276,7 +318,9 @@ class LLM:
         else:
             kwargs["seed"] = 0
         if self.cfg.extra_body:
-            kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self.cfg.extra_body}
+            kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
+            if _reasoning_on(kwargs["extra_body"]):
+                kwargs["max_tokens"] = max_tokens + self.cfg.reasoning_extra_tokens  # room for the thinking
         schema_mode = "json_schema" if self.cfg.supports_schema else "json_object"
 
         def _set_format(mode: str) -> None:
@@ -323,6 +367,8 @@ class LLM:
                 msg = str(e)
                 low = msg.lower()
                 log.warning("vision call failed (%s): %s", attempt, msg[:200])
+                if self._needs_reasoning(model, kwargs, msg):
+                    continue
                 if "429" in msg or "rate limit" in low or "too many requests" in low:
                     time.sleep(delay)
                     delay = min(delay * 2, 60)

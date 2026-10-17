@@ -13,6 +13,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
+from app.bh3 import bridge as real_bridge
 from app.config import get_settings
 from app.db.models import ProviderCall
 from app.db.session import get_sessionmaker
@@ -122,11 +123,13 @@ class FakeBridge(ModuleType):
     ) -> None:
         super().__init__("app.bh3.bridge")
         self.BudgetExceeded = FakeBudgetExceeded
+        self.openrouter_body = real_bridge.openrouter_body  # the request fields the adapter hands to bh3
         self.fail = fail or set()
         self.unread = unread or set()
         self.cost = cost
         self.read: list[int] = []
         self.vlm_args: tuple[str, str] | None = None
+        self.vlm_options: dict[str, Any] = {}
         self.llm_model: str | None = None
         self.on_call: Any = None
         self.guard: Any = None
@@ -141,12 +144,21 @@ class FakeBridge(ModuleType):
         *,
         cache_dir: Path,
         guard: Any = None,
+        **options: Any,
     ) -> Any:
         self.vlm_args, self.on_call, self.guard = (base_url, model), on_call, guard
+        self.vlm_options = options
         return SimpleNamespace(model=model)
 
     def make_llm(
-        self, base_url: str, api_key: str, model: str, *, cache_dir: Path, on_call: Any = None
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        *,
+        cache_dir: Path,
+        on_call: Any = None,
+        **options: Any,
     ) -> Any:
         self.llm_model = model
         return SimpleNamespace(model=model)
@@ -225,9 +237,11 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     await work(queue, doc_id)
 
     assert bridge.read == [2, 3, 4]  # the log pages, one at a time
-    # Mistral first (live_mode sets its key): its vision model reads, its classifier model normalises layers
-    assert bridge.vlm_args == ("https://api.mistral.ai/v1", "mistral-medium-latest")
-    assert bridge.llm_model == "mistral-small-latest"
+    # OpenRouter first (live_mode sets its key): Gemini reads the pages and normalises layers, with the
+    # reasoning it requires
+    assert bridge.vlm_args == ("https://openrouter.ai/api/v1", "google/gemini-3.5-flash")
+    assert bridge.llm_model == "google/gemini-3.5-flash"
+    assert bridge.vlm_options["extra_body"]["reasoning"] == {"effort": "low"}
     assert bridge.built_with["doc_id"] == doc_id and bridge.built_with["llm"] is not None
     assert fakes.extractor.calls == 0  # bh3 covered every log page
     doc = await document(client, doc_id)
@@ -254,7 +268,7 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(select(ProviderCall).where(ProviderCall.document_id == doc_id))).all()
     bh3_rows = [r for r in rows if r.purpose == "bh3:tile"]
-    assert len(bh3_rows) == 3 and all(r.provider == "mistral" and r.input_tokens == 2400 for r in bh3_rows)
+    assert len(bh3_rows) == 3 and all(r.provider == "openrouter" and r.input_tokens == 2400 for r in bh3_rows)
 
     # A retry of the extraction finds every bh3 borehole finished and creates nothing twice.
     from app.pipeline.orchestrator import stage_extract

@@ -3,21 +3,22 @@
 Both are chat completions with `response_format` json_schema strict (app.providers.schema) and the same
 message shapes: text parts, images as {"type": "image_url", "image_url": {"url": data URL}}. OpenRouter also
 gets its own fields: provider routing (`require_parameters`, data collection per OPENROUTER_DATA_COLLECTION),
-usage with cost, reasoning per LLM_REASONING and the app headers. OpenAI (POST
-{OPENAI_BASE_URL}/chat/completions; shapes checked against the openai SDK 2.54 types CompletionCreateParams,
-ChatCompletionContentPartImageParam, ChatCompletion and CompletionUsage) gets `max_completion_tokens`, plus
-`reasoning_effort` (and `temperature` 0 when reasoning is off), which are dropped for a model that answers 400
-to them (remembered per process).
+usage with cost, reasoning per model (app.providers.reasoning: off unless LLM_REASONING asks for it or the
+model requires it; a 400 "Reasoning is mandatory" is retried once with it on) and the app headers. OpenAI
+(POST {OPENAI_BASE_URL}/chat/completions; shapes checked against the openai SDK 2.54 types
+CompletionCreateParams, ChatCompletionContentPartImageParam, ChatCompletion and CompletionUsage) gets
+`max_completion_tokens`, plus `reasoning_effort` (and `temperature` 0 when reasoning is off), which are
+dropped for a model that answers 400 to them (remembered per process).
 
 The reply is validated with the Pydantic model; one retry gets the validation error. Partial JSON is never
 accepted. Cost: the usage cost the provider reports (OpenRouter), else tokens times data/prices.yaml for the
 requested model; every call is written to provider_calls and the budget is checked before it.
 
-LLM_PROVIDER picks the providers (Settings.llm_routes): mistral (direct API, OpenAI-compatible chat
-completions), openrouter, openai; auto tries them in that order. A 401/403 moves the call, and every later
-call of this process, to the next configured provider, with that provider's model for the role
-(MISTRAL_CLASSIFIER_MODEL / MISTRAL_EXTRACTOR_MODEL on Mistral, CLASSIFIER_MODEL / EXTRACTOR_MODEL on
-OpenRouter, OPENAI_CLASSIFIER_MODEL / OPENAI_EXTRACTOR_MODEL on OpenAI). Mistral reports no cost: its calls
+LLM_PROVIDER picks the providers (Settings.llm_routes): openrouter (Gemini 3.5 Flash by default), openai,
+mistral (direct API, OpenAI-compatible chat completions); auto tries them in that order. A 401/403 moves the
+call, and every later call of this process, to the next configured provider, with that provider's model for
+the role (CLASSIFIER_MODEL / EXTRACTOR_MODEL on OpenRouter, OPENAI_CLASSIFIER_MODEL / OPENAI_EXTRACTOR_MODEL
+on OpenAI, MISTRAL_CLASSIFIER_MODEL / MISTRAL_EXTRACTOR_MODEL on Mistral). Mistral reports no cost: its calls
 are priced from data/prices.yaml.
 """
 
@@ -32,6 +33,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from app.config import LlmRoute, ModelRole, Settings, get_settings
+from app.providers import reasoning
 from app.providers.base import ProviderError, Usage, check_budget, post_with_retries, record_usage, token_cost
 from app.providers.schema import strict_json_schema
 
@@ -143,6 +145,46 @@ async def post_openai_chat(
     return _json(response, label)
 
 
+def openrouter_headers(settings: Settings) -> dict[str, str]:
+    key = settings.openrouter_api_key
+    if key is None:
+        raise ProviderError("OpenRouter is not configured.", retryable=False)
+    return {
+        "Authorization": f"Bearer {key.get_secret_value()}",
+        "HTTP-Referer": settings.openrouter_app_url,
+        "X-Title": settings.openrouter_app_title,
+    }
+
+
+async def post_openrouter_chat(
+    http: httpx.AsyncClient | None,
+    body: dict[str, Any],
+    *,
+    label: str = "OpenRouter",
+    timeout_s: float = TIMEOUT_S,
+) -> dict[str, Any]:
+    """POST a chat completion to OpenRouter. A model that answers 400 "Reasoning is mandatory" to reasoning
+    off is asked again once with reasoning on (a 400 is not billed) and remembered for the rest of the
+    process."""
+    settings = get_settings()
+    url = settings.openrouter_base_url.rstrip("/") + "/chat/completions"
+    headers = openrouter_headers(settings)
+    try:
+        response = await _send(http, url, body, headers, label, timeout_s)
+    except ProviderError as exc:
+        if (
+            exc.status != 400
+            or not reasoning.mandatory_error(exc.detail)
+            or not reasoning.is_off(body.get("reasoning"))
+        ):
+            raise
+        model = str(body.get("model"))
+        logger.info("%s model %s requires reasoning; sent again with it on", label, model)
+        reasoning.learn(model)
+        response = await _send(http, url, reasoning.with_reasoning(body), headers, label, timeout_s)
+    return _json(response, label)
+
+
 def _answer(payload: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
     """(content, finish_reason, refusal) of the first choice."""
     choice = (payload.get("choices") or [{}])[0] or {}
@@ -162,8 +204,8 @@ class LlmClient:
         self.settings = get_settings()
         if not self.settings.llm_routes:
             raise ProviderError(
-                "No model provider is configured (set MISTRAL_API_KEY, OPENROUTER_API_KEY or "
-                "OPENAI_API_KEY).",
+                "No model provider is configured (set OPENROUTER_API_KEY, OPENAI_API_KEY or "
+                "MISTRAL_API_KEY).",
                 retryable=False,
             )
         self._http = http
@@ -176,20 +218,6 @@ class LlmClient:
     def model_for(self, role: ModelRole) -> str:
         """The model the next call for `role` goes to first."""
         return self.settings.llm_model(role, self.provider)
-
-    def _openrouter_headers(self) -> dict[str, str]:
-        key = self.settings.openrouter_api_key
-        if key is None:
-            raise ProviderError("OpenRouter is not configured.", retryable=False)
-        return {
-            "Authorization": f"Bearer {key.get_secret_value()}",
-            "HTTP-Referer": self.settings.openrouter_app_url,
-            "X-Title": self.settings.openrouter_app_title,
-        }
-
-    def _reasoning(self) -> dict[str, Any]:
-        level = self.settings.llm_reasoning
-        return {"enabled": False} if level == "off" else {"effort": level}
 
     def _body(
         self,
@@ -214,18 +242,19 @@ class LlmClient:
                 "max_tokens": max_tokens,
                 "response_format": response_format,
             }
+        thinking = reasoning.openrouter_reasoning(model, self.settings.llm_reasoning)
         return {
             "model": model,
             "messages": messages,
             "temperature": 0,
-            "max_tokens": max_tokens,
+            "max_tokens": reasoning.output_tokens(max_tokens, thinking),
             "response_format": response_format,
             "provider": {
                 "require_parameters": True,
                 "data_collection": self.settings.openrouter_data_collection,
             },
             "usage": {"include": True},
-            "reasoning": self._reasoning(),
+            "reasoning": thinking,
         }
 
     async def _post(self, provider: LlmRoute, body: dict[str, Any]) -> dict[str, Any]:
@@ -239,9 +268,7 @@ class LlmClient:
             headers = {"Authorization": f"Bearer {key.get_secret_value()}"}
             response = await _send(self._http, url, body, headers, "Mistral", TIMEOUT_S)
             return _json(response, "Mistral")
-        url = self.settings.openrouter_base_url.rstrip("/") + "/chat/completions"
-        response = await _send(self._http, url, body, self._openrouter_headers(), "OpenRouter", TIMEOUT_S)
-        return _json(response, "OpenRouter")
+        return await post_openrouter_chat(self._http, body)
 
     async def structured(
         self,

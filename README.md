@@ -22,7 +22,7 @@ make unseed    # docker compose exec api python -m app.seed --remove
 
 Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on the host.
 
-**First run without any keys** (what a fresh clone gives you): `docker compose up --build`, open http://localhost:8080, then `make seed` for fictional demo boreholes on the map. Every screen works; uploads answer "demo mode" until a provider key is set in `.env` (any one of `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`), after which a dropped PDF, image, Word file or spreadsheet is processed live.
+**First run without any keys** (what a fresh clone gives you): `docker compose up --build`, open http://localhost:8080, then `make seed` for fictional demo boreholes on the map. Every screen works; uploads answer "demo mode" until a provider key is set in `.env` (`OPENROUTER_API_KEY` is all it needs; any one of `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `MISTRAL_API_KEY` gives live mode), after which a dropped PDF, image, Word file or spreadsheet is processed live.
 
 ### Demo mode and live mode
 
@@ -33,7 +33,15 @@ Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on th
 
 `GET /api/health` reports the mode and which providers are configured. Keys are read only by the backend from the environment; they never reach the browser, logs or git. The chat assistant needs `OPENAI_API_KEY`.
 
-Which provider does what: every model call goes to Mistral directly by default (`MISTRAL_API_KEY`): OCR, the page classifier, the extractor and bh3's page reading. OpenRouter, then OpenAI, are the fallbacks (`LLM_PROVIDER`, `OCR_PROVIDER`); in `auto` mode a refused key (401/403) moves on to the next configured provider. Log pages are read by bh3 (`EXTRACTOR=bh3`: the page as a picture, depths anchored to the depth scale; vector pages from their text layer), with the OCR-text extractor as the fallback.
+Which provider does what: every document model call goes to **Gemini 3.5 Flash on OpenRouter** (`OPENROUTER_API_KEY`, model id `google/gemini-3.5-flash`): the page classifier, the extractor, bh3's page reading (classify, header, tiles), second reads, spreadsheet mapping and OCR of scanned pages (Gemini reads the page render and returns its text with boxes, so evidence boxes work on scans). The chat assistant runs on OpenAI (`OPENAI_API_KEY`). OpenAI, then Mistral, are only fallbacks (`LLM_PROVIDER`, `OCR_PROVIDER`); in `auto` mode a refused key (401/403) moves on to the next configured provider. Gemini 3.5 Flash cannot run with reasoning off, so it gets reasoning effort "low" with room for it in the answer (`backend/data/reasoning.yaml`; any model that answers "Reasoning is mandatory" is retried the same way). Log pages are read by bh3 (`EXTRACTOR=bh3`: the page as a picture, depths anchored to the depth scale; vector pages from their text layer), with the OCR-text extractor as the fallback.
+
+| Call | Default model (provider) | Fallbacks in `auto` |
+|---|---|---|
+| Page classifier, extractor, second reads, sheet mapping | Gemini 3.5 Flash (OpenRouter) | OpenAI, then Mistral |
+| bh3 page reading (classify, header, tiles) | Gemini 3.5 Flash (OpenRouter) | OpenAI, then Mistral |
+| OCR of scanned log pages | Gemini 3.5 Flash reading the page render, text with boxes (`openrouter_vision`) | Mistral OCR, Mistral OCR via the OpenRouter file parser, OpenAI |
+| Chat assistant | OpenAI (`CHAT_MODEL`) | none |
+| Narrative search embeddings | `EMBEDDING_MODEL` (OpenRouter) | none |
 
 ## How it works
 
@@ -44,16 +52,18 @@ Which provider does what: every model call goes to Mistral directly by default (
                                                      │                  │
                                                   worker ───────────────┘
                                                      ├─▶ gotenberg (Word → PDF)
-                                                     ├─▶ page classifier (Mistral small; OpenRouter/OpenAI fallback)
+                                                     ├─▶ page classifier (Gemini 3.5 Flash on OpenRouter)
                                                      ├─▶ bh3 page reader: text layer for vector pages (no model),
-                                                     │   vision model + depth-scale anchoring for scans (Mistral medium)
-                                                     ├─▶ Mistral OCR (scanned log pages only; classic extractor path)
+                                                     │   vision model + depth-scale anchoring for scans (Gemini)
+                                                     ├─▶ OCR of scanned log pages: Gemini reads the render, text
+                                                     │   with boxes (classic extractor path; Mistral fallback)
+                                                     ├─▶ chat assistant (OpenAI)
                                                      └─▶ Python normalisation, coordinate systems and checks
 ```
 
 1. **Upload.** The file is checked by its content (not its name), stored under its SHA-256, and queued. The same bytes uploaded twice return the existing document.
 2. **Triage and classification.** Pages are rendered once. A cheap model labels every page (log sheet, continuation, summary table, narrative, photo …).
-3. **OCR only where it matters.** Only pages with borehole data go to Mistral OCR, which returns text with boxes and confidence.
+3. **OCR only where it matters.** Only scanned pages with borehole data go to OCR: Gemini 3.5 Flash reads the page render and returns every line and table cell with its box (Mistral OCR is the optional fallback).
 4. **Extraction.** A stronger model returns the raw text of every value and the OCR blocks it came from. It never returns normalised numbers.
 5. **Normalisation and checks (Python only).** Numbers, units, SPT, coordinates and coordinate systems, DIN 4023 lithology codes and depth datums are normalised in Python. Lint rules flag gaps, overlaps, RQD above 100, positions far from the rest of a document and similar problems. Anything uncertain becomes a clarification question: the coordinate system, unclear readings, units, datum conventions, borehole boundaries and duplicates.
 6. **Second reads.** Handwritten and low-confidence values are cropped and read again. When the two readings disagree, both are kept and a person chooses.
@@ -97,10 +107,11 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MISTRAL_API_KEY` | — | Default for every model call: OCR, page classifier, extractor, bh3 page reading |
-| `OPENROUTER_API_KEY` | — | Fallback for all of the above (alias `OPEN_ROUTER_KEY`) |
-| `OPENAI_API_KEY` | — | Chat assistant; last fallback for the other calls |
-| `LLM_PROVIDER` / `OCR_PROVIDER` | `auto` / `auto` | Order mistral → openrouter → openai; force one with `mistral`, `openrouter` or `openai` |
+| `OPENROUTER_API_KEY` | — | Default for every document model call (Gemini 3.5 Flash): OCR, page classifier, extractor, bh3 page reading, second reads (alias `OPEN_ROUTER_KEY`) |
+| `OPENAI_API_KEY` | — | Chat assistant; fallback for the other calls |
+| `MISTRAL_API_KEY` | — | Optional last fallback (OCR with boxes, the models) |
+| `CLASSIFIER_MODEL` / `EXTRACTOR_MODEL` / `BH3_MODEL` / `OPENROUTER_OCR_MODEL` | `google/gemini-3.5-flash` | OpenRouter model ids |
+| `LLM_PROVIDER` / `OCR_PROVIDER` | `auto` / `auto` | Models: openrouter → openai → mistral; OCR: openrouter_vision → mistral → openrouter (file parser) → openai. Force one by name |
 | `EXTRACTOR` | `bh3` | `bh3` (page reader with depth-scale anchoring, classic per-page fallback) or `classic` (OCR text extractor) |
 | `PROVIDER_BUDGET_USD` | — | Stops processing before this total provider spend (every call is in a cost ledger) |
 | `REQUEST_TIMEOUT_S` / `RATE_LIMIT_WAIT_S` | `120` / `600` | Per-request timeout; how long rate limits (429) are waited out before a page is deferred |

@@ -4,10 +4,12 @@ A run is keyed by the hash of (model, parameters, document sha256, pages); a sto
 reused, so a retry or a worker restart never repeats a paid call. Raw provider JSON is stored on disk; blocks
 are normalised (ids p{n}.b{i}, boxes [x, y, w, h] on the page render).
 
-Routes (Settings.ocr_routes): mistral (direct, chunks of pages, boxes and confidence), openrouter (Mistral OCR
-through the file-parser plugin) and openai (a vision model transcribes the page render); the last two are
-text only and take one page per request. In auto mode a 401/403 moves the rest of the run to the next
-configured route, and later runs of this process try the refused route last.
+Routes (Settings.ocr_routes): openrouter_vision (a vision model on OpenRouter, Gemini by default, reads the
+page render and returns text blocks with boxes), mistral (direct, chunks of pages, boxes and confidence),
+openrouter (Mistral OCR through the file-parser plugin) and openai (a vision model transcribes the page
+render); the last two are text only. Every route but mistral takes one page per request. In auto mode a
+401/403 moves the rest of the run to the next configured route, and later runs of this process try the
+refused route last.
 
 Rate limits: a provider call already waits out a 429 (app.providers.base.post_with_retries). A page still
 refused after that is deferred to the end of the run and tried again after a cooldown, up to
@@ -293,6 +295,11 @@ def _engine_for(route: str, engine: OcrEngine | None) -> tuple[OcrEngine, str, s
     settings = get_settings()
     if route == "custom" and engine is not None:
         return engine, settings.mistral_ocr_model, "mistral"
+    if route == "openrouter_vision":
+        from app.providers.ocr_vision import OpenRouterVisionOcrClient
+        from app.providers.ocr_vision import model_tag as vision_tag
+
+        return OpenRouterVisionOcrClient(), vision_tag(settings.openrouter_ocr_model), "openrouter"
     if route == "openrouter":
         from app.providers.ocr_openrouter import MODEL_TAG, OpenRouterOcrClient
 
@@ -329,8 +336,10 @@ async def route_limit(route: str) -> AsyncIterator[None]:
         yield
 
 
-# Text-only routes: one page per request, so every text maps to its page.
-ONE_PAGE_ROUTES = frozenset({"openrouter", "openai"})
+# One page per request, so every text maps to its page (the text-only routes and the vision model).
+ONE_PAGE_ROUTES = frozenset({"openrouter_vision", "openrouter", "openai"})
+# Routes sent the stored page render itself (a vision model reads images); the others get a PDF.
+IMAGE_ROUTES = frozenset({"openrouter_vision", "openai"})
 OCR_PDF_DPI = 150.0  # page size of the rebuilt PDF; the pixels are the stored render's
 
 
@@ -351,9 +360,9 @@ def _next_route(chain: Sequence[str], route: str, exc: ProviderError) -> str | N
 
 
 def request_data(route: str, render_keys: Sequence[str | None]) -> tuple[bytes, str]:
-    """What a route is sent: the stored page render itself on the OpenAI route (a vision model reads images),
-    else the renders rebuilt as a PDF."""
-    if route == "openai":
+    """What a route is sent: the stored page render itself on the vision routes (IMAGE_ROUTES), else the
+    renders rebuilt as a PDF."""
+    if route in IMAGE_ROUTES:
         if len(render_keys) != 1 or not render_keys[0]:
             raise ProviderError("A page has no rendered image to read.", retryable=False)
         return get_storage().get_bytes(render_keys[0]), "image/png"

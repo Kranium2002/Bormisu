@@ -12,9 +12,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 LlmRoute = Literal["mistral", "openrouter", "openai"]
-OcrRoute = Literal["mistral", "openrouter", "openai"]
+OcrRoute = Literal["openrouter_vision", "mistral", "openrouter", "openai"]
 ModelRole = Literal["classifier", "extractor"]
 OPENAI_BASE_URL = "https://api.openai.com/v1"
+# The document model on OpenRouter: page classifier, extractor, bh3's page reading, second reads, sheet
+# mapping and OCR of scanned pages (the chat assistant stays on OpenAI).
+GEMINI_MODEL = "google/gemini-3.5-flash"
 
 
 def _find_upwards(relative: str) -> Path:
@@ -59,16 +62,17 @@ class Settings(BaseSettings):
     # The variable the openai SDK (chat) reads; structured calls and OCR with an OpenAI key use it too.
     openai_base_url: str = OPENAI_BASE_URL
     # Which provider runs the classifier, extractor, second reads, sheet mapping and bh3's page reading:
-    # mistral (direct API), openrouter, openai, or auto (mistral -> openrouter -> openai, the first whose key
-    # is set; a 401/403 on one moves to the next configured one, remembered until the worker restarts).
+    # openrouter (Gemini by default), openai, mistral (direct API), or auto (openrouter -> openai -> mistral,
+    # the first whose key is set; a 401/403 on one moves to the next configured one, remembered until the
+    # worker restarts).
     llm_provider: Literal["auto", "mistral", "openrouter", "openai"] = "auto"
     # Mistral model ids (direct API; calls are priced from data/prices.yaml, Mistral reports no cost)
     mistral_classifier_model: str = "mistral-small-latest"
     mistral_extractor_model: str = "mistral-medium-latest"
     mistral_bh3_model: str = "mistral-medium-latest"
     # OpenRouter model ids
-    classifier_model: str = "mistralai/mistral-small-2603"
-    extractor_model: str = "mistralai/mistral-large-4-0"
+    classifier_model: str = GEMINI_MODEL
+    extractor_model: str = GEMINI_MODEL
     # OpenAI model ids (unset or blank: CHAT_MODEL)
     openai_classifier_model: str | None = None
     openai_extractor_model: str | None = None
@@ -77,17 +81,20 @@ class Settings(BaseSettings):
     # bh3 hands a page it cannot read to classic, and every page when app.bh3 is not installed.
     extractor: Literal["bh3", "classic"] = "bh3"
     # Vision model bh3 reads pages with: on OpenRouter, and on OpenAI (unset or blank: CHAT_MODEL).
-    bh3_model: str = "mistralai/mistral-large-4-0"
+    bh3_model: str = GEMINI_MODEL
     openai_bh3_model: str | None = None
     openai_ocr_model: str | None = None
     mistral_ocr_model: str = "mistral-ocr-latest"
+    # Vision model of the openrouter_vision OCR route (reads the page render, returns text with boxes).
+    openrouter_ocr_model: str = GEMINI_MODEL
     ocr_fallback: Literal["openrouter", "none"] = "openrouter"
-    # Which OCR route the pipeline uses: mistral (direct API, needs MISTRAL_API_KEY; boxes and confidence),
+    # Which OCR route the pipeline uses: openrouter_vision (OPENROUTER_OCR_MODEL reads the page render on
+    # OpenRouter; text blocks with boxes), mistral (direct API, needs MISTRAL_API_KEY; boxes and confidence),
     # openrouter (Mistral OCR via the OpenRouter file-parser plugin, text only), openai (a vision model
-    # transcribes the page render, text only), or auto: mistral -> openrouter -> openai, the first whose key
-    # is set; a 401/403 moves on to the next configured route (remembered per process). With
-    # OCR_FALLBACK=none, auto uses mistral only.
-    ocr_provider: Literal["auto", "openrouter", "mistral", "openai"] = "auto"
+    # transcribes the page render, text only), or auto: openrouter_vision -> mistral -> openrouter -> openai,
+    # the first whose key is set; a 401/403 moves on to the next configured route (remembered per process).
+    # With OCR_FALLBACK=none, auto uses only the routes with boxes (openrouter_vision, mistral).
+    ocr_provider: Literal["auto", "openrouter_vision", "openrouter", "mistral", "openai"] = "auto"
     # Recorded and budgeted per page for the OpenRouter route (parser price: 2 USD per 1,000 pages).
     openrouter_ocr_usd_per_page: float = 0.002
     chat_model: str = "gpt-6.1-sol"
@@ -212,6 +219,7 @@ class Settings(BaseSettings):
     def ocr_routes(self) -> list[OcrRoute]:
         """The OCR routes OCR_PROVIDER allows with the keys at hand, in the order they are tried."""
         keys: dict[OcrRoute, SecretStr | None] = {
+            "openrouter_vision": self.openrouter_api_key,
             "mistral": self.mistral_api_key,
             "openrouter": self.openrouter_api_key,
             "openai": self.openai_api_key,
@@ -219,7 +227,9 @@ class Settings(BaseSettings):
         if self.ocr_provider != "auto":
             return [self.ocr_provider] if keys[self.ocr_provider] is not None else []
         order: tuple[OcrRoute, ...] = (
-            ("mistral", "openrouter", "openai") if self.ocr_fallback == "openrouter" else ("mistral",)
+            ("openrouter_vision", "mistral", "openrouter", "openai")
+            if self.ocr_fallback == "openrouter"
+            else ("openrouter_vision", "mistral")
         )
         return [route for route in order if keys[route] is not None]
 
@@ -239,7 +249,7 @@ class Settings(BaseSettings):
         }
         if self.llm_provider != "auto":
             return [self.llm_provider] if keys[self.llm_provider] is not None else []
-        return [route for route in ("mistral", "openrouter", "openai") if keys[route] is not None]
+        return [route for route in ("openrouter", "openai", "mistral") if keys[route] is not None]
 
     def llm_model(self, role: ModelRole, provider: LlmRoute) -> str:
         """The model id of the classifier or the extractor on a provider."""
