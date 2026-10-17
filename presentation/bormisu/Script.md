@@ -5,10 +5,11 @@
 > Its a soil sample.
 ## 02 · Profile
 
-> Here is what it looks like on a plan.
+> Its just a chunk of soil that you take out of the earths crust.
+> and that is what it looks like on a plan.
 > It tells you exactly what the ground is made of: which material sits at which layer.
 > You can see where the ground water is.
-> And you can see where the samples are taken and can determine the  exact specifications of the material.
+> And you can see where the samples are taken and with which yo determine the  exact specifications of the material.
 
 ## 03 · Offenburg
 
@@ -28,8 +29,8 @@
 
 ## 06 · Reports from around the world
 
-> When you work internationally, the data looks even worse.
-> This is what the reports look like.
+> When you work internationally, the data looks really messi.
+> This is what real reports look like.
 > Handwritten, in Norwegian. A Spanish soil probe sheet. A Korean drill log.
 > Every country does it differently. 
 > Often every company does.
@@ -40,19 +41,19 @@
 
 ## 08 · Key features
 
-> So what you just saw, in three points:
+> The Key Features are
 > It reads any report: PDF, handwriting, any language. And where it's unsure, it flags the case for a human to verify.
 > Area scraping: draw an area on the map and get an overview of many soil samples at once.
-> And export: the data comes out in your format, as PDF, JPEG or CSV.
+> And export: the data comes out in your format, as PDF, JPEG, CSV and may more.
 
 ## 09 · Sovereignty
 
-> Today it runs in the Mistral cloud:with Mistral Large and the Mistral ORC.
-> But borehole reports are confidential. So the same pipeline runs on open models, whcih you can run either on your on premise server or your own PC.
+> Today it runs in the Mistral cloud where you can run it under zero data retention.
+> If you want to keep the data completely private you can run a similar pipeline on open models, whcih run either on your on premise server or your own PC.
 
 ## 10 · In a nutshell
 
-> So, in a nutshell:
+> In a nutshell:
 > It's multilingual: any language, any format, even handwriting works.
 > It's a sovereign stack: mistral cloud today, your own server or a Mac mini tomorrow.
 > And it's ready to use. Now.
