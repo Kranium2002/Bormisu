@@ -35,7 +35,7 @@ export function ResultSetSummary({ resultSet, busy, error, onClear, compact = fa
       data-result-set-bar=""
       data-result-set={resultSet?.id}
     >
-      {resultSet && <span className={styles.tag}>{t(compact ? 'FILTERED' : 'RESULT SET')}</span>}
+      {resultSet && <span className={styles.tag}>{t('FILTERED')}</span>}
       {/* Always rendered, so a new set's counts are announced. */}
       <p className={styles.summary} aria-live="polite" aria-atomic="true">
         {busy ? (

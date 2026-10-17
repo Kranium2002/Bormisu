@@ -17,7 +17,7 @@ export async function showSetOnMap(id: string): Promise<void> {
   await useAppStore.getState().showResultSet(id, { fit: true });
 }
 
-/** Waits (up to about 3 s) for the RESULTS table of the map screen, then focuses its first row (else the table). */
+/** Waits (up to about 3 s) for the table of LIST, then focuses its first row (else the table). */
 export function focusResultsTable(): void {
   if (typeof document === 'undefined') return;
   let tries = 0;
@@ -38,10 +38,13 @@ export function focusResultsTable(): void {
   attempt();
 }
 
-/** OPEN TABLE: as SHOW ON MAP, then the focus goes to the RESULTS table. */
+/** OPEN TABLE: as SHOW ON MAP, then LIST shows the set and the focus goes to its table. */
 export async function openSetTable(id: string): Promise<void> {
   await showSetOnMap(id);
-  if (useAppStore.getState().resultSet?.id === id) focusResultsTable();
+  const s = useAppStore.getState();
+  if (s.resultSet?.id !== id) return;
+  if (s.navigator) s.showRoute({ kind: 'list' });
+  focusResultsTable();
 }
 
 /** A citation chip: the Source panel at the cited value, or the cited page and box. */
