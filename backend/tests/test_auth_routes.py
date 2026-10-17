@@ -35,11 +35,14 @@ SAMPLE_PARAMS = {
     "result_set_id": "rs_01JFAKE00000000000000000RS",
     "clarification_id": "cl_01JFAKE00000000000000000CL",
     "n": "1",
+    "alignment_id": "aln_01JFAKE0000000000000000ALN",
 }
+# In the contract (1.2.2) but not served yet: the app answers 404 route_not_found before any session check.
+NOT_SERVED = {"getPageWords", "getPageEvidence"}
 PROTECTED = [
     (method, template, operation["operationId"])
     for method, template, operation in iter_operations()
-    if operation["operationId"] not in PUBLIC
+    if operation["operationId"] not in PUBLIC | NOT_SERVED
 ]
 SOMEONE_ELSE = "Somebody Else"
 
