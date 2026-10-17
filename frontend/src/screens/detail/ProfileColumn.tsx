@@ -473,7 +473,18 @@ function GwSwatch({ type }: { type: GroundwaterType }) {
  * Table 6 properties it draws, and the marks it shows (groundwater per reading type, samples,
  * cored, SPT refusal), with the note "nach DIN 4023".
  */
-export function ProfileLegend({ borehole, readOnly = false, t: tProp }: { borehole: Borehole; readOnly?: boolean; t?: (en: string) => string }) {
+export function ProfileLegend({
+  borehole,
+  readOnly = false,
+  de = false,
+  t: tProp,
+}: {
+  borehole: Borehole;
+  readOnly?: boolean;
+  /** DIN names in German (the German sheet). */
+  de?: boolean;
+  t?: (en: string) => string;
+}) {
   const appT = useT();
   const t = tProp ?? appT;
   const items = dinLegendItems(borehole.layers);
@@ -496,7 +507,7 @@ export function ProfileLegend({ borehole, readOnly = false, t: tProp }: { boreho
             >
               <DinSwatch code={code} />
               <span className={styles.code}>{code}</span>
-              {entry ? entry.nameEn : <span className={styles.unknown}>{t('no pattern assigned')}</span>}
+              {entry ? (de ? entry.nameDe : entry.nameEn) : <span className={styles.unknown}>{t('no pattern assigned')}</span>}
             </li>
           ))}
           {withoutCode && (
@@ -515,7 +526,7 @@ export function ProfileLegend({ borehole, readOnly = false, t: tProp }: { boreho
                 <rect x="0.5" y="0.5" width="35" height="17" fill={`url(#${sc.patternId})`} stroke={COL.border} />
               </Swatch>
               <span className={styles.code}>{sc.code}</span>
-              {sc.nameEn}
+              {de ? sc.nameDe : sc.nameEn}
             </li>
           ))}
           {[...props.values()].map((p) => (
@@ -523,7 +534,7 @@ export function ProfileLegend({ borehole, readOnly = false, t: tProp }: { boreho
               <Swatch w={Math.ceil(p.w)} h={18}>
                 <PropertyMark p={p} x={0} top={0} h={18} />
               </Swatch>
-              {p.label}
+              {de ? p.labelDe : p.label}
             </li>
           ))}
         </ul>
@@ -532,7 +543,7 @@ export function ProfileLegend({ borehole, readOnly = false, t: tProp }: { boreho
         {gwTypes.map((type) => (
           <span key={type} className={styles.legendItem}>
             <GwSwatch type={type} />
-            {`GW ${GW_LABEL[type].toLowerCase()}`}
+            {t(`GW ${GW_LABEL[type].toLowerCase()}`)}
           </span>
         ))}
         {[...sampleKinds].map((kind) => (

@@ -437,7 +437,12 @@ export function groundwaterRows(b: Borehole): GroundwaterRow[] {
 /* ---------- test results ---------- */
 
 /** One lab or in-situ value in the TEST RESULTS table ("< 0.5 MPa") with its dot. */
-export interface TestCell { text: string; mark: ValueMark | null }
+export interface TestCell {
+  text: string;
+  mark: ValueMark | null;
+  /** A reviewable value not approved yet (the sheet marks it). */
+  unreviewed: boolean;
+}
 
 /**
  * One row of the TEST RESULTS table: a sample (its depth range from the samples list), or the depth
@@ -491,7 +496,8 @@ export function testTable(b: Borehole): { columns: string[]; rows: TestRow[] } {
       };
       rows.push(row);
     }
-    row.cells[r.name] = { text: testText(r), mark: markOf(b, r.key) };
+    const v = valueOf(b, r.key);
+    row.cells[r.name] = { text: testText(r), mark: markOf(b, r.key), unreviewed: !!v?.hasProvenance && v.status !== 'approved' };
   });
   rows.sort((x, y) => (x.at ?? Infinity) - (y.at ?? Infinity));
   return { columns, rows };

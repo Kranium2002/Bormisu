@@ -333,7 +333,7 @@ describe('testTable', () => {
     expect(rows[0]).toMatchObject({ depth: { text: '1.00', missing: false }, layer: 1, sampleIndex: 1 });
     expect(rows[0].cells['Water content'].text).toBe('21.5 %');
     expect(rows[1]).toMatchObject({ depth: { text: '4.00–4.50' }, layer: 2, typeCode: 'GP' });
-    expect(rows[1].cells.UCS).toEqual({ text: '<0.5 MPa', mark: { certainty: { kind: 'sure', title: 'Reviewed' }, key: K.test(1) } });
+    expect(rows[1].cells.UCS).toEqual({ text: '<0.5 MPa', mark: { certainty: { kind: 'sure', title: 'Reviewed' }, key: K.test(1) }, unreviewed: false });
     expect(rows[2]).toMatchObject({ depth: { text: 'not stated', missing: true }, layer: null, sampleIndex: null });
   });
 });
