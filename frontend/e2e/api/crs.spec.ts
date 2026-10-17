@@ -15,6 +15,7 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import {
   documents,
   expect,
+  expectPins,
   fieldRow,
   getJson,
   knownBug,
@@ -23,7 +24,6 @@ import {
   openApp,
   openDetail,
   openReview,
-  pins,
   records,
   reload,
   test,
@@ -110,7 +110,7 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
   const first = doc!.boreholes[0];
 
   await openApp(page);
-  await expect(pins(page)).toHaveCount(plottedBefore);
+  await expectPins(page, plottedBefore);
   for (const b of doc!.boreholes) {
     await expect(page.locator(`aside button[data-uid="${b.uid}"]`)).toContainText(UNPLOTTED_LABEL.crs_unconfirmed);
   }
@@ -159,7 +159,7 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
   await nav(page, 'MAP');
   const after = await records(request, `?document_id=${doc!.id}`);
   for (const b of after) expect({ id: b.metadata.borehole_id, plotted: b.plotted, crs: b.crs_status }).toEqual({ id: b.metadata.borehole_id, plotted: true, crs: 'confirmed' });
-  await expect(pins(page)).toHaveCount(plottedBefore + doc!.boreholes.length);
+  await expectPins(page, plottedBefore + doc!.boreholes.length);
   for (const b of doc!.boreholes) {
     await expect(page.locator(`aside button[data-uid="${b.uid}"]`)).toHaveCount(0);
     await expect(page.locator(`[role="table"] [role="row"][data-uid="${b.uid}"]`).getByRole('cell').nth(4)).toHaveText(/^confirmed/);

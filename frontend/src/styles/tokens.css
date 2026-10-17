@@ -39,8 +39,9 @@
   --c-ink: #2B2B2B;
 
   /* fonts */
-  --font-sans: Univers, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
+  /* After the Latin faces: CJK and Devanagari fallbacks for reports printed in those scripts. */
+  --font-sans: Univers, 'Helvetica Neue', Helvetica, Arial, 'Noto Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans Devanagari', 'Nirmala UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Noto Sans Mono', 'Noto Sans SC', 'Microsoft YaHei', 'Noto Sans Devanagari', 'Nirmala UI', monospace;
   --font-scan: 'Courier Prime', monospace;
 
   /* shadows */

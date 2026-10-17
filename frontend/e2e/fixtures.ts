@@ -14,12 +14,15 @@ const BLANK_TILE = Buffer.from(
 /** The product name the app shows (VITE_APP_NAME, default as in src/config.ts). */
 export const APP_NAME = process.env.VITE_APP_NAME?.trim() || 'Bormisu';
 
+const FONT_HOSTS = /fonts\.(googleapis|gstatic)\.com/;
+
 export const test = base.extend<{ errors: string[] }>({
   errors: [
     async ({ page }, use) => {
       const errors: string[] = [];
       page.on('console', (m) => {
-        if (m.type() === 'error') errors.push(`${m.text()} ${m.location().url}`);
+        // A network blip on the Google Fonts stylesheet is not an app error (the font stack falls back).
+        if (m.type() === 'error' && !FONT_HOSTS.test(`${m.text()} ${m.location().url}`)) errors.push(`${m.text()} ${m.location().url}`);
       });
       page.on('pageerror', (e) => errors.push(process.env.E2E_STACKS ? `${e.message}\n${e.stack}` : e.message));
       await page.route(/tile\.openstreetmap\.org/, (route) =>
@@ -79,10 +82,9 @@ export const pathOf = (page: Page) => {
 };
 
 /** The map's circle markers (Leaflet SVG paths). */
-export const pins = (page: Page) => page.locator('.leaflet-overlay-pane path.leaflet-interactive');
+/** Pins are canvas drawings: the map root reports how many it shows in data-pins. */
+export const pinCount = async (page: Page) => Number(await page.locator('[data-pins]').getAttribute('data-pins'));
 
-/** Fill colours of the map pins. */
-export const pinFills = (page: Page) => pins(page).evaluateAll((ps) => ps.map((p) => p.getAttribute('fill')));
 
 export const AMBER = '#E39B00';
 

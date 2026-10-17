@@ -200,6 +200,8 @@ export interface ApiCall {
   requestBody: string | null;
 }
 
+const FONT_HOSTS = /fonts\.(googleapis|gstatic)\.com/;
+
 export const test = base.extend<{ errors: string[]; warnings: string[]; apiLog: ApiCall[] }>({
   apiLog: [
     async ({ page }, use, testInfo) => {
@@ -232,7 +234,8 @@ export const test = base.extend<{ errors: string[]; warnings: string[]; apiLog: 
     async ({ page }, use) => {
       const errors: string[] = [];
       page.on('console', (m) => {
-        if (m.type() === 'error') errors.push(`${m.text()} ${m.location().url}`);
+        // A network blip on the Google Fonts stylesheet is not an app error (the font stack falls back).
+        if (m.type() === 'error' && !FONT_HOSTS.test(`${m.text()} ${m.location().url}`)) errors.push(`${m.text()} ${m.location().url}`);
       });
       page.on('pageerror', (e) => errors.push(e.message));
       await page.route(/tile\.openstreetmap\.org/, (route) =>
@@ -375,8 +378,9 @@ export async function openReview(page: Page, id: string): Promise<void> {
 export const fieldRow = (page: Page, key: string) => page.locator(`[aria-label="Extracted values"] [data-key="${key}"]`);
 
 /** The map's circle markers (Leaflet SVG paths) on the main map. */
-export const pins = (page: Page) =>
-  page.getByRole('region', { name: 'Borehole map' }).locator('.leaflet-overlay-pane path.leaflet-interactive');
+/** Pins are canvas drawings: the map root reports how many it shows in data-pins. */
+export const expectPins = (page: Page, count: number) =>
+  expect(page.locator('[data-pins]')).toHaveAttribute('data-pins', String(count));
 
 /**
  * Runs `action` and waits for the next `count` PATCH answers of a borehole's values; resolves with
