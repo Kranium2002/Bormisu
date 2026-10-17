@@ -23,12 +23,13 @@ def _raw_path(src: PageSource, workdir: Path) -> Path:
 def classify_page(src: PageSource, vlm: VLM, classify_dpi: int, workdir: Path, raw: dict) -> tuple[Optional[dict], Path, int]:
     img = render_page(src, classify_dpi, workdir)
     img, rot = rotate_upright(img)
-    if "classify" in raw and raw.get("rot") == rot:
+    if raw.get("classify") is not None and raw.get("rot") == rot:
         return raw["classify"], img, rot
     out, meta = vlm.classify(img)
-    raw["classify"] = out
-    raw["classify_meta"] = {k: v for k, v in meta.items() if k != "cache_hit"}
-    raw["rot"] = rot
+    if out is not None:                      # a failed call (refused key, outage) is never stored: the next run asks again
+        raw["classify"] = out
+        raw["classify_meta"] = {k: v for k, v in meta.items() if k != "cache_hit"}
+        raw["rot"] = rot
     return out, img, rot
 
 
