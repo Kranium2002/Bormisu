@@ -53,8 +53,5 @@ datasets/
 **/.coverage
 **/htmlcov
 
-# Prototype folders from arav/dev (not part of the image)
-backend/api
-backend/extractor
-backend/models
+# Reference code kept for reading only (not part of the image)
 backend/reference
