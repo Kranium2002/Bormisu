@@ -4,6 +4,7 @@
  * start live updates; sign-out and an ended session (any 401 not_authenticated, reported by the
  * source's session listener) forget every loaded record and show the sign-in on the same URL.
  */
+import { dataSourceKind } from '../data/createDataSource';
 import { errorText, isApiError, UnreachableError } from '../data/errors';
 import type { SliceCreator } from './context';
 import type { AppState, AuthSlice } from './types';
@@ -56,7 +57,8 @@ export const createAuthSlice: SliceCreator<AuthSlice> = ({ set, get }) => {
   }
 
   return {
-    authState: 'unknown',
+    // The sample has no sign-in, so the app shows at once; the API source's health says (init).
+    authState: dataSourceKind() === 'sample' ? 'disabled' : 'unknown',
     user: null,
     authBusy: false,
     authError: null,
@@ -110,6 +112,12 @@ export const createAuthSlice: SliceCreator<AuthSlice> = ({ set, get }) => {
         set({ authBusy: false });
         return true;
       } catch (e) {
+        // The source never reports this endpoint's 401s (invalid_credentials is an answer here), so an
+        // ended session is handled like any other.
+        if (isApiError(e, 'not_authenticated')) {
+          get().sessionEnded();
+          return false;
+        }
         // Here a 401 invalid_credentials means the current password, not the sign-in.
         if (isApiError(e, 'invalid_credentials')) {
           set({ authBusy: false, authError: WRONG_CURRENT_PASSWORD, authFieldErrors: { current_password: WRONG_CURRENT_PASSWORD } });

@@ -261,6 +261,11 @@ export function createApiSource(base: string): DataSource {
   let authEnabled = false;
   /** The session check after a stream error, while it runs. */
   let probing: Promise<void> | null = null;
+  /**
+   * Counts the sessions this source has seen start: a 401 of a request sent before the latest
+   * sign-in is about the session that ended before it and is not reported again.
+   */
+  let generation = 0;
 
   /** Reports an ended session once per burst. */
   function sessionEnded(): void {
@@ -272,11 +277,12 @@ export function createApiSource(base: string): DataSource {
   /** A signed-in user (sign-in, registration, /auth/me): the next 401 is a new ended session. */
   function sessionStarted(): void {
     sessionLost = false;
+    generation += 1;
   }
 
-  /** Passes a request's failure on, reporting an ended session first. */
-  function failed(path: string, e: unknown): never {
-    if (endsSession(path, e)) sessionEnded();
+  /** Passes a request's failure on, reporting an ended session first (`sentIn`: the generation when it was sent). */
+  function failed(path: string, e: unknown, sentIn: number): never {
+    if (sentIn === generation && endsSession(path, e)) sessionEnded();
     throw e;
   }
 
@@ -304,6 +310,7 @@ export function createApiSource(base: string): DataSource {
       init.body = JSON.stringify(body);
       init.headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     }
+    const sentIn = generation;
     let res: Response;
     try {
       res = await fetch(base + path, init);
@@ -316,7 +323,7 @@ export function createApiSource(base: string): DataSource {
       retryAfter: res.headers.get('retry-after'),
       json: () => res.json(),
     };
-    return bodyOf<T>(base, method, path, answer).catch((e: unknown) => failed(path, e));
+    return bodyOf<T>(base, method, path, answer).catch((e: unknown) => failed(path, e, sentIn));
   }
 
   /** Adapts a record and keeps it unless the source already holds a newer revision. */
@@ -466,6 +473,7 @@ export function createApiSource(base: string): DataSource {
    * every other request; cancel() aborts the transfer until the server has answered.
    */
   function sendFile(file: File, project: string | null, onProgress?: (p: UploadProgress) => void): UploadHandle {
+    const sentIn = generation;
     let answered = false;
     let settle!: { resolve: (r: UploadResult) => void; reject: (e: unknown) => void };
     const done = new Promise<UploadResult>((resolve, reject) => {
@@ -494,7 +502,7 @@ export function createApiSource(base: string): DataSource {
         json: async () => JSON.parse(xhr.responseText) as unknown,
       };
       bodyOf<WireUploadAccepted>(base, 'POST', '/documents', res)
-        .catch((e: unknown) => failed('/documents', e))
+        .catch((e: unknown) => failed('/documents', e, sentIn))
         .then((accepted) => uploadResult(file, project, xhr.status, accepted))
         .then((result) => {
           // The source follows what it accepted while the backend works on it.

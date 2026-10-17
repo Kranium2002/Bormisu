@@ -33,6 +33,16 @@ VITE_API_PROXY=http://127.0.0.1:9000 npm run dev   # backend on another port
 
 In API mode the app never falls back to sample data. Without a backend it shows *NO DATA: Cannot reach the Bormisu backend at /api/v1…* with a RETRY button. If an endpoint is missing it shows *Backend endpoint not available: GET /api/v1/…*.
 
+## Sign-in
+
+When the backend has sign-in (its `GET /api/v1/health` answers `auth: {enabled: true, …}`, contract 1.3.0), the app asks who is signed in before loading anything. Without a session it shows the sign-in screen on the URL you opened; after signing in you land on that URL.
+
+- **Create account** appears when the backend keeps registration open. The **first account becomes admin**; later ones are reviewers. Passwords need 10 to 128 characters, must not be your email and must not be a common password (the form checks the first two, the server judges all three).
+- The session is an HttpOnly cookie set by the backend; the frontend never sees a token and adds no header.
+- The header shows your display name (or email). Its menu has your email and role, **Change password** (your other sessions are signed out) and **Sign out** (the data loaded in this tab is forgotten; the URL stays).
+- When the session ends (expired, or signed out elsewhere), the next request answers 401 and the sign-in screen says "Your session ended. Sign in again."; you return to the same page afterwards.
+- Signed in, the backend records you on every confirmation and answer, so the "Your name" setting is not shown. Without sign-in on the backend (and in sample mode) nothing changes: no sign-in screen, the optional "Your name" setting as before.
+
 ## Data source flag
 
 The data source is chosen once, in `src/data/createDataSource.ts`, from `VITE_DATA_SOURCE`:
@@ -171,6 +181,7 @@ E2E_BASE_URL=http://localhost:8081 npm run e2e -- --project=api
 E2E_BASE_URL=http://localhost:8081 npx playwright test --project=api e2e/api/review.spec.ts   # one spec
 ```
 
+- `e2e/api/auth.spec.ts` plays a sign-in backend with Playwright routes (the stack itself may still have no sign-in). Once the backend ships sign-in, `E2E_AUTH=1` makes `e2e/api/auth-session.ts` register a fictional account (`e2e-<timestamp>@example.test`) per worker and start each page with its session.
 - The specs share the seeded database: one worker, in file order. They read the seed state from the backend (no hard-coded ids), change review data and put it back afterwards (through the API where the UI can't). Each spec names the seed state it needs at its top.
 - Some changes can't be undone: a confirmed CRS stays confirmed, an edited value keeps the method `edited`, and each run uses up one seeded CRS document. Reseed for a pristine stack: `docker compose exec api python -m app.seed --remove && docker compose exec api python -m app.seed`.
 - `knownBug(id)` marks a test that fails because of a reported finding (it counts as an expected failure); `E2E_SHOW_KNOWN=1` runs it as a normal test to show the real failure. A failing test writes every `/api/` response next to its results as `api-log.json`.

@@ -102,7 +102,7 @@
   outline-offset: -1px;
 }
 
-.input:disabled {
+.input:read-only {
   background: var(--c-line);
 }
 
@@ -273,6 +273,13 @@
   flex-direction: column;
   gap: 10px;
   color: var(--c-text);
+}
+
+.menuName {
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  margin-bottom: 2px;
 }
 
 .menuEmail {

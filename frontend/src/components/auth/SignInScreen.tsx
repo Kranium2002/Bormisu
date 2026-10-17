@@ -56,6 +56,11 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
     if (first && first in refs) refs[first as keyof typeof refs].current?.focus();
   };
 
+  // The screen opens with the focus in the email field.
+  useEffect(() => {
+    refs.email.current?.focus();
+  }, []);
+
   // The server's field errors (a 422, email_taken) move the focus to the first field they name.
   useEffect(() => {
     if (Object.keys(serverErrors).length) focusFirst(serverErrors);
@@ -133,7 +138,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
             value={email}
             onChange={edit('email', setEmail)}
             error={errors.email}
-            disabled={busy}
+            readOnly={busy}
           />
           {shownMode === 'register' && (
             <TextField
@@ -145,7 +150,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
               onChange={edit('display_name', setDisplayName)}
               error={errors.display_name}
               hint={`Optional. Shown with your reviews. At most ${DISPLAY_NAME_MAX} characters.`}
-              disabled={busy}
+              readOnly={busy}
             />
           )}
           <PasswordField
@@ -157,7 +162,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
             onChange={edit('password', setPassword)}
             error={errors.password}
             hint={shownMode === 'register' ? <PasswordRules rules={PASSWORD_RULES} /> : undefined}
-            disabled={busy}
+            readOnly={busy}
           />
           {shownMode === 'register' && (
             <PasswordField
@@ -168,7 +173,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
               value={repeat}
               onChange={edit('repeat', setRepeat)}
               error={errors.repeat}
-              disabled={busy}
+              readOnly={busy}
             />
           )}
           <button type="submit" className={styles.primary} disabled={busy}>

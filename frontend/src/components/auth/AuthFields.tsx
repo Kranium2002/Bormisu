@@ -10,12 +10,13 @@ interface FieldProps {
   hint?: ReactNode;
   autoComplete: string;
   name: string;
-  disabled?: boolean;
+  /** While a request runs: the value can't change, the focus stays. */
+  readOnly?: boolean;
 }
 
 /** A labelled text input with its error next to it (aria-invalid, aria-describedby). */
 export const TextField = forwardRef<HTMLInputElement, FieldProps & { type?: 'email' | 'text'; maxLength?: number }>(
-  function TextField({ label, value, onChange, error, hint, autoComplete, name, disabled, type = 'text', maxLength }, ref) {
+  function TextField({ label, value, onChange, error, hint, autoComplete, name, readOnly, type = 'text', maxLength }, ref) {
     const id = useId();
     const describedBy = [hint ? `${id}-hint` : '', error ? `${id}-error` : ''].filter(Boolean).join(' ') || undefined;
     return (
@@ -34,7 +35,7 @@ export const TextField = forwardRef<HTMLInputElement, FieldProps & { type?: 'ema
           maxLength={maxLength}
           spellCheck={false}
           autoCapitalize="none"
-          disabled={disabled}
+          readOnly={readOnly}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
           onChange={(e) => onChange(e.target.value)}
@@ -56,7 +57,7 @@ export const TextField = forwardRef<HTMLInputElement, FieldProps & { type?: 'ema
 
 /** A password input with a show / hide toggle (its accessible name says which). */
 export const PasswordField = forwardRef<HTMLInputElement, FieldProps>(function PasswordField(
-  { label, value, onChange, error, hint, autoComplete, name, disabled },
+  { label, value, onChange, error, hint, autoComplete, name, readOnly },
   ref,
 ) {
   const id = useId();
@@ -78,7 +79,7 @@ export const PasswordField = forwardRef<HTMLInputElement, FieldProps>(function P
           autoComplete={autoComplete}
           spellCheck={false}
           autoCapitalize="none"
-          disabled={disabled}
+          readOnly={readOnly}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
           onChange={(e) => onChange(e.target.value)}
