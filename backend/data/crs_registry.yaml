@@ -2,6 +2,11 @@
 # (aliases) that state a system. Areas of use come from the EPSG database through pyproj, so only codes
 # and names live here. Generic, worldwide; extend by adding entries, never by adding code branches.
 # kind: geographic (degrees) or projected (metres).
+# west_orientated: true for a system whose printed easting grows westward while its EPSG definition is an
+# east-orientated reconstruction (Danish System 34): app.geo.plotting.to_wgs84 negates the printed easting
+# (after any axis swap) for every reading, stated, ranked or confirmed alike.
+# Printed names that carry more words than an alias ("NZTM2000 (NZGD2000)", "Koordinatsystem S34S") are read
+# by the named systems of crs_patterns.yaml.
 systems:
   - { code: "EPSG:4326",  kind: geographic, label: "WGS 84 (degrees)",                 aliases: ["WGS84", "WGS 84", "GPS", "lat/long", "decimal degrees"] }
   - { code: "EPSG:4258",  kind: geographic, label: "ETRS89 (degrees)",                 aliases: ["ETRS89 geographic"] }
@@ -34,7 +39,9 @@ systems:
   - { code: "EPSG:5186",  kind: projected,  label: "Korea 2000 / Central Belt 2010",   aliases: ["Korea 2000 Central Belt", "GRS80 central"] }
   - { code: "EPSG:5179",  kind: projected,  label: "Korea 2000 / Unified CS",          aliases: ["Korea 2000 Unified", "UTM-K"] }
   - { code: "EPSG:3414",  kind: projected,  label: "SVY21 / Singapore TM",             aliases: ["SVY21"] }
-  - { code: "EPSG:2326",  kind: projected,  label: "Hong Kong 1980 Grid",              aliases: ["HK1980", "Hong Kong 1980 Grid"] }
+  - { code: "EPSG:2326",  kind: projected,  label: "Hong Kong 1980 Grid",              aliases: ["HK1980", "HK80", "Hong Kong 1980", "Hong Kong 1980 Grid"] }
+  - { code: "EPSG:10250", kind: projected,  label: "System 34 Sjælland (S34S)",        west_orientated: true, aliases: ["S34S", "System 34 Sjælland", "System 34 Sjaelland", "S34 Sjælland", "S34 Sjaelland"] }
+  - { code: "EPSG:10160", kind: projected,  label: "System 34 Jylland (S34J)",         west_orientated: true, aliases: ["S34J", "System 34 Jylland", "S34 Jylland"] }
   - { code: "EPSG:3857",  kind: projected,  label: "WGS 84 / Pseudo-Mercator",         aliases: ["Web Mercator", "Pseudo-Mercator"] }
   - { code: "EPSG:2263",  kind: projected,  label: "NAD83 / New York Long Island (ftUS)", aliases: ["NY Long Island", "NAD83 NY LI"] }
   - { code: "EPSG:26918", kind: projected,  label: "NAD83 / UTM zone 18N",             aliases: ["NAD83 UTM 18", "UTM 18N NAD83"] }

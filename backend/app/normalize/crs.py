@@ -1,16 +1,19 @@
 """Printed coordinate-system names -> EPSG codes (BACKEND.md 7.8).
 
 1. An exact alias of data/crs_registry.yaml (app.geo.crs_candidates.match_alias) states the system.
-2. Otherwise the generic patterns of data/crs_patterns.yaml: a printed EPSG code; a datum + grid + zone
+2. Otherwise the generic patterns of data/crs_patterns.yaml: a printed EPSG code; a named system found
+   anywhere in the text ("NZTM2000 (NZGD2000)", "System 34 Sjælland"); a datum + grid + zone
    (+ hemisphere or latitude band), turned into the EPSG name ("ETRS89 / UTM zone 32N",
    "GDA2020 / MGA zone 55") and looked up in pyproj's EPSG database; a datum alone for degree values.
 3. Anything else, a local grid, or an ambiguous name (a UTM zone without datum or hemisphere, two
-   datums) gives code None with a reason. Nothing is guessed from the coordinates' location: ranking
-   candidates is app.geo.crs_candidates' job.
+   datums, two named systems, "System 34" without its region) gives code None with a reason. Nothing is
+   guessed from the coordinates' location: ranking candidates is app.geo.crs_candidates' job.
 
 The printed coordinates (`coords`) only check the result: a geographic system for grid values (or the
-reverse) is rejected, a Gauss-Krüger zone may come from the easting's millions digit, and a stated
-system whose area of use holds the points only with swapped axes is named in `reason` (code kept).
+reverse) is rejected, a Gauss-Krüger zone may come from the easting's millions digit, grid values printed
+with a datum alone are read in that datum's national grid only when they land inside its area of use on
+or near land, and a stated system whose area of use holds the points only with swapped axes is named in
+`reason` (code kept).
 """
 
 from __future__ import annotations
@@ -26,7 +29,8 @@ from pyproj.database import query_crs_info
 from pyproj.enums import PJType
 from pyproj.exceptions import CRSError
 
-from app.geo.crs_candidates import match_alias
+from app.geo.crs_candidates import match_alias, ranking_config
+from app.geo.land import near_land
 from app.geo.plotting import to_wgs84
 from app.normalize.api import CoordinateResult, CrsResult
 from app.normalize.numbers import load_data, str_list
@@ -52,6 +56,14 @@ class _Datum:
     pattern: re.Pattern[str]
     default_grid: str | None
     hemisphere: str | None
+    national_grid: str | None  # EPSG name of the projection grid values printed with the datum alone use
+
+
+@dataclass(frozen=True)
+class _Named:
+    epsg_name: str
+    datum: str | None  # the datum the system is defined on
+    pattern: re.Pattern[str]
 
 
 @dataclass(frozen=True)
@@ -70,6 +82,7 @@ class _Grid:
 @dataclass(frozen=True)
 class _Patterns:
     datums: tuple[_Datum, ...]
+    named: tuple[_Named, ...]
     grids: tuple[_Grid, ...]
     grid_words: tuple[tuple[re.Pattern[str], _Grid], ...]  # longest first
     implied: tuple[tuple[re.Pattern[str], _Grid, str], ...]  # grid words that name a datum
@@ -89,20 +102,33 @@ def _compile_terms(terms: list[str]) -> tuple[re.Pattern[str], ...]:
     return tuple(re.compile(_term_regex(t)) for t in sorted(terms, key=len, reverse=True) if t.strip())
 
 
+def _alternation(terms: list[str]) -> re.Pattern[str]:
+    """One regex for any of the terms, longest first; matches nothing for an empty list."""
+    return re.compile(
+        "|".join(_term_regex(t) for t in sorted(terms, key=len, reverse=True) if t.strip()) or r"(?!)"
+    )
+
+
 @lru_cache(maxsize=1)
 def _patterns() -> _Patterns:
     data: dict[str, Any] = load_data("crs_patterns.yaml")
     datums = tuple(
         _Datum(
             epsg_name=str(d["epsg_name"]),
-            pattern=re.compile(
-                "|".join(_term_regex(a) for a in sorted(str_list(d.get("aliases")), key=len, reverse=True))
-                or r"(?!)"
-            ),
+            pattern=_alternation(str_list(d.get("aliases"))),
             default_grid=d.get("default_grid"),
             hemisphere=d.get("hemisphere"),
+            national_grid=d.get("national_grid"),
         )
         for d in data.get("datums") or []
+    )
+    named = tuple(
+        _Named(
+            epsg_name=str(n["epsg_name"]),
+            datum=n.get("datum"),
+            pattern=_alternation(str_list(n.get("terms"))),
+        )
+        for n in data.get("named_systems") or []
     )
     grids: list[_Grid] = []
     for g in data.get("grids") or []:
@@ -136,6 +162,7 @@ def _patterns() -> _Patterns:
     )
     return _Patterns(
         datums=datums,
+        named=named,
         grids=tuple(grids),
         grid_words=tuple((p, g) for p, g, _ in grid_words),
         implied=tuple((p, g, d) for p, g, d, _ in implied),
@@ -288,6 +315,50 @@ def _datum_spec(name: str) -> _Datum | None:
     return next((d for d in _patterns().datums if d.epsg_name == name), None)
 
 
+def _named_system(named: list[_Named], text: str, printed: str) -> CrsResult:
+    """The one system the text names, unless it names two or a datum the system is not defined on."""
+    names = list(dict.fromkeys(n.epsg_name for n in named))
+    if len(names) > 1:
+        return CrsResult(None, reason=f"'{printed}' names more than one system ({', '.join(names)})")
+    system = named[0]
+    rest = system.pattern.sub(" ", text)
+    others = [
+        d.epsg_name for d in _patterns().datums if d.pattern.search(rest) and d.epsg_name != system.datum
+    ]
+    if others:
+        return CrsResult(
+            None,
+            reason=f"'{printed}' names {system.epsg_name} and the datum {', '.join(others)}, which disagree",
+        )
+    code, why = _code_for(system.epsg_name, "projected")
+    return CrsResult(code, label=system.epsg_name if code else None, reason=why)
+
+
+def _national_grid(datum: _Datum, coords: CoordinateResult) -> CrsResult | None:
+    """The datum's national grid for grid values printed with the datum alone, when the values land inside
+    its area of use (as printed or swapped) on or near land; None otherwise."""
+    if datum.national_grid is None or coords.local_x is None or coords.local_y is None:
+        return None
+    code, _ = _code_for(datum.national_grid, "projected")
+    bounds = _crs_info(code)[2] if code is not None else None
+    if code is None or bounds is None:
+        return None
+    margin = ranking_config().land_margin_km
+    for swap in (False, True):
+        point = to_wgs84(code, coords.local_x, coords.local_y, swap_axes=swap)
+        if (
+            point is not None
+            and _inside(point[0], point[1], bounds)
+            and near_land(round(point[0], 2), round(point[1], 2), margin)
+        ):
+            return CrsResult(
+                code,
+                label=datum.national_grid,
+                reason=f"grid values with the {datum.epsg_name} datum alone read in its national grid",
+            )
+    return None
+
+
 def _from_patterns(system_raw: str, coords: CoordinateResult | None) -> CrsResult:
     p = _patterns()
     text = _norm(system_raw)
@@ -302,6 +373,9 @@ def _from_patterns(system_raw: str, coords: CoordinateResult | None) -> CrsResul
         return CrsResult(printed_code, label=name)
     if any(pattern.search(text) for pattern in p.local_patterns):
         return CrsResult(None, reason=f"'{printed}' is a local grid without an EPSG transform")
+    named = [system for system in p.named if system.pattern.search(text)]
+    if named:
+        return _named_system(named, text, printed)
 
     reading = _read(text)
     if len(reading.datums) > 1:
@@ -317,6 +391,9 @@ def _from_patterns(system_raw: str, coords: CoordinateResult | None) -> CrsResul
             return CrsResult(None, reason=f"'{printed}' names no known coordinate system")
         geographic_words = any(pattern.search(text) for pattern in p.geographic_patterns)
         if coords is not None and coords.kind == "projected":
+            national = _national_grid(datum, coords)
+            if national is not None:
+                return national
             return CrsResult(
                 None, reason=f"'{printed}' names a datum but no projection or zone for grid values"
             )

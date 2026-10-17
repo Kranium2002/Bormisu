@@ -2,6 +2,10 @@
 
 A borehole is plotted only with WGS84 coordinates from a stated or confirmed coordinate system. Nothing
 is ever placed at a default position.
+
+Every transformation of printed coordinates goes through `to_wgs84`, so a system whose printed easting
+grows westward (`west_orientated` in data/crs_registry.yaml, e.g. Danish System 34, whose EPSG definition
+is an east-orientated reconstruction) is read the same way when it is stated, ranked or confirmed.
 """
 
 from __future__ import annotations
@@ -10,8 +14,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+import yaml
 from pyproj import CRS, Transformer
 from pyproj.exceptions import CRSError, ProjError
+
+from app.config import get_settings
 
 PLOTTABLE_CRS_STATUS = frozenset({"stated", "confirmed"})
 WGS84 = "EPSG:4326"
@@ -19,6 +26,26 @@ WGS84 = "EPSG:4326"
 
 class CrsInvalidError(ValueError):
     """The coordinate system code is unknown or cannot be transformed to WGS84."""
+
+
+def _code_key(code: str) -> str:
+    return "".join(ch for ch in code.lower() if ch.isalnum())
+
+
+@lru_cache(maxsize=1)
+def _west_orientated_codes() -> frozenset[str]:
+    with (get_settings().data_dir / "crs_registry.yaml").open(encoding="utf-8") as handle:
+        data: dict[str, Any] = yaml.safe_load(handle) or {}
+    return frozenset(
+        _code_key(str(entry["code"]))
+        for entry in data.get("systems") or []
+        if entry.get("west_orientated") is True
+    )
+
+
+def west_orientated(code: str) -> bool:
+    """The system's printed easting grows westward (registry flag `west_orientated`)."""
+    return _code_key(code) in _west_orientated_codes()
 
 
 @lru_cache(maxsize=256)
@@ -52,9 +79,12 @@ def is_geographic(code: str) -> bool:
 def to_wgs84(code: str, x: float, y: float, *, swap_axes: bool = False) -> tuple[float, float] | None:
     """Transform a source point (easting/longitude first) to (lat, lon); None when it fails.
 
-    `swap_axes` means the printed X is the northing (or latitude), so the pair is swapped first.
+    `swap_axes` means the printed X is the northing (or latitude), so the pair is swapped first. The
+    easting of a west-orientated system is then negated for its east-orientated EPSG definition.
     """
     easting, northing = (y, x) if swap_axes else (x, y)
+    if west_orientated(code):
+        easting = -easting
     try:
         lon, lat = _transformer(code).transform(easting, northing, errcheck=True)
     except (ProjError, CrsInvalidError):
