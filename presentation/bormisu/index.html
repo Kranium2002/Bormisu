@@ -130,6 +130,13 @@
   .demo .dot { display: inline-block; width: 44px; height: 44px; border-radius: 50%; background: #e5484d; margin-right: 36px; vertical-align: middle; animation: rec 1.4s ease-in-out infinite; }
   @keyframes rec { 50% { opacity: 0.25; } }
 
+  /* 08 Key features: three facts after the demo */
+  .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 72px; }
+  .feat { background: #fff; border: 1px solid var(--line); border-radius: 24px; padding: 52px 44px; display: flex; flex-direction: column; gap: 22px; }
+  .feat .n { width: 64px; height: 64px; border-radius: 50%; background: var(--espresso); color: var(--ladyfinger); display: flex; align-items: center; justify-content: center; font: 700 30px var(--display); }
+  .feat .h { font: 600 52px/1.05 var(--display); letter-spacing: -0.02em; color: var(--espresso); }
+  .feat .b { font-size: 28px; line-height: 1.4; color: var(--muted); }
+
   /* 08 Tech: the whole stack as boxes, names only */
   .stack2 { display: grid; grid-template-columns: 300px 48px 280px 48px 1fr 48px 300px; grid-template-rows: auto 52px auto; }
   .box { background: rgba(255,248,236,0.06); border: 1px solid rgba(255,248,236,0.18); border-radius: 20px; padding: 28px 26px; display: flex; flex-direction: column; gap: 16px; }
@@ -272,8 +279,18 @@
     <div class="big"><span class="dot"></span>Demo</div>
   </section>
 
-  <!-- 08 TECH — the whole stack, names only (from docker-compose, pyproject and package.json on main) -->
-  <section class="dark vcenter" data-label="08 Tech">
+  <!-- 08 KEY FEATURES — three facts right after the demo -->
+  <section class="light vcenter" data-label="08 Key features">
+    <div class="eyebrow" data-anim>Key features</div>
+    <div class="feats">
+      <div class="feat" data-anim style="--d: 200ms;"><div class="n">1</div><div class="h">Reads any report</div><div class="b">Scans, handwriting, any language, any coordinate system.</div></div>
+      <div class="feat" data-anim style="--d: 350ms;"><div class="n">2</div><div class="h">Every value has a source</div><div class="b">One click shows the box on the original page.</div></div>
+      <div class="feat" data-anim style="--d: 500ms;"><div class="n">3</div><div class="h">One standard out</div><div class="b">DIN 4023 profile, world map, Herrenknecht xlsx.</div></div>
+    </div>
+  </section>
+
+  <!-- 09 TECH — the whole stack, names only (from docker-compose, pyproject and package.json on main) -->
+  <section class="dark vcenter" data-label="09 Tech">
     <div class="eyebrow" data-anim>Under the hood</div>
     <div class="stack2">
       <div class="box" data-anim style="--d: 150ms; grid-column: 1; grid-row: 1;">
@@ -320,8 +337,8 @@
     </div>
   </section>
 
-  <!-- 09 DEPLOYMENT — sovereignty -->
-  <section class="light" data-label="09 Deployment">
+  <!-- 10 DEPLOYMENT — sovereignty -->
+  <section class="light" data-label="10 Deployment">
     <div class="eyebrow" data-anim>Sovereignty</div>
     <div class="title" data-anim style="--d: 150ms;">Runs where your data lives.</div>
     <div class="tiers">
@@ -355,8 +372,8 @@
     </div>
   </section>
 
-  <!-- 10 TEAM — skipped for now (data-deck-skip); remove the attribute to bring it back -->
-  <section class="light" data-label="10 Team" data-deck-skip>
+  <!-- 11 TEAM — skipped for now (data-deck-skip); remove the attribute to bring it back -->
+  <section class="light" data-label="11 Team" data-deck-skip>
     <div class="eyebrow" data-anim>Team Tiramisu</div>
     <div class="title" data-anim style="--d: 150ms;">Built in Breisgau.</div>
     <div class="team">
@@ -369,8 +386,8 @@
     </div>
   </section>
 
-  <!-- 11 IN A NUTSHELL -->
-  <section class="dark finisher" data-label="11 In a nutshell">
+  <!-- 12 IN A NUTSHELL -->
+  <section class="dark finisher" data-label="12 In a nutshell">
     <div class="left">
       <div class="nut" data-anim>In a nutshell.</div>
       <ul class="pts">
@@ -382,8 +399,8 @@
     <img class="logo finisher-logo" src="logo.png" alt="Bormisu logo" />
   </section>
 
-  <!-- 12 QUESTIONS -->
-  <section class="dark close center" data-label="12 Questions">
+  <!-- 13 QUESTIONS -->
+  <section class="dark close center" data-label="13 Questions">
     <div class="big" data-anim>Questions?</div>
     <div class="sub" data-anim style="--d: 600ms;">Questions about Stuttgart 21 go to <b>Deutsche Bahn</b>.</div>
   </section>

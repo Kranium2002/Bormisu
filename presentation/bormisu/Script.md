@@ -41,7 +41,16 @@
 ## 07 · Demo (~2:30)
 
 
-## 08 · Under the hood (~25 s)
+## 08 · Key features (~15 s)
+
+*(three cards: Reads any report · Every value has a source · One standard out)*
+
+> So what you just saw, in three points:
+> It reads any report — scans, handwriting, any language.
+> Every value has a source — one click and you see it on the original page.
+> And one standard comes out — the DIN 4023 profile, the map and the Herrenknecht xlsx.
+
+## 09 · Under the hood (~25 s)
 
 *(the whole stack: Browser · API · Pipeline · Models on top, Maps · Database · Export below)*
 
@@ -50,7 +59,7 @@
 > Then plain Python checks coordinates and DIN 4023 — and everything lands in PostgreSQL with PostGIS.
 > Out comes the Herrenknecht xlsx. All of it runs with one Docker Compose command.
 
-## 09 · Sovereignty (~25 s)
+## 10 · Sovereignty (~25 s)
 
 *(three cards: Cloud today · One GPU, 32 GB · Mac mini, 32 GB — with the Le Chonk cat as an easter egg)*
 
@@ -58,7 +67,7 @@
 > But borehole reports are confidential. So the same pipeline runs on open models — PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
 > That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
 
-## 10 · In a nutshell (~15 s)
+## 11 · In a nutshell (~15 s)
 
 *(three checkmarks on the left, the tiramisu logo on the right)*
 
@@ -67,7 +76,7 @@
 > It's a sovereign stack — cloud today, your own server or a Mac mini tomorrow.
 > And it's ready to use — now.
 
-## 11 · Questions
+## 12 · Questions
 
 > Questions?
 
@@ -95,7 +104,7 @@
 - Offenburg: screenshot of the LGRB borehole map around Offenburg (`img/offenburg-map.jpg`, supplied by Mateo). The bubbles on the screenshot add up to about 2,680 boreholes (115 clusters = 2,668, plus 13 single points); a few clusters cut off at the edges are not fully counted.
 - Reports, front: `ToughOne1` p2 (Norway, handwritten), `AF02` p1 (Spanish soil probe sheet), `SEA01` p1 (Korean). Background: 27 more pages from the challenge dataset (`img/bg/`).
 
-### Slide 09 (sovereignty)
+### Slide 10 (sovereignty)
 
 The figures are public estimates, not measured on our data.
 
