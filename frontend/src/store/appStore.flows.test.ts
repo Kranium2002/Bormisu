@@ -9,7 +9,7 @@ import type { Borehole, CrsCandidate, CrsConfirmation, DocumentSummary } from '.
 import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { useAppStore } from './appStore';
 import { readReviewerName, REVIEWER_NAME_KEY } from './settingsSlice';
-import { fakeSource, readyStore, settle } from './testing';
+import { fakeSource, manualLive, readyStore, settle } from './testing';
 
 vi.mock('../export/download', async (orig) => ({
   ...(await orig<typeof import('../export/download')>()),
@@ -270,20 +270,26 @@ describe('upload review target', () => {
   const UP = 'bh_TEST_UP_000000000000000021';
   const base: DocumentSummary = makeDocument({ id: 'doc_TEST_UP', name: 'up.pdf', project: '', status: 'queued', step: 0, reviewBoreholeUid: null, uploaded: true });
 
-  it('points a freshly extracted document at its first borehole and keeps it on later polls', async () => {
-    const extracted = makeBorehole({ uid: UP, id: 'TB-21', documentId: base.id, project: 'Uploaded Project (fictional)' });
-    let push: (d: DocumentSummary) => void = () => undefined;
-    const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [extracted]);
+  /** Uploads answer with `answer`; later states arrive as live events (`push`). */
+  async function readyUploads(answer: DocumentSummary, over: Partial<DataSource> = {}) {
+    const live = manualLive();
     const fake = await ready({
-      upload: async (_files, onUpdate) => {
-        push = onUpdate;
-        onUpdate(base);
-      },
-      documentBoreholes,
-      getDocument: async () => base,
+      upload: () => ({ done: Promise.resolve({ document: answer, duplicate: false }), cancel: () => undefined }),
+      subscribe: live.subscribe,
+      ...over,
     });
+    st().startLive();
+    const push = (d: DocumentSummary) => live.emit({ type: 'document.updated', document: d });
+    return { fake, push };
+  }
+
+  it('points a freshly extracted document at its first borehole and keeps it on later updates', async () => {
+    const extracted = makeBorehole({ uid: UP, id: 'TB-21', documentId: base.id, project: 'Uploaded Project (fictional)' });
+    const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [extracted]);
+    const { fake, push } = await readyUploads(base, { documentBoreholes, getDocument: async () => base });
     expect(fake.kind).toBe('sample');
-    await st().addFiles([new File(['x'], 'up.pdf')]);
+    st().addFiles([new File(['x'], 'up.pdf')]);
+    await settle();
     expect(st().documents[0]).toMatchObject({ id: base.id, reviewBoreholeUid: null });
     push({ ...base, status: 'needs_review', step: 2 });
     await vi.waitFor(() => expect(st().documents.find((d) => d.id === base.id)?.reviewBoreholeUid).toBe(UP));
@@ -295,9 +301,9 @@ describe('upload review target', () => {
   });
 
   it('a failed extraction gets no review target', async () => {
-    let push: (d: DocumentSummary) => void = () => undefined;
-    await ready({ upload: async (_f, onUpdate) => void (push = onUpdate) });
-    await st().addFiles([new File(['x'], 'bad.pdf')]);
+    const { push } = await readyUploads({ ...base, id: 'doc_TEST_BAD' });
+    st().addFiles([new File(['x'], 'bad.pdf')]);
+    await settle();
     push({ ...base, id: 'doc_TEST_BAD', status: 'failed', step: 2, error: 'parse failed' });
     expect(st().documents.find((d) => d.id === 'doc_TEST_BAD')?.reviewBoreholeUid).toBeNull();
   });

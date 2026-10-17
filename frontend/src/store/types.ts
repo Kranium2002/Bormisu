@@ -60,6 +60,10 @@ export interface DataSlice {
   /** Page cache keyed `${documentId}:${page}`. */
   pages: Record<string, PageLoad>;
 
+  /**
+   * Asks health, loads boreholes and documents, then subscribes to live updates. Running it again
+   * (StrictMode, RETRY after an error) ends the earlier subscription first.
+   */
   init(): Promise<void>;
   /** Loads a page into the cache (used by usePage). */
   loadPage(documentId: string, page: number): Promise<void>;
@@ -123,18 +127,54 @@ export interface MapSlice {
   search(): void;
 }
 
-/** Uploads and documents the backend is still working on. */
+/** The upload queue (F6) and documents the backend is still working on. */
 export interface UploadSlice {
   dropError: string;
   dragActive: boolean;
+  /** The "Project (optional)" label next to the drop zone, sent with the files dropped next. */
+  uploadProject: string;
+  /** The upload queue, in the order the files were added. */
+  uploads: import('./uploads').UploadItem[];
 
-  /** Uploads the files the server accepts (type and size from health); explains the rest in dropError. */
-  addFiles(files: FileList | File[]): Promise<void>;
+  /**
+   * Queues the files the server accepts (type and size from health) and explains the rest in
+   * dropError; refused with the reason in demo mode. Files added together send one project: the
+   * typed label, else `folder` (the dropped folder's name), else the folder picker's folder, else none.
+   * At most two uploads run at a time.
+   */
+  addFiles(files: FileList | File[], options?: { folder?: string | null }): void;
   setDragActive(active: boolean): void;
-  /** A status update of a document (upload or watch): updates its card and loads its boreholes after extraction. */
+  setUploadProject(label: string): void;
+  /** Cancels a queued or running upload. */
+  cancelUpload(id: string): void;
+  /** Removes a finished (done, failed or cancelled) upload from the list. */
+  removeUpload(id: string): void;
+  /** Removes every finished upload from the list. */
+  clearFinishedUploads(): void;
+  /** Queues a failed upload again with the same file and project; refused in demo mode. */
+  retryUpload(id: string): void;
+  /**
+   * A document as the source now reports it (upload answer, live event, refetch): replaces or adds
+   * its card, and loads its boreholes once it reaches needs_review or done without them.
+   */
   documentUpdated(update: DocumentSummary): void;
-  /** Re-queues a failed document and follows it again; refused with the reason in demo mode. */
+  /** Re-queues a failed document and asks the source to follow it; refused with the reason in demo mode. */
   retryDocument(documentId: string): Promise<void>;
+}
+
+/** Live updates from the source (event stream or its polling fallback), contracts/realtime-and-chat.md section 1. */
+export interface EventsSlice {
+  /** How updates arrive: connecting, live (stream), polling (fallback) or offline (retrying). */
+  liveStatus: import('../domain/types').LiveStatus;
+  /** The failure the server reported per document (job.failed), until the document runs again. */
+  jobFailures: Record<string, { stage: string; detail: string; retryable: boolean }>;
+
+  /** Subscribes to the source's live updates (init does, after load); ends an earlier subscription first. */
+  startLive(): void;
+  /** Ends the subscription (app teardown, or before init runs again). */
+  stopLive(): void;
+  /** Applies one update. Idempotent; events for ids the store doesn't hold are ignored where that is safe. */
+  applyLiveEvent(event: import('../domain/types').LiveEvent): void;
 }
 
 /** Navigation and overlays: screen, side panel, export menu, toast and Escape. */
@@ -172,4 +212,4 @@ export interface SettingsSlice {
   setReviewerName(name: string): void;
 }
 
-export type AppState = DataSlice & ReviewSlice & MapSlice & UploadSlice & PanelSlice & SettingsSlice;
+export type AppState = DataSlice & ReviewSlice & MapSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice;

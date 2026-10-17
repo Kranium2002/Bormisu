@@ -1,6 +1,7 @@
 /**
  * Upload & queue in API mode: one card per stored document with its page strip, progress, found
- * counts, open questions, the error with RETRY for a failed one, and OPEN REVIEW.
+ * counts, open questions, the error with RETRY for a failed one, and OPEN REVIEW; the drop zone in
+ * demo mode; a duplicate upload (answered by the test, so nothing is written).
  *
  * Seed state needed: the fictional seed (`python -m app.seed`): documents in several states,
  * including one `failed` with an error and one still `classifying`. Read-only: RETRY is not
@@ -144,4 +145,43 @@ test('CONTRACT-1: a failed document marks the step that failed, not "classifying
   await nav(page, 'UPLOAD & QUEUE');
   const failedStep = card(page, d!).getByRole('list', { name: 'Processing status' }).locator('li[aria-current="step"]');
   await expect(failedStep).not.toHaveText('classifying');
+});
+
+test('demo mode: the drop zone, the project field and the folder picker are off with the reason', async ({ page, request }) => {
+  const { mode } = await getJson<{ mode: string }>(request, '/health');
+  test.skip(mode !== 'demo', 'the stack has provider keys');
+  await openApp(page);
+  await nav(page, 'UPLOAD & QUEUE');
+  await expect(page.getByLabel('Project (optional)')).toBeDisabled();
+  await expect(page.getByLabel('Choose a folder to upload')).toBeDisabled();
+  await expect(page.locator('label').filter({ hasText: 'DROP REPORTS HERE' })).toContainText('Uploading is off: Live extraction needs API keys.');
+});
+
+test('a duplicate upload says "Already uploaded" and points at the existing card instead of adding one', async ({ page, request }) => {
+  const docs = await documents(request);
+  const existing = docs.find((d) => d.status === 'needs_review') ?? docs[0];
+  expect(existing, 'a seeded document').toBeTruthy();
+  // Uploads are on (health reported live) and the server's duplicate answer is the test's: nothing is written.
+  const health = await getJson<Record<string, unknown>>(request, '/health');
+  await page.route((url) => url.pathname === '/api/v1/health', (route) => route.fulfill({ json: { ...health, mode: 'live' } }));
+  await page.route(
+    (url) => url.pathname === '/api/v1/documents',
+    (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 200, json: { document_id: existing.document_id, status: existing.status, duplicate_of: existing.document_id } })
+        : route.fallback(),
+  );
+  await openApp(page);
+  await nav(page, 'UPLOAD & QUEUE');
+  await expect(page.locator('article[data-doc-id]')).toHaveCount(docs.length);
+  await page
+    .locator('label')
+    .filter({ hasText: 'DROP REPORTS HERE' })
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'copy_of_report.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fictional copy') });
+  const row = page.getByRole('region', { name: 'UPLOADS' }).getByRole('listitem').filter({ hasText: 'copy_of_report.pdf' });
+  await expect(row).toContainText('Already uploaded');
+  await expect(page.locator('article[data-doc-id]')).toHaveCount(docs.length);
+  await row.getByRole('button', { name: 'Show the existing document of copy_of_report.pdf' }).click();
+  await expect(card(page, existing)).toBeFocused();
 });

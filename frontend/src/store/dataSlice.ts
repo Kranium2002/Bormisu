@@ -1,4 +1,7 @@
-/** Data slice: picks the data source, asks its health, loads boreholes and documents, caches pages. */
+/**
+ * Data slice: picks the data source, asks its health, loads boreholes and documents, starts live
+ * updates (events slice), caches pages.
+ */
 import { createDataSource } from '../data/createDataSource';
 import type { DataSource } from '../data/DataSource';
 import { errorText } from '../data/errors';
@@ -21,6 +24,8 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
 
   async init() {
     const run = ++initRun;
+    // Running again (StrictMode, RETRY after an error) ends the earlier live subscription first.
+    get().stopLive();
     set({ loadState: 'loading', loadError: null });
     try {
       sourcePromise ??= createDataSource();
@@ -51,10 +56,9 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
         selectedUid: selected?.uid ?? null,
         selectedLayer: defaultLayer(selected),
       });
-      // Documents the backend is still working on (e.g. after a reload during extraction) keep updating.
-      for (const d of documents) {
-        if (d.step < 2 && !d.error) source.watch?.(d.id, (update) => get().documentUpdated(update));
-      }
+      // Live updates from now on. The source itself follows the documents it loaded that are still
+      // being worked on (e.g. after a reload during extraction), for the polling fallback.
+      get().startLive();
     } catch (e) {
       if (!get().source) sourcePromise = null;
       // Load failures (backend unreachable, endpoint missing …) keep the error state with its message.

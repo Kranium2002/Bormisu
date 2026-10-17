@@ -1,14 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import { makeHealth } from './testing';
+import { makeHealth, testFile } from './testing';
 import {
   acceptAttribute,
   checkUploads,
   DEMO_UPLOAD_REASON,
   fileExtension,
+  formatBytes,
+  isFinishedUpload,
+  pickedFolder,
   retryBlockedReason,
   uploadBlockedReason,
   uploadHint,
+  uploadPercent,
+  uploadProject,
+  uploadSummary,
 } from './uploads';
+
+describe('upload queue helpers', () => {
+  it('takes the typed project label, else the folder name, else none', () => {
+    expect(uploadProject(' Typed (fictional) ', 'Folder')).toBe('Typed (fictional)');
+    expect(uploadProject('', 'Folder (fictional)')).toBe('Folder (fictional)');
+    expect(uploadProject('  ', '  ')).toBeNull();
+    expect(uploadProject('', null)).toBeNull();
+  });
+
+  it('reads the picked folder from webkitRelativePath only when every file shares it', () => {
+    expect(pickedFolder([testFile('a.pdf', 1, 'Site A/a.pdf'), testFile('b.pdf', 1, 'Site A/x/b.pdf')])).toBe('Site A');
+    expect(pickedFolder([testFile('a.pdf', 1, 'Site A/a.pdf'), testFile('b.pdf', 1, 'Site B/b.pdf')])).toBeNull();
+    expect(pickedFolder([testFile('a.pdf', 1, '')])).toBeNull();
+    expect(pickedFolder([testFile('a.pdf')])).toBeNull();
+    expect(pickedFolder([])).toBeNull();
+  });
+
+  it('formats sizes, percentages and the queue summary', () => {
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(830_000)).toBe('830 kB');
+    expect(formatBytes(12_400_000)).toBe('12.4 MB');
+    expect(uploadPercent({ status: 'uploading', loaded: 1, total: 3 })).toBe(33);
+    expect(uploadPercent({ status: 'uploading', loaded: 0, total: 0 })).toBe(0);
+    expect(uploadPercent({ status: 'done', loaded: 0, total: 0 })).toBe(100);
+    expect(uploadSummary([{ status: 'uploading' }, { status: 'queued' }, { status: 'done' }, { status: 'done' }])).toBe(
+      '1 uploading · 1 waiting · 2 done',
+    );
+    expect(uploadSummary([])).toBe('');
+    expect(['queued', 'uploading', 'done', 'failed', 'cancelled'].map((s) => isFinishedUpload({ status: s as never }))).toEqual([
+      false, false, true, true, true,
+    ]);
+  });
+});
 
 const file = (name: string, bytes = 1) => new File([new Uint8Array(bytes)], name);
 const limits = { maxMb: 2, extensions: ['.pdf', '.docx', '.png'] };

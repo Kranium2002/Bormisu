@@ -42,8 +42,18 @@ export function canOpenReview(d: DocumentSummary): boolean {
 export type HintTone = 'action' | 'muted' | 'error';
 export interface HintView { text: string; tone: HintTone }
 
-/** Bottom-right hint of a card, in the prototype's order of precedence (failures first). */
-export function docHint(d: DocumentSummary): HintView | null {
+/** A failure the server reported for a document (live event job.failed): the stage as the server names it. */
+export interface JobFailure { stage: string; detail: string; retryable: boolean }
+
+/** Why RETRY is off for a failure the server says retrying cannot fix. */
+export const NOT_RETRYABLE = 'The server reports that retrying cannot fix this failure';
+
+/**
+ * Bottom-right hint of a card, in the prototype's order of precedence (failures first). A failure
+ * reported live names its stage and the server's detail.
+ */
+export function docHint(d: DocumentSummary, failure: JobFailure | null = null): HintView | null {
+  if (failure) return { text: `Extraction failed at ${failure.stage}: ${failure.detail}`, tone: 'error' };
   if (d.error) return { text: `Extraction failed: ${d.error}`, tone: 'error' };
   if (canOpenReview(d)) return { text: 'OPEN REVIEW ›', tone: 'action' };
   if (d.step === 3) return { text: 'All boreholes reviewed', tone: 'muted' };
@@ -146,4 +156,9 @@ export function pageTitle(p: DocumentPage, documentId: string): string {
 /** Pages that are not classified yet can't be opened in the Source panel. */
 export function canOpenPage(p: DocumentPage): boolean {
   return p.classified;
+}
+
+/** Alt text of a page thumbnail: its number and type, e.g. "Page 3, log". */
+export function thumbnailAlt(p: DocumentPage): string {
+  return `Page ${p.n}, ${pageMeta(p).name}`;
 }

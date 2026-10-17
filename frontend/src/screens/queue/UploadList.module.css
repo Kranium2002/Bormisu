@@ -1,0 +1,182 @@
+/* Upload queue under the drop zone: one row per file with its progress and actions. */
+
+.uploads {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  padding: 12px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.summary {
+  font-size: 12px;
+  color: var(--c-muted);
+  flex: 1;
+}
+
+.clear,
+.action,
+.remove {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 5px 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.clear:hover,
+.action:hover:not(:disabled),
+.remove:hover {
+  border-color: var(--c-dark);
+}
+
+.clear:focus-visible,
+.action:focus-visible,
+.remove:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.remove {
+  color: var(--c-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  /* A fixed actions column keeps the progress bars of all rows the same length. */
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr) 240px;
+  gap: 20px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--c-line);
+}
+
+.ident {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  font: 600 13px var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--c-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bar {
+  height: 4px;
+  background: var(--c-line);
+}
+
+.fill {
+  height: 4px;
+  background: var(--c-green);
+  transition: width 0.25s ease;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* states (store/uploads UploadStatus) */
+.queued .fill {
+  background: var(--c-grey);
+}
+
+.done .status {
+  color: var(--c-green-text);
+  font-weight: 700;
+}
+
+.failed .fill {
+  background: var(--c-red);
+}
+
+.failed .status {
+  color: var(--c-red);
+  font-weight: 700;
+}
+
+.cancelled .fill {
+  background: var(--c-grey);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}
