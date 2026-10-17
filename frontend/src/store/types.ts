@@ -52,7 +52,9 @@ export type PageLoad =
 export interface MapFocus { uid: string; zoom: number; nonce: number }
 /** Signal for the review list to scroll a value into view. */
 export interface ListScroll { key: string; nonce: number }
-export interface Toast { text: string; id: number }
+/** A button in a toast, e.g. SHOW ON MAP after boreholes were placed. */
+export interface ToastAction { label: string; run(): void }
+export interface Toast { text: string; id: number; action?: ToastAction }
 
 /** Data source, server health, load state and the data itself. */
 export interface DataSlice {
@@ -90,6 +92,8 @@ export interface ReviewSlice {
   cleanBusy: boolean;
   listScroll: ListScroll | null;
   crsDialogOpen: boolean;
+  /** The document the CRS dialog confirms a system for (the review borehole's, or a queue card's); null when closed. */
+  crsDocumentId: string | null;
   /** True while openCrsDialog waits for the data source's candidates. */
   crsLoading: boolean;
   crsCandidates: CrsCandidate[];
@@ -121,9 +125,14 @@ export interface ReviewSlice {
   /** Approves every clean value of the review document, then reloads that document's boreholes. */
   approveClean(): Promise<void>;
   cancelClean(): void;
-  openCrsDialog(): Promise<void>;
+  /** Opens the CRS dialog for a document: the review borehole's when none is named (a queue card names its own). */
+  openCrsDialog(documentId?: string): Promise<void>;
   pickCrs(i: number): void;
-  /** Confirms the picked CRS for the whole document, then reloads that document's boreholes. */
+  /**
+   * Confirms the picked CRS for the whole document, then reloads that document's boreholes, the map
+   * and the questions (1.2.0: the confirmation resolves its crs_confirm questions) and flies the map
+   * to the placed pins (revealPlaced).
+   */
   confirmCrs(): Promise<void>;
   closeCrsDialog(): void;
 }
@@ -250,7 +259,8 @@ export interface PanelSlice {
   showRoute(route: import('../routing/urlState').AppRoute): void;
   /** Goes to a screen (with a navigator: its URL, see showRoute). */
   go(screen: Screen): void;
-  showToast(text: string): void;
+  /** Shows a toast; with an action it carries a button (e.g. SHOW ON MAP) and stays longer. */
+  showToast(text: string, action?: ToastAction): void;
   /**
    * Opens a value's source in the side panel: in the value's own document when it names one, else
    * in the borehole's. Without a value, the borehole's first page (a toast when it has none).
@@ -306,6 +316,11 @@ export interface MapDataSlice {
   recordLoads: Record<string, 'loading' | 'missing' | 'error'>;
   /** A bbox to fly to and outline dashed (a place, a fit_bounds), or null; nonce changes per request. */
   mapOutline: { bbox: [number, number, number, number]; outline: boolean; nonce: number } | null;
+  /**
+   * Signal for the map's NOT ON MAP list to scroll into view and point at a document's boreholes
+   * (a queue card's "N not on the map · WHY"); nonce changes per request.
+   */
+  notOnMapFocus: { documentId: string | null; nonce: number } | null;
 
   /** Fetches one full record unless cached; resolves null when the server has no such borehole. */
   ensureBorehole(uid: string): Promise<Borehole | null>;
@@ -326,6 +341,15 @@ export interface MapDataSlice {
   searchPlace(query: string): Promise<void>;
   /** Flies to a listed place candidate (and outlines it when it holds no uploaded borehole). */
   choosePlace(index: number): void;
+  /** Opens the map's NOT ON MAP list on a document's boreholes (the queue card's WHY). */
+  showNotOnMap(documentId: string | null): void;
+  /**
+   * After boreholes were placed (a CRS confirmation, an answered CRS or position question) and the
+   * map layer reloaded: flies the map to their pins (a document's, or the given uids) and says how
+   * many are on the map, with `lead` in front; off the map the toast offers SHOW ON MAP. Returns the
+   * number of pins; with none it changes nothing.
+   */
+  revealPlaced(target: { documentId?: string | null; uids?: readonly string[] }, lead?: string): number;
 }
 
 /** Clarification questions: the inbox, the badge and the dialog (FRONTEND.md F12). */

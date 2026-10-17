@@ -3,7 +3,8 @@
  * GET /events runs through EventSource, which reconnects by itself and resends Last-Event-ID. When it
  * fails three times within a minute, the documents the source follows are polled (GET
  * /documents/{id}) until the stream works again; a stream the browser gave up on (readyState CLOSED)
- * is recreated after a delay. Wire shapes stay in adapters.ts: this module sees LiveEvents only.
+ * is recreated after a delay, resuming after the last event received (`?last_event_id=`, 1.2.0).
+ * Wire shapes stay in adapters.ts: this module sees LiveEvents only.
  */
 import type { LiveEvent, LiveStatus } from '../domain/types';
 import { isLiveEventType, isTerminal, LIVE_EVENT_TYPES } from './adapters';
@@ -27,6 +28,12 @@ export const OFFLINE_MS = 60_000;
 
 /** EventSource.CLOSED: the browser will not reconnect this stream by itself. */
 const CLOSED = 2;
+
+/** The stream URL, resuming after `lastEventId` when one is known (`?last_event_id=`, contract 1.2.0). */
+export function streamUrl(url: string, lastEventId: string | null): string {
+  if (lastEventId === null) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}last_event_id=${encodeURIComponent(lastEventId)}`;
+}
 
 /** The documents a source follows: still being processed, so the polling fallback fetches them. */
 export class FollowedDocuments {
@@ -84,8 +91,10 @@ interface Poller { timer?: ReturnType<typeof setTimeout>; errors: number }
  * - Status: 'connecting' until the stream opens, 'live' while it is open, 'polling' once it failed
  *   three times within a minute (or without EventSource), 'offline' after OFFLINE_MS without an open
  *   stream and without an answered poll.
- * - Every new EventSource refetches the followed documents once when it first opens: it has no
- *   Last-Event-ID to resume from (the browser's own reconnects of one EventSource resend it).
+ * - A stream created anew after the browser closed one opens with `?last_event_id=<last id received>`
+ *   (contract 1.2.0), so the server replays the gap; the browser's own reconnects of one EventSource
+ *   resend Last-Event-ID, which wins over the query. Only a stream opened without an event id (the
+ *   first one, or none received yet) refetches the followed documents once when it opens.
  * - Polling: every followed document every POLL_MS; after errors its wait doubles up to
  *   MAX_BACKOFF_MS and polling goes on (one console warning per error streak). A terminal status
  *   (needs_review, done, failed) or document.deleted ends following that document.
@@ -110,6 +119,14 @@ export function openLiveFeed(
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let offlineTimer: ReturnType<typeof setTimeout> | undefined;
   const pollers = new Map<string, Poller>();
+  /** The id of the last event received (a whole number), or null before any. */
+  let lastEventId: string | null = null;
+
+  /** Keeps the id of an event the stream delivered (the server's ids are whole numbers). */
+  function remember(e: MessageEvent): void {
+    const id = typeof e.lastEventId === 'string' ? e.lastEventId.trim() : '';
+    if (/^\d+$/.test(id)) lastEventId = id;
+  }
 
   function report(): void {
     if (!active) return;
@@ -171,7 +188,7 @@ export function openLiveFeed(
     deliver(event);
   }
 
-  /** Refetches every followed document once (a new stream has nothing to replay from). */
+  /** Refetches every followed document once (a stream opened without an event id has nothing to replay from). */
   function refetchFollowed(): void {
     for (const id of followed.list()) {
       source.refetch(id).then(deliver, () => {
@@ -187,7 +204,10 @@ export function openLiveFeed(
       startPolling();
       return;
     }
-    const es = new EventSourceClass(source.url);
+    // A stream created anew resumes after the last event received (1.2.0 ?last_event_id=): the
+    // server replays the gap. Its own later reconnects send Last-Event-ID, which wins over the query.
+    const resumeFrom = lastEventId;
+    const es = new EventSourceClass(streamUrl(source.url, resumeFrom));
     let opened = false;
     stream = es;
     es.onopen = () => {
@@ -199,7 +219,9 @@ export function openLiveFeed(
       report();
       if (!opened) {
         opened = true;
-        refetchFollowed();
+        // Without an event id (the first stream, or none received yet) there is nothing to replay
+        // from: the followed documents are fetched once instead.
+        if (resumeFrom === null) refetchFollowed();
       }
     };
     es.onerror = () => {
@@ -207,12 +229,16 @@ export function openLiveFeed(
     };
     for (const type of LIVE_EVENT_TYPES) {
       es.addEventListener(type, (e) => {
-        if (stream === es) receive(type, (e as MessageEvent).data);
+        if (stream !== es) return;
+        remember(e as MessageEvent);
+        receive(type, (e as MessageEvent).data);
       });
     }
     // Events without a name (or with one this client does not listen for) are not used.
     es.onmessage = (e) => {
-      if (stream === es) receive(e.type || 'message', e.data);
+      if (stream !== es) return;
+      remember(e);
+      receive(e.type || 'message', e.data);
     };
   }
 

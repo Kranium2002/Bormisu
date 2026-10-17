@@ -191,7 +191,8 @@ export interface Borehole {
   /** Final depth in m, null when the source doesn't state it (logBottom then bounds the drawing). */
   finalDepth: number | null;
   logBottom: number;      // bottom of the last logged layer (drawing only)
-  crs: { name: string | null; code: string | null; status: CrsStatus };
+  /** `name` as printed, `code` the server's EPSG code, `label` the server's readable name of the code (1.1.0), when sent. */
+  crs: { name: string | null; code: string | null; status: CrsStatus; label?: string | null };
   meta: BoreholeMeta;
   layers: Layer[];
   groundwater: GroundwaterReading[];
@@ -256,6 +257,8 @@ export interface DocumentSummary {
   uploadedAgain?: boolean;
   simulated?: boolean;              // sample mode upload, which shows "Simulated: live extraction needs an API key"
   error?: string | null;            // extraction failed (API status "failed")
+  /** The pipeline stage that failed, as the server names it (contract 1.2.0 `failed_stage`), or null. */
+  failedStage?: string | null;
 }
 export interface CrsCandidate {
   name: string; code: string; note: string | null; score: number | null; verdict: CrsVerdict | null;
@@ -291,7 +294,11 @@ export type LiveEvent =
   | { type: 'borehole.created'; uid: string; documentId: string; revision: number; plotted: boolean }
   | { type: 'borehole.updated'; uid: string; revision: number }
   | { type: 'clarification.created'; clarification: Clarification }
-  | { type: 'clarification.resolved'; clarificationId: string; status: 'answered' | 'skipped' }
+  | {
+      type: 'clarification.resolved'; clarificationId: string; status: 'answered' | 'skipped';
+      /** The question's document and boreholes (contract 1.2.0); absent from an older server. */
+      documentId?: string; boreholeUids?: string[];
+    }
   | { type: 'job.failed'; documentId: string; stage: string; detail: string; retryable: boolean };
 /** How live updates arrive: the event stream, the polling fallback, or not (yet). */
 export type LiveStatus = 'connecting' | 'live' | 'polling' | 'offline';
@@ -311,6 +318,9 @@ export interface MapFeature {
   depth: number | null;
   reviewStatus: BoreholeReviewStatus;
   crsStatus: CrsStatus;
+  /** The stated or confirmed system's EPSG code and its readable name (contract 1.2.0), when the server sends them. */
+  crsCode?: string | null;
+  crsLabel?: string | null;
   revision: number | null;
   /** A flagged value, a lint error or an unresolved question (server `attention`). */
   attention: boolean;

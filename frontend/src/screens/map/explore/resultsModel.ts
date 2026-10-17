@@ -187,13 +187,13 @@ const CRS_TITLE: Record<Borehole['crs']['status'], string> = {
 };
 
 /**
- * CRS column: the status word, and the system's label when the record is cached (its name as printed,
- * else the server's code). A pin from the light map layer carries only the status: the label then
- * waits until the record is loaded (Detail, Review), and the title says only what the status means.
+ * CRS column: the status word, then the system's name: the server's label (the map layer carries it
+ * since 1.2.0, a full record since 1.1.0), else the name as printed, else the code. Without any of
+ * them only the status shows, and the title says only what the status means.
  */
 export function crsColumn(crs: Borehole['crs']): CrsColumn {
   const label = crsLabel(crs);
-  const name = crs.name?.trim();
+  const name = crs.label?.trim() || crs.name?.trim();
   const full = name ? `${name}${crs.code?.trim() ? ` (${crs.code.trim()})` : ''}` : label;
   return {
     text: label ? `${crs.status} · ${label}` : crs.status,

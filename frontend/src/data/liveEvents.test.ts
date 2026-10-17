@@ -118,6 +118,15 @@ describe('event data → LiveEvent (adapters)', () => {
     });
   });
 
+  it('clarification.resolved carries the document and boreholes when the server sends them (1.2.0), only the id from an older one', () => {
+    const full = adaptLiveEvent('clarification.resolved', {
+      clarification_id: 'cl_X', status: 'answered', document_id: D1, borehole_uids: [HL01, 7, ''],
+    });
+    expect(full).toEqual({ type: 'clarification.resolved', clarificationId: 'cl_X', status: 'answered', documentId: D1, boreholeUids: [HL01] });
+    const old = adaptLiveEvent('clarification.resolved', { clarification_id: 'cl_X', status: 'skipped' });
+    expect(old).toEqual({ type: 'clarification.resolved', clarificationId: 'cl_X', status: 'skipped' });
+  });
+
   it('a clarification without borehole_uids has none (the field is optional)', () => {
     const c = eventFixture<WireClarification>('clarification.created');
     delete c.borehole_uids;
@@ -154,7 +163,11 @@ describe('event data → LiveEvent (adapters)', () => {
         'borehole.created': { uid: data.uid, documentId: data.document_id, revision: data.revision, plotted: data.plotted },
         'borehole.updated': { uid: data.uid, revision: data.revision },
         'clarification.created': { clarification: adaptClarification(data) },
-        'clarification.resolved': { clarificationId: data.clarification_id, status: data.status },
+        // 1.2.0 names the question's document and boreholes.
+        'clarification.resolved': {
+          clarificationId: data.clarification_id, status: data.status,
+          ...(data.document_id ? { documentId: data.document_id, boreholeUids: data.borehole_uids ?? [] } : {}),
+        },
         'job.failed': { documentId: data.document_id, stage: data.stage, detail: data.detail, retryable: data.retryable },
       };
       expect(event).toEqual({ type, ...(expected[type] as object) });
@@ -516,6 +529,48 @@ describe('a closed stream', () => {
     expect(events.some((e) => e.type === 'borehole.updated')).toBe(false);
     await vi.advanceTimersByTimeAsync(10 * MAX_BACKOFF_MS);
     expect([gets(D2), gets(D5)]).toEqual([2, 2]);
+    unsubscribe();
+  });
+
+  it('resumes after the last event received (?last_event_id=, 1.2.0): the server replays the gap, nothing is refetched', async () => {
+    const { gets } = server();
+    const api = createApiSource(BASE);
+    api.follow(D2);
+    const { events, unsubscribe } = listen(api);
+    const first = MockEventSource.last;
+    first.open();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(gets(D2)).toBe(1);
+    first.emit('borehole.updated', { uid: HL01, revision: 6 }, '1841');
+    first.emit('borehole.updated', { uid: HL01, revision: 7 }, '1842');
+    first.error(true);
+    await vi.advanceTimersByTimeAsync(STREAM_RETRY_MS);
+    const second = MockEventSource.last;
+    expect(second).not.toBe(first);
+    expect(second.url).toBe('/api/v1/events?last_event_id=1842');
+    second.open();
+    await vi.advanceTimersByTimeAsync(10 * POLL_MS);
+    // The replay brings what was missed: no refetch-everything on this open.
+    expect(gets(D2)).toBe(1);
+    second.emit('borehole.updated', { uid: HL01, revision: 8 }, '1843');
+    expect(events.filter((e) => e.type === 'borehole.updated')).toHaveLength(3);
+    // The next recreated stream resumes after the newest id, whichever stream delivered it.
+    second.error(true);
+    await vi.advanceTimersByTimeAsync(2 * STREAM_RETRY_MS);
+    expect(MockEventSource.last.url).toBe('/api/v1/events?last_event_id=1843');
+    unsubscribe();
+  });
+
+  it('an event id that is no whole number is not used to resume (the server ignores it too)', async () => {
+    server();
+    const api = createApiSource(BASE);
+    const { unsubscribe } = listen(api);
+    const first = MockEventSource.last;
+    first.open();
+    first.emit('borehole.updated', { uid: HL01, revision: 6 }, 'abc');
+    first.error(true);
+    await vi.advanceTimersByTimeAsync(STREAM_RETRY_MS);
+    expect(MockEventSource.last.url).toBe('/api/v1/events');
     unsubscribe();
   });
 

@@ -87,4 +87,22 @@ describe('CrsDialog', () => {
     // An answered question no longer counts.
     expect(render({ questions: [{ ...q, status: 'answered' }] })).not.toContain('Answer it for the whole project instead');
   });
+
+  it('opened from a queue card: it is about that document, without a review borehole', () => {
+    const other = makeBorehole({ uid: 'bh_01TESTCRS0000000000000009', id: 'XY-9', documentId: 'doc_01TESTOTHERDOC' });
+    resetTestStore({
+      boreholes: [other, B],
+      reviewUid: other.uid,
+      crsDocumentId: B.documentId,
+      crsCandidates: CANDIDATES,
+      crsPick: 0,
+      crsLoading: false,
+      clarificationsState: 'ready',
+      clarifications: [makeClarification({ id: 'cl_crs', kind: 'crs_confirm', documentId: B.documentId!, boreholeUids: [B.uid] })],
+    });
+    const html = renderToStaticMarkup(<CrsDialog />);
+    expect(html).toContain('CONFIRM CRS FOR THE WHOLE DOCUMENT');
+    // The question of that document (not of the review borehole's) is offered.
+    expect(html).toContain('An open question asks for this coordinate system (1 borehole, possibly in other reports of the project).');
+  });
 });

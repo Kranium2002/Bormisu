@@ -7,6 +7,7 @@ import type { DataSource, UploadHandle } from '../data/DataSource';
 import { errorCode, errorText, UploadCancelledError } from '../data/errors';
 import type { DocumentSummary, UploadResult } from '../domain/types';
 import { isProcessing, nextNonce, replaceDocumentFeatures, withReviewTarget, type SliceCreator } from './context';
+import { pinsBbox } from './mapDataSlice';
 import type { UploadSlice } from './types';
 import {
   checkUploads,
@@ -286,7 +287,8 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
       try {
         await source.retry(documentId);
       } catch (e) {
-        get().showToast(`Retry failed: ${errorText(e)}`);
+        // 1.2.0: a demo-mode server answers 409 demo_mode and leaves the document as it is.
+        get().showToast(`Retry failed: ${failure(e)}`);
         return;
       }
       set((s) => ({ jobFailures: without(s.jobFailures, documentId) }));
@@ -300,14 +302,11 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
     },
 
     showDocumentOnMap(documentId) {
-      const pins = get().features.filter((f) => f.documentId === documentId);
-      if (!pins.length) {
+      const bbox = pinsBbox(get().features.filter((f) => f.documentId === documentId));
+      if (!bbox) {
         get().showToast('No borehole of this report is on the map yet.');
         return;
       }
-      const lons = pins.map((f) => f.lng);
-      const lats = pins.map((f) => f.lat);
-      const bbox: [number, number, number, number] = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
       // The map flies to mapOutline (no dashed outline: these are pins, not a searched area).
       set({ mapOutline: { bbox, outline: false, nonce: nextNonce() } });
       get().go('map');

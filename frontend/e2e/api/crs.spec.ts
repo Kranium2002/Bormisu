@@ -202,6 +202,9 @@ test('FE-CRS-2: a confirmed CRS is named by its code in Detail, Review and RESUL
 test('BE-CRS-1: confirming the CRS of a document resolves its open crs_confirm question', async ({ request }) => {
   const b = await confirmedBorehole(request);
   test.skip(!b, 'no borehole with a confirmed CRS yet');
+  // Contract 1.2.0 fixes this (a CRS confirmation resolves the crs_confirm questions it settles) and
+  // the UI reloads the questions after a confirmation. The marker stays until this test passes
+  // against a 1.2.0 backend: the demo stack still runs 1.1.0 (checked 2026-10-17).
   knownBug('BE-CRS-1', 'POST /documents/{id}/crs leaves the crs_confirm clarification of the same boreholes open');
   const open = (await getJson<Clarification[]>(request, '/clarifications')).filter(
     (c) => c.kind === 'crs_confirm' && c.status === 'open' && c.borehole_uids.includes(b!.uid),

@@ -9,7 +9,8 @@ import { ApiError } from '../data/errors';
 import type { Clarification } from '../domain/types';
 import { makeBorehole, makeDocument } from '../test/fixtures';
 import { useAppStore } from './appStore';
-import { ALREADY_ANSWERED, fieldErrorsOf, oldestFirst, QUESTION_GONE } from './clarificationsSlice';
+import { ALREADY_ANSWERED, ANSWER_STORED, fieldErrorsOf, oldestFirst, QUESTION_GONE } from './clarificationsSlice';
+import { SHOW_ON_MAP } from './mapDataSlice';
 import { fakeSource, makeClarification, manualLive, readyStore, settle } from './testing';
 
 const st = () => useAppStore.getState();
@@ -163,6 +164,50 @@ describe('answering', () => {
     expect(unplotted).toHaveBeenCalled();
     expect(st().features.find((f) => f.uid === OFF.uid)).toMatchObject({ lat: 51, lng: 7 });
     expect(st().boreholes.find((b) => b.uid === OFF.uid)).toMatchObject({ revision: 2, onMap: true });
+  });
+
+  it('upload → map: a CRS answer that placed boreholes flies the map to them; off the map the toast offers SHOW ON MAP', async () => {
+    const fake = await ready();
+    await st().loadClarifications();
+    st().go('queue');
+    const real = fake.answerClarification;
+    fake.answerClarification = async (id, values, by) => {
+      fake.held.set(OFF.uid, { ...OFF, revision: 2, onMap: true, lat: 51, lng: 7, unplottedReason: null, crs: { name: null, code: 'EPSG:0001', status: 'confirmed' } });
+      return real(id, values, by);
+    };
+    expect(await st().answerClarification('cl_TEST_CRS', { crs: 'EPSG:0001' })).toEqual({ ok: true });
+    // Both boreholes of the question are pinned now (A was already): the map flies to their box.
+    await vi.waitFor(() => expect(st().toast?.text).toBe(`${ANSWER_STORED} · 2 boreholes placed`));
+    expect(st().mapOutline).toMatchObject({ bbox: [Math.min(7, A.lng!), Math.min(51, A.lat!), Math.max(7, A.lng!), Math.max(51, A.lat!)], outline: false });
+    expect(st().toast?.action?.label).toBe(SHOW_ON_MAP);
+    st().toast?.action?.run();
+    expect(st().screen).toBe('map');
+  });
+
+  it('a position answer (locate_borehole) on the map flies there and says so, without a button', async () => {
+    const locate = makeClarification({ id: 'cl_TEST_LOC', kind: 'locate_borehole', documentId: DOC, boreholeUids: [OFF.uid] });
+    const fake = await ready({}, [locate]);
+    await st().loadClarifications();
+    st().go('map');
+    const real = fake.answerClarification;
+    fake.answerClarification = async (id, values, by) => {
+      fake.held.set(OFF.uid, { ...OFF, revision: 2, onMap: true, lat: 48.5, lng: 9.25, unplottedReason: null });
+      return real(id, values, by);
+    };
+    expect(await st().answerClarification('cl_TEST_LOC', { position: { lat: 48.5, lng: 9.25 } })).toEqual({ ok: true });
+    await vi.waitFor(() => expect(st().toast?.text).toBe(`${ANSWER_STORED} · 1 borehole placed`));
+    expect(st().mapOutline).toMatchObject({ bbox: [9.25, 48.5, 9.25, 48.5] });
+    expect(st().toast?.action).toBeUndefined();
+  });
+
+  it('other answers place nothing: no fly-to, no placed toast', async () => {
+    await ready();
+    await st().loadClarifications();
+    const before = st().mapOutline;
+    expect(await st().answerClarification('cl_TEST_UNIT', { unit: 'm' })).toEqual({ ok: true });
+    await settle();
+    expect(st().mapOutline).toBe(before);
+    expect(st().toast?.text ?? '').not.toContain('placed');
   });
 
   it('a 422 comes back as field errors by field name, with the server’s detail as the message; the question stays', async () => {

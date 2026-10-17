@@ -46,11 +46,12 @@ export function unplottedText(b: Pick<Borehole, 'unplottedReason'>): string {
 }
 
 /**
- * Name of a borehole's coordinate system: the system as printed, else the server's EPSG code (a CRS
- * confirmed by a reviewer often has only the code). Null when the server knows neither.
+ * Name of a borehole's coordinate system: the server's label of its code, else the system as printed,
+ * else the server's EPSG code (a CRS confirmed by a reviewer often has only the code). Null when the
+ * server knows none of them.
  */
-export function crsLabel(crs: Pick<Borehole['crs'], 'name' | 'code'>): string | null {
-  return crs.name?.trim() || crs.code?.trim() || null;
+export function crsLabel(crs: Pick<Borehole['crs'], 'name' | 'code' | 'label'>): string | null {
+  return crs.label?.trim() || crs.name?.trim() || crs.code?.trim() || null;
 }
 
 /** Coordinates as printed, e.g. "512 000 / 5 540 000 (E / N)"; '' when the source gives none. */

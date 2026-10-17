@@ -38,8 +38,21 @@ describe('rows', () => {
       ['TB-2', true, 'alpha_report.pdf'],
       ['TB-9', false, 'beta_report.pdf'],
     ]);
-    // A pin without its full record only knows the CRS status, not its name.
-    expect(rows[0].crs).toEqual({ name: null, code: null, status: 'stated' });
+    // A pin without its full record knows the CRS status and (1.2.0) the stated system's code and
+    // label, never the name as printed.
+    expect(rows[0].crs).toEqual({ name: null, code: 'EPSG:25832', label: null, status: 'stated' });
+    expect(crsColumn(rows[0].crs).text).toBe('stated · EPSG:25832');
+    // From an older server (no crs_code, no crs_label) only the status.
+    const old = allRows([{ ...feat(A), crsCode: undefined, crsLabel: undefined }], [], [], [DOC]);
+    expect(old[0].crs).toEqual({ name: null, code: null, label: null, status: 'stated' });
+    expect(crsColumn(old[0].crs).text).toBe('stated');
+  });
+
+  it('1.2.0: the CRS column names the server’s label of a pin, before the code', () => {
+    const rows = allRows([{ ...feat(A), crsStatus: 'confirmed', crsCode: 'EPSG:0001', crsLabel: 'Fictional grid A' }], [], [], [DOC]);
+    expect(crsColumn(rows[0].crs)).toEqual({
+      text: 'confirmed · Fictional grid A', warn: false, title: 'Coordinate system confirmed by a reviewer: Fictional grid A (EPSG:0001)',
+    });
   });
 
   it('a cached full record (as new as the pin) gives the CRS name and the status', () => {

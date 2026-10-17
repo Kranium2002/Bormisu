@@ -432,6 +432,8 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
     it('CONTRACT-1: the failed example failed during text recognition, after every page was classified', () => {
       const doc = adaptDocument(example<WireDocument>('Document.failed.json'));
       expect([doc.status, doc.step, doc.progress?.pagesClassified, doc.progress?.pagesTotal]).toEqual(['failed', 1, 1, 1]);
+      // 1.2.0: the stage it failed at, as in events/job.failed.json.
+      expect(doc.failedStage).toBe('ocr');
     });
 
     it('keeps a page duplicated inside the same document and a blank page of type unknown as classified', () => {
@@ -456,6 +458,8 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
           uid: p.uid, id: p.borehole_id, project: p.project_name ?? null, documentId: p.document_id ?? null,
           lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], depth: p.borehole_depth_m ?? null,
           reviewStatus: p.review_status, crsStatus: p.crs_status, revision: p.revision ?? null,
+          // 1.2.0: the stated or confirmed system's code and label, null when the server has none.
+          crsCode: p.crs_code ?? null, crsLabel: p.crs_label ?? null,
           attention: p.attention ?? (p.open_clarifications ?? 0) > 0, openClarifications: p.open_clarifications ?? 0,
         });
       });

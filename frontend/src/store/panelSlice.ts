@@ -13,6 +13,8 @@ import { cancelKeyWrite, NO_SOURCE_REFERENCE } from './reviewSlice';
 import type { AppState, PanelSlice } from './types';
 
 const TOAST_MS = 3200;
+/** A toast with a button (e.g. SHOW ON MAP) stays long enough to reach it. */
+export const ACTION_TOAST_MS = 8000;
 
 /** Why a borehole without pages (e.g. read from a spreadsheet only) has no page to show. */
 export const NO_SOURCE_PAGE = 'No source page for this borehole';
@@ -156,11 +158,11 @@ export const createPanelSlice: SliceCreator<PanelSlice> = ({ set, get, find }) =
     set({ screen, exportOpen: false, confirmCleanOpen: false, searchMessage: '', ...(screen === 'review' ? {} : LEAVE_REVIEW) });
   },
 
-  showToast(text) {
+  showToast(text, action) {
     const id = nextNonce();
     clearTimeout(toastTimer);
-    set({ toast: { text, id } });
-    toastTimer = setTimeout(() => set((s) => (s.toast?.id === id ? { toast: null } : {})), TOAST_MS);
+    set({ toast: action ? { text, id, action } : { text, id } });
+    toastTimer = setTimeout(() => set((s) => (s.toast?.id === id ? { toast: null } : {})), action ? ACTION_TOAST_MS : TOAST_MS);
   },
 
   openSource(uid, key) {

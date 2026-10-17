@@ -124,7 +124,11 @@ test.describe('review', () => {
     const label = (await match.locator('span').first().textContent()) ?? '';
     await dialog.getByRole('button', { name: 'CONFIRM FOR WHOLE DOCUMENT' }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByText(new RegExp(`^CRS confirmed for \\d+ boreholes? in this report: ${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`))).toBeVisible();
+    // The map flies to the placed pins; off the map the toast offers SHOW ON MAP.
+    await expect(
+      page.getByText(new RegExp(`^CRS confirmed for \\d+ boreholes? in this report: ${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( · \\d+ boreholes? placed)?$`)),
+    ).toBeVisible();
+    await expect(page.getByRole('status').getByRole('button', { name: 'SHOW ON MAP' })).toBeVisible();
     await expect(row(page, 'CoordinateSystem').getByText('confirmed for the whole document')).toBeVisible();
 
     await nav(page, 'MAP');

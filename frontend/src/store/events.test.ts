@@ -536,6 +536,19 @@ describe('clarification.created and clarification.resolved', () => {
     await vi.waitFor(() => expect(getBorehole).toHaveBeenCalledWith(UID));
   });
 
+  it('1.2.0: a resolved clarification names its document and boreholes: only those are refetched, never a sweep', async () => {
+    const quiet = makeDocument({ id: NEW_DOC, name: 'quiet.pdf', openClarifications: 3 });
+    const fake = await ready({}, [{ ...doc, openClarifications: 1 }, quiet]);
+    const getDocument = vi.fn<DataSource['getDocument']>(async (id) => (id === doc.id ? { ...doc, openClarifications: 0 } : quiet));
+    const getBorehole = vi.fn(fake.getBorehole);
+    Object.assign(fake, { getDocument, getBorehole });
+    live.emit({ type: 'clarification.resolved', clarificationId: 'cl_NEVER_SEEN', status: 'answered', documentId: doc.id, boreholeUids: [UID] });
+    await vi.waitFor(() => expect(docById(doc.id)?.openClarifications).toBe(0));
+    await vi.waitFor(() => expect(getBorehole).toHaveBeenCalledWith(UID));
+    // The other document with open questions is not refetched (the 1.1.0 sweep is not needed).
+    expect(getDocument).not.toHaveBeenCalledWith(NEW_DOC);
+  });
+
   it('a resolved clarification the store never saw refetches what shows open questions', async () => {
     const quiet = makeDocument({ id: NEW_DOC, name: 'quiet.pdf', openClarifications: 0 });
     const asking = { ...doc, openClarifications: 2 };
