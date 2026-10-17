@@ -1,0 +1,153 @@
+[
+ {
+  "group": "sample",
+  "key": "sample",
+  "name_de": "Probe (Entnahmekategorie A bis E nach DIN EN ISO 22475-1)",
+  "name_en": "sample (sampling category A to E, EN ISO 22475-1)",
+  "svg": "left_symbols/sample_sample.svg",
+  "width": 76.0,
+  "height": 93.0,
+  "anchor": [
+   0,
+   93
+  ],
+  "repeat_y": false
+ },
+ {
+  "group": "sample",
+  "key": "water_sample",
+  "name_de": "Wasserprobe",
+  "name_en": "water sample",
+  "svg": "left_symbols/sample_water_sample.svg",
+  "width": 72.0,
+  "height": 92.0,
+  "anchor": [
+   36,
+   92
+  ],
+  "repeat_y": false
+ },
+ {
+  "group": "sample",
+  "key": "cored",
+  "name_de": "gekernte Strecke",
+  "name_en": "cored section",
+  "svg": "left_symbols/sample_cored.svg",
+  "width": 22.0,
+  "height": 10.0,
+  "anchor": null,
+  "repeat_y": true
+ },
+ {
+  "group": "groundwater",
+  "key": "struck",
+  "name_de": "Grundwasseroberfläche (beim Aufschluss angetroffen)",
+  "name_en": "groundwater struck",
+  "svg": "left_symbols/groundwater_struck.svg",
+  "width": 72.0,
+  "height": 66.0,
+  "anchor": [
+   36,
+   66
+  ],
+  "repeat_y": false
+ },
+ {
+  "group": "groundwater",
+  "key": "after_drilling",
+  "name_de": "Grundwasserstand nach Beendigung der Bohrung / nach Änderung (mit Zeitdifferenz in h)",
+  "name_en": "groundwater level after drilling / after a change (with time difference in h)",
+  "svg": "left_symbols/groundwater_after_drilling.svg",
+  "width": 72.0,
+  "height": 66.0,
+  "anchor": [
+   36,
+   66
+  ],
+  "repeat_y": false
+ },
+ {
+  "group": "groundwater",
+  "key": "rest",
+  "name_de": "Ruhewasserstand (Grundwassermessstelle)",
+  "name_en": "rest water level (observation well)",
+  "svg": "left_symbols/groundwater_rest.svg",
+  "width": 72.0,
+  "height": 66.0,
+  "anchor": [
+   36,
+   66
+  ],
+  "repeat_y": false
+ },
+ {
+  "group": "groundwater",
+  "key": "rise",
+  "name_de": "Grundwasseranstieg während oder nach der Aufschlusstätigkeit",
+  "name_en": "groundwater rise during or after drilling",
+  "svg": "left_symbols/groundwater_rise.svg",
+  "width": 70.0,
+  "height": 260.0,
+  "anchor": null,
+  "repeat_y": false,
+  "parts": {
+   "top": {
+    "svg": "left_symbols/chevron_up.svg",
+    "anchor": [
+     35,
+     0
+    ]
+   },
+   "bottom": {
+    "svg": "left_symbols/chevron_up.svg",
+    "anchor": [
+     35,
+     62
+    ]
+   },
+   "shaft_width": 5
+  }
+ },
+ {
+  "group": "groundwater",
+  "key": "fall",
+  "name_de": "Wasserstand, fallend",
+  "name_en": "water level, falling",
+  "svg": "left_symbols/groundwater_fall.svg",
+  "width": 70.0,
+  "height": 260.0,
+  "anchor": null,
+  "repeat_y": false,
+  "parts": {
+   "top": {
+    "svg": "left_symbols/chevron_down.svg",
+    "anchor": [
+     35,
+     0
+    ]
+   },
+   "bottom": {
+    "svg": "left_symbols/chevron_down.svg",
+    "anchor": [
+     35,
+     62
+    ]
+   },
+   "shaft_width": 5
+  }
+ },
+ {
+  "group": "joints",
+  "key": "dip",
+  "name_de": "Fallrichtung und Fallen von Trennflächen (z. B. 135/25)",
+  "name_en": "dip direction and dip of joints (e.g. 135/25)",
+  "svg": "left_symbols/joints_dip.svg",
+  "width": 394.0,
+  "height": 150.0,
+  "anchor": [
+   197,
+   147.5
+  ],
+  "repeat_y": false
+ }
+]
