@@ -1,4 +1,4 @@
-# Bormisu — Speaker Script (5 min)
+# Bormisu: Speaker Script (5 min)
 
 ## 01 · Title
 
@@ -9,27 +9,28 @@
 > This glas of dirt and stones the key to building tunnels.
 > Its a soil sample.
 > This is what it looks like on a plan.
-> It tells you exactly what the ground is made of — which material sits at which depth.
-> You can take samples and determine the right 
-> And on these samples you run tests, to see how strong the ground is.
+> It tells you exactly what the ground is made of: which material sits at which depth.
+> You can take samples and determine the exact specifications of the material.
+> Or you can see where the ground water is.
 
 ## 03 · Offenburg (~20 s)
 
-*(borehole map of Offenburg — every bubble is a cluster of boreholes)*
+*(borehole map of Offenburg; every bubble is a cluster of boreholes)*
 
-> And you don't drill just one. In Offenburg alone, there are about 2,700.
-> This data is all kept on one website. But even here, it doesn't follow one standard — and pieces are missing.
+> And you don't drill just one. In Offenburg alone, there are about 2,700 documented soil samples.
+> This data is all kept on one website. 
+> But even here, it doesn't follow one standard, and pieces are missing.
 
 ## 04 · World (~25 s)
 
 *(the map zooms out from Offenburg to the world; countries with Herrenknecht projects light up, one dot per machine)*
 
-> But Herrenknecht — one of Europe's hidden champions — doesn't only work in Offenburg. It works all over the world.
+> But Herrenknecht, one of Europe's hidden champions, doesn't only work in Offenburg. It works all over the world.
 > They build the machines for the Paris Metro. The airport link in Hong Kong. And in South America, the new metro in Lima.
 
 ## 05 · Stuttgart 21 🤫 (~5 s)
 
-> And they also built for Stuttgart 21 — but we don't talk about that.
+> And they also built for Stuttgart 21. But we don't talk about that.
 
 *(let the laugh happen, then move on)*
 
@@ -38,7 +39,7 @@
 > When you work internationally, the data looks even worse.
 > This is what the reports really look like.
 > Handwritten, in Norwegian. A Spanish soil probe sheet. A Korean drill log.
-> Every country does it differently — often every company does.
+> Every country does it differently. Often every company does.
 > So we built the thing that standardises all of it.
 
 ## 07 · Demo (~2:30)
@@ -49,9 +50,9 @@
 *(three cards: Reads any report · Every value has a source · One standard out)*
 
 > So what you just saw, in three points:
-> It reads any report — scans, handwriting, any language.
-> Every value has a source — one click and you see it on the original page. And where it's unsure, it asks a person to verify.
-> And one standard comes out — the DIN 4023 profile, the map and the Herrenknecht xlsx.
+> It reads any report: scans, handwriting, any language.
+> Every value has a source. One click and you see it on the original page. And where it's unsure, it asks a person to verify.
+> And one standard comes out: the DIN 4023 profile, the map and the Herrenknecht xlsx.
 
 ## 09 · Under the hood (~25 s)
 
@@ -59,15 +60,15 @@
 
 > In the browser: React and Leaflet for the map.
 > Behind it a FastAPI server, and a job pipeline: Word files become PDFs, pages are rendered, Mistral OCR reads them, Mistral Large pulls out every value with its source box.
-> Then plain Python checks coordinates and DIN 4023 — and everything lands in PostgreSQL with PostGIS.
+> Then plain Python checks coordinates and DIN 4023, and everything lands in PostgreSQL with PostGIS.
 > Out comes the Herrenknecht xlsx. All of it runs with one Docker Compose command.
 
 ## 10 · Sovereignty (~25 s)
 
-*(three cards: Cloud today · One GPU, 32 GB · Mac mini, 32 GB — with the Le Chonk cat as an easter egg)*
+*(three cards: Cloud today · One GPU, 32 GB · Mac mini, 32 GB, with the Le Chonk cat as an easter egg)*
 
-> Today it runs in the cloud on Mistral — Mistral Large, also known as Le Chonk.
-> But borehole reports are confidential. So the same pipeline runs on open models — PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
+> Today it runs in the cloud on Mistral: Mistral Large, also known as Le Chonk.
+> But borehole reports are confidential. So the same pipeline runs on open models: PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
 > That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
 
 ## 11 · In a nutshell (~15 s)
@@ -75,9 +76,9 @@
 *(three checkmarks on the left, the tiramisu logo on the right)*
 
 > So, in a nutshell:
-> It's multilingual — any language, any format, even handwriting.
-> It's a sovereign stack — cloud today, your own server or a Mac mini tomorrow.
-> And it's ready to use — now.
+> It's multilingual: any language, any format, even handwriting.
+> It's a sovereign stack: cloud today, your own server or a Mac mini tomorrow.
+> And it's ready to use. Now.
 
 ## 12 · Questions
 
@@ -91,7 +92,7 @@
 
 ### Slide 04 (world map, said over it)
 
-- Map data: `data/herrenknecht-projects.json` — 84 documented projects in 40 countries, 426 machines, each with a source URL. A selection, not the full list: Herrenknecht itself speaks of more than 4,100 reference projects in more than 92 countries ([All Around #10](https://allaround.herrenknecht.com/en/issue-10.html)). Rebuild the map data with `python3 data/build_projects.py`.
+- Map data: `data/herrenknecht-projects.json`: 84 documented projects in 40 countries, 426 machines, each with a source URL. A selection, not the full list: Herrenknecht itself speaks of more than 4,100 reference projects in more than 92 countries ([All Around #10](https://allaround.herrenknecht.com/en/issue-10.html)). Rebuild the map data with `python3 data/build_projects.py`.
 
 - Gotthard Base Tunnel bored with Herrenknecht machines: [Herrenknecht press release](https://www.herrenknecht.com/en/newsroom/pressreleasedetail/gotthard-base-tunnel-mechanized-tunnelling-completed-on-the-north-side/), [Wikipedia](https://en.wikipedia.org/wiki/Herrenknecht)
 - London Crossrail / Elizabeth line, TBMs built by Herrenknecht: [gfxspeak](https://gfxspeak.com/archives/burrowing-machines-crossrail/), [The Construction Index](https://www.theconstructionindex.co.uk/news/view/crossrail-tbm-ellie-breaks-through-in-docklands?amp=1)
