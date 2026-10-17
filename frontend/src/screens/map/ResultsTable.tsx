@@ -18,32 +18,36 @@ interface Props {
   onOpen(uid: string): void;
 }
 
-/** A column the user can add or remove (BOREHOLE, PROJECT and STATUS always stay). */
-interface Column { key: string; label: string; width: string; cell(b: Borehole): ReactNode }
+/** A column the user can add or remove (BOREHOLE, PROJECT and STATUS always stay); `min` = narrowest width in px. */
+interface Column { key: string; label: string; min: number; cell(b: Borehole): ReactNode }
 
 const num = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? metres(v) : '–');
 const OPTIONAL: readonly Column[] = [
-  { key: 'depth', label: 'FINAL DEPTH', width: '110px', cell: (b) => <span className={styles.mono}>{depthText(b)}</span> },
+  { key: 'depth', label: 'FINAL DEPTH', min: 100, cell: (b) => <span className={styles.mono}>{depthText(b)}</span> },
   {
-    key: 'crs', label: 'CRS', width: 'minmax(150px, 1fr)', cell: (b) => {
+    key: 'crs', label: 'CRS', min: 160, cell: (b) => {
       const c = crsCell(b.crs);
       return <span className={c.warn ? styles.warn : styles.muted} title={c.title}>{c.text}</span>;
     },
   },
-  { key: 'rock', label: 'ROCK HEAD', width: '110px', cell: (b) => <span className={styles.mono}>{num(b.rockHead)}</span> },
-  { key: 'layers', label: 'LAYERS', width: '80px', cell: (b) => <span className={styles.mono}>{b.layers.length}</span> },
+  { key: 'rock', label: 'ROCK HEAD', min: 100, cell: (b) => <span className={styles.mono}>{num(b.rockHead)}</span> },
+  { key: 'layers', label: 'LAYERS', min: 70, cell: (b) => <span className={styles.mono}>{b.layers.length}</span> },
   {
-    key: 'gw', label: 'GROUNDWATER', width: '120px',
+    key: 'gw', label: 'GROUNDWATER', min: 110,
     cell: (b) => <span className={styles.mono}>{num((b.groundwater.find((g) => g.type === 'strike') ?? b.groundwater[0])?.depth)}</span>,
   },
-  { key: 'tests', label: 'TEST RESULTS', width: '110px', cell: (b) => <span className={styles.mono}>{b.testResults?.length ?? 0}</span> },
+  { key: 'tests', label: 'TEST RESULTS', min: 100, cell: (b) => <span className={styles.mono}>{b.testResults?.length ?? 0}</span> },
   {
-    key: 'coords', label: 'COORDINATES', width: '170px',
+    key: 'coords', label: 'COORDINATES', min: 160,
     cell: (b) => <span className={styles.mono}>{b.lat != null && b.lng != null ? `${b.lat.toFixed(4)}, ${b.lng.toFixed(4)}` : '–'}</span>,
   },
-  { key: 'file', label: 'SOURCE FILE', width: 'minmax(140px, 1fr)', cell: (b) => <span className={styles.muted}>{b.sourceFile || '–'}</span> },
+  { key: 'file', label: 'SOURCE FILE', min: 150, cell: (b) => <span className={styles.muted}>{b.sourceFile || '–'}</span> },
 ];
 const DEFAULT_COLUMNS = ['depth', 'crs'];
+/** Narrowest widths (px) of the columns that are always there. */
+const FIXED_MIN = { borehole: 90, project: 180, status: 170, action: 120 };
+/** The table's side padding (2 × --space-3). */
+const TABLE_PADDING = 24;
 const STORAGE_KEY = 'bormisu.listColumns';
 
 /** The chosen optional columns, remembered in this browser (a convenience: falls back to the default). */
@@ -78,7 +82,11 @@ export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBore
   const t = useT();
   const shown = keys.map((k) => OPTIONAL.find((c) => c.key === k)!);
   const hidden = OPTIONAL.filter((c) => !keys.includes(c.key));
-  const grid = { gridTemplateColumns: ['100px', 'minmax(0, 1.3fr)', '240px', ...shown.map((c) => c.width), '130px'].join(' ') };
+  // Every column gets an equal share of the width, never less than its minimum: few columns spread out,
+  // more columns move closer, and past the screen width the table gets wider and LIST scrolls sideways.
+  const mins = [FIXED_MIN.borehole, FIXED_MIN.project, FIXED_MIN.status, ...shown.map((c) => c.min), FIXED_MIN.action];
+  const grid = { gridTemplateColumns: mins.map((m) => `minmax(${m}px, 1fr)`).join(' ') };
+  const minWidth = mins.reduce((a, m) => a + m, 0) + TABLE_PADDING;
   const addMenu = useRef<HTMLDetailsElement>(null);
   const add = (key: string) => {
     setKeys([...keys, key]);
@@ -87,7 +95,7 @@ export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBore
 
   return (
     <section className={styles.results} aria-label="Boreholes">
-      <div className={styles.scroll} role="table" aria-label="Boreholes">
+      <div className={styles.scroll} role="table" aria-label="Boreholes" style={{ minWidth }}>
         <div className={`${styles.row} ${styles.header}`} role="row" style={grid}>
           {['BOREHOLE', 'PROJECT', 'STATUS'].map((c) => (
             <div key={c} className={styles.cell} role="columnheader">{t(c)}</div>

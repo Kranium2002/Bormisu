@@ -49,6 +49,11 @@
   min-width: 0;
 }
 
+/* Long values (file names) wrap inside their column; the header keeps whole words. */
+.body .cell {
+  overflow-wrap: anywhere;
+}
+
 /* The whole row opens the detail with the pointer; the OPEN DETAIL › button is the keyboard way. */
 .clickable {
   cursor: pointer;
