@@ -1,4 +1,4 @@
-"""Record service against PostGIS: create, patch actions, derived values, revisions, events (fictional data)."""
+"""Record service against PostGIS: create, patch actions, derived values, revisions, events (fictional)."""
 
 from __future__ import annotations
 
@@ -59,7 +59,13 @@ async def _borehole(session, *, crs_status: str = "inferred", crs_code: str | No
         "groundwater[0].depth_m": _prov(),
     }
     bh = await create_borehole(
-        session, document=doc, group_key="g1", body=body, provenance=prov, crs_status=crs_status, crs_code=crs_code
+        session,
+        document=doc,
+        group_key="g1",
+        body=body,
+        provenance=prov,
+        crs_status=crs_status,
+        crs_code=crs_code,
     )
     await session.commit()
     return bh
@@ -86,7 +92,10 @@ async def test_patch_actions_revisions_and_conflict(session) -> None:
     uid = bh.uid
     await apply_patch(session, uid, ValuePatch(path="metadata.borehole_depth_m", action="approve"), actor="t")
     await apply_patch(
-        session, uid, ValuePatch(path="stratigraphy[0].depth_to_m", action="edit", value="2,5", if_revision=2), actor="t"
+        session,
+        uid,
+        ValuePatch(path="stratigraphy[0].depth_to_m", action="edit", value="2,5", if_revision=2),
+        actor="t",
     )
     await session.commit()
     record = await to_record(session, bh)
@@ -97,7 +106,9 @@ async def test_patch_actions_revisions_and_conflict(session) -> None:
     assert any(lint.rule == "layer_overlap" for lint in record.lint)
 
     with pytest.raises(ApiError) as conflict:
-        await apply_patch(session, uid, ValuePatch(path="metadata.borehole_id", action="approve", if_revision=1), actor="t")
+        await apply_patch(
+            session, uid, ValuePatch(path="metadata.borehole_id", action="approve", if_revision=1), actor="t"
+        )
     assert conflict.value.code == "revision_conflict"
     await session.rollback()
     with pytest.raises(ApiError) as missing:
@@ -105,16 +116,27 @@ async def test_patch_actions_revisions_and_conflict(session) -> None:
     assert missing.value.code == "path_not_found"
     await session.rollback()
     with pytest.raises(ApiError) as bad:
-        await apply_patch(session, uid, ValuePatch(path="stratigraphy[1].din4023_code", action="edit", value="rock"), actor="t")
+        await apply_patch(
+            session,
+            uid,
+            ValuePatch(path="stratigraphy[1].din4023_code", action="edit", value="rock"),
+            actor="t",
+        )
     assert bad.value.code == "unparseable_value"
     await session.rollback()
 
-    await apply_patch(session, uid, ValuePatch(path="groundwater[0].depth_m", action="flag", reason="smudged"), actor="t")
+    await apply_patch(
+        session, uid, ValuePatch(path="groundwater[0].depth_m", action="flag", reason="smudged"), actor="t"
+    )
     await apply_patch(session, uid, ValuePatch(path="groundwater[0].depth_m", action="reset"), actor="t")
     await session.commit()
     fv = await session.get(FieldValue, (uid, "groundwater[0].depth_m"))
     assert fv is not None and fv.status == "unreviewed" and fv.flag is None
-    revisions = (await session.scalars(select(Revision.revision).where(Revision.uid == uid).order_by(Revision.revision))).all()
+    revisions = (
+        await session.scalars(
+            select(Revision.revision).where(Revision.uid == uid).order_by(Revision.revision)
+        )
+    ).all()
     assert revisions == [1, 2, 3, 4, 5]
 
 
@@ -142,5 +164,7 @@ async def test_confirm_crs_plots_and_derives_wgs84(session) -> None:
     assert record.metadata.coordinates.latitude == pytest.approx(47.99, abs=0.02)
     assert record.provenance["metadata.coordinates.latitude"].method == "derived"
     assert record.provenance["metadata.coordinates.latitude"].page == 1
-    located = await session.scalar(select(func.count()).select_from(Borehole).where(Borehole.geom.is_not(None)))
+    located = await session.scalar(
+        select(func.count()).select_from(Borehole).where(Borehole.geom.is_not(None))
+    )
     assert located == 1

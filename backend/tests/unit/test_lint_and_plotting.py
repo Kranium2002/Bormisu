@@ -46,8 +46,16 @@ def test_values_are_kept_and_linted_not_capped() -> None:
     body = {
         "metadata": {"borehole_id": "FX-3", "borehole_depth_m": 10.0},
         "stratigraphy": [
-            {"depth_from_m": 0.0, "depth_to_m": 10.0, "rqd_pct": 104, "core_recovery_pct": 101,
-             "ucs_mpa": 420, "spt_refusal": True, "spt_n_value": 50, "spt_depth_m": 11.0},
+            {
+                "depth_from_m": 0.0,
+                "depth_to_m": 10.0,
+                "rqd_pct": 104,
+                "core_recovery_pct": 101,
+                "ucs_mpa": 420,
+                "spt_refusal": True,
+                "spt_n_value": 50,
+                "spt_depth_m": 11.0,
+            },
         ],
         "groundwater": [{"type": "strike", "depth_m": 12.0}],
         "test_results": [{"name": "CAI", "value": 7.1}, {"name": "UCS", "value": 350, "unit": "MPa"}],
@@ -66,7 +74,10 @@ def test_values_are_kept_and_linted_not_capped() -> None:
 
 
 def test_ucs_in_other_units_is_not_compared_with_mpa_limit() -> None:
-    body = {"metadata": {"borehole_id": "FX-4"}, "test_results": [{"name": "UCS", "value": 900, "unit": "kPa"}]}
+    body = {
+        "metadata": {"borehole_id": "FX-4"},
+        "test_results": [{"name": "UCS", "value": 900, "unit": "kPa"}],
+    }
     assert "ucs_above_300" not in _rules(body)
 
 
@@ -119,7 +130,14 @@ def test_crs_validation() -> None:
 
 @pytest.mark.parametrize(
     ("label", "canonical"),
-    [("BH-01", "BH1"), ("bh 1", "BH1"), ("B.H. 010", "BH10"), ("RC_002A", "RC2A"), ("SB 12-3", "SB123"), ("P10", "P10")],
+    [
+        ("BH-01", "BH1"),
+        ("bh 1", "BH1"),
+        ("B.H. 010", "BH10"),
+        ("RC_002A", "RC2A"),
+        ("SB 12-3", "SB123"),
+        ("P10", "P10"),
+    ],
 )
 def test_canonical_label(label: str, canonical: str) -> None:
     assert canonical_label(label) == canonical
