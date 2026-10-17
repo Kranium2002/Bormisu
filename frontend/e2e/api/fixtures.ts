@@ -1,4 +1,8 @@
 /**
+ * Sign-in: the backend has sign-in on by default (contract 1.3.0). Run this suite against a stack
+ * started with AUTH_ENABLED=false (everything open), except e2e/api/auth.live.spec.ts, which needs
+ * sign-in on and E2E_AUTH=1 (it registers a fictional account through the web proxy).
+ *
  * Shared fixtures of the API-mode e2e suite (fictional seed data only). Runs against a running app
  * (E2E_BASE_URL, e.g. docker compose plus `python -m app.seed`); see playwright.config.ts.
  *

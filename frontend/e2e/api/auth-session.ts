@@ -21,7 +21,7 @@ export const E2E_AUTH = process.env.E2E_AUTH === '1';
 export function fictionalAccount(stamp = Date.now()): { email: string; password: string; display_name: string } {
   return {
     email: `e2e-${stamp}@example.test`,
-    // 10 to 128 characters, not the email, not a common password.
+    // 8 to 128 characters (contract 1.3.0, minimal auth).
     password: `Fictional-e2e-${stamp}-river-lantern-42`,
     display_name: 'E2E Fictional Reviewer',
   };
