@@ -1,338 +1,120 @@
 # Bormisu frontend: architecture
 
-React 19 + TypeScript + Vite. It is a port of the Claude Design prototype `Bormisu App.dc.html`, which is the visual and behavioural reference: same screens, layout, colours, copy and interactions. The prototype is a single file with inline styles. This app splits it into typed modules, CSS modules and a swappable data layer.
+React 19 + TypeScript 7 + Vite 8, zustand for state, Leaflet for maps, exceljs for the xlsx export, CSS modules. It started as a port of the Claude Design prototype `Bormisu App.dc.html` (same screens, layout, colours and interactions) and is now the web client of the GeoMemory backend: it builds against contract 1.0.0 (`../contracts/openapi.yaml`, `../contracts/realtime-and-chat.md`), not against backend code.
 
 ## Hard rules
 
-1. **No hard-coded sample data outside `src/sample/`.** The sample data is fictional, for demo mode only. Every file in `src/sample/` starts with this comment:
-   `// DEMO ONLY: fictional sample data. Used only when VITE_DATA_SOURCE=sample. Not part of the production data path.`
-   Screens, store, domain and export code must **never** import from `src/sample/`. Only `src/data/createDataSource.ts` may import it, and only behind the flag.
-2. **The data source is chosen once**, in `src/data/createDataSource.ts`, from `import.meta.env.VITE_DATA_SOURCE`: `api` (default) or `sample`. When `sample` is active, the app shows a "SAMPLE DATA" banner that can't be dismissed.
-3. **The standard format is defined once**, in `src/schema/targetFormat.ts`: the Herrenknecht `BoreholeDataFormat.xlsx` field list (sections, field names, formats, units). Export and labels read from it. Don't repeat field names elsewhere.
-4. **No challenge data anywhere.** Nothing from the organisers' dataset gets copied, quoted or used in fixtures.
-5. Plain CSS modules (`*.module.css`) plus design tokens in `src/styles/tokens.css`. Inline `style` only for values computed at runtime (positions, colours that depend on state).
+1. **No invented values.** Unknown is `null` (or empty display text shown in grey italics as "not in source"). Never `0`, `(0, 0)`, a default lithology or pattern, an invented SPT depth, a default confidence, or a CRS status the server did not send. Exports leave unknown cells blank.
+2. **Wire shapes live in one place.** `src/data/api-types.gen.ts` is generated from the contract (`npm run gen:api`; CI fails when it is stale). Only `src/data/adapters.ts` and `src/data/apiSource.ts` import it. Everything else uses the domain types in `src/domain/types.ts`.
+3. **No hard-coded sample data outside `src/sample/`.** Every file there starts with `// DEMO ONLY: fictional sample data. Used only when VITE_DATA_SOURCE=sample. Not part of the production data path.` Only `src/data/createDataSource.ts` imports it, lazily and behind the flag, so an API build holds no sample data (`npm run check:dist` proves it; the Docker build runs it).
+4. **The data source is chosen once**, in `createDataSource.ts`, from `VITE_DATA_SOURCE`: `api` (default; the Docker image always) or `sample` (dev and tests only, with a SAMPLE DATA banner that can't be dismissed).
+5. **The target format is defined once**, in `src/schema/targetFormat.ts` (sections, field names, formats, units, plus `EXTRA_FIELDS`). Export and labels read from it.
+6. **No challenge data anywhere.** Fixtures, tests and screenshots are fictional and say so.
+7. **Nothing country-, CRS-family- or language-specific in product code.** CRS labels, verdicts and notes come from the backend; the product name comes from `APP_NAME` (`src/config.ts`, build arg `VITE_APP_NAME`).
+8. Plain CSS modules plus design tokens in `src/styles/tokens.css`. Inline `style` only for runtime values.
 
 ## Folder layout
 
 ```
 frontend/
-  index.html  vite.config.ts  tsconfig.json  package.json  .env.example  README.md  ARCHITECTURE.md
+  Dockerfile  Dockerfile.dockerignore  nginx.conf      production image (repo root is the build context)
+  scripts/check-dist.mjs                               fails when a build contains sample data
   src/
-    main.tsx                 bootstraps <App/>, imports global CSS + leaflet CSS
-    App.tsx                  shell: Header, banners, the active screen, overlays (SidePanel, CrsDialog), Toast
-    styles/tokens.css        CSS variables: colours, fonts, shadows; global resets; @keyframes bpulse
-    theme.ts                 TS mirror of the colours used in computed styles (COL, METHOD_COLORS, PAGE_TYPE_META, statusChip, pinColor)
-    schema/targetFormat.ts   Herrenknecht standard format: sections + fields {name, format, unit, note}
-    domain/
-      types.ts               all domain types (below)
-      keys.ts                value-key helpers (below)
-      review.ts              pure review logic: boreholeStatus, cleanKeys, progress, completenessSummary
-      spt.ts                 SPT helpers: sptLint, formatSpt
-      format.ts              number formatting: decimalComma(v), metres(v)
-      *.test.ts              vitest unit tests for the pure modules
-    data/
-      DataSource.ts          the DataSource interface
-      createDataSource.ts    picks api | sample from VITE_DATA_SOURCE
-      apiSource.ts           HTTP client to the FastAPI backend (/api/v1), see docs/design/api-contract.md
-      adapters.ts            backend BoreholeRecord (snake_case) -> domain Borehole
-    sample/                  DEMO ONLY (see rule 1)
-      neckarbogen.ts         hand-made report "neckarbogen_BG_2019.pdf", borehole BK-07 (prototype LAY + initRecs + pageItems)
-      generate.ts            deterministic generators (prototype PROJ, BHS, GEO, genBH, genPage, mulberry32)
-      documents.ts           prototype DOCS0 + CRS candidates
-      sampleSource.ts        DataSource implementation over the sample data (in-memory, simulated upload)
-    store/appStore.ts        zustand store: all UI + data state and actions (API below)
-    components/              shared: Header, Banner, Toast, MethodBadge, StatusChip, SourceIcon, ScanPage,
-                             SidePanel (SourcePanel + CompletenessPanel), Popover, Toggle
-    screens/
-      map/MapScreen.tsx (+ .module.css)
-      queue/QueueScreen.tsx
-      review/ReviewScreen.tsx, review/FieldRow.tsx, review/CrsDialog.tsx
-      detail/DetailScreen.tsx, detail/ProfileColumn.tsx, detail/ExportMenu.tsx
-    export/
-      standardXlsx.ts        target-format workbook (exceljs, dynamically imported)
-      csv.ts                 tidy CSV + open-questions CSV
-      download.ts            blob download helper
-  e2e/                       Playwright smoke tests (sample mode)
+    main.tsx  App.tsx  config.ts                       bootstrap, layout route (shell), build-time settings
+    router.tsx  routing/   routes (createBrowserRouter), urlState.ts (every URL built or read), RouteSync,
+                           navigator (injected into the store), route screens, not-found page
+    domain/      types.ts (all domain types), status.ts (review status, attention, clean values),
+                 pages.ts (page placeholders, usage text), din.ts (DIN 4023 lookup), keys.ts,
+                 review.ts (value patches), spt.ts, format.ts
+    data/        DataSource.ts (interface), errors.ts (ApiError, UnreachableError, SaveError,
+                 UploadCancelledError), api-types.gen.ts (generated), adapters.ts, apiSource.ts,
+                 events.ts (live events and the polling fallback), createDataSource.ts,
+                 contract.test.ts (fixtures and contracts/examples validated against the contract)
+    sample/      DEMO ONLY fictional data source
+    store/       zustand store combined from slices (below)
+    components/  shared UI: Header, Banner, ReviewerName, SidePanel/SourcePanel, ScanPage, DinPatternDefs …
+    screens/     map/, queue/, review/, detail/
+    export/      standardXlsx.ts, csv.ts, scope.ts, download.ts
+    schema/      targetFormat.ts
+    test/        fixtures.ts (domain builders), contract/*.json (fictional wire payloads)
+  e2e/           Playwright: sample-mode suite; e2e/api/ runs against a live stack (E2E_BASE_URL)
 ```
+
+`@din` is a Vite alias for `../assets/din4023_patterns`, the DIN 4023 pattern set shared with the backend.
 
 ## Domain model (`src/domain/types.ts`)
 
-```ts
-export type Screen = 'map' | 'queue' | 'review' | 'detail';
-export type Method = 'Read' | 'OCR' | 'Derived' | 'Guessed' | 'Edited';
-export type ReviewStatus = 'unreviewed' | 'approved' | 'flagged';
-export type FieldState = 'ok' | 'not in source' | 'illegible';
-export type BoreholeStatus = 'reviewed' | 'unreviewed' | 'attention';
-export type CrsStatus = 'stated' | 'inferred' | 'confirmed' | 'unknown';
-export type PageType = 'log' | 'lab_table' | 'text' | 'drawing' | 'photo' | 'unknown';
-export type DocumentStep = 0 | 1 | 2 | 3;   // classifying, extracting, needs review, done
+- `Borehole`: opaque `uid` (server `bh_<ULID>`, never parsed), the printed `id`, `revision`, the server's `reviewStatus` (`unreviewed | in_review | approved`), `openClarifications`, position (`lat`/`lng` null when unknown, `onMap`, `unplottedReason` code), `crs` (`name` as printed, `code` EPSG, `status`), `meta` (aliases, datum, depth origin and source, coordinates as printed), `layers`, `groundwater`, `samples`, `testResults`, `rockHead`, `values`, `pages`.
+- `ExtractedValue`: one reviewable value with its provenance (`page` + `box`, or a spreadsheet `cell`), `method` and `confidence` (null when unknown), review `status` and `state`, the AI value, `readings` when two readers disagreed, and `hasProvenance` (false when the backend sent no entry, which the contract allows: such a value has no source icon and can't be reviewed, because only provenance keys are valid PATCH paths; the API source logs one `console.info` summary per load, never a warning per value).
+- `Layer`: depths, English and printed lithology, `din` (a key of `din_codes.json`, case-sensitive, or null), `dinNotation`, stratigraphic name, engineering soil unit, age, colour, consistency, moisture, weathering, core flag, SPT (`depth` null when not stated), TCR, RQD.
+- `DocumentSummary`: `status`, one `DocumentPage` per page (placeholders until classified), `progress`, counts, completeness, `openClarifications`, `duplicateOf`, `error`.
+- `Health`: `mode` (`live`, `demo` without provider keys, `sample`), providers, upload limits.
+- Status rules (`status.ts`): `displayStatus(b)` is `attention` (a flagged value, a lint error or an open clarification) or else the server's review status. `deriveReviewStatus` mirrors the backend for the moment between a click and the answer. `isClean` mirrors the backend's approve-clean rule (read, or OCR with confidence ≥ 0.9; unreviewed, ok, no flag, no lint).
 
-/** Box on a page, normalised 0–1, origin top-left (same as the API contract). */
-export interface Box { x: number; y: number; w: number; h: number }
-export interface Lint { severity: 'error' | 'warning'; message: string }
+## Data source (`src/data/DataSource.ts`)
 
-export interface Spt {
-  raw: string; depth: number; refusal: boolean;
-  increments?: number[]; n?: number; blows?: number; penetrationCm?: number;
-}
+`health`, `load`, `getBorehole`, `documentBoreholes`, `getDocument`, `getPage`, `thumbnailUrl` (page images at width 200), `upload(file, {project, onProgress})` (one file, returns `{done, cancel}`), `subscribe(onEvent, onStatus)` (live events), `follow(documentId)`, `updateValue` (resolves with the borehole as the source now holds it), `approveClean(documentId, dryRun)`, `retry`, `crsCandidates`, `confirmCrs({code, swapAxes, confirmedBy})`.
 
-/** One extracted value with provenance and review state. The detail screen reads displayed values from here. */
-export interface ExtractedValue {
-  key: string;            // see keys.ts, unique within a borehole
-  field: string;          // target-format field name (schema) or an extension name
-  label: string;          // UI label, e.g. "Final depth", "SPT @ 10.50 m"
-  group: 'borehole' | 'groundwater' | 'layer';
-  layer?: number;
-  raw: string;            // as printed in the source
-  value: string;          // normalised, as text
-  unit: string;
-  page: number | null;
-  box: Box | null;
-  method: Method;
-  confidence: number;     // 0–1, only shown on hover
-  status: ReviewStatus;
-  state: FieldState;
-  aiValue: string;        // original AI value, kept after an edit
-  note?: string; formula?: string; lint?: Lint; flag?: string;
-  kind?: 'crs' | 'lithology' | 'spt';
-  din?: string; refusal?: boolean; spt?: Spt;
-}
+- **API source.** Every error answer becomes an `ApiError` with the contract's `code`; the UI branches on `code` and shows `detail`, never parsing it. Network failures, non-JSON 5xx and HTML where JSON was expected are `UnreachableError` ("backend unreachable"); only `route_not_found` reads "Backend endpoint not available". Saves are serialised per borehole and send `if_revision`; a `revision_conflict` refetches the record; a failure throws `SaveError` whose `current` is what the server holds. "Undo" is the `reset` action. Uploads use `XMLHttpRequest` for byte progress and can be cancelled; a 200 duplicate answer is the earlier document, never a duplicate of itself.
+- **Live events** (`events.ts`): `EventSource` on `GET /events`, which reconnects itself and resends `Last-Event-ID`; each named event is mapped through the adapters to a `LiveEvent`. After three stream errors within a minute (or without `EventSource`) the source polls `GET /documents/{id}` for the documents it follows every 2 s, backing off to 30 s after errors and never giving up after one; a terminal or deleted document stops being followed. It keeps trying the stream and goes back to `live` once it opens; a recreated stream refetches the followed documents once (it cannot resend `Last-Event-ID`). Status `offline` means neither the stream nor a poll succeeded for 60 s.
+- **Sample source.** In memory, deterministic, simulated uploads; implements the same interface, including revisions and approve-clean.
 
-export type PatternId = 'topsoil'|'fill'|'clay'|'silt'|'gravel'|'sst'|'sand'|'lst'|'marl';
-export interface Layer {
-  n: number; from: number; to: number;
-  lithology: string; lithologyAsPrinted: string; din: string;
-  pattern: PatternId; fill: string; strat: string;   // stratigraphy code for the Strat. column (STRAT_COLORS)
-  method: Method; confidence: number;
-  spt?: Spt; tcr?: number; rqd?: number;
-}
-export type GroundwaterType = 'strike' | 'rest' | 'standpipe' | 'other';
-export interface GroundwaterReading { type: GroundwaterType; depth: number; key: string }
+## Store (`src/store/`)
 
-export interface Borehole {
-  uid: string;            // unique across documents, e.g. "nb:BK-07"
-  id: string;             // BoreholeID as printed
-  documentId: string | null;
-  sourceFile: string;
-  project: string;
-  lat: number | null; lng: number | null;
-  onMap: boolean; unplottedReason: string | null;
-  finalDepth: number | null; // null = not stated; logBottom then only bounds the drawing
-  logBottom: number;      // bottom of the last logged layer
-  crs: { name: string | null; code: string | null; status: CrsStatus };
-  layers: Layer[];
-  groundwater: GroundwaterReading[];
-  rockHead: number | null;
-  values: ExtractedValue[];
-  primaryPage: number;
-}
+One zustand store (`useAppStore`) combined from slices, with selectors (`useBorehole`, `useValue`, `useDocument`, `useReviewBorehole`, `useSelectedBorehole`, `useIsReviewable`, `usePage`):
 
-export interface PageItem { kind: 'text' | 'line'; x: number; y: number; w?: number; h?: number; text?: string; fontSize?: number; fontWeight?: number; color?: string }
-/** A rendered page. API pages have imageUrl. Sample pages are drawn from items in a 560x780 px space. */
-export interface PageContent { documentId: string; page: number; type: PageType; usage: string; label: string; imageUrl?: string; items?: PageItem[] }
-
-export interface LintFinding { severity: 'error' | 'warning'; boreholeId: string; message: string }
-export interface DocumentSummary {
-  id: string; name: string; project: string;
-  pageTypes: PageType[];            // one per page; 'unknown' = not classified yet
-  step: DocumentStep;
-  counts: { boreholes: number; layers: number; spt: number; groundwater: number } | null;
-  completeness: { listed: number; idPrefix: string; missing: string[]; unexpected: string[]; lint: LintFinding[] } | null;
-  reviewBoreholeUid: string | null; // the borehole the Review screen opens for this document
-  uploaded?: boolean;
-  simulated?: boolean;              // sample mode upload, which shows "Simulated: live extraction needs an API key"
-}
-export interface CrsCandidate { name: string; code: string; note: string; verdict: 'match' | 'shifted' | 'out_of_range'; points: { uid: string; lat: number; lng: number }[] }
-export type ValuePatch = Partial<Pick<ExtractedValue, 'value' | 'status' | 'state' | 'flag' | 'method'>>;
-```
-
-### Value keys (`src/domain/keys.ts`)
-
-```ts
-export const K = {
-  boreholeId: 'BoreholeID', project: 'ProjectName', startDate: 'StartDate', method: 'DrillingMethod',
-  finalDepth: 'BoreholeDepth', elevation: 'SurfaceElevation', xy: 'XY', crs: 'CoordinateSystem',
-  rockHead: 'RockHead', notes: 'Notes', gwStrike: 'GW.strike', gwRest: 'GW.rest',
-  gw: (i: number) => `GW[${i}]`,   // API groundwater readings, by index in the backend list
-  bottom: (n: number) => `layer[${n}].bottom`, lithology: (n: number) => `layer[${n}].lithology`,
-  spt: (n: number) => `layer[${n}].spt`, tcr: (n: number) => `layer[${n}].tcr`, rqd: (n: number) => `layer[${n}].rqd`,
-} as const;
-```
-
-Prototype → key mapping:
-
-| Prototype | Key |
+| Slice | Holds |
 |---|---|
-| bhid | BoreholeID |
-| proj | ProjectName |
-| date | StartDate |
-| meth | DrillingMethod |
-| fd | BoreholeDepth |
-| elev | SurfaceElevation |
-| xy | XY |
-| crs | CoordinateSystem |
-| rock | RockHead |
-| notes | Notes |
-| gw1 / gwS | GW.strike |
-| gw2 / gwR | GW.rest |
-| d{n} | layer[n].bottom |
-| l{n} | layer[n].lithology |
-| s{n} | layer[n].spt |
-| t6 | layer[6].tcr |
-| q6 | layer[6].rqd |
+| `dataSlice` | data source, health, load state, boreholes, documents, page cache |
+| `reviewSlice` | Review screen, saves, approve all clean, CRS dialog |
+| `mapSlice` | Detail selection, search, map focus |
+| `uploadSlice` | drop zone (types and size limit from health), the upload queue (two at a time, byte progress, cancel, retry, the project label typed or taken from a dropped folder), document updates, retry |
+| `eventsSlice` | the live subscription (`startLive` after load, `stopLive` on teardown), `liveStatus`, `applyLiveEvent` for every event type, server-reported job failures |
+| `panelSlice` | navigation through the injected router navigator, route, side panel, export menu, toast, Escape |
+| `settingsSlice` | the reviewer's optional name (localStorage), sent as `confirmed_by` |
 
-## Review rules (`src/domain/review.ts`, unit-tested)
+**Saves** (`saves.ts`, `SaveTracker`): a review action updates the store optimistically; while saves of a borehole are pending, answers and refetches are only collected; when the last one settles, the newest record (highest revision) replaces the borehole. A failed save therefore rolls back exactly to what the server holds, and an older answer never overwrites a newer one. **Approve all clean** asks the server for the count (`dry_run=true`), confirms, then reloads the document's boreholes. **CRS confirmation** sends the candidate's `swap_axes` and the reviewer's name, then reloads the document's boreholes instead of moving pins locally.
 
-- `boreholeStatus(b)`:
-  - `attention` if `crs.status === 'inferred'`, or any value is `flagged`, or any value has a `lint` while not `approved`.
-  - otherwise `reviewed` if every value is `approved`.
-  - otherwise `unreviewed`.
-- `cleanKeys(b)` returns the keys of values with status `unreviewed`, method `Read`, no lint, no flag and state `ok`. "Approve all clean" approves exactly these.
-- `progress(b)` returns `{ approved, total }`.
-- Generated sample boreholes get statuses matching the prototype's base code: `r` = all approved, `a` = unreviewed plus one lint warning, `u`/`x` = unreviewed. All Neckarbogen boreholes have `crs.status: 'inferred'` until the CRS is confirmed.
+**Live events** apply idempotently: `document.updated` replaces the document (and loads its boreholes once it reaches review, so an uploaded document becomes reviewable without a reload); `borehole.created` / `borehole.updated` refetch through `takeBoreholes`, which respects pending saves, one refetch per uid at a time; `document.deleted` removes the document and its boreholes; `job.failed` shows the stage and detail with RETRY when retryable; clarification events refetch the affected counts.
 
-## DataSource (`src/data/DataSource.ts`)
+Escape closes, in order: editing → confirm clean → export menu → CRS dialog → side panel.
 
-```ts
-export interface DataSource {
-  readonly kind: 'api' | 'sample';
-  load(): Promise<{ boreholes: Borehole[]; documents: DocumentSummary[] }>;
-  getPage(documentId: string, page: number): Promise<PageContent>;
-  upload(files: File[], onUpdate: (doc: DocumentSummary) => void): Promise<void>;
-  watch?(documentId: string, onUpdate: (doc: DocumentSummary) => void): void;   // follow a document still being extracted at load
-  updateValue(uid: string, key: string, patch: ValuePatch): Promise<void>;      // may throw PartialSaveError {applied}
-  crsCandidates(documentId: string): Promise<CrsCandidate[]>;
-  confirmCrs(documentId: string, code: string): Promise<void>;
-}
-```
+## Routing (`src/router.tsx`, `src/routing/`)
 
-- **sampleSource:**
-  - Resolves from in-memory data, so `getPage` is immediate.
-  - `upload` simulates progress with timers: step 0 → 1 after 1.8 s → 2 after 5.2 s, as in the prototype, with `simulated: true`.
-  - Unsupported file types are rejected before this point, in the store.
-- **apiSource:**
-  - Calls `/api/v1` as described in the API contract.
-  - When an endpoint is missing, it throws a clear `Error('Backend endpoint not available: …')`, which the UI shows as an error state. It never falls back to sample data.
+react-router in data mode (`createBrowserRouter`); nginx and Vite fall back to `index.html`. Routes: `/` → `/map`, `/map?at=<lat>,<lng>,<zoom>&sel=<uid>&rs=<result set>`, `/queue`, `/review/:uid?key=<value key>`, `/boreholes/:uid?layer=<n>`, anything else a not-found page. The URL is the source of navigation truth: `RouteSync` applies every location to the store one way (`screen`, `selectedUid`, `reviewUid`, map view, selected layer and value); navigation actions (`go`, `openBorehole`, `openReview`, search) update the store and call the navigator injected in `main.tsx`, which pushes a history entry, or replaces it when only the query changes (pan, zoom, popup, layer, focused value after a short rest). Without a navigator (unit tests) the actions set the store directly. Reload and deep links restore the screen and selection; an unknown uid shows "Borehole not found", never a blank page. All URL building and parsing lives in `urlState.ts`.
 
-## Store (`src/store/appStore.ts`, zustand)
+## Screens
 
-State:
+| Screen | Notes |
+|---|---|
+| Header, banners | Nav (MAP, UPLOAD & QUEUE with a badge for documents in review, REVIEW), search, the reviewer-name setting, `APP_NAME`. SAMPLE DATA banner in sample mode; "Live extraction needs API keys" in demo mode |
+| Map | Leaflet with the configured basemap (grayscale CSS). Pins coloured by `displayStatus`, legend counts, NOT ON MAP list with reason labels, RESULTS table; every row opens Detail. World view, clustering and area selection arrive with F9/F10 |
+| Upload & queue | Drop zone mirroring the server's types and size limit (disabled with a reason in demo mode), a "Project (optional)" field, upload rows with byte progress, cancel, remove and retry, an "Already uploaded" notice that jumps to the existing card, the live-status line, document cards with steps, progress bar, page strip from `pages[]` (thumbnail and `pageUsageText` on hover or focus), completeness chip, open-clarification badge, duplicate link, the server's failure stage and detail with Retry |
+| Review | Scan page with value boxes; values grouped BOREHOLE / GROUNDWATER / LAYER n / SAMPLES / TEST RESULTS; approve, edit (AI value struck through), flag, not in source, illegible, undo; readings side by side; spreadsheet cells as "Sheet!C5"; APPROVE ALL CLEAN with the server's count; CRS dialog with verdicts, notes, scores and the swap-axes flag |
+| Detail | DIN 4023 profile, metadata (raw coordinates as printed next to converted ones), layers, groundwater, location map, exports |
 
-```
-source, loadState: 'loading' | 'ready' | 'error', loadError
-screen, sampleBannerVisible (always true in sample mode), toast
-boreholes, documents, pages (cache keyed `${docId}:${page}`)
-selectedUid, selectedLayer                       // detail
-reviewUid, focusKey, reviewPage, editing: {key, mode: 'edit'|'flag', text} | null, confirmCleanOpen
-panel: {kind:'source', uid?, key?, documentId, page, box?: Box|null, pageOnly?: boolean} | {kind:'completeness', documentId} | null
-crsDialogOpen, crsLoading, crsCandidates, crsPick
-exportOpen, includeUnreviewed
-query, searchMessage, dropError, dragActive
-```
-
-Actions:
-
-```
-init()  go(screen)  showToast(text)
-openBorehole(uid)  selectLayer(n)
-openReview(uid?)  focusValue(key, scrollList?)  setReviewPage(n)
-startEdit(key, mode)  setEditText(t)  saveEdit()  cancelEdit()
-toggleApprove(key)  toggleFlag(key)  setState(key, 'not in source' | 'illegible')   // setState toggles: same state again resets to ok + unreviewed
-askClean()  approveClean()  cancelClean()
-openSource(uid, key)  openPage(documentId, page)  openCompleteness(documentId)  closePanel()
-openCrsDialog()  pickCrs(i)  confirmCrs()  closeCrsDialog()
-toggleExport()  toggleIncludeUnreviewed()  exportFile(kind: 'xlsx' | 'csv' | 'questions')
-setQuery(q)  search()   // flyTo is signalled via a mapFocus: {uid, zoom, nonce} state field the MapScreen subscribes to
-addFiles(files)  setDragActive(b)
-```
-
-Selectors: `useBorehole(uid)`, `useValue(uid, key)`, `useDocument(id)`, `usePage(docId, page)`, which loads into the cache on demand.
-
-Review edits are **optimistic**: update the store, then call `source.updateValue`. On failure, roll back and show a toast. Saves of one value are queued, so the source applies them in order; a failure rolls the value back to what the source holds, never over a newer successful save (see "As built: logic review fixes").
-
-Escape closes, in order: editing → confirmClean → exportOpen → crsDialog → panel.
-
-## Screens: behaviour reference
-
-Each screen follows the prototype section (lines in `Bormisu App.dc.html`) and its logic in the prototype script (lines 514–747).
-
-| Screen | Template lines | Notes |
-|---|---|---|
-| Header, banner, nav | 27–44 | Nav: MAP, UPLOAD & QUEUE (amber badge = documents at step 2), REVIEW. MAP is active on detail too. Search box with message popover |
-| Map | 48–79 | Leaflet, grayscale OSM tiles. Pins by `boreholeStatus` (green / grey / amber), BK-07 radius 8. Popup with OPEN DETAIL. REVIEW STATUS legend with counts. NOT ON MAP aside. RESULTS table |
-| Upload & queue | 81–123 | Page-type legend, drop zone (PDF / DOCX / JPG / PNG, else red error), doc cards: steps with pulse, completeness chip → Completeness panel, count chips, page strip (click → page in Source panel), hint |
-| Review | 125–186 | Header: sheet tabs, progress bar, › BOREHOLE DETAIL, APPROVE ALL CLEAN (n) + confirm popover. Left: scan page 560×780 with value boxes (focus / flagged / lint / approved styles), caption. Right: sticky header, rows grouped BOREHOLE / GROUNDWATER / LAYER n. Field row: raw → normalised, lithology 3-line, state, AI value struck through, note, lint, flag, inline edit / flag input, more-actions on focus (CHOOSE CRS…, Not in source, Illegible, Larger source view), method badge, ✓ ✎ ⚑ |
-| Detail | 188–301 | Sticky header: breadcrumb, id, status chip, reviewed text, › OPEN IN REVIEW (if reviewable), EXPORT ▾ menu with include-unreviewed toggle. Profile SVG 378×660 with DIN patterns, Strat. column, ticks, layers (click selects), not-logged hatch if logBottom < finalDepth, ET label, rock head line, selection rect, GW triangles (click → source), R marker (click → source). Metadata table with chips + source icon. Location mini map. Layers table. Groundwater table |
-| Side panel | 303–339 | Source: title, label, method, raw, "Box not found: page shown", scaled page with highlighted box, OPEN IN REVIEW. Completeness: ID chips, legend, LINT list |
-| CRS dialog | 341–355 | Candidates, Leaflet map with pins per candidate, dashed site circle, "out of range" overlay, CONFIRM FOR WHOLE DOCUMENT |
-| Toast | 357 | 3.2 s |
+**DIN 4023 profile.** `DinPatternDefs` inlines `assets/din4023_patterns/patterns.svg` once at the app root; layers fill with `url(#<pattern_id>)` looked up in `din_codes.json` (`src/domain/din.ts`). Tiles repeat at their native size (`userSpaceOnUse`, never stretched); an unknown or missing code is plain `#E0E0E0` with the code as text; `A` (fill) gets a white underlay. The Strat. column shows the stratigraphic name as text on a neutral fill. An SPT refusal without a stated depth is drawn inside its layer and labelled "depth not stated". The legend lists the codes used and says "nach DIN 4023".
 
 ## Export (`src/export/`)
 
-- **Standard xlsx (`standardXlsx.ts`):** built from `schema/targetFormat.ts`.
-  - Sheet `Metadata`: one row per borehole, columns = the 14 metadata fields in order.
-  - Sheet `Logdata`: one row per layer, columns = `BoreholeID`, `DepthFrom`, `DepthTo`, then the 12 log-data fields.
-  - Sheet `Test Results`: columns = `BoreholeID`, `SampleName`, `SampleDepth`, then the 19 test-result fields.
-  - Row 1 holds the field names, row 2 the units.
-  - Sheet `Provenance`: key, field, raw, value, unit, page, method, status, state.
-  - With `includeUnreviewed`: a `DRAFT – NOT APPROVED` title row and the file name suffix `_DRAFT`.
-  - Without it, unreviewed values are left blank. A blank never means 0.
-- **CSV (`csv.ts`):** the tidy CSV and open-questions CSV, as in prototype `doExport`.
-- Export runs client-side from domain data in **both** modes, so there is one code path.
+Client-side in both modes, from domain data:
+- **Standard xlsx** (`standardXlsx.ts`): sheets Metadata, Logdata, Test Results (field names in row 1, units in row 2) plus Provenance. Template columns come first and in order; fields the template lacks (drilling method, datum, depth origin, inclination; layer colour, consistency, moisture, weathering) follow as extra columns. Without "include unreviewed", only approved values are exported; with it, a `DRAFT – NOT APPROVED` title row and a `_DRAFT` file suffix. A blank never means 0.
+- **CSV** (`csv.ts`): the tidy CSV (one row per value) and the open-questions CSV for the client.
+- One BoreholeID per borehole on every sheet (`exportId`): the reviewed value once approved, else the ID as printed.
+
+## Docker
+
+`frontend/Dockerfile` builds with the repository root as context (the compose service `web`): stage 1 `node:22-alpine` runs `npm ci`, `npm run build` (API mode, `VITE_API_BASE=/api/v1`) and `npm run check:dist`; stage 2 is nginx. `nginx.conf` serves the SPA with an `index.html` fallback, caches hashed assets for a year and `index.html` never, gzips text, proxies `/api/` to `API_UPSTREAM` (default `http://api:8000`, resolved per request so nginx starts even when the API is down), streams `/api/v1/events` and `/api/v1/chat` unbuffered, and answers an oversized upload with the contract's JSON `too_large` error. Build args: `VITE_APP_NAME`, `VITE_TILE_URL`, `VITE_TILE_ATTRIBUTION`. The image holds no keys.
 
 ## Scripts
 
-- `npm run dev`: API mode.
-- `npm run dev:sample`: sample mode.
-- `npm run build`: `tsc -b && vite build`.
-- `npm test`: vitest.
-- `npm run e2e`: Playwright smoke tests against `dev:sample`, using system Chrome (`channel: 'chrome'`).
+| Script | What it does |
+|---|---|
+| `npm run dev` / `npm run dev:sample` | Vite dev server in API mode (proxies `/api` to `VITE_API_PROXY`, default http://127.0.0.1:8000) / sample mode |
+| `npm run build` | `tsc -b` and the production build |
+| `npm run check:dist` | fails when `dist/` contains sample data |
+| `npm run gen:api` | regenerates `src/data/api-types.gen.ts` from the contract |
+| `npm test` | Vitest: domain, adapters on the contract fixtures, store with fake sources, view models, exports |
+| `npm run e2e` | Playwright project `sample` (system Chrome locally, bundled Chromium in CI); `E2E_BASE_URL=http://localhost:8081 npm run e2e -- --project=api` runs the API project against a seeded compose stack |
 
-## As built: foundation notes for the screen agents
-
-Additive to the spec above. Shared files (store, domain, data, sample, export, components, App) are done; screens only touch `src/screens/<their folder>/`.
-
-- **Store extras** (`src/store/appStore.ts`):
-  - `escape()` (App installs the Escape listener), `loadPage(docId, page)` (used by `usePage`).
-  - `listScroll: {key, nonce} | null`: set by `focusValue(key, true)`; the Review list scrolls `key` into view when `nonce` changes. `mapFocus: {uid, zoom, nonce}`: set by `search()`; the map flies there and opens the popup.
-  - `pages` values are `PageLoad = {status:'loading'} | {status:'ready', content} | {status:'error', error}`; `usePage()` returns a `PageLoad`.
-  - Extra selectors: `useReviewBorehole()`, `useSelectedBorehole()`, `useIsReviewable(uid)` (a borehole with a document and located values; every sample borehole qualifies, so "› OPEN IN REVIEW" can show for all of them).
-  - `openBorehole(uid)` selects the first SPT-refusal layer (BK-07 → layer 5, as in the prototype), else layer 1. `openReview(uid?)` focuses the CRS when inferred, else the first open lint (`initialFocusKey`).
-  - `exportFile(kind)` exports every borehole of the selected borehole's document; file prefix = first token of the document name (`neckarbogen_…`).
-- **Domain extras**: `review.ts` also has `isClean`, `initialFocusKey`, `editPatch`, `flagPatch`, `UNFLAG_PATCH`, `patchOf`, `applyValuePatch` (syncs `finalDepth`, layer `from/to`, `logBottom`, groundwater and rock head on edits), `confirmCrsOn` (also moves the borehole to the candidate's point). `spt.ts` has `refusalTitle(spt)` for the R badge tooltip. `format.ts` has `parseNumber`. `types.ts` exports `PAGE_W = 560`, `PAGE_H = 780`; `Completeness` is a named type with optional `expectedIds`; `DocumentSummary` has optional `error` (API status `failed`).
-- **Schema extras**: `section(id)`, `multiField('X-Coordinate','Y-Coordinate')` (one value holding two fields, split on `' / '` by the export), `EXTRA_FIELDS` (`DepthFrom`, `DepthTo`, `DrillingMethod`, `RockHead`), `FieldDef.layerProp` (log fields filled from a layer property: StratigraphicName ← `strat`, Soil/Rockprofile ← `din`).
-- **Theme extras**: `PATTERN_FILLS`, `STRAT_FALLBACK`, `PAGE_TYPE_LEGEND`, `pageUsage(type, page)`, and text tones in `COL` (`greenText`, `amberText`, `greenBg`, `amberBg`, …).
-- **Components**: `ScanPage({content, boxes?, scale?})` with `ScanBox {id, box, variant: 'focus'|'flagged'|'lint'|'approved'|'idle'|'highlight', title?, onClick?}`; `MethodBadge({method, confidence?, formula?})` + `methodTitle()`; `StatusChip({status, size?: 'sm'|'md'})`; `SourceIcon({onClick, dim?})` (stops propagation); `Popover({width, top?, label, children})` (anchor to a `position: relative` parent); `Toggle({on, onToggle, label?, id?})`; `EmptyState({title, message?, tone?, action?})`; `SidePanel` / `SourcePanel` / `CompletenessPanel` / `PanelHeader` (done, rendered by App).
-- **Sample data**: 48 boreholes in 7 projects (3 not on the map: BK-13 and BK-14 have no coordinates, SK-05 has an unknown CRS). Neckarbogen (`nb`) boreholes all have an inferred CRS; BK-07 is `nb:BK-07` on pages 7–8, the other Neckarbogen logs are on pages 9–20 (the document has 28 pages, 14 of them logs). Elbquerung (`eq`) logs are on pages 5–13. Other projects live in archive files (`documentId` = project slug, not in the queue). CRS candidates exist only for `nb`.
-- **Not in sample data on purpose** (screens derive it): the CRS dialog's "site per report text" circle (use the centroid of the `match` candidate's points) and its intro sentence (use the X / Y value's `raw`, e.g. "R 3 513 420 · H 5 405 870", and the point count).
-
-## As built: integration notes
-
-Additive to the sections above.
-
-- **Store:**
-  - `setState(key, state)` toggles. The same state again resets the value to `ok` + `unreviewed` (`statePatch` in `review.ts`).
-  - `editPatch` clears a "not in source" / "illegible" state whenever the saved text is non-empty.
-  - `focusValue` drops an unsaved inline edit of another row, so only one row is ever in edit mode. `openCrsDialog` also clears it.
-  - `crsLoading` is true while `openCrsDialog` waits for candidates. The store preselects the candidate the document currently uses and ignores answers for a dialog that was closed meanwhile.
-  - `addFiles` gives an uploaded document its Review target (the first reviewable borehole of that document) once extraction reaches *needs review*, and keeps it on later status polls. API polls don't carry one.
-- **Export scope:** `exportScope(all, b)` lives in `src/export/scope.ts`. Both `exportFile` and the export menu's count use it.
-- **Standard xlsx:** the Metadata `BoreholeID` column falls back to the ID as printed, so approved-only exports have no anonymous rows. Logdata, Test Results and Provenance always carried the ID.
-- **API patches:** `patchActions` sends `set_state` for any state change, including `ok`, which the contract allows.
-- **Leaflet:** `src/components/leaflet.ts` has the one OSM tile layer (single host, attribution), a compact attribution for the small maps, and `removeMap(map)`, which every map uses on unmount. It ends a running zoom animation first, because Leaflet's 250 ms zoom-end timer otherwise reads the removed pane (`_leaflet_pos`).
-- **Profile SVG** is `role="group"`, not `img`: an img's children are presentational, and its layers, GW triangles and R marker are buttons.
-- **e2e** (`e2e/`): `fixtures.ts` stubs OSM tiles and fails any test with a console error. There is one spec per screen, plus the shell smoke test.
-
-## As built: logic review fixes
-
-Additive to the sections above. Each fix has a regression test that names the review finding (c1–c24).
-
-- **Save queue (store `saveValue`):** saves of one value run one after the other. The store tracks what the source holds (`confirmed`). When the newest save of a value settles and any save in its chain failed, the value is set back to `confirmed`, so a late failure can't undo a newer successful edit. `PartialSaveError {applied}` (from `DataSource.ts`) means part of the patch was saved: that part is kept and only the rest rolls back. The API source throws it when, for example, an edit request succeeds and the approve request after it fails.
-- **Document updates (store `documentUpdated`):** uploads and `watch` use the same handler. After extraction, the reload takes only that document's boreholes (others may have newer local edits) and its completeness checks. `init()` calls `source.watch` for documents that are still being classified or extracted. The API source polls each document at most once at a time. The sample source has no `watch`, so the prototype's extracting card stays as it is.
-- **Navigation:** leaving Review (`go`, `openBorehole`, `search`) drops `editing` and `confirmCleanOpen`. `loadPage` tries a failed page again. A CRS confirmation answer closes only the dialog it came from. Search ignores queries without a letter or digit.
-- **Domain:** `applyValuePatch` re-reads an edited SPT (`parseSptText`: N, refusal, layer SPT, increment lint). An empty final depth becomes `null` again. `confirmCrsOn` sets the CRS value's state to `ok` and puts a borehole with a candidate point on the map.
-- **Export:** `exportId(b, o)` is the one BoreholeID on every sheet and CSV row: the reviewed value once exported, else the ID as printed. `DepthFrom` is the layer's own start depth. A layer that continues the one above takes that layer's reviewed bottom. An edited SPT exports its new N, or `blows/penetration` for a refusal.
-- **API adapter:** `targets[key] = {paths, type}` replaces `paths[key]`. `type` decides how an edit is sent: numbers as numbers, IDs and dates as typed (leading zeros kept), SPT as N. X / Y has two paths (`local_x`/`local_y`, else `longitude`/`latitude`, easting first). Its provenance is combined from both, and an edit is split into one update per coordinate. Every groundwater reading is kept as `GW[i]`, and the legacy `water_table_m` keeps its own path. A missing final depth is `null`. Every backend lint finding lands on a review row: its own value, else the layer's bottom depth, the reading, X / Y, or the BoreholeID. `documentLint` fills the Completeness panel's LINT list.
-- **Profile:** groundwater, rock head and the SPT refusal marker are drawn only while their value isn't "not in source" / "illegible" (`isStated`).
-- **Map:** every RESULTS row and every NOT ON MAP item opens Detail, so a borehole without coordinates is never a dead end. The summary no longer says "in Germany". The first view is Germany unless a pin lies outside it; in that case it is the pins' bounds.
-- Vitest also runs `*.test.tsx` (component tests render with `react-dom/server`).
+Node ≥ 22.12 is required (`engines`, `.nvmrc`).

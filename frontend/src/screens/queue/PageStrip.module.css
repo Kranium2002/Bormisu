@@ -8,6 +8,12 @@
   min-width: 0;
 }
 
+/* Anchor of a cell's thumbnail card. */
+.cellWrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .cell {
   width: 16px;
   height: 24px;
@@ -29,8 +35,59 @@
   cursor: default;
 }
 
+/* Classified but not used for extraction (cover, narrative, duplicate …). */
+.unused {
+  opacity: 0.45;
+}
+
 /* The page currently shown in the Source panel. */
 .current {
   outline: 2px solid var(--c-dark);
   outline-offset: 1px;
+}
+
+/* Thumbnail card above a hovered or focused cell (only when the source has page images). The
+   transparent bottom padding bridges the gap to the cell, so the pointer can move onto the card. */
+.tip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-popover);
+  width: 216px;
+  padding-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.tip::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 6px 0;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-popover);
+  z-index: -1;
+}
+
+.thumb {
+  display: block;
+  width: 200px;
+  height: auto;
+  margin: 8px 8px 0;
+  background: var(--c-scan-bg);
+}
+
+.noThumb {
+  margin: 8px 8px 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--c-muted);
+}
+
+.tipText {
+  padding: 6px 8px 8px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--c-text);
 }

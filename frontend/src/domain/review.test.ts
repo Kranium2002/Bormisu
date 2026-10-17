@@ -3,10 +3,7 @@ import { makeBorehole, makeValue } from '../test/fixtures';
 import { K } from './keys';
 import {
   applyValuePatch,
-  boreholeStatus,
-  cleanKeys,
   completenessSummary,
-  confirmCrsOn,
   editPatch,
   statePatch,
   flagPatch,
@@ -15,70 +12,49 @@ import {
   progress,
   UNFLAG_PATCH,
 } from './review';
-import { firstRefusal } from '../screens/detail/profileGeometry';
 import { formatSpt, sptLint } from './spt';
+import { cleanKeys, displayStatus } from './status';
 import type { Borehole, Spt } from './types';
 
-const approveAll = (b = makeBorehole()) => ({
-  ...b,
-  values: b.values.map((v) => ({ ...v, status: 'approved' as const })),
-});
-
-describe('boreholeStatus', () => {
-  it('is unreviewed when nothing is approved', () => {
-    expect(boreholeStatus(makeBorehole())).toBe('unreviewed');
-  });
-
-  it('is reviewed when every value is approved', () => {
-    expect(boreholeStatus(approveAll())).toBe('reviewed');
-  });
-
-  it('needs attention when the CRS is inferred, even if all values are approved', () => {
-    const b = approveAll(makeBorehole({ crs: { name: 'X', code: null, status: 'inferred' } }));
-    expect(boreholeStatus(b)).toBe('attention');
-  });
-
-  it('needs attention for a flagged value', () => {
+describe('review status for the optimistic moment', () => {
+  it('applyValuePatch derives the borehole status the server would compute', () => {
     const b = makeBorehole();
-    expect(boreholeStatus(applyValuePatch(b, K.finalDepth, flagPatch('odd')))).toBe('attention');
+    expect(b.reviewStatus).toBe('unreviewed');
+    const one = applyValuePatch(b, K.boreholeId, { status: 'approved' });
+    expect(one.reviewStatus).toBe('in_review');
+    const all = b.values.reduce((acc, v) => applyValuePatch(acc, v.key, { status: 'approved' }), b);
+    expect(all.reviewStatus).toBe('approved');
+    expect(applyValuePatch(one, K.boreholeId, { status: 'unreviewed' }).reviewStatus).toBe('unreviewed');
   });
 
-  it('needs attention for an open lint, but not once that value is approved', () => {
+  it('a value without a provenance entry does not keep a borehole from being approved', () => {
     const b = makeBorehole();
-    const linted = {
-      ...b,
-      values: b.values.map((v) =>
-        v.key === K.finalDepth ? { ...v, lint: { severity: 'error' as const, message: 'x' } } : v,
-      ),
-    };
-    expect(boreholeStatus(linted)).toBe('attention');
-    expect(boreholeStatus(approveAll(linted))).toBe('reviewed');
+    b.values = [...b.values, makeValue({ key: 'orphan', hasProvenance: false, method: null })];
+    const all = b.values.filter((v) => v.hasProvenance).reduce((acc, v) => applyValuePatch(acc, v.key, { status: 'approved' }), b);
+    expect(all.reviewStatus).toBe('approved');
   });
 
-  it('is unreviewed (not reviewed) when there are no values', () => {
-    expect(boreholeStatus(makeBorehole({ values: [] }))).toBe('unreviewed');
+  it('a flag shows as attention and keeps the borehole in review', () => {
+    const flagged = applyValuePatch(makeBorehole(), K.finalDepth, flagPatch('odd'));
+    expect(flagged.reviewStatus).toBe('in_review');
+    expect(displayStatus(flagged)).toBe('attention');
   });
 });
 
-describe('cleanKeys', () => {
-  it('returns only unreviewed Read values with no lint, flag or special state', () => {
-    const b = makeBorehole({
-      values: [
-        makeValue({ key: 'a' }),
-        makeValue({ key: 'b', method: 'OCR' }),
-        makeValue({ key: 'c', lint: { severity: 'warning', message: 'w' } }),
-        makeValue({ key: 'd', flag: 'f', status: 'flagged' }),
-        makeValue({ key: 'e', state: 'illegible' }),
-        makeValue({ key: 'f', status: 'approved' }),
-      ],
-    });
-    expect(cleanKeys(b)).toEqual(['a']);
+describe('clean values (status.ts) after a patch', () => {
+  it('an approved or flagged value is no longer clean', () => {
+    const b = makeBorehole();
+    expect(cleanKeys(b)).toHaveLength(b.values.length);
+    const after = applyValuePatch(applyValuePatch(b, K.boreholeId, { status: 'approved' }), K.finalDepth, flagPatch('x'));
+    expect(cleanKeys(after)).toHaveLength(b.values.length - 2);
   });
 });
 
 describe('progress', () => {
-  it('counts approved values', () => {
+  it('counts approved values out of the reviewable ones', () => {
     const b = applyValuePatch(makeBorehole(), K.boreholeId, { status: 'approved' });
+    expect(progress(b)).toEqual({ approved: 1, total: 7 });
+    b.values = [...b.values, makeValue({ key: 'orphan', hasProvenance: false, method: null })];
     expect(progress(b)).toEqual({ approved: 1, total: 7 });
   });
 });
@@ -181,7 +157,7 @@ describe('applyValuePatch', () => {
     let b = makeBorehole();
     b = applyValuePatch(b, K.finalDepth, { value: '7.00' });
     b = applyValuePatch(b, K.bottom(1), { value: '3.00' });
-    b = applyValuePatch(b, K.gwStrike, { value: '2.20' });
+    b = applyValuePatch(b, K.gw(0), { value: '2.20' });
     expect(b.finalDepth).toBe(7);
     expect(b.layers[0].to).toBe(3);
     expect(b.layers[1].from).toBe(3);
@@ -191,40 +167,6 @@ describe('applyValuePatch', () => {
   it('updates the logged bottom when the last layer bottom changes', () => {
     const b = applyValuePatch(makeBorehole(), K.bottom(2), { value: '5.50' });
     expect(b.logBottom).toBe(5.5);
-  });
-});
-
-describe('confirmCrsOn', () => {
-  it('confirms the CRS and approves the CRS value', () => {
-    const b = makeBorehole({
-      crs: { name: 'guess', code: null, status: 'inferred' },
-      values: [makeValue({ key: K.crs, value: 'guess', method: 'Guessed' })],
-    });
-    const match = confirmCrsOn(b, {
-      name: 'DHDN / GK zone 3', code: 'EPSG:31467', note: '', verdict: 'match',
-      points: [{ uid: b.uid, lat: 48.1, lng: 9.1 }],
-    });
-    expect(match.crs).toEqual({ name: 'DHDN / GK zone 3', code: 'EPSG:31467', status: 'confirmed' });
-    expect(match.values[0]).toMatchObject({ value: 'DHDN / GK zone 3', status: 'approved', method: 'Guessed' });
-    expect([match.lat, match.lng]).toEqual([48.1, 9.1]);
-    const other = confirmCrsOn(b, { name: 'Other', code: 'EPSG:1', note: '', verdict: 'shifted', points: [] });
-    expect(other.values[0].method).toBe('Edited');
-    expect([other.lat, other.lng]).toEqual([b.lat, b.lng]);
-  });
-
-  // Regression (c9): an API borehole with CRS "not in source" and plotted=false stayed missing and unplotted.
-  it('clears a "not in source" CRS and puts a borehole with a candidate point on the map', () => {
-    const b = makeBorehole({
-      lat: null, lng: null, onMap: false, unplottedReason: 'CRS unknown',
-      crs: { name: null, code: null, status: 'unknown' },
-      values: [makeValue({ key: K.crs, value: '', state: 'not in source', method: 'Guessed' })],
-    });
-    const c = { name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', note: '', verdict: 'match' as const, points: [{ uid: b.uid, lat: 48.7, lng: 9.1 }] };
-    const placed = confirmCrsOn(b, c);
-    expect(placed.values[0]).toMatchObject({ value: 'ETRS89 / UTM zone 32N', state: 'ok', status: 'approved' });
-    expect(placed).toMatchObject({ lat: 48.7, lng: 9.1, onMap: true, unplottedReason: null });
-    // Without a point for this borehole it stays where it was.
-    expect(confirmCrsOn(b, { ...c, points: [] })).toMatchObject({ onMap: false, unplottedReason: 'CRS unknown' });
   });
 });
 
@@ -269,7 +211,15 @@ describe('SPT edits', () => {
     const b = applyValuePatch(withSpt(), K.spt(1), { value: '50/30', method: 'Edited', status: 'approved' });
     expect(spt(b)).toMatchObject({ refusal: true, spt: { refusal: true, blows: 50, penetrationCm: 30 } });
     expect(spt(b)?.spt?.n).toBeUndefined();
-    expect(firstRefusal(b.layers)?.layer.n).toBe(1);
+    expect(b.layers[0].spt).toMatchObject({ refusal: true, blows: 50, penetrationCm: 30 });
+  });
+
+  it('an edit never invents a depth for a test whose depth is not stated', () => {
+    const b = withSpt();
+    const noDepth = { ...b, values: b.values.map((v) => (v.spt ? { ...v, spt: { ...v.spt, depth: null } } : v)) };
+    const edited = applyValuePatch(noDepth, K.spt(1), { value: 'N = 9', method: 'Edited', status: 'approved' });
+    expect(spt(edited)?.spt).toMatchObject({ n: 9, depth: null });
+    expect(edited.layers[0].spt?.depth).toBeNull();
   });
 
   it('unreadable text keeps no stale N, and a rollback restores N and its lint', () => {
@@ -278,5 +228,19 @@ describe('SPT edits', () => {
     const back = applyValuePatch(odd, K.spt(1), { value: 'N = 8', method: 'Read' });
     expect(spt(back)?.spt?.n).toBe(8);
     expect(spt(back)?.lint?.message).toBe('Increments 4 + 5 = 9 ≠ N 8');
+  });
+
+  it('the increment lint it recomputes is the app’s own check: never attention', () => {
+    const b = applyValuePatch(withSpt(), K.spt(1), { value: 'N = 7', method: 'Edited' });
+    expect(spt(b)?.lint).toEqual({ severity: 'error', message: 'Increments 4 + 5 = 9 ≠ N 7', client: true });
+    expect(displayStatus(b)).toBe('unreviewed');
+  });
+
+  it('a backend lint on the SPT stays as it was', () => {
+    const server = { severity: 'error' as const, message: 'Refusal recorded with an N value' };
+    const b = withSpt();
+    const linted = { ...b, values: b.values.map((v) => (v.key === K.spt(1) ? { ...v, lint: server } : v)) };
+    const edited = applyValuePatch(linted, K.spt(1), { value: 'N = 9', method: 'Edited', status: 'approved' });
+    expect(spt(edited)?.lint).toEqual(server);
   });
 });

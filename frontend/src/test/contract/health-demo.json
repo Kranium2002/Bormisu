@@ -1,0 +1,24 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "Health",
+  "example": {
+    "status": "ok",
+    "mode": "demo",
+    "version": "1.0.0",
+    "providers": {
+      "ocr": false,
+      "classifier": false,
+      "extractor": false,
+      "chat": false,
+      "geocoder": true
+    },
+    "upload": {
+      "max_mb": 50,
+      "extensions": [
+        ".pdf",
+        ".png",
+        ".jpg"
+      ]
+    }
+  }
+}

@@ -24,16 +24,51 @@
   padding: 10px 14px 14px;
   border-top: 1px solid var(--c-line);
   display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
+  flex-direction: column;
+  gap: 10px;
   font-size: 11px;
   color: var(--c-muted);
+}
+
+.dinItems {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
 }
 
 .legendItem {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+.swatch {
+  flex: none;
+  display: block;
+}
+
+.code {
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.unknown {
+  font-style: italic;
+}
+
+.note {
+  margin-left: auto;
+  font-style: italic;
 }
 
 .rBadge {

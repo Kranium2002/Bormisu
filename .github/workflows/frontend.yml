@@ -1,0 +1,94 @@
+# Frontend CI: unit tests, generated API types, production build (no sample data), Playwright
+# smoke tests in sample mode, and the web image built from the repository root.
+name: frontend
+
+on:
+  push:
+    paths:
+      - 'frontend/**'
+      - 'contracts/**'
+      - 'assets/din4023_patterns/**'
+      - '.github/workflows/frontend.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'contracts/**'
+      - 'assets/din4023_patterns/**'
+      - '.github/workflows/frontend.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test, build, e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Generated API types match contracts/openapi.yaml
+        run: |
+          npm run gen:api
+          git diff --exit-code src/data/api-types.gen.ts
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build (API mode)
+        run: npm run build
+
+      - name: No sample data in the build
+        run: npm run check:dist
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: e2e (sample mode, bundled Chromium)
+        run: npm run e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  docker:
+    name: web image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: docker build (repository root as context)
+        run: docker build -f frontend/Dockerfile -t bormisu-web:ci .
+
+      # nginx.conf is a template filled in at container start: only a started container shows that
+      # it renders and loads. No API runs here, so /api is not checked (it answers 502 by design).
+      - name: The image starts and serves the app shell on client-side routes
+        run: |
+          docker run --rm bormisu-web:ci nginx -t
+          docker run -d --name web -p 8080:80 bormisu-web:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8080/review/bh_any | grep -q '<div id="root"></div>'
+          docker rm -f web

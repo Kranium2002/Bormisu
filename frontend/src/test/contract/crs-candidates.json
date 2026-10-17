@@ -1,0 +1,56 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "array:CrsCandidate",
+  "example": [
+    {
+      "crs": "EPSG:31983",
+      "label": "SIRGAS 2000 / UTM zone 23S",
+      "score": 0.92,
+      "verdict": "match",
+      "note": "Printed order N, E: axes swapped",
+      "swap_axes": true,
+      "points": [
+        {
+          "uid": "bh_01JFICT00000000000000LA02",
+          "lat": -23.5489,
+          "lon": -46.6388
+        }
+      ]
+    },
+    {
+      "crs": "EPSG:29193",
+      "label": "SAD69 / UTM zone 23S",
+      "score": 0.64,
+      "verdict": "shifted",
+      "note": "Pins land about 60 m north-east of the match",
+      "swap_axes": true,
+      "points": [
+        {
+          "uid": "bh_01JFICT00000000000000LA02",
+          "lat": -23.5484,
+          "lon": -46.6382
+        }
+      ]
+    },
+    {
+      "crs": "EPSG:31984",
+      "label": "SIRGAS 2000 / UTM zone 24S",
+      "score": 0.08,
+      "verdict": "out_of_range",
+      "note": null,
+      "swap_axes": false,
+      "points": []
+    },
+    {
+      "crs": "EPSG:32723",
+      "label": "WGS 84 / UTM zone 23S",
+      "points": [
+        {
+          "uid": "bh_01JFICT00000000000000LA02",
+          "lat": -23.5489,
+          "lon": -46.6388
+        }
+      ]
+    }
+  ]
+}

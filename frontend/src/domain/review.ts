@@ -1,55 +1,47 @@
-/** Pure review logic: statuses, "approve all clean", progress, completeness, value patches. */
+/**
+ * Pure review logic: progress, first focus, completeness, value patches. The borehole status and
+ * the clean-value rule live in status.ts (mirrored from the backend).
+ */
 import { parseNumber } from './format';
 import { K } from './keys';
 import { parseSptText, sptLint } from './spt';
-import type {
-  Borehole,
-  BoreholeStatus,
-  Completeness,
-  CrsCandidate,
-  ExtractedValue,
-  Spt,
-  ValuePatch,
-} from './types';
+import { deriveReviewStatus } from './status';
+import type { Borehole, Completeness, ExtractedValue, Spt, ValuePatch } from './types';
+
+/** The document a value's source is in: its own document when it names one (e.g. a lab spreadsheet), else the borehole's. */
+export function sourceDocumentId(b: Pick<Borehole, 'documentId'>, v: Pick<ExtractedValue, 'documentId'>): string | null {
+  return v.documentId ?? b.documentId;
+}
 
 /**
- * Review status of a borehole:
- * `attention` if the CRS is inferred, a value is flagged, or a value has a lint and isn't approved;
- * otherwise `reviewed` when every value is approved; otherwise `unreviewed`.
+ * True when a value's source is in another document than the borehole's: its page and box belong to
+ * that document, so they are never shown on the borehole's own pages.
  */
-export function boreholeStatus(b: Borehole): BoreholeStatus {
-  if (b.crs.status === 'inferred') return 'attention';
-  if (b.values.some((v) => v.status === 'flagged' || (v.lint && v.status !== 'approved'))) return 'attention';
-  if (b.values.length > 0 && b.values.every((v) => v.status === 'approved')) return 'reviewed';
-  return 'unreviewed';
-}
-
-/** True if a value is "clean": unreviewed, method Read, no lint, no flag, state ok. */
-export function isClean(v: ExtractedValue): boolean {
-  return v.status === 'unreviewed' && v.method === 'Read' && !v.lint && !v.flag && v.state === 'ok';
-}
-
-/** Keys that "Approve all clean" approves. */
-export function cleanKeys(b: Borehole): string[] {
-  return b.values.filter(isClean).map((v) => v.key);
-}
-
-/** Approved values out of all values. */
-export function progress(b: Borehole): { approved: number; total: number } {
-  return { approved: b.values.filter((v) => v.status === 'approved').length, total: b.values.length };
+export function fromOtherDocument(b: Pick<Borehole, 'documentId'>, v: Pick<ExtractedValue, 'documentId'>): boolean {
+  return !!v.documentId && v.documentId !== b.documentId;
 }
 
 /**
- * The value the Review screen focuses first: the CRS when inferred, else the first open lint,
- * else the first flag, else the first unreviewed value, else the first value.
+ * Approved values out of the reviewable ones. A value without a provenance entry can't be reviewed
+ * (it isn't a valid save path), so it doesn't count.
+ */
+export function progress(b: Borehole): { approved: number; total: number } {
+  const reviewable = b.values.filter((v) => v.hasProvenance);
+  return { approved: reviewable.filter((v) => v.status === 'approved').length, total: reviewable.length };
+}
+
+/**
+ * The value the Review screen focuses first: the CRS when inferred (the X / Y when no system was
+ * printed, so no CRS value exists), else the first open lint, else the first flag, else the first
+ * unreviewed value that can be reviewed, else the first value.
  */
 export function initialFocusKey(b: Borehole): string | null {
   const vs = b.values;
   const pick =
-    (b.crs.status === 'inferred' ? vs.find((v) => v.key === K.crs) : undefined) ??
+    (b.crs.status === 'inferred' ? (vs.find((v) => v.key === K.crs) ?? vs.find((v) => v.key === K.xy)) : undefined) ??
     vs.find((v) => v.lint && v.status !== 'approved') ??
     vs.find((v) => v.status === 'flagged') ??
-    vs.find((v) => v.status === 'unreviewed') ??
+    vs.find((v) => v.status === 'unreviewed' && v.hasProvenance) ??
     vs[0];
   return pick ? pick.key : null;
 }
@@ -130,9 +122,12 @@ function syncSpt(b: Borehole, v: ExtractedValue, n: number): Borehole {
   const spt: Spt = parseSptText(v.value, prev) ?? {
     raw: prev.raw, depth: prev.depth, refusal: false, ...(prev.increments ? { increments: prev.increments } : {}),
   };
-  // A lint from elsewhere (e.g. the backend) stays; the increment check follows the new N.
+  // A lint from elsewhere (e.g. the backend) stays; the increment check follows the new N. That check
+  // is the app's own, so it never counts as attention (status.ts).
   const recompute = !v.lint || v.lint.message === sptLint(prev)?.message;
-  const next: ExtractedValue = { ...v, spt, refusal: spt.refusal, lint: recompute ? sptLint(spt) : v.lint };
+  const own = sptLint(spt);
+  const lint = recompute ? (own && { ...own, client: true }) : v.lint;
+  const next: ExtractedValue = { ...v, spt, refusal: spt.refusal, lint };
   return {
     ...b,
     values: b.values.map((x) => (x.key === v.key ? next : x)),
@@ -170,25 +165,7 @@ export function applyValuePatch(b: Borehole, key: string, patch: ValuePatch): Bo
   const current = b.values.find((v) => v.key === key);
   if (!current) return b;
   const next = { ...current, ...patch };
-  const updated = { ...b, values: b.values.map((v) => (v.key === key ? next : v)) };
+  const values = b.values.map((v) => (v.key === key ? next : v));
+  const updated = { ...b, values, reviewStatus: deriveReviewStatus(values) };
   return patch.value !== undefined ? syncDerived(updated, next) : updated;
-}
-
-/**
- * Confirms a CRS for a borehole: status `confirmed`, its CRS value approved with the candidate name
- * (and no longer "not in source"), and its position taken from the candidate's point, which also
- * puts it on the map. A candidate that contradicts the AI's guess marks the value as Edited.
- */
-export function confirmCrsOn(b: Borehole, c: CrsCandidate): Borehole {
-  const point = c.points.find((p) => p.uid === b.uid);
-  return {
-    ...b,
-    ...(point ? { lat: point.lat, lng: point.lng, onMap: true, unplottedReason: null } : {}),
-    crs: { name: c.name, code: c.code, status: 'confirmed' },
-    values: b.values.map((v) =>
-      v.key === K.crs
-        ? { ...v, value: c.name, status: 'approved', state: 'ok', method: c.verdict === 'match' ? v.method : 'Edited' }
-        : v,
-    ),
-  };
 }

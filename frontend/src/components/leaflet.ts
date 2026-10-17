@@ -1,8 +1,10 @@
 /**
- * Shared Leaflet helpers: the base map every map in the app uses (OpenStreetMap standard tiles,
- * shown in grayscale via CSS) and a safe way to tear a map down.
+ * Shared Leaflet helpers: the base map every map in the app uses (TILE_URL and TILE_ATTRIBUTION
+ * from src/config.ts, OpenStreetMap by default, shown in grayscale via CSS) and a safe way to tear
+ * a map down.
  */
 import * as L from 'leaflet';
+import { TILE_ATTRIBUTION, TILE_URL } from '../config';
 
 /** Leaflet internals that outlive remove() as pending timers. */
 interface LeafletTimers {
@@ -25,16 +27,24 @@ export function removeMap(map: L.Map): void {
   map.remove();
 }
 
-/** OSM's tile usage policy asks for the single host, not the old a/b/c subdomains. */
-export const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-export const OSM_ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+/** Tile URL template of the configured basemap (build arg VITE_TILE_URL). */
+export const BASEMAP_TILE_URL = TILE_URL;
+/** Attribution the configured basemap requires (build arg VITE_TILE_ATTRIBUTION). */
+export const BASEMAP_ATTRIBUTION = TILE_ATTRIBUTION;
 
-/** A new OSM tile layer with the required attribution. */
-export function osmTileLayer(): L.TileLayer {
-  return L.tileLayer(OSM_TILE_URL, { attribution: OSM_ATTRIBUTION, maxZoom: 19 });
+/** A new tile layer of the configured basemap, with its attribution. */
+export function basemapTileLayer(): L.TileLayer {
+  return L.tileLayer(BASEMAP_TILE_URL, { attribution: BASEMAP_ATTRIBUTION, maxZoom: 19 });
 }
 
-/** Attribution control for small maps: just "© OpenStreetMap", without the Leaflet prefix. */
+/** Attribution control for small maps: just the tile attribution, without the Leaflet prefix. */
 export function compactAttribution(): L.Control.Attribution {
   return L.control.attribution({ prefix: false, position: 'bottomright' });
 }
+
+/** @deprecated Kept for existing imports: the configured basemap (OpenStreetMap unless VITE_TILE_URL says otherwise). */
+export const OSM_TILE_URL = BASEMAP_TILE_URL;
+/** @deprecated Kept for existing imports: use BASEMAP_ATTRIBUTION. */
+export const OSM_ATTRIBUTION = BASEMAP_ATTRIBUTION;
+/** @deprecated Kept for existing imports: use basemapTileLayer(). */
+export const osmTileLayer = basemapTileLayer;

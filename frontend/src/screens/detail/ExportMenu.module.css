@@ -7,7 +7,7 @@
   display: block;
   border: 0;
   background: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;

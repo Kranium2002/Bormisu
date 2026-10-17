@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Popover } from '../../components/Popover';
-import { cleanKeys, progress } from '../../domain/review';
+import { progress } from '../../domain/review';
+import { CLEAN_CONFIDENCE } from '../../domain/status';
 import type { Borehole } from '../../domain/types';
 import { useAppStore, useDocument } from '../../store/appStore';
 import styles from './ReviewScreen.module.css';
@@ -8,7 +9,8 @@ import { sheetPages, siblings } from './reviewView';
 
 /**
  * Review header: title + file / project, borehole switcher, sheet tabs, progress,
- * › BOREHOLE DETAIL and APPROVE ALL CLEAN (n) with its confirm popover.
+ * › BOREHOLE DETAIL and APPROVE ALL CLEAN with its confirm popover. The source counts the clean
+ * values of the whole document (a dry run) before anything is approved.
  */
 export function ReviewHeader({ b }: { b: Borehole }) {
   const doc = useDocument(b.documentId);
@@ -17,6 +19,8 @@ export function ReviewHeader({ b }: { b: Borehole }) {
   const reviewPage = useAppStore((s) => s.reviewPage);
   const setReviewPage = useAppStore((s) => s.setReviewPage);
   const confirmOpen = useAppStore((s) => s.confirmCleanOpen);
+  const cleanCount = useAppStore((s) => s.cleanCount);
+  const cleanBusy = useAppStore((s) => s.cleanBusy);
   const askClean = useAppStore((s) => s.askClean);
   const approveClean = useAppStore((s) => s.approveClean);
   const cancelClean = useAppStore((s) => s.cancelClean);
@@ -24,6 +28,9 @@ export function ReviewHeader({ b }: { b: Borehole }) {
   const openReview = useAppStore((s) => s.openReview);
 
   const cleanRef = useRef<HTMLDivElement>(null);
+  const cleanButton = useRef<HTMLButtonElement>(null);
+  /** The confirmation was open (or approving) at the last render: its closing gives the focus back. */
+  const wasOpen = useRef(false);
 
   // A click outside the confirm popover cancels it (Escape is handled by the store).
   useEffect(() => {
@@ -35,15 +42,27 @@ export function ReviewHeader({ b }: { b: Borehole }) {
     return () => document.removeEventListener('mousedown', onDown);
   }, [confirmOpen, cancelClean]);
 
+  // When the confirmation closes (Escape, Cancel, APPROVE) with the focus left on nothing, the focus
+  // goes back to APPROVE ALL CLEAN, so a keyboard user keeps their place.
+  useEffect(() => {
+    const open = confirmOpen || cleanBusy;
+    if (wasOpen.current && !open) {
+      const active = document.activeElement;
+      if (!active || active === document.body) cleanButton.current?.focus();
+    }
+    wasOpen.current = open;
+  }, [confirmOpen, cleanBusy]);
+
   const sheets = useMemo(() => sheetPages(b), [b]);
   const sibs = useMemo(() => siblings(boreholes, b), [boreholes, b]);
   const { approved, total } = progress(b);
-  const clean = cleanKeys(b).length;
   const pct = total ? Math.round((approved / total) * 100) : 0;
   const idx = sibs.findIndex((x) => x.uid === b.uid);
   const prev = idx > 0 ? sibs[idx - 1] : undefined;
   const next = idx >= 0 && idx < sibs.length - 1 ? sibs[idx + 1] : undefined;
-  const subtitle = `${doc?.name ?? b.sourceFile} · ${doc?.project ?? b.project}${isSample ? ' (fictional)' : ''}`;
+  const fileName = doc?.name ?? b.sourceFile;
+  const subtitle = `${fileName} · ${doc?.project ?? b.project}${isSample ? ' (fictional)' : ''}`;
+  const cleanDisabledReason = !b.documentId ? 'No source document for this borehole' : cleanBusy ? 'Approving clean values…' : undefined;
 
   return (
     <div className={styles.header}>
@@ -58,7 +77,7 @@ export function ReviewHeader({ b }: { b: Borehole }) {
             type="button"
             className={styles.switchBtn}
             disabled={!prev}
-            title={prev ? `Previous borehole: ${prev.id}` : undefined}
+            title={prev ? `Previous borehole: ${prev.id}` : 'This is the first borehole of the report'}
             aria-label="Previous borehole"
             onClick={() => prev && openReview(prev.uid)}
           >
@@ -71,7 +90,7 @@ export function ReviewHeader({ b }: { b: Borehole }) {
             type="button"
             className={styles.switchBtn}
             disabled={!next}
-            title={next ? `Next borehole: ${next.id}` : undefined}
+            title={next ? `Next borehole: ${next.id}` : 'This is the last borehole of the report'}
             aria-label="Next borehole"
             onClick={() => next && openReview(next.uid)}
           >
@@ -117,29 +136,56 @@ export function ReviewHeader({ b }: { b: Borehole }) {
 
       <div ref={cleanRef} className={styles.cleanWrap}>
         <button
+          ref={cleanButton}
           type="button"
           className={styles.cleanBtn}
-          disabled={!clean}
-          aria-expanded={confirmOpen && clean > 0}
-          title={clean ? undefined : 'No clean values left: every Read value without lint, flag or state is approved'}
-          onClick={askClean}
+          disabled={!!cleanDisabledReason}
+          aria-expanded={confirmOpen}
+          title={cleanDisabledReason ?? `Approve every clean value of ${fileName}`}
+          onClick={() => void askClean()}
         >
-          APPROVE ALL CLEAN ({clean})
+          {cleanBusy ? 'APPROVING…' : 'APPROVE ALL CLEAN'}
         </button>
-        {confirmOpen && clean > 0 && (
-          <Popover width={300} label="Approve clean values" className={styles.confirm}>
-            <div className={styles.confirmTitle}>Approve {clean} clean values?</div>
-            <div className={styles.confirmText}>
-              Only values with method Read, no flag, no lint warning and no special state.
+        {confirmOpen && (
+          <Popover width={320} label="Approve clean values" className={styles.confirm}>
+            {/* One live region for the whole exchange, so the count of the dry run is announced when it arrives. */}
+            <div className={styles.confirmLive} aria-live="polite" aria-atomic="true">
+              {cleanCount === null ? (
+                <div className={styles.confirmText}>Counting the clean values of {fileName}…</div>
+              ) : cleanCount === 0 ? (
+                <>
+                  <div className={styles.confirmTitle}>No clean values</div>
+                  <div className={styles.confirmText}>Nothing left to approve at once in {fileName}.</div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.confirmTitle}>
+                    Approve {cleanCount} clean value{cleanCount === 1 ? '' : 's'} in {fileName}?
+                  </div>
+                  <div className={styles.confirmText}>
+                    Unreviewed values with a source reference, no flag, no lint and no special state, read from
+                    the text layer or OCRed with at least {Math.round(CLEAN_CONFIDENCE * 100)} % confidence.
+                  </div>
+                </>
+              )}
             </div>
-            <div className={styles.confirmActions}>
-              <button type="button" className={styles.approveBtn} onClick={approveClean} autoFocus>
-                APPROVE
-              </button>
-              <button type="button" className={styles.cancelBtn} onClick={cancelClean}>
-                Cancel
-              </button>
-            </div>
+            {cleanCount === 0 && (
+              <div className={styles.confirmActions}>
+                <button type="button" className={styles.cancelBtn} onClick={cancelClean} autoFocus>
+                  Close
+                </button>
+              </div>
+            )}
+            {cleanCount !== null && cleanCount > 0 && (
+              <div className={styles.confirmActions}>
+                <button type="button" className={styles.approveBtn} onClick={() => void approveClean()} autoFocus>
+                  APPROVE
+                </button>
+                <button type="button" className={styles.cancelBtn} onClick={cancelClean}>
+                  Cancel
+                </button>
+              </div>
+            )}
           </Popover>
         )}
       </div>

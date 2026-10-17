@@ -13,3 +13,8 @@
   min-height: 0;
   position: relative;
 }
+
+/* The main region takes the focus after a screen change (App useScreenFocus); it is not a control. */
+.main:focus {
+  outline: none;
+}

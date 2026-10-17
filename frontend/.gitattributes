@@ -1,0 +1,7 @@
+# Files read inside Linux containers keep LF line endings, also in a checkout with core.autocrlf.
+Dockerfile text eol=lf
+*.dockerignore text eol=lf
+nginx.conf text eol=lf
+nginx/** text eol=lf
+*.sh text eol=lf
+scripts/** text eol=lf

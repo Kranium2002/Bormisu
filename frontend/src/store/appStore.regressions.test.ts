@@ -1,22 +1,26 @@
-/** Regression tests for the store bugs from the codex logic review (finding ids in each test name). */
+/**
+ * Regression tests for the store bugs from the logic review (finding ids c1–c24 in the test names),
+ * rewritten for the contract's save semantics: the source answers every save with the borehole as it
+ * holds it, and the newest answer wins once a borehole's saves have settled. Fictional data only.
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PartialSaveError, type DataSource } from '../data/DataSource';
+import type { DataSource } from '../data/DataSource';
+import { SaveError } from '../data/errors';
 import { K } from '../domain/keys';
-import type { CrsCandidate, DocumentSummary } from '../domain/types';
-import { makeBorehole, makeValue } from '../test/fixtures';
+import { applyValuePatch } from '../domain/review';
+import type { Borehole, CrsCandidate, DocumentSummary } from '../domain/types';
+import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
+import { CONFLICT_TEXT } from './reviewSlice';
+import { fakeSource, makeHealth, manualLive, readyStore, settle } from './testing';
 
 /** init() asks createDataSource once; it gets a proxy that forwards to the current fake source. */
 let current: DataSource;
-const proxy: DataSource = {
-  kind: 'sample',
-  load: () => current.load(),
-  getPage: (d, p) => current.getPage(d, p),
-  upload: (f, u) => current.upload(f, u),
-  watch: (d, u) => current.watch?.(d, u),
-  updateValue: (uid, k, p) => current.updateValue(uid, k, p),
-  crsCandidates: (d) => current.crsCandidates(d),
-  confirmCrs: (d, c) => current.confirmCrs(d, c),
-};
+const proxy = new Proxy({} as DataSource, {
+  get: (_t, prop: keyof DataSource) => {
+    const v = current[prop];
+    return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(current) : v;
+  },
+});
 vi.mock('../data/createDataSource', () => ({
   createDataSource: async () => proxy,
   dataSourceKind: () => 'sample',
@@ -24,39 +28,17 @@ vi.mock('../data/createDataSource', () => ({
 }));
 const { useAppStore } = await import('./appStore');
 
-const doc: DocumentSummary = {
-  id: 'doc', name: 'test_report.pdf', project: 'Test Project (fictional)', pageTypes: ['text', 'log'], step: 2,
-  counts: null, completeness: null, reviewBoreholeUid: 'doc:TB-01',
-};
-
-function fakeSource(over: Partial<DataSource> = {}): DataSource {
-  return {
-    kind: 'sample',
-    load: async () => ({ boreholes: [makeBorehole()], documents: [doc] }),
-    getPage: async (documentId, page) => ({ documentId, page, type: 'log', usage: 'used', label: `page ${page}`, items: [] }),
-    upload: async () => undefined,
-    updateValue: async () => undefined,
-    crsCandidates: async () => [],
-    confirmCrs: async () => undefined,
-    ...over,
-  };
-}
+const UID = makeBorehole().uid;
+const doc = makeDocument({ reviewBoreholeUid: UID });
 
 const st = () => useAppStore.getState();
-const bh = (uid = 'doc:TB-01') => st().boreholes.find((b) => b.uid === uid);
-const value = (key: string, uid = 'doc:TB-01') => bh(uid)?.values.find((v) => v.key === key);
-/** Lets every queued promise reaction run. */
-const settle = () => new Promise((r) => setTimeout(r, 0));
+const bh = (uid = UID) => st().boreholes.find((b) => b.uid === uid);
+const value = (key: string, uid = UID) => bh(uid)?.values.find((v) => v.key === key);
 
-async function ready(source: DataSource = fakeSource()) {
-  current = source;
-  useAppStore.setState({
-    source, boreholes: [], documents: [], pages: {}, panel: null, editing: null, toast: null, screen: 'map',
-    crsDialogOpen: false, crsLoading: false, crsCandidates: [], crsPick: 0, confirmCleanOpen: false, exportOpen: false,
-    searchMessage: '', mapFocus: null, query: '',
-  });
-  const { boreholes, documents } = await source.load();
-  useAppStore.setState({ loadState: 'ready', boreholes, documents, reviewUid: 'doc:TB-01', selectedUid: 'doc:TB-01', focusKey: null });
+async function ready(over: Partial<DataSource> = {}, boreholes: Borehole[] = [makeBorehole()]) {
+  current = fakeSource({ boreholes, documents: [doc] }, over);
+  await readyStore(current, UID);
+  return current;
 }
 
 function editFinalDepth(text: string) {
@@ -65,54 +47,71 @@ function editFinalDepth(text: string) {
   st().saveEdit();
 }
 
-describe('optimistic saves', () => {
+/** A save the test answers by hand. */
+interface Pending { patch: Parameters<DataSource['updateValue']>[2]; resolve(b: Borehole): void; reject(e: unknown): void }
+function manualSaves() {
+  const pending: Pending[] = [];
+  const updateValue = vi.fn<DataSource['updateValue']>(
+    (_uid, _key, patch) => new Promise<Borehole>((resolve, reject) => pending.push({ patch, resolve, reject })),
+  );
+  return { pending, updateValue };
+}
+
+/** The server's record after applying patches to the fixture, at a given revision. */
+function record(revision: number, ...patches: [string, Parameters<DataSource['updateValue']>[2]][]): Borehole {
+  return { ...patches.reduce((b, [key, p]) => applyValuePatch(b, key, p), makeBorehole()), revision };
+}
+
+describe('saves', () => {
   it('c1: an older save failing late does not undo a newer successful edit', async () => {
-    let failApprove: (e: Error) => void = () => undefined;
-    const updateValue = vi.fn<DataSource['updateValue']>((_uid, _key, patch) =>
-      patch.value === undefined ? new Promise((_, reject) => (failApprove = reject)) : Promise.resolve(),
-    );
-    await ready(fakeSource({ updateValue }));
-    st().toggleApprove(K.finalDepth); // pending
-    editFinalDepth('6.50'); // saved after the approval settles
+    const { pending, updateValue } = manualSaves();
+    await ready({ updateValue });
+    st().toggleApprove(K.finalDepth); // save 1
+    editFinalDepth('6.50'); // save 2
+    expect(updateValue).toHaveBeenCalledTimes(2);
+    const edit = pending[1].patch;
+    // The edit lands first (revision 2: the approval was refused before it), then the approval fails.
+    pending[1].resolve(record(2, [K.finalDepth, edit]));
     await settle();
-    expect(updateValue).toHaveBeenCalledTimes(1);
-    failApprove(new Error('offline'));
-    await vi.waitFor(() => expect(updateValue).toHaveBeenCalledTimes(2));
+    expect(value(K.finalDepth)).toMatchObject({ value: '6.50', status: 'approved' });
+    pending[0].reject(new SaveError('offline', record(1), null));
     await settle();
     expect(value(K.finalDepth)).toMatchObject({ value: '6.50', method: 'Edited', status: 'approved' });
+    expect(bh()?.revision).toBe(2);
     expect(bh()?.finalDepth).toBe(6.5);
     expect(st().toast?.text).toBe('Not saved: offline');
   });
 
-  it('c1: saves of one value reach the source in order', async () => {
-    const order: string[] = [];
-    let releaseFirst: () => void = () => undefined;
-    const updateValue = vi.fn<DataSource['updateValue']>(async (_uid, _key, patch) => {
-      order.push(patch.value ?? patch.status ?? '?');
-      if (order.length === 1) await new Promise<void>((r) => (releaseFirst = r));
-    });
-    await ready(fakeSource({ updateValue }));
+  it('c1: saves reach the source in the order they were made', async () => {
+    const { pending, updateValue } = manualSaves();
+    await ready({ updateValue });
     st().toggleApprove(K.finalDepth);
     editFinalDepth('6.50');
+    st().toggleFlag(K.boreholeId);
+    st().setEditText('check');
+    st().saveEdit();
+    expect(updateValue.mock.calls.map(([, key, p]) => [key, p.value ?? p.status])).toEqual([
+      [K.finalDepth, 'approved'],
+      [K.finalDepth, '6.50'],
+      [K.boreholeId, 'flagged'],
+    ]);
+    pending.forEach((p, i) => p.resolve(record(i + 2)));
     await settle();
-    expect(order).toEqual(['approved']);
-    releaseFirst();
-    await vi.waitFor(() => expect(order).toEqual(['approved', '6.50']));
   });
 
-  it('c1: when every save of a value fails, the value goes back to what the source holds', async () => {
-    await ready(fakeSource({ updateValue: () => Promise.reject(new Error('offline')) }));
+  it('c1: when every save fails without a record, the borehole goes back to what the source held', async () => {
+    await ready({ updateValue: () => Promise.reject(new Error('offline')) });
     st().toggleApprove(K.finalDepth);
     editFinalDepth('6.50');
     await vi.waitFor(() => expect(value(K.finalDepth)).toMatchObject({ value: '6.00', method: 'Read', status: 'unreviewed' }));
     expect(bh()?.finalDepth).toBe(6);
+    expect(bh()?.reviewStatus).toBe('unreviewed');
   });
 
-  it('c3: a partly saved edit keeps the part the source saved', async () => {
-    const updateValue = vi.fn<DataSource['updateValue']>(async () => {
-      throw new PartialSaveError('approve failed', { value: '6.50', method: 'Edited' });
-    });
-    await ready(fakeSource({ updateValue }));
+  it('c3: a partly saved edit shows what the source holds', async () => {
+    // The value was saved, the approval after it was not: the source reports that record.
+    const partly = record(2, [K.finalDepth, { value: '6.50', method: 'Edited' }]);
+    await ready({ updateValue: () => Promise.reject(new SaveError('approve failed', partly, null)) });
     editFinalDepth('6.50');
     await vi.waitFor(() => expect(value(K.finalDepth)?.status).toBe('unreviewed'));
     expect(value(K.finalDepth)).toMatchObject({ value: '6.50', method: 'Edited' });
@@ -123,54 +122,180 @@ describe('optimistic saves', () => {
   it('c19: rolling back an edit of a missing final depth makes it unknown again', async () => {
     const missing = makeBorehole({ finalDepth: null });
     missing.values = missing.values.map((v) => (v.key === K.finalDepth ? { ...v, value: '', raw: '', state: 'not in source' as const } : v));
-    await ready(
-      fakeSource({
-        load: async () => ({ boreholes: [structuredClone(missing)], documents: [doc] }),
-        updateValue: () => Promise.reject(new Error('offline')),
-      }),
-    );
+    await ready({ updateValue: () => Promise.reject(new Error('offline')) }, [missing]);
     editFinalDepth('7');
     expect(bh()?.finalDepth).toBe(7);
     await vi.waitFor(() => expect(value(K.finalDepth)?.value).toBe(''));
     expect(bh()?.finalDepth).toBeNull();
   });
+
+  it('a revision conflict loads the latest version and says the change was not saved', async () => {
+    const elsewhere = { ...record(5, [K.finalDepth, { value: '6.20', method: 'Edited', status: 'approved' }]) };
+    await ready({ updateValue: () => Promise.reject(new SaveError('changed', elsewhere, 'revision_conflict')) });
+    editFinalDepth('6.50');
+    await vi.waitFor(() => expect(bh()?.revision).toBe(5));
+    expect(value(K.finalDepth)).toMatchObject({ value: '6.20', status: 'approved' });
+    expect(st().toast?.text).toBe(CONFLICT_TEXT);
+  });
+
+  it('a settling save never clobbers the optimistic state of saves still pending', async () => {
+    const { pending, updateValue } = manualSaves();
+    await ready({ updateValue });
+    st().toggleApprove(K.finalDepth);
+    st().toggleApprove(K.boreholeId);
+    pending[0].resolve(record(2, [K.finalDepth, { status: 'approved' }]));
+    await settle();
+    // The first answer doesn't know the second approval yet; it waits until the borehole's saves are done.
+    expect(value(K.boreholeId)?.status).toBe('approved');
+    pending[1].resolve(record(3, [K.finalDepth, { status: 'approved' }], [K.boreholeId, { status: 'approved' }]));
+    await settle();
+    expect(bh()?.revision).toBe(3);
+    expect([value(K.finalDepth)?.status, value(K.boreholeId)?.status]).toEqual(['approved', 'approved']);
+  });
+
+  it('an older answer never overwrites a newer one', async () => {
+    const { pending, updateValue } = manualSaves();
+    await ready({ updateValue });
+    st().toggleApprove(K.finalDepth);
+    editFinalDepth('6.50');
+    // The answers arrive out of order: the newer record (revision 3) first.
+    pending[1].resolve(record(3, [K.finalDepth, { status: 'approved', value: '6.50', method: 'Edited' }]));
+    pending[0].resolve(record(2, [K.finalDepth, { status: 'approved' }]));
+    await settle();
+    expect(bh()?.revision).toBe(3);
+    expect(value(K.finalDepth)).toMatchObject({ value: '6.50', method: 'Edited' });
+  });
+
+  it('a refetch during pending saves is kept for when they settle, if it is newer', async () => {
+    const { pending, updateValue } = manualSaves();
+    const fake = await ready({ updateValue });
+    st().toggleApprove(K.finalDepth);
+    // Another action (e.g. approve-clean) reloads the document while the save is pending.
+    const refetched = record(4, [K.finalDepth, { status: 'approved' }], [K.boreholeId, { status: 'approved' }]);
+    fake.documentBoreholes = async () => [refetched];
+    useAppStore.setState({ confirmCleanOpen: true, cleanCount: 1 });
+    await st().approveClean();
+    expect(value(K.boreholeId)?.status).toBe('unreviewed');
+    pending[0].resolve(record(2, [K.finalDepth, { status: 'approved' }]));
+    await settle();
+    expect(bh()?.revision).toBe(4);
+    expect(value(K.boreholeId)?.status).toBe('approved');
+  });
+});
+
+describe('undo sends reset and set_state patches', () => {
+  it('un-approve and un-flag send status unreviewed; a state toggled back sends ok + unreviewed', async () => {
+    const updateValue = vi.fn<DataSource['updateValue']>(async () => record(2));
+    await ready({ updateValue });
+    st().toggleApprove(K.finalDepth);
+    useAppStore.setState({ boreholes: [record(2, [K.finalDepth, { status: 'approved' }])] });
+    st().toggleApprove(K.finalDepth);
+    useAppStore.setState({ boreholes: [record(3, [K.finalDepth, { status: 'flagged', flag: 'x' }])] });
+    st().toggleFlag(K.finalDepth);
+    useAppStore.setState({ boreholes: [record(4, [K.finalDepth, { state: 'illegible', status: 'approved' }])] });
+    st().setState(K.finalDepth, 'illegible');
+    expect(updateValue.mock.calls.map(([, , p]) => p)).toEqual([
+      { status: 'approved' },
+      { status: 'unreviewed' },
+      { status: 'unreviewed', flag: undefined },
+      { state: 'ok', status: 'unreviewed' },
+    ]);
+    await settle();
+  });
+});
+
+describe('init and health', () => {
+  beforeEach(() => {
+    useAppStore.setState({ source: null, health: null, loadState: 'loading', boreholes: [], documents: [] });
+  });
+
+  it('asks health first and keeps its answer (upload limits, providers)', async () => {
+    const calls: string[] = [];
+    const health = makeHealth({ mode: 'demo', providers: { ocr: false, classifier: false, extractor: false, chat: false, geocoder: true } });
+    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc] });
+    const load = current.load;
+    current.health = async () => (calls.push('health'), health);
+    current.load = async () => (calls.push('load'), load());
+    await st().init();
+    await settle();
+    expect(calls).toEqual(['health', 'load']);
+    expect(st().health).toEqual(health);
+    expect(st().health?.providers.chat).toBe(false);
+    expect(st().loadState).toBe('ready');
+  });
+
+  it('a failed health check does not block loading', async () => {
+    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc] }, { health: () => Promise.reject(new Error('down')) });
+    await st().init();
+    await settle();
+    expect(st()).toMatchObject({ loadState: 'ready', health: null });
+    expect(st().boreholes).toHaveLength(1);
+  });
+
+  it('a failed load keeps the error state with its message', async () => {
+    current = fakeSource({ boreholes: [], documents: [] }, { load: () => Promise.reject(new Error('Backend unreachable')) });
+    await st().init();
+    expect(st()).toMatchObject({ loadState: 'error', loadError: 'Backend unreachable' });
+  });
+
+  it('c15: documents still being extracted when the app loads keep updating (live updates after load)', async () => {
+    const extracting = makeDocument({ id: 'doc_TEST_EX', name: 'ex.pdf', status: 'extracting', step: 1, reviewBoreholeUid: null });
+    const later = makeBorehole({ uid: 'bh_TEST_EX_31', id: 'TB-31', documentId: extracting.id });
+    const live = manualLive();
+    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc, extracting] }, { subscribe: live.subscribe });
+    await st().init();
+    expect(live.subscriptions).toHaveLength(1);
+    current.documentBoreholes = async () => [later];
+    live.emit({ type: 'document.updated', document: { ...extracting, project: '', status: 'needs_review', step: 2 } });
+    await vi.waitFor(() => expect(st().documents.find((d) => d.id === extracting.id)?.reviewBoreholeUid).toBe(later.uid));
+    expect(st().documents.find((d) => d.id === extracting.id)?.project).toBe('Test Project (fictional)');
+  });
 });
 
 describe('document updates', () => {
-  it('c2 + c14: the reload after an upload keeps newer local edits and takes the new document’s checks', async () => {
-    const extracted = makeBorehole({ uid: 'up:TB-21', id: 'TB-21', documentId: 'up' });
+  it('c2 + c14: the reload after an upload keeps other boreholes’ local edits and takes the new document’s checks', async () => {
+    const upDoc: DocumentSummary = makeDocument({ id: 'doc_TEST_UP', name: 'up.pdf', status: 'queued', step: 0, reviewBoreholeUid: null, uploaded: true });
+    const extracted = makeBorehole({ uid: 'bh_TEST_UP_21', id: 'TB-21', documentId: upDoc.id });
     const lint = [{ severity: 'warning' as const, boreholeId: 'TB-21', message: 'Gap between layers' }];
-    const upDoc: DocumentSummary = { ...doc, id: 'up', name: 'up.pdf', step: 0, reviewBoreholeUid: null, uploaded: true };
-    let push: (d: DocumentSummary) => void = () => undefined;
-    let answerLoad: (r: Awaited<ReturnType<DataSource['load']>>) => void = () => undefined;
-    await ready(fakeSource({ upload: async (_f, onUpdate) => void (push = onUpdate) }));
-    current.load = () => new Promise((r) => (answerLoad = r));
-    await st().addFiles([new File(['x'], 'up.pdf')]);
-    push(upDoc);
-    push({ ...upDoc, step: 2, completeness: { listed: 1, idPrefix: '', missing: [], unexpected: [], lint: [] } });
-    // The reviewer saves an edit while the reload is on its way; the reload answers with older data.
-    editFinalDepth('6.50');
-    answerLoad({
-      boreholes: [makeBorehole(), extracted],
-      documents: [doc, { ...upDoc, step: 2, completeness: { listed: 1, idPrefix: '', missing: [], unexpected: [], lint } }],
+    let answer: (b: Borehole[]) => void = () => undefined;
+    const live = manualLive();
+    const fake = await ready({
+      upload: () => ({ done: Promise.resolve({ document: upDoc, duplicate: false }), cancel: () => undefined }),
+      subscribe: live.subscribe,
     });
-    await vi.waitFor(() => expect(bh('up:TB-21')).toBeDefined());
+    st().startLive();
+    const push = (d: DocumentSummary) => live.emit({ type: 'document.updated', document: d });
+    fake.documentBoreholes = () => new Promise((r) => (answer = r));
+    fake.getDocument = async () => ({ ...upDoc, step: 2, completeness: { listed: 1, idPrefix: '', missing: [], unexpected: [], lint } });
+    st().addFiles([new File(['x'], 'up.pdf')]);
+    await settle();
+    push(upDoc);
+    push({ ...upDoc, status: 'needs_review', step: 2 });
+    // The reviewer saves an edit of another document's borehole while the reload is on its way.
+    editFinalDepth('6.50');
+    answer([extracted]);
+    await vi.waitFor(() => expect(bh(extracted.uid)).toBeDefined());
     expect(value(K.finalDepth)).toMatchObject({ value: '6.50', method: 'Edited' });
-    expect(st().documents.find((d) => d.id === 'up')).toMatchObject({ reviewBoreholeUid: 'up:TB-21', completeness: { lint } });
+    expect(st().documents.find((d) => d.id === upDoc.id)).toMatchObject({ reviewBoreholeUid: extracted.uid, completeness: { lint } });
   });
 
-  it('c15: documents still being extracted when the app loads keep updating', async () => {
-    const extracting: DocumentSummary = { ...doc, id: 'ex', name: 'ex.pdf', step: 1, reviewBoreholeUid: null };
-    const later = makeBorehole({ uid: 'ex:TB-31', id: 'TB-31', documentId: 'ex' });
-    const watch = vi.fn<NonNullable<DataSource['watch']>>();
-    current = fakeSource({ load: async () => ({ boreholes: [makeBorehole()], documents: [doc, extracting] }), watch });
-    await st().init();
-    expect(watch).toHaveBeenCalledTimes(1);
-    expect(watch.mock.calls[0][0]).toBe('ex');
-    current.load = async () => ({ boreholes: [makeBorehole(), later], documents: [doc, { ...extracting, step: 2 }] });
-    watch.mock.calls[0][1]({ ...extracting, project: '', step: 2 });
-    await vi.waitFor(() => expect(st().documents.find((d) => d.id === 'ex')?.reviewBoreholeUid).toBe('ex:TB-31'));
-    expect(st().documents.find((d) => d.id === 'ex')?.project).toBe('Test Project (fictional)');
+  it('retry re-queues a failed document and follows it again', async () => {
+    const failed = makeDocument({ id: 'doc_TEST_F', name: 'bad.pdf', status: 'failed', step: 1, error: 'OCR timeout' });
+    const follow = vi.fn<DataSource['follow']>();
+    const retry = vi.fn<DataSource['retry']>(async () => undefined);
+    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc, failed] }, { retry, follow });
+    current.getDocument = async () => ({ ...failed, status: 'queued', step: 0, error: null });
+    await readyStore(current, UID);
+    await st().retryDocument(failed.id);
+    expect(retry).toHaveBeenCalledWith(failed.id);
+    expect(st().documents.find((d) => d.id === failed.id)).toMatchObject({ status: 'queued', error: null });
+    expect(follow).toHaveBeenCalledWith(failed.id);
+  });
+
+  it('a refused retry explains itself', async () => {
+    await ready({ retry: () => Promise.reject(new Error('not failed')) });
+    await st().retryDocument(doc.id);
+    expect(st().toast?.text).toBe('Retry failed: not failed');
   });
 });
 
@@ -180,12 +305,12 @@ describe('pages', () => {
       .fn<DataSource['getPage']>()
       .mockRejectedValueOnce(new Error('timeout'))
       .mockImplementation(async (documentId, page) => ({ documentId, page, type: 'log', usage: 'used', label: 'p', items: [] }));
-    await ready(fakeSource({ getPage }));
-    await st().loadPage('doc', 2);
-    expect(st().pages['doc:2']).toEqual({ status: 'error', error: 'timeout' });
-    await st().loadPage('doc', 2);
-    expect(st().pages['doc:2']?.status).toBe('ready');
-    await st().loadPage('doc', 2);
+    await ready({ getPage });
+    await st().loadPage(doc.id, 2);
+    expect(st().pages[`${doc.id}:2`]).toEqual({ status: 'error', error: 'timeout' });
+    await st().loadPage(doc.id, 2);
+    expect(st().pages[`${doc.id}:2`]?.status).toBe('ready');
+    await st().loadPage(doc.id, 2);
     expect(getPage).toHaveBeenCalledTimes(2);
   });
 });
@@ -196,7 +321,7 @@ describe('navigation', () => {
   it('c21: leaving Review drops a hidden edit, so Escape closes the export menu', () => {
     useAppStore.setState({ screen: 'review' });
     st().startEdit(K.finalDepth, 'edit');
-    st().openBorehole('doc:TB-01');
+    st().openBorehole(UID);
     expect(st().editing).toBeNull();
     st().toggleExport();
     st().escape();
@@ -221,32 +346,25 @@ describe('navigation', () => {
     }
     useAppStore.setState({ query: 'tb 01' });
     st().search();
-    expect(st().mapFocus?.uid).toBe('doc:TB-01');
+    expect(st().mapFocus?.uid).toBe(UID);
   });
 });
 
 describe('CRS dialog', () => {
   it('c23: a late confirmation does not close a dialog opened meanwhile', async () => {
     const candidates: CrsCandidate[] = [
-      { name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', note: '', verdict: 'match', points: [{ uid: 'doc:TB-01', lat: 48, lng: 9 }] },
+      { name: 'Fictional grid A', code: 'EPSG:0001', note: null, score: null, verdict: 'match', swapAxes: false, points: [{ uid: UID, lat: 1, lng: 2 }] },
     ];
-    let answer: () => void = () => undefined;
+    let answer: (n: number) => void = () => undefined;
     const b = makeBorehole({ crs: { name: 'guess', code: null, status: 'inferred' } });
     b.values = [...b.values, makeValue({ key: K.crs, value: 'guess', method: 'Guessed', kind: 'crs' })];
-    await ready(
-      fakeSource({
-        load: async () => ({ boreholes: [b], documents: [doc] }),
-        crsCandidates: async () => structuredClone(candidates),
-        confirmCrs: () => new Promise<void>((r) => (answer = r)),
-      }),
-    );
+    await ready({ crsCandidates: async () => structuredClone(candidates), confirmCrs: () => new Promise<number>((r) => (answer = r)) }, [b]);
     await st().openCrsDialog();
     const confirming = st().confirmCrs();
     st().closeCrsDialog();
     await st().openCrsDialog();
-    answer();
+    answer(1);
     await confirming;
     expect(st().crsDialogOpen).toBe(true);
-    expect(bh()?.crs.status).toBe('confirmed');
   });
 });

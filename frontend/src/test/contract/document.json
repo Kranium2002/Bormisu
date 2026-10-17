@@ -1,0 +1,179 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "Document",
+  "example": {
+    "document_id": "doc_01JFICT0000000000000000D1",
+    "file_name": "harbourline_GI_report.pdf",
+    "project": "Harbourline Tunnel (fictional)",
+    "status": "needs_review",
+    "error": null,
+    "mime_type": "application/pdf",
+    "size_bytes": 4812345,
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "page_count": 9,
+    "found": {
+      "boreholes": 2,
+      "layers": 6,
+      "spt": 3,
+      "groundwater": 4
+    },
+    "pages": [
+      {
+        "role": "cover_or_toc",
+        "used": false,
+        "unused_reason": "cover page",
+        "borehole_ids": [],
+        "sheet_label": null,
+        "handwriting": "none",
+        "language": "en",
+        "ocr": "skipped",
+        "duplicate_of": null,
+        "n": 1,
+        "type": "text"
+      },
+      {
+        "role": "narrative",
+        "used": false,
+        "unused_reason": "no borehole data",
+        "borehole_ids": [],
+        "sheet_label": null,
+        "handwriting": "none",
+        "language": "en",
+        "ocr": "skipped",
+        "duplicate_of": null,
+        "n": 2,
+        "type": "text"
+      },
+      {
+        "role": "location_plan",
+        "used": false,
+        "unused_reason": "site plan without coordinates",
+        "borehole_ids": [],
+        "sheet_label": null,
+        "handwriting": "none",
+        "language": "en",
+        "ocr": "failed",
+        "duplicate_of": null,
+        "n": 3,
+        "type": "drawing"
+      },
+      {
+        "role": "log_sheet",
+        "used": true,
+        "unused_reason": null,
+        "borehole_ids": [
+          "HL-01"
+        ],
+        "sheet_label": "SHEET 1 OF 2",
+        "handwriting": "annotations",
+        "language": "en",
+        "ocr": "done",
+        "duplicate_of": null,
+        "n": 4,
+        "type": "log"
+      },
+      {
+        "role": "log_continuation",
+        "used": true,
+        "unused_reason": null,
+        "borehole_ids": [
+          "HL-01"
+        ],
+        "sheet_label": "SHEET 2 OF 2",
+        "handwriting": "none",
+        "language": "en",
+        "ocr": "done",
+        "duplicate_of": null,
+        "n": 5,
+        "type": "log"
+      },
+      {
+        "role": "log_sheet",
+        "used": true,
+        "unused_reason": null,
+        "borehole_ids": [
+          "HL-02"
+        ],
+        "sheet_label": null,
+        "handwriting": "full",
+        "language": "en",
+        "ocr": "done",
+        "duplicate_of": null,
+        "n": 6,
+        "type": "log"
+      },
+      {
+        "role": "lab_results",
+        "used": true,
+        "unused_reason": null,
+        "borehole_ids": [
+          "HL-01"
+        ],
+        "sheet_label": null,
+        "handwriting": "none",
+        "language": "en",
+        "ocr": "done",
+        "duplicate_of": null,
+        "n": 7,
+        "type": "lab_table"
+      },
+      {
+        "role": "duplicate",
+        "used": false,
+        "unused_reason": null,
+        "borehole_ids": [
+          "HL-02"
+        ],
+        "sheet_label": null,
+        "handwriting": "full",
+        "language": "en",
+        "ocr": "skipped",
+        "duplicate_of": {
+          "document_id": "doc_01JFICT0000000000000000D1",
+          "n": 6
+        },
+        "n": 8,
+        "type": "log"
+      },
+      {
+        "role": "photos",
+        "used": false,
+        "unused_reason": "core photographs",
+        "borehole_ids": [],
+        "sheet_label": null,
+        "handwriting": "none",
+        "language": null,
+        "ocr": "pending",
+        "duplicate_of": null,
+        "n": 9,
+        "type": "photo"
+      }
+    ],
+    "completeness": {
+      "expected_ids": [
+        "HL-01",
+        "HL-02",
+        "HL-03"
+      ],
+      "found_ids": [
+        "HL-01",
+        "HL-02"
+      ],
+      "missing": [
+        "HL-03"
+      ],
+      "unexpected": []
+    },
+    "progress": {
+      "pages_total": 9,
+      "pages_classified": 9,
+      "pages_ocr_total": 5,
+      "pages_ocr_done": 5,
+      "boreholes_extracted": 2
+    },
+    "duplicate_of": null,
+    "open_clarifications": 1,
+    "created_at": "2026-10-17T08:00:00Z",
+    "updated_at": "2026-10-17T08:30:00Z"
+  }
+}

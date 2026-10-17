@@ -30,6 +30,34 @@
 .page {
   font-size: 11px;
   color: var(--c-faint);
+  overflow-wrap: anywhere;
+}
+
+/* No provenance entry from the backend: nothing to point at. */
+.pageMissing {
+  color: var(--c-amber-text);
+  font-style: italic;
+}
+
+.noMethod {
+  color: var(--c-faint);
+  cursor: help;
+}
+
+/* Independent readings side by side (handwriting double reads). */
+.readings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.reading {
+  font: 12px var(--font-mono);
+  padding: 1px 6px;
+  border: 1px solid var(--c-border);
+  border-radius: 2px;
+  background: var(--c-bg);
 }
 
 .valueCell {
@@ -178,7 +206,7 @@
 .save {
   cursor: pointer;
   background: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
   border: 0;
   font-size: 11px;
   font-weight: 700;
@@ -274,11 +302,21 @@
 .actApproved:hover {
   background: var(--c-green);
   border-color: var(--c-green);
-  color: #fff;
+  color: var(--c-on-green);
 }
 
 .actFlagged,
 .actFlagged:hover {
   background: var(--c-amber);
   border-color: var(--c-amber);
+}
+
+/* Disabled with a reason (title): e.g. a value without a source reference. */
+.act:disabled,
+.act:disabled:hover,
+.more:disabled,
+.more:disabled:hover {
+  cursor: not-allowed;
+  opacity: 0.4;
+  border-color: var(--c-border);
 }

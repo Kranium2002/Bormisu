@@ -1,0 +1,1145 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "BoreholeRecord",
+  "example": {
+    "uid": "bh_01JFICT00000000000000HL01",
+    "document_id": "doc_01JFICT0000000000000000D1",
+    "source_file": "harbourline_GI_report.pdf",
+    "pages": [
+      4,
+      5
+    ],
+    "revision": 4,
+    "updated_at": "2026-10-17T08:30:00Z",
+    "review_status": "in_review",
+    "crs_status": "stated",
+    "plotted": true,
+    "unplotted_reason": null,
+    "rock_head_m": 9,
+    "metadata": {
+      "borehole_id": "HL-01",
+      "aliases": [
+        "HL 01",
+        "BH1"
+      ],
+      "borehole_name": "North portal borehole 1",
+      "location_name": "Harbourline north portal (fictional)",
+      "country": "New Zealand",
+      "project_id": "HL-2024-07",
+      "project_name": "Harbourline Tunnel (fictional)",
+      "client": "Example Transport Agency (fictional)",
+      "drilling_contractor": null,
+      "drilling_method": "Rotary core, HQ3",
+      "drilling_date": "12/03/2024",
+      "start_date": "2024-03-12",
+      "end_date": null,
+      "surface_elevation_mASL": 12.4,
+      "elevation_datum": "NZVD2016",
+      "depth_origin": "ground",
+      "coordinates": {
+        "latitude": -36.8441,
+        "longitude": 174.7682,
+        "local_x": 1757412.3,
+        "local_y": 5920530.8,
+        "coordinate_system": "NZTM2000",
+        "crs_code": "EPSG:2193",
+        "x_raw": "1757412.3 mE",
+        "y_raw": "5920530.8 mN",
+        "axis_labels_raw": "E, N"
+      },
+      "borehole_depth_m": 15.5,
+      "borehole_depth_source": "printed",
+      "borehole_length_m": 15.6,
+      "inclination_deg": 85,
+      "casing_info": "HW casing to 3.0 m",
+      "notes": "Fictional record for frontend tests."
+    },
+    "stratigraphy": [
+      {
+        "thickness_m": 1.2,
+        "original_description": "FILL: sandy gravel with brick fragments, brown",
+        "english_lithology": "Fill: sandy gravel with brick fragments, brown",
+        "description_language": "en",
+        "din4023_code": "A",
+        "din4023_notation": "A",
+        "uscs_group": "GW",
+        "stratigraphic_name": null,
+        "engineering_soil_unit": null,
+        "geologic_age": null,
+        "colour": "brown",
+        "consistency_density": null,
+        "moisture": "moist",
+        "weathering": null,
+        "is_core": null,
+        "rqd_pct": null,
+        "core_recovery_pct": null,
+        "spt_n_value": null,
+        "spt_raw": null,
+        "spt_refusal": null,
+        "spt_increments": null,
+        "spt_increment_mm": null,
+        "spt_penetration_cm": null,
+        "spt_depth_m": null,
+        "ucs_mpa": null,
+        "depth_from_m": 0,
+        "depth_to_m": 1.2
+      },
+      {
+        "thickness_m": 3.3,
+        "original_description": "Medium GRAVEL, sandy, dense, grey (alluvium)",
+        "english_lithology": "Medium gravel, sandy, dense, grey",
+        "description_language": "en",
+        "din4023_code": "mG",
+        "din4023_notation": "mG, s",
+        "uscs_group": null,
+        "stratigraphic_name": "Alluvial terrace deposits",
+        "engineering_soil_unit": "Unit 2: alluvium",
+        "geologic_age": "Pleistocene",
+        "colour": "grey",
+        "consistency_density": "dense",
+        "moisture": "wet",
+        "weathering": null,
+        "is_core": false,
+        "rqd_pct": null,
+        "core_recovery_pct": null,
+        "spt_n_value": 32,
+        "spt_raw": "8, 14, 18 (N=32)",
+        "spt_refusal": false,
+        "spt_increments": [
+          8,
+          14,
+          18
+        ],
+        "spt_increment_mm": 150,
+        "spt_penetration_cm": null,
+        "spt_depth_m": 3,
+        "ucs_mpa": null,
+        "depth_from_m": 1.2,
+        "depth_to_m": 4.5
+      },
+      {
+        "thickness_m": 4.5,
+        "original_description": "Glacial till: marl, stiff, with cobbles",
+        "english_lithology": "Glacial till (marl), stiff, with cobbles",
+        "description_language": "en",
+        "din4023_code": "Mg",
+        "din4023_notation": "Mg",
+        "uscs_group": null,
+        "stratigraphic_name": null,
+        "engineering_soil_unit": null,
+        "geologic_age": null,
+        "colour": null,
+        "consistency_density": null,
+        "moisture": null,
+        "weathering": null,
+        "is_core": null,
+        "rqd_pct": null,
+        "core_recovery_pct": null,
+        "spt_n_value": null,
+        "spt_raw": "50 for 75 mm",
+        "spt_refusal": true,
+        "spt_increments": [
+          50
+        ],
+        "spt_increment_mm": 75,
+        "spt_penetration_cm": 7.5,
+        "spt_depth_m": 6,
+        "ucs_mpa": null,
+        "depth_from_m": 4.5,
+        "depth_to_m": 9
+      },
+      {
+        "thickness_m": 6.4,
+        "original_description": "SANDSTONE, moderately weathered, weak",
+        "english_lithology": "Sandstone, moderately weathered, weak",
+        "description_language": "en",
+        "din4023_code": "Sst",
+        "din4023_notation": "Sst",
+        "uscs_group": null,
+        "stratigraphic_name": null,
+        "engineering_soil_unit": null,
+        "geologic_age": "Miocene",
+        "colour": null,
+        "consistency_density": null,
+        "moisture": null,
+        "weathering": "moderately weathered",
+        "is_core": true,
+        "rqd_pct": 45,
+        "core_recovery_pct": 88,
+        "spt_n_value": 41,
+        "spt_raw": "N=41",
+        "spt_refusal": null,
+        "spt_increments": null,
+        "spt_increment_mm": null,
+        "spt_penetration_cm": null,
+        "spt_depth_m": null,
+        "ucs_mpa": 12.5,
+        "depth_from_m": 9,
+        "depth_to_m": 15.5
+      }
+    ],
+    "groundwater": [
+      {
+        "type": "strike",
+        "depth_m": 2.1,
+        "elevation_m": null,
+        "date": "2024-03-12",
+        "raw": "Water struck at 2.10 m"
+      },
+      {
+        "type": "rest",
+        "depth_m": 1.6,
+        "elevation_m": null,
+        "date": "2024-03-13",
+        "raw": "Standing level 1.60 m"
+      },
+      {
+        "type": "standpipe",
+        "depth_m": null,
+        "elevation_m": 10.75,
+        "date": "2024-04-01",
+        "raw": "Piezometer RL 10.75"
+      },
+      {
+        "type": "other",
+        "depth_m": null,
+        "elevation_m": null,
+        "date": null,
+        "raw": "Dry on completion of casing"
+      }
+    ],
+    "samples": [
+      {
+        "name": "U1",
+        "type_code": "U100",
+        "depth_from_m": 2,
+        "depth_to_m": 2.45
+      },
+      {
+        "name": "C3",
+        "type_code": "core",
+        "depth_from_m": 10,
+        "depth_to_m": 10.3
+      }
+    ],
+    "test_results": [
+      {
+        "name": "UCS",
+        "value": 12.5,
+        "qualifier": null,
+        "unit": "MPa",
+        "sample_name": "C3",
+        "depth_m": 10.15
+      },
+      {
+        "name": "Watercontent",
+        "value": 18.2,
+        "qualifier": null,
+        "unit": null,
+        "sample_name": "U1",
+        "depth_m": 2.2
+      },
+      {
+        "name": "LiquidLimit",
+        "value": null,
+        "qualifier": "NIL",
+        "unit": "%",
+        "sample_name": "U1",
+        "depth_m": 2.2
+      }
+    ],
+    "provenance": {
+      "metadata.borehole_id": {
+        "page": 4,
+        "box": [
+          0.12,
+          0.08,
+          0.1,
+          0.02
+        ],
+        "raw": "HL-01",
+        "method": "read",
+        "confidence": 0.99,
+        "status": "approved",
+        "state": "ok"
+      },
+      "metadata.borehole_name": {
+        "page": 4,
+        "box": [
+          0.3,
+          0.08,
+          0.25,
+          0.02
+        ],
+        "raw": "North portal borehole 1",
+        "method": "read",
+        "confidence": 0.97,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.project_name": {
+        "page": 4,
+        "box": [
+          0.12,
+          0.05,
+          0.4,
+          0.02
+        ],
+        "raw": "HARBOURLINE TUNNEL",
+        "method": "read",
+        "confidence": 0.98,
+        "status": "approved",
+        "state": "ok"
+      },
+      "metadata.project_id": {
+        "page": 4,
+        "box": [
+          0.6,
+          0.05,
+          0.15,
+          0.02
+        ],
+        "raw": "Job HL-2024-07",
+        "method": "read",
+        "confidence": 0.96,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.location_name": {
+        "page": 4,
+        "box": [
+          0.12,
+          0.11,
+          0.2,
+          0.02
+        ],
+        "raw": "North portal",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.country": {
+        "page": null,
+        "box": null,
+        "raw": null,
+        "method": "guessed",
+        "confidence": 0.6,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.client": {
+        "page": 1,
+        "box": [
+          0.1,
+          0.4,
+          0.5,
+          0.03
+        ],
+        "raw": "Client: Example Transport Agency",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.drilling_contractor": {
+        "page": 4,
+        "box": [
+          0.6,
+          0.11,
+          0.2,
+          0.02
+        ],
+        "raw": "Dr?ll?ng Co",
+        "method": "ocr",
+        "confidence": null,
+        "status": "unreviewed",
+        "state": "illegible"
+      },
+      "metadata.drilling_method": {
+        "page": 4,
+        "box": [
+          0.6,
+          0.08,
+          0.2,
+          0.02
+        ],
+        "raw": "Rotary core HQ3",
+        "method": "read",
+        "confidence": 0.94,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.drilling_date": {
+        "page": 4,
+        "box": [
+          0.8,
+          0.08,
+          0.1,
+          0.02
+        ],
+        "raw": "12/03/2024",
+        "method": "read",
+        "confidence": 0.97,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.start_date": {
+        "page": 4,
+        "box": [
+          0.8,
+          0.08,
+          0.1,
+          0.02
+        ],
+        "raw": "12/03/2024",
+        "method": "derived",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.end_date": {
+        "page": 4,
+        "box": null,
+        "raw": null,
+        "method": "read",
+        "confidence": null,
+        "status": "approved",
+        "state": "not_in_source"
+      },
+      "metadata.borehole_depth_m": {
+        "page": 5,
+        "box": [
+          0.7,
+          0.9,
+          0.1,
+          0.02
+        ],
+        "raw": "15.50 m",
+        "method": "ocr",
+        "confidence": 0.93,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.borehole_length_m": {
+        "page": 4,
+        "box": [
+          0.8,
+          0.11,
+          0.08,
+          0.02
+        ],
+        "raw": "15.6",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.inclination_deg": {
+        "page": 4,
+        "box": [
+          0.8,
+          0.14,
+          0.06,
+          0.02
+        ],
+        "raw": "85°",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.surface_elevation_mASL": {
+        "page": 4,
+        "box": [
+          0.6,
+          0.14,
+          0.1,
+          0.02
+        ],
+        "raw": "RL 12.40",
+        "method": "read",
+        "confidence": 0.96,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.elevation_datum": {
+        "page": 4,
+        "box": [
+          0.7,
+          0.14,
+          0.08,
+          0.02
+        ],
+        "raw": "NZVD2016",
+        "method": "read",
+        "confidence": 0.96,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.depth_origin": {
+        "page": null,
+        "box": null,
+        "raw": null,
+        "method": "derived",
+        "confidence": null,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.coordinates.local_x": {
+        "page": 4,
+        "box": [
+          0.12,
+          0.14,
+          0.12,
+          0.02
+        ],
+        "raw": "1757412.3 mE",
+        "method": "read",
+        "confidence": 0.98,
+        "status": "approved",
+        "state": "ok"
+      },
+      "metadata.coordinates.local_y": {
+        "page": 4,
+        "box": [
+          0.3,
+          0.14,
+          0.12,
+          0.02
+        ],
+        "raw": "5920530.8 mN",
+        "method": "read",
+        "confidence": 0.98,
+        "status": "approved",
+        "state": "ok"
+      },
+      "metadata.coordinates.coordinate_system": {
+        "page": 4,
+        "box": [
+          0.45,
+          0.14,
+          0.1,
+          0.02
+        ],
+        "raw": "NZTM2000",
+        "method": "read",
+        "confidence": 0.97,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "metadata.casing_info": {
+        "page": 4,
+        "box": [
+          0.6,
+          0.2,
+          0.2,
+          0.03
+        ],
+        "raw": "HW csg to 3.0m",
+        "method": "ocr",
+        "confidence": 0.71,
+        "status": "unreviewed",
+        "state": "ok",
+        "readings": [
+          {
+            "reader": "ocr",
+            "text": "HW casing to 3.0 m",
+            "confidence": 0.71
+          },
+          {
+            "reader": "vision",
+            "text": "HW casing to 8.0 m",
+            "confidence": 0.64
+          }
+        ]
+      },
+      "metadata.notes": {
+        "page": 5,
+        "box": [
+          0.1,
+          0.95,
+          0.4,
+          0.02
+        ],
+        "raw": "Fictional record for frontend tests.",
+        "method": "read",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "rock_head_m": {
+        "page": 5,
+        "box": [
+          0.1,
+          0.3,
+          0.5,
+          0.04
+        ],
+        "raw": "SANDSTONE from 9.00 m",
+        "method": "derived",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok",
+        "ai_value": 9
+      },
+      "stratigraphy[0].depth_to_m": {
+        "page": 4,
+        "box": [
+          0.05,
+          0.3,
+          0.06,
+          0.02
+        ],
+        "raw": "1.20",
+        "method": "read",
+        "confidence": 0.98,
+        "status": "approved",
+        "state": "ok"
+      },
+      "stratigraphy[0].english_lithology": {
+        "page": 4,
+        "box": [
+          0.15,
+          0.3,
+          0.4,
+          0.04
+        ],
+        "raw": "FILL: sandy gravel with brick fragments, brown",
+        "method": "read",
+        "confidence": 0.97,
+        "status": "approved",
+        "state": "ok"
+      },
+      "stratigraphy[0].uscs_group": {
+        "page": 4,
+        "box": [
+          0.56,
+          0.3,
+          0.04,
+          0.02
+        ],
+        "raw": "GW",
+        "method": "read",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[0].colour": {
+        "page": 4,
+        "box": [
+          0.15,
+          0.32,
+          0.1,
+          0.02
+        ],
+        "raw": "brown",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[0].moisture": {
+        "page": 4,
+        "box": [
+          0.26,
+          0.32,
+          0.1,
+          0.02
+        ],
+        "raw": "moist",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].depth_to_m": {
+        "page": 4,
+        "box": [
+          0.05,
+          0.4,
+          0.06,
+          0.02
+        ],
+        "raw": "4.50",
+        "method": "read",
+        "confidence": 0.98,
+        "status": "approved",
+        "state": "ok"
+      },
+      "stratigraphy[1].english_lithology": {
+        "page": 4,
+        "box": [
+          0.15,
+          0.4,
+          0.4,
+          0.04
+        ],
+        "raw": "Medium GRAVEL, sandy, dense, grey (alluvium)",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "flagged",
+        "state": "ok",
+        "flag": "Colour unclear on the scan"
+      },
+      "stratigraphy[1].stratigraphic_name": {
+        "page": 4,
+        "box": [
+          0.15,
+          0.44,
+          0.3,
+          0.02
+        ],
+        "raw": "alluvium",
+        "method": "read",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].engineering_soil_unit": {
+        "page": 4,
+        "box": [
+          0.46,
+          0.44,
+          0.1,
+          0.02
+        ],
+        "raw": "Unit 2",
+        "method": "read",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].geologic_age": {
+        "page": null,
+        "box": null,
+        "raw": null,
+        "method": "guessed",
+        "confidence": 0.55,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].colour": {
+        "page": 4,
+        "box": [
+          0.15,
+          0.42,
+          0.1,
+          0.02
+        ],
+        "raw": "grey",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].consistency_density": {
+        "page": 4,
+        "box": [
+          0.26,
+          0.42,
+          0.1,
+          0.02
+        ],
+        "raw": "dense",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].moisture": {
+        "page": 4,
+        "box": [
+          0.37,
+          0.42,
+          0.1,
+          0.02
+        ],
+        "raw": "wet",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].is_core": {
+        "page": 4,
+        "box": null,
+        "raw": null,
+        "method": "derived",
+        "confidence": null,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[1].spt_n_value": {
+        "page": 4,
+        "box": [
+          0.62,
+          0.4,
+          0.12,
+          0.02
+        ],
+        "raw": "8, 14, 18 (N=32)",
+        "method": "edited",
+        "confidence": null,
+        "status": "approved",
+        "state": "ok",
+        "ai_value": 23
+      },
+      "stratigraphy[2].depth_to_m": {
+        "page": 5,
+        "box": [
+          0.05,
+          0.15,
+          0.06,
+          0.02
+        ],
+        "raw": "9.00",
+        "method": "ocr",
+        "confidence": 0.88,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[2].english_lithology": {
+        "page": 5,
+        "box": [
+          0.15,
+          0.1,
+          0.4,
+          0.04
+        ],
+        "raw": "Glacial till: marl, stiff, with cobbles",
+        "method": "ocr",
+        "confidence": null,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[2].spt_raw": {
+        "page": 5,
+        "box": [
+          0.62,
+          0.12,
+          0.12,
+          0.02
+        ],
+        "raw": "50 for 75 mm",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].depth_to_m": {
+        "page": 5,
+        "box": [
+          0.05,
+          0.5,
+          0.06,
+          0.02
+        ],
+        "raw": "15.50",
+        "method": "ocr",
+        "confidence": 0.91,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].english_lithology": {
+        "page": 5,
+        "box": [
+          0.15,
+          0.3,
+          0.4,
+          0.04
+        ],
+        "raw": "SANDSTONE, moderately weathered, weak",
+        "method": "ocr",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].geologic_age": {
+        "page": null,
+        "box": null,
+        "raw": null,
+        "method": "guessed",
+        "confidence": 0.5,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].weathering": {
+        "page": 5,
+        "box": [
+          0.15,
+          0.34,
+          0.2,
+          0.02
+        ],
+        "raw": "mod. weathered",
+        "method": "ocr",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].is_core": {
+        "page": 5,
+        "box": null,
+        "raw": null,
+        "method": "derived",
+        "confidence": null,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].rqd_pct": {
+        "page": 5,
+        "box": [
+          0.8,
+          0.3,
+          0.08,
+          0.02
+        ],
+        "raw": "RQD 45",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].core_recovery_pct": {
+        "page": 5,
+        "box": [
+          0.8,
+          0.33,
+          0.08,
+          0.02
+        ],
+        "raw": "TCR 88",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].ucs_mpa": {
+        "page": 5,
+        "box": [
+          0.8,
+          0.36,
+          0.1,
+          0.02
+        ],
+        "raw": "UCS 12.5 MPa",
+        "method": "read",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "stratigraphy[3].spt_n_value": {
+        "page": 5,
+        "box": [
+          0.62,
+          0.3,
+          0.08,
+          0.02
+        ],
+        "raw": "N=41",
+        "method": "ocr",
+        "confidence": 0.92,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "groundwater[0].depth_m": {
+        "page": 4,
+        "box": [
+          0.8,
+          0.42,
+          0.15,
+          0.02
+        ],
+        "raw": "Water struck at 2.10 m",
+        "method": "read",
+        "confidence": 0.96,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "groundwater[1].depth_m": {
+        "page": 4,
+        "box": [
+          0.8,
+          0.45,
+          0.15,
+          0.02
+        ],
+        "raw": "Standing level 1.60 m",
+        "method": "read",
+        "confidence": 0.96,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "groundwater[2].elevation_m": {
+        "page": 7,
+        "box": [
+          0.1,
+          0.8,
+          0.2,
+          0.02
+        ],
+        "raw": "Piezometer RL 10.75",
+        "method": "read",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "samples[0].name": {
+        "page": 4,
+        "box": [
+          0.9,
+          0.42,
+          0.04,
+          0.02
+        ],
+        "raw": "U1",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "samples[0].depth_from_m": {
+        "page": 4,
+        "box": [
+          0.9,
+          0.44,
+          0.08,
+          0.02
+        ],
+        "raw": "2.00-2.45",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "samples[0].depth_to_m": {
+        "page": 4,
+        "box": [
+          0.9,
+          0.44,
+          0.08,
+          0.02
+        ],
+        "raw": "2.00-2.45",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "samples[1].name": {
+        "page": 5,
+        "box": [
+          0.9,
+          0.35,
+          0.04,
+          0.02
+        ],
+        "raw": "C3",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "samples[1].depth_from_m": {
+        "page": 5,
+        "box": [
+          0.9,
+          0.37,
+          0.08,
+          0.02
+        ],
+        "raw": "10.00-10.30",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "samples[1].depth_to_m": {
+        "page": 5,
+        "box": [
+          0.9,
+          0.37,
+          0.08,
+          0.02
+        ],
+        "raw": "10.00-10.30",
+        "method": "read",
+        "confidence": 0.95,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "test_results[0].value": {
+        "page": null,
+        "box": null,
+        "raw": "12.5",
+        "method": "read",
+        "confidence": 0.99,
+        "status": "unreviewed",
+        "state": "ok",
+        "cell": "Lab!D7"
+      },
+      "test_results[1].value": {
+        "page": 7,
+        "box": [
+          0.5,
+          0.3,
+          0.08,
+          0.02
+        ],
+        "raw": "18.2 %",
+        "method": "ocr",
+        "confidence": 0.94,
+        "status": "unreviewed",
+        "state": "ok"
+      },
+      "test_results[2].value": {
+        "page": 7,
+        "box": [
+          0.6,
+          0.3,
+          0.06,
+          0.02
+        ],
+        "raw": "NIL",
+        "method": "read",
+        "confidence": 0.9,
+        "status": "unreviewed",
+        "state": "ok"
+      }
+    },
+    "lint": [
+      {
+        "path": "metadata.borehole_depth_m",
+        "rule": "depth_vs_length",
+        "severity": "warning",
+        "message": "Final depth 15.50 m and borehole length 15.60 m differ (inclined hole)"
+      },
+      {
+        "path": "stratigraphy[2].depth_from_m",
+        "rule": "layer_boundary",
+        "severity": "warning",
+        "message": "Boundary at 4.50 m printed twice"
+      },
+      {
+        "path": "stratigraphy[3].thickness_m",
+        "rule": "thickness",
+        "severity": "error",
+        "message": "Thickness 6.40 m differs from 15.50 - 9.00"
+      },
+      {
+        "path": "groundwater[2].depth_m",
+        "rule": "gw_depth_missing",
+        "severity": "warning",
+        "message": "Standpipe reading gives an elevation only"
+      },
+      {
+        "path": "test_results[0].value",
+        "rule": "ucs_range",
+        "severity": "error",
+        "message": "UCS 12.5 MPa is high for a weak sandstone"
+      }
+    ],
+    "open_clarifications": 0
+  }
+}

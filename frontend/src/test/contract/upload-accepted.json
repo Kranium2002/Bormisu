@@ -1,0 +1,9 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "UploadAccepted",
+  "example": {
+    "document_id": "doc_01JFICT0000000000000000D5",
+    "status": "queued",
+    "duplicate_of": null
+  }
+}

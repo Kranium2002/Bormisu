@@ -1,9 +1,10 @@
 /**
  * Pure view logic of the Upload & queue screen (prototype `renderVals` docs mapping):
- * status steps, card hint, count chips, page-strip tooltips. No React, unit-tested.
+ * status steps, card hint, count chips, progress bars, page-strip tooltips. No React, unit-tested.
  */
-import type { DocumentStep, DocumentSummary, PageType } from '../../domain/types';
-import { PAGE_TYPE_META, pageUsage } from '../../theme';
+import { pageUsageText, PAGE_ROLE_LABELS } from '../../domain/pages';
+import type { DocumentPage, DocumentProgress, DocumentStep, DocumentSummary } from '../../domain/types';
+import { pageMeta } from '../../theme';
 
 export const STEP_LABELS = ['classifying', 'extracting', 'needs review', 'done'] as const;
 
@@ -41,8 +42,18 @@ export function canOpenReview(d: DocumentSummary): boolean {
 export type HintTone = 'action' | 'muted' | 'error';
 export interface HintView { text: string; tone: HintTone }
 
-/** Bottom-right hint of a card, in the prototype's order of precedence (failures first). */
-export function docHint(d: DocumentSummary): HintView | null {
+/** A failure the server reported for a document (live event job.failed): the stage as the server names it. */
+export interface JobFailure { stage: string; detail: string; retryable: boolean }
+
+/** Why RETRY is off for a failure the server says retrying cannot fix. */
+export const NOT_RETRYABLE = 'The server reports that retrying cannot fix this failure';
+
+/**
+ * Bottom-right hint of a card, in the prototype's order of precedence (failures first). A failure
+ * reported live names its stage and the server's detail.
+ */
+export function docHint(d: DocumentSummary, failure: JobFailure | null = null): HintView | null {
+  if (failure) return { text: `Extraction failed at ${failure.stage}: ${failure.detail}`, tone: 'error' };
   if (d.error) return { text: `Extraction failed: ${d.error}`, tone: 'error' };
   if (canOpenReview(d)) return { text: 'OPEN REVIEW ›', tone: 'action' };
   if (d.step === 3) return { text: 'All boreholes reviewed', tone: 'muted' };
@@ -51,9 +62,9 @@ export function docHint(d: DocumentSummary): HintView | null {
   return null;
 }
 
-/** "24 pages · Stadtbahn Neckarbogen". Parts the backend has not delivered yet are left out. */
+/** "24 pages · Project name". Parts the backend has not delivered yet are left out. */
 export function docMeta(d: DocumentSummary): string {
-  const n = d.pageTypes.length;
+  const n = d.pages.length;
   const parts = [n ? `${n} ${n === 1 ? 'page' : 'pages'}` : '', d.project].filter(Boolean);
   if (parts.length) return parts.join(' · ');
   return d.uploaded ? 'Uploaded, waiting for page count' : '';
@@ -73,13 +84,81 @@ export function countChips(counts: DocumentSummary['counts']): CountChip[] | nul
   ];
 }
 
-/** Page-strip tooltip, e.g. "p.7 · log · used: borehole log". `page` is 1-based. */
-export function pageTitle(type: PageType, page: number): string {
-  if (type === 'unknown') return `p.${page} · ${PAGE_TYPE_META.unknown.name}`;
-  return `p.${page} · ${PAGE_TYPE_META[type].name} · ${pageUsage(type, page)}`;
+export interface ProgressBar { label: string; done: number; total: number; pct: number }
+export interface ProgressView { bars: ProgressBar[]; boreholes: string }
+
+/**
+ * Progress of a document the backend works on: bars for classified pages and OCR (only when there
+ * are pages to OCR) and the count of extracted boreholes.
+ */
+export function progressView(p: DocumentProgress): ProgressView {
+  const bar = (label: string, done: number, total: number): ProgressBar => ({
+    label,
+    done,
+    total,
+    pct: total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0,
+  });
+  const bars = [bar('pages classified', p.pagesClassified, p.pagesTotal)];
+  if (p.pagesOcrTotal > 0) bars.push(bar('OCR', p.pagesOcrDone, p.pagesOcrTotal));
+  const n = p.boreholesExtracted;
+  return { bars, boreholes: `${n} borehole${n === 1 ? '' : 's'} extracted` };
+}
+
+/**
+ * "Same file as <name>" for a duplicate upload, or a neutral text when the earlier document isn't
+ * listed. The backend answers a duplicate upload with the existing document itself (document_id ==
+ * duplicate_of): that card says it was uploaded again instead of pointing at itself.
+ */
+export function duplicateText(d: DocumentSummary, all: DocumentSummary[]): string | null {
+  if (d.uploadedAgain || isSelfDuplicate(d)) return 'Already uploaded: same bytes as this document';
+  if (!d.duplicateOf) return null;
+  const original = all.find((x) => x.id === d.duplicateOf);
+  return original ? `Same file as ${original.name}` : 'Same file as an earlier upload';
+}
+
+/** True when a duplicate answer names the document itself (the bytes were uploaded before as this document). */
+export function isSelfDuplicate(d: Pick<DocumentSummary, 'id' | 'duplicateOf'>): boolean {
+  return d.duplicateOf === d.id;
+}
+
+/** "3 open questions" badge text, or null when none are open. */
+export function questionsText(d: DocumentSummary): string | null {
+  const n = d.openClarifications;
+  return n > 0 ? `${n} open question${n === 1 ? '' : 's'}` : null;
+}
+
+/**
+ * Page-strip tooltip, e.g. "p.7 · log · used: log sheet · sheet 2 · OCR done · handwriting: partial".
+ * Only what the backend reported; an unclassified page says so.
+ */
+export function pageTitle(p: DocumentPage, documentId: string): string {
+  const usage = pageUsageText(p);
+  if (!p.classified) return `p.${p.n} · ${usage}`;
+  const name = pageMeta(p).name;
+  const role = p.role ? PAGE_ROLE_LABELS[p.role] : '';
+  // The usage text names the duplicated page; say when that page is in another document.
+  const elsewhere = p.duplicateOf && p.duplicateOf.documentId !== documentId ? `page ${p.duplicateOf.n} of another document` : '';
+  return [
+    `p.${p.n}`,
+    name,
+    usage,
+    // A classified page without a type is named by its role already.
+    role && role !== name && !usage.includes(role) ? `role: ${role}` : '',
+    p.sheetLabel ? `sheet ${p.sheetLabel}` : '',
+    p.ocr ? `OCR ${p.ocr}` : '',
+    p.handwriting && p.handwriting !== 'none' ? `handwriting: ${p.handwriting}` : '',
+    elsewhere,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /** Pages that are not classified yet can't be opened in the Source panel. */
-export function canOpenPage(type: PageType): boolean {
-  return type !== 'unknown';
+export function canOpenPage(p: DocumentPage): boolean {
+  return p.classified;
+}
+
+/** Alt text of a page thumbnail: its number and type, e.g. "Page 3, log". */
+export function thumbnailAlt(p: DocumentPage): string {
+  return `Page ${p.n}, ${pageMeta(p).name}`;
 }

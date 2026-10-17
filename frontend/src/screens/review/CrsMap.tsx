@@ -8,7 +8,8 @@ import { siteCentre } from './reviewView';
 
 /** Radius of the dashed "site per report text" circle, metres (prototype: 9 km). */
 const SITE_RADIUS_M = 9000;
-const GERMANY: L.LatLngTuple = [51.1, 10.4];
+/** View before the candidates arrive: the whole world (the candidates' bounds replace it). */
+const WORLD: L.LatLngTuple = [20, 0];
 
 interface Props {
   candidates: CrsCandidate[];
@@ -17,10 +18,17 @@ interface Props {
   labels: Record<string, string>;
 }
 
+/** Pin colour by the backend's verdict: green = match, red = shifted, grey = no verdict. */
+function pinFill(c: CrsCandidate): string {
+  if (c.verdict === 'match') return COL.green;
+  if (c.verdict === 'shifted') return COL.red;
+  return COL.grey;
+}
+
 /**
- * Leaflet map of the CRS dialog: the picked candidate's pins (green = match, red = shifted) and the
- * dashed site circle at the centroid of the matching candidate. The view covers every candidate,
- * so switching candidates shows the pins jump.
+ * Leaflet map of the CRS dialog: the picked candidate's pins (coloured by verdict) and the dashed
+ * site circle at the centroid of the matching candidate. The view covers every candidate, so
+ * switching candidates shows the pins jump.
  */
 export function CrsMap({ candidates, pick, labels }: Props) {
   const el = useRef<HTMLDivElement>(null);
@@ -29,7 +37,7 @@ export function CrsMap({ candidates, pick, labels }: Props) {
 
   useEffect(() => {
     if (!el.current) return;
-    const m = L.map(el.current, { zoomControl: true, attributionControl: false }).setView(GERMANY, 6);
+    const m = L.map(el.current, { zoomControl: true, attributionControl: false }).setView(WORLD, 2);
     compactAttribution().addTo(m);
     osmTileLayer().addTo(m);
     layer.current = L.layerGroup().addTo(m);
@@ -59,7 +67,7 @@ export function CrsMap({ candidates, pick, labels }: Props) {
     g.clearLayers();
     const c = candidates[pick];
     if (!c || c.verdict === 'out_of_range') return;
-    const fill = c.verdict === 'match' ? COL.green : COL.red;
+    const fill = pinFill(c);
     for (const p of c.points) {
       L.circleMarker([p.lat, p.lng], { radius: 6, color: '#fff', weight: 2, fillColor: fill, fillOpacity: 1 })
         .bindTooltip(labels[p.uid] ?? p.uid, { direction: 'top', offset: [0, -6] })

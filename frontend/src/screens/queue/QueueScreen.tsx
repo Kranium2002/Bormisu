@@ -1,23 +1,30 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LiveStatus } from '../../components/LiveStatus';
 import { useAppStore } from '../../store/appStore';
-import { PAGE_TYPE_LEGEND, PAGE_TYPE_META } from '../../theme';
+import { retryBlockedReason } from '../../store/uploads';
+import { PAGE_LEGEND } from '../../theme';
 import { DocumentCard } from './DocumentCard';
 import { DropZone } from './DropZone';
+import type { ThumbnailUrl } from './PageStrip';
 import styles from './QueueScreen.module.css';
+import { UploadList } from './UploadList';
 
-/** Page-type colour key for the page strips (log, lab table, text, drawing, photo). */
+/** How long a card stays highlighted after a "Same file as …" or SHOW DOCUMENT link pointed at it. */
+const HIGHLIGHT_MS = 2000;
+
+/**
+ * Page-type colour key for the page strips: log, lab table, text, drawing, photo, a classified page
+ * without a type, and a page not classified yet.
+ */
 function PageTypeLegend() {
   return (
     <ul className={styles.legend} aria-label="Page types">
-      {PAGE_TYPE_LEGEND.map((t) => {
-        const m = PAGE_TYPE_META[t];
-        return (
-          <li key={t} className={styles.legendItem}>
-            <span className={styles.swatch} style={{ background: m.color, borderColor: m.border }} aria-hidden="true" />
-            {m.name}
-          </li>
-        );
-      })}
+      {PAGE_LEGEND.map((m) => (
+        <li key={m.name} className={styles.legendItem}>
+          <span className={styles.swatch} style={{ background: m.color, borderColor: m.border }} aria-hidden="true" />
+          {m.name}
+        </li>
+      ))}
     </ul>
   );
 }
@@ -42,19 +49,50 @@ function useRefuseStrayDrops() {
   }, []);
 }
 
-/** Upload & queue: drop zone plus one card per document with status, checks, counts and page map. */
+/** Smooth scrolling unless the user asked for reduced motion. */
+const scrollBehavior = (): ScrollBehavior =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
+/**
+ * Upload & queue: the live-update status, the drop zone with the project field, the upload queue,
+ * and one card per document with status, progress, checks, counts and page map.
+ */
 export function QueueScreen() {
   const documents = useAppStore((s) => s.documents);
+  const liveStatus = useAppStore((s) => s.liveStatus);
+  const jobFailures = useAppStore((s) => s.jobFailures);
+  const source = useAppStore((s) => s.source);
+  const thumbnailUrl = useMemo<ThumbnailUrl | null>(() => (source ? (id, n) => source.thumbnailUrl(id, n) : null), [source]);
+  // RETRY needs a working extraction: off in demo mode, with the reason.
+  const retryBlocked = useAppStore((s) => retryBlockedReason(s.health));
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useRefuseStrayDrops();
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  /** Scrolls to a document's card, moves focus to it and highlights it for a moment. */
+  const showDocument = useCallback((id: string) => {
+    const card = document.querySelector<HTMLElement>(`[data-doc-id="${CSS.escape(id)}"]`);
+    card?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+    card?.focus({ preventScroll: true });
+    setHighlight(id);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setHighlight(null), HIGHLIGHT_MS);
+  }, []);
 
   return (
     <div className={styles.scroll} data-screen-label="Upload & queue">
       <div className={styles.page}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>UPLOAD &amp; QUEUE</h1>
+          <div className={styles.titleGroup}>
+            <h1 className={styles.title}>UPLOAD &amp; QUEUE</h1>
+            <LiveStatus status={liveStatus} />
+          </div>
           <PageTypeLegend />
         </div>
         <DropZone />
+        <UploadList onShowDocument={showDocument} />
         <div className={styles.columns} aria-hidden="true">
           <div>DOCUMENT</div>
           <div>STATUS</div>
@@ -62,7 +100,17 @@ export function QueueScreen() {
         </div>
         <section className={styles.list} aria-label="Document queue">
           {documents.length ? (
-            documents.map((d) => <DocumentCard key={d.id} doc={d} />)
+            documents.map((d) => (
+              <DocumentCard
+                key={d.id}
+                doc={d}
+                highlighted={highlight === d.id}
+                retryBlocked={retryBlocked}
+                failure={jobFailures[d.id] ?? null}
+                thumbnailUrl={thumbnailUrl}
+                onShowDocument={showDocument}
+              />
+            ))
           ) : (
             <div className={styles.empty}>No documents yet. Drop a report above to extract its boreholes.</div>
           )}

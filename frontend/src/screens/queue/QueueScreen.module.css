@@ -24,6 +24,13 @@
   gap: 20px;
 }
 
+.titleGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .title {
   margin: 0;
   font-weight: 900;

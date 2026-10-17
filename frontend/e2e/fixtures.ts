@@ -1,5 +1,5 @@
 /**
- * Shared Playwright fixtures for the sample-mode smoke tests:
+ * Shared Playwright fixtures for the sample-mode smoke tests (fictional sample data only):
  * - OSM tiles are answered with a blank PNG, so the tests run offline and fast.
  * - Console errors and page errors are collected and must be empty at the end of every test.
  */
@@ -10,6 +10,9 @@ const BLANK_TILE = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC',
   'base64',
 );
+
+/** The product name the app shows (VITE_APP_NAME, default as in src/config.ts). */
+export const APP_NAME = process.env.VITE_APP_NAME?.trim() || 'Bormisu';
 
 export const test = base.extend<{ errors: string[] }>({
   errors: [
@@ -38,10 +41,42 @@ export async function openApp(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
 }
 
+/** Opens a URL of the app (deep link) and waits until the data is loaded, whatever screen it shows. */
+export async function openUrl(page: Page, url: string): Promise<void> {
+  await page.goto(url);
+  await loaded(page);
+}
+
+/** Waits until the header is there and the loading state is gone (after goto, reload or Back). */
+export async function loaded(page: Page): Promise<void> {
+  await expect(mainNav(page)).toBeVisible();
+  await expect(page.getByText('Loading boreholes and documents…')).toHaveCount(0);
+}
+
+/** The header's main navigation. */
+export const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main' });
+
+/** A link of the header nav (MAP, UPLOAD & QUEUE with its badge, REVIEW). */
+export const navLink = (page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW') =>
+  mainNav(page).getByRole('link', { name: new RegExp(`^${name}`) });
+
 /** Goes to one of the three main screens through the header nav. */
 export async function nav(page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: new RegExp(`^${name}`) }).click();
+  await navLink(page, name).click();
 }
+
+/** The opaque uid of a borehole, read from its RESULTS row on the map screen. */
+export async function uidOf(page: Page, id: string): Promise<string> {
+  const uid = await resultRow(page, id).getAttribute('data-uid');
+  expect(uid, `uid of ${id}`).toBeTruthy();
+  return uid as string;
+}
+
+/** The path and query of the page's URL, decoded (e.g. "/boreholes/nb:BK-07?layer=3"). */
+export const pathOf = (page: Page) => {
+  const u = new URL(page.url());
+  return decodeURIComponent(u.pathname + u.search);
+};
 
 /** The map's circle markers (Leaflet SVG paths). */
 export const pins = (page: Page) => page.locator('.leaflet-overlay-pane path.leaflet-interactive');
@@ -51,6 +86,17 @@ export const pinFills = (page: Page) => pins(page).evaluateAll((ps) => ps.map((p
 
 export const AMBER = '#E39B00';
 
-/** The count shown in one row of the REVIEW STATUS legend. */
-export const legendCount = (page: Page, status: 'reviewed' | 'unreviewed' | 'attention') =>
+export type LegendStatus = 'approved' | 'in_review' | 'unreviewed' | 'attention';
+
+/** The count shown in one row of the status legend. */
+export const legendCount = (page: Page, status: LegendStatus) =>
   page.getByRole('group', { name: 'Review status legend' }).locator(`li[data-status="${status}"] span`).last();
+
+/** The count of one legend row as a number. */
+export async function legendNumber(page: Page, status: LegendStatus): Promise<number> {
+  return Number(await legendCount(page, status).textContent());
+}
+
+/** A RESULTS row by its borehole ID as printed (uids are opaque). */
+export const resultRow = (page: Page, id: string) =>
+  page.locator('[role="table"] [role="row"][data-uid]').filter({ has: page.getByText(id, { exact: true }) }).first();

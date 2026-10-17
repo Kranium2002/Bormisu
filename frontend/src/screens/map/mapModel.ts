@@ -2,23 +2,26 @@
  * Pure presentation logic of the Map screen: which boreholes are plotted, legend counts,
  * the CRS column text, the NOT ON MAP reasons and the RESULTS summary line. Unit-tested.
  */
-import { metres } from '../../domain/format';
-import { boreholeStatus } from '../../domain/review';
+import { crsLabel, metres, unplottedText } from '../../domain/format';
+import { displayStatus } from '../../domain/status';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
 import { pinColor } from '../../theme';
 
-/** Initial map view: Germany, as in the prototype. */
-export const GERMANY_BOUNDS: [[number, number], [number, number]] = [
-  [47.3, 5.9],
-  [55.0, 15.0],
+type Bounds = [[number, number], [number, number]];
+
+/** The whole inhabited world: the first view before anything is plotted. No country is preferred. */
+export const WORLD_BOUNDS: Bounds = [
+  [-60, -180],
+  [75, 180],
 ];
-/** Fallback centre when the map container has no size yet (fitBounds needs one). */
-export const GERMANY_CENTER: [number, number] = [51.2, 10.45];
+/** Fallback centre and zoom when the map container has no size yet (fitBounds needs one). */
+export const WORLD_CENTER: [number, number] = [20, 0];
+export const WORLD_ZOOM = 2;
 
 /** Pin radius: the borehole open in Review is drawn larger, every other pin is 6 px. */
 export const PIN_RADIUS = { highlight: 8, normal: 6 } as const;
 
-/** A borehole the map can place: flagged as plottable and with both coordinates. */
+/** A borehole the map can place: the server says it is plotted and both coordinates are known. */
 export type PlottedBorehole = Borehole & { lat: number; lng: number };
 
 /** True if the borehole is drawn on the map. `onMap` alone isn't enough: a pin needs both coordinates. */
@@ -26,9 +29,9 @@ export function isPlotted(b: Borehole): b is PlottedBorehole {
   return b.onMap && b.lat != null && b.lng != null && Number.isFinite(b.lat) && Number.isFinite(b.lng);
 }
 
-/** Review status per borehole uid, computed once per data change. */
+/** Display status per borehole uid (displayStatus: attention wins over the server's review status). */
 export function statusByUid(boreholes: Borehole[]): Map<string, BoreholeStatus> {
-  return new Map(boreholes.map((b) => [b.uid, boreholeStatus(b)]));
+  return new Map(boreholes.map((b) => [b.uid, displayStatus(b)]));
 }
 
 export interface LegendEntry {
@@ -39,48 +42,41 @@ export interface LegendEntry {
 }
 
 const LEGEND_ORDER: { status: BoreholeStatus; label: string }[] = [
-  { status: 'reviewed', label: 'Reviewed' },
+  { status: 'approved', label: 'Approved' },
+  { status: 'in_review', label: 'In review' },
   { status: 'unreviewed', label: 'Unreviewed' },
-  { status: 'attention', label: 'Needs attention / CRS inferred' },
+  { status: 'attention', label: 'Needs attention' },
 ];
 
-/** REVIEW STATUS legend: one entry per pin colour, counting only the boreholes drawn on the map. */
+/** STATUS legend: one entry per status with its pin colour, counting only the boreholes drawn on the map. */
 export function legendEntries(boreholes: Borehole[], statuses: Map<string, BoreholeStatus>): LegendEntry[] {
-  const counts: Record<BoreholeStatus, number> = { reviewed: 0, unreviewed: 0, attention: 0 };
+  const counts: Record<BoreholeStatus, number> = { approved: 0, in_review: 0, unreviewed: 0, attention: 0 };
   for (const b of boreholes) {
-    if (isPlotted(b)) counts[statuses.get(b.uid) ?? boreholeStatus(b)] += 1;
+    if (isPlotted(b)) counts[statuses.get(b.uid) ?? displayStatus(b)] += 1;
   }
   return LEGEND_ORDER.map(({ status, label }) => ({ status, label, color: pinColor(status), count: counts[status] }));
-}
-
-/**
- * Short CRS name for the RESULTS table:
- * "DHDN / 3-degree Gauss-Krüger zone 3" and "DHDN / GK zone 3" → "DHDN / GK3",
- * "ETRS89 / UTM zone 32N" → "ETRS89 / UTM32N". Unknown patterns are returned unchanged.
- */
-export function shortCrsName(name: string): string {
-  return name
-    .replace(/(?:3-degree\s+)?(?:Gauss[-\s]?Kr(?:ü|ue|u)ger|GK)\s+zone\s+(\d+)/i, 'GK$1')
-    .replace(/UTM\s+zone\s+(\d+\s*[NS])/i, (_, z: string) => `UTM${z.replace(/\s+/g, '')}`);
 }
 
 export interface CrsCell {
   text: string;
   /** Amber text: the CRS is inferred or unknown, so the pin position is not confirmed. */
   warn: boolean;
-  /** Full name and EPSG code, shown on hover. */
+  /** Full label and EPSG code, shown on hover. */
   title: string;
 }
 
-/** CRS column of the RESULTS table: "inferred · DHDN / GK3", "confirmed · …", "stated" or "unknown". */
+/**
+ * CRS column of the RESULTS table with the backend's label: "inferred · <label>", "confirmed · …",
+ * "stated", "unknown". The label is the system as printed, else the server's EPSG code.
+ */
 export function crsCell(crs: Borehole['crs']): CrsCell {
-  const full = crs.name ? `${crs.name}${crs.code ? ` (${crs.code})` : ''}` : 'No coordinate system';
-  const short = crs.name ? shortCrsName(crs.name) : null;
+  const label = crsLabel(crs);
+  const full = crs.name?.trim() ? `${crs.name.trim()}${crs.code ? ` (${crs.code})` : ''}` : (label ?? 'No coordinate system');
   switch (crs.status) {
     case 'inferred':
-      return { text: short ? `inferred · ${short}` : 'inferred', warn: true, title: `Inferred, not stated in the source: ${full}` };
+      return { text: label ? `inferred · ${label}` : 'inferred', warn: true, title: `Inferred, not stated in the source: ${full}` };
     case 'confirmed':
-      return { text: short ? `confirmed · ${short}` : 'confirmed', warn: false, title: `Confirmed by a reviewer: ${full}` };
+      return { text: label ? `confirmed · ${label}` : 'confirmed', warn: false, title: `Confirmed by a reviewer: ${full}` };
     case 'unknown':
       return { text: 'unknown', warn: true, title: 'Coordinate system unknown: the borehole is not placed on the map' };
     case 'stated':
@@ -97,16 +93,13 @@ export function popupCrsWarning(crs: Borehole['crs']): string | null {
 
 export interface NotOnMapReason {
   text: string;
-  /** Amber text for CRS problems, grey for missing coordinates. */
+  /** Amber text for CRS problems and implausible coordinates, grey for missing coordinates. */
   warn: boolean;
 }
 
-/** Why a borehole is listed under NOT ON MAP instead of plotted. */
+/** Why a borehole is listed under NOT ON MAP instead of plotted: the backend's reason code as a label. */
 export function notOnMapReason(b: Borehole): NotOnMapReason {
-  const text =
-    b.unplottedReason?.trim() ||
-    (b.crs.status === 'unknown' && b.lat != null ? 'CRS unknown' : 'No usable coordinates');
-  return { text, warn: /^crs\b/i.test(text) };
+  return { text: unplottedText(b), warn: !!b.unplottedReason && b.unplottedReason !== 'no_coordinates' };
 }
 
 /** Final depth as "18.00 m", or "–" when no depth was extracted (a blank never means 0). */
@@ -122,16 +115,49 @@ export function resultsSummary(boreholes: Borehole[]): string {
   return `${plural(boreholes.length, 'borehole', 'boreholes')} · ${plural(projects, 'project', 'projects')}`;
 }
 
-type Bounds = [[number, number], [number, number]];
+/** Margin (px) kept between the pins and the map's edges, and between the pins and the legend, when fitting. */
+export const FIT_MARGIN = 24;
 
 /**
- * First view of the map: Germany, as in the prototype, unless a pin lies outside it; then the
- * bounds of all pins, so no borehole starts off-screen.
+ * Space the REVIEW STATUS legend takes in the map's bottom-left corner, from the map's left and
+ * bottom edges, when it can't be measured: its CSS offsets (left 12 px, bottom 24 px) plus the box
+ * those styles give it (about 156 × 122 px: title and four 12 px rows at line height 1.7, 10 / 12 px
+ * padding), rounded up. See MapLegend.module.css.
+ */
+export const LEGEND_EXTENT = { width: 12 + 160, height: 24 + 126 } as const;
+
+export interface Size { width: number; height: number }
+/** A box in page pixels, as getBoundingClientRect gives it. */
+export interface Rect { left: number; top: number; right: number; bottom: number }
+
+/** Space the legend takes from the map's bottom-left corner; LEGEND_EXTENT when it can't be measured. */
+export function legendExtent(map: Rect, legend: Rect | null): Size {
+  if (!legend || legend.right <= legend.left || legend.bottom <= legend.top) return LEGEND_EXTENT;
+  return { width: Math.ceil(legend.right - map.left), height: Math.ceil(map.bottom - legend.top) };
+}
+
+export interface FitPadding { paddingTopLeft: [number, number]; paddingBottomRight: [number, number] }
+
+/**
+ * Padding for fitting the map to the pins, so no pin ends up under the legend in the bottom-left
+ * corner: the margin on every side, plus the legend's width on the left or its height at the bottom,
+ * whichever takes the smaller share of the map.
+ */
+export function fitPadding(map: Size, legend: Size): FitPadding {
+  const m = FIT_MARGIN;
+  if (legend.width / map.width <= legend.height / map.height) {
+    return { paddingTopLeft: [legend.width + m, m], paddingBottomRight: [m, m] };
+  }
+  return { paddingTopLeft: [m, m], paddingBottomRight: [m, legend.height + m] };
+}
+
+/**
+ * First view of the map: the bounds of all pins, wherever they are, so none starts off-screen; the
+ * whole world while nothing is plotted (the empty start). No country is built in.
  */
 export function initialBounds(boreholes: Borehole[]): Bounds {
   const pins = boreholes.filter(isPlotted);
-  const [[s, w], [n, e]] = GERMANY_BOUNDS;
-  if (pins.every((b) => b.lat >= s && b.lat <= n && b.lng >= w && b.lng <= e)) return GERMANY_BOUNDS;
+  if (!pins.length) return WORLD_BOUNDS;
   const lats = pins.map((b) => b.lat);
   const lngs = pins.map((b) => b.lng);
   return [

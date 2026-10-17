@@ -25,12 +25,15 @@
   font-weight: 900;
   font-size: 19px;
   color: var(--c-dark);
+  text-transform: uppercase;
 }
 
+/* APP_NAME from config, shown upper case. */
 .name {
   font-weight: 900;
   font-size: 18px;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .tagline {
@@ -45,6 +48,7 @@
   align-items: stretch;
 }
 
+/* Nav links (NavLink renders <a>); REVIEW without a target is a span with aria-disabled. */
 .navItem {
   cursor: pointer;
   display: flex;
@@ -54,6 +58,7 @@
   font-size: 12px;
   letter-spacing: 0.08em;
   color: var(--c-nav-idle);
+  text-decoration: none;
   background: none;
   padding: 0;
   border: 0;
@@ -63,6 +68,19 @@
 
 .navItem:hover {
   color: #fff;
+}
+
+.navItem:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Off (no target): dimmed, no hover; the reason is its tooltip. */
+.off,
+.off:hover {
+  cursor: not-allowed;
+  color: var(--c-nav-idle);
+  opacity: 0.55;
 }
 
 .active {
@@ -109,4 +127,98 @@
   box-shadow: var(--shadow-search);
   z-index: var(--z-search);
   white-space: nowrap;
+}
+
+/* "Your name" button and its form */
+.nameWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nameButton {
+  cursor: pointer;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--c-nav-idle);
+  border-radius: 2px;
+  background: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.nameButton:hover {
+  border-color: #fff;
+}
+
+.nameUnset {
+  color: var(--c-nav-idle);
+  font-weight: 400;
+}
+
+.nameForm {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--c-text);
+}
+
+.nameLabel {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.nameInput {
+  height: 30px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.nameInput:focus {
+  outline: 2px solid var(--c-green);
+  outline-offset: -1px;
+}
+
+.nameNote {
+  font-size: 11px;
+  color: var(--c-muted);
+  line-height: 1.4;
+}
+
+.nameActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nameSave {
+  cursor: pointer;
+  background: var(--c-green);
+  color: var(--c-on-green);
+  border: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 8px 14px;
+  border-radius: 4px;
+}
+
+.nameClear {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  color: var(--c-text);
+  font-size: 12px;
+  padding: 8px 4px;
 }

@@ -1,4 +1,5 @@
 /** Browser download helpers. */
+import { APP_NAME } from '../config';
 
 /** Saves a blob under a file name via a temporary link. */
 export function downloadBlob(blob: Blob, filename: string): void {
@@ -12,7 +13,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Short export file prefix from a source file name: "neckarbogen_BG_2019.pdf" -> "neckarbogen". */
+/** Short export file prefix from a source file name: "site_report_2019.pdf" -> "site"; the app name without one. */
 export function exportPrefix(sourceFile: string): string {
-  return sourceFile.split(/[_.\s]/)[0] || 'bormisu';
+  return sourceFile.split(/[_.\s]/)[0] || APP_NAME.toLowerCase();
 }

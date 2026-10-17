@@ -6,7 +6,8 @@
 import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
 import { formatSpt, sptLint } from '../domain/spt';
-import type { Borehole, ExtractedValue, Layer, Method, PageItem, PatternId, Spt } from '../domain/types';
+import { deriveReviewStatus } from '../domain/status';
+import type { Borehole, ExtractedValue, Layer, Method, PageItem, Spt } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
 import { Ln, sampleValue, T, textWidth } from './helpers';
 
@@ -19,19 +20,22 @@ export const NB_CRS = { name: 'DHDN / GK zone 3', code: 'EPSG:31467' } as const;
 export const BK07_PAGES = [7, 8] as const;
 
 interface LayRow {
-  n: number; from: number; to: number; dr: string; raw: string[]; en: string; din: string;
-  pat: PatternId; fill: string; st: string; m: Method; c: number;
+  n: number; from: number; to: number; dr: string; raw: string[]; en: string;
+  /** Main component as a din_codes.json key, and the full DIN short form. */
+  din: string; notation: string;
+  strat: string; age: string | null; colour: string | null; consistency: string | null; weathering: string | null;
+  m: Method; c: number;
   spt?: { raw: string; at: number } & ({ inc: number[]; n: number } | { refusal: true; blows: number; pen: number });
   rem?: string[];
 }
 
 const LAY: LayRow[] = [
-  { n: 1, from: 0, to: 0.4, dr: '0,40', raw: ['Mutterboden: Schluff,', 'humos, dunkelbraun'], en: 'Topsoil: silt, humic, dark brown', din: 'Mu', pat: 'topsoil', fill: '#E8D9C4', st: 'qh', m: 'Read', c: 0.96 },
-  { n: 2, from: 0.4, to: 2.1, dr: '2,10', raw: ['Auffüllung: Schluff,', 'kiesig, Ziegelreste,', 'braun'], en: 'Fill: silt, gravelly, brick fragments, brown', din: 'A', pat: 'fill', fill: '#EFEFEF', st: 'y', m: 'OCR', c: 0.84, spt: { raw: '3,4,5 = 8', inc: [3, 4, 5], n: 8, at: 1.5 } },
-  { n: 3, from: 2.1, to: 4.8, dr: '4,80', raw: ['Ton, schluffig, steif,', 'grau'], en: 'Clay, silty, stiff, grey', din: 'T, u', pat: 'clay', fill: '#DCD2EA', st: 'qh', m: 'Read', c: 0.95, spt: { raw: '4,5,5 = 10', inc: [4, 5, 5], n: 10, at: 3.5 }, rem: ['GW 3,10', 'RWS 2,40'] },
-  { n: 4, from: 4.8, to: 8.2, dr: '8,20', raw: ['Schluff, sandig, weich', 'bis steif, graubraun'], en: 'Silt, sandy, soft to stiff, grey-brown', din: 'U, s', pat: 'silt', fill: '#E1EAB8', st: 'qh', m: 'OCR', c: 0.81, spt: { raw: '2,3,4 = 7', inc: [2, 3, 4], n: 7, at: 6 } },
-  { n: 5, from: 8.2, to: 11.2, dr: '11,20', raw: ['Kies, sandig, dicht,', 'gerundet, grau'], en: 'Gravel, sandy, dense, rounded, grey', din: 'G, s', pat: 'gravel', fill: '#FFFACD', st: 'qp', m: 'Read', c: 0.93, spt: { raw: '50/30', refusal: true, blows: 50, pen: 30, at: 10.5 } },
-  { n: 6, from: 11.2, to: 14.5, dr: '14,50', raw: ['Sandstein, verwittert,', 'mürbe, rotbraun', '(Stubensandstein)'], en: 'Sandstone, weathered, friable, red-brown', din: 'Sst', pat: 'sst', fill: '#FFD08A', st: 'kmS', m: 'OCR', c: 0.79, rem: ['TCR 74', 'RQD 18'] },
+  { n: 1, from: 0, to: 0.4, dr: '0,40', raw: ['Mutterboden: Schluff,', 'humos, dunkelbraun'], en: 'Topsoil: silt, humic, dark brown', din: 'Mu', notation: 'Mu', strat: 'Holocene topsoil', age: 'Quaternary', colour: 'dark brown', consistency: null, weathering: null, m: 'Read', c: 0.96 },
+  { n: 2, from: 0.4, to: 2.1, dr: '2,10', raw: ['Auffüllung: Schluff,', 'kiesig, Ziegelreste,', 'braun'], en: 'Fill: silt, gravelly, brick fragments, brown', din: 'A', notation: 'A', strat: 'Made ground', age: null, colour: 'brown', consistency: null, weathering: null, m: 'OCR', c: 0.84, spt: { raw: '3,4,5 = 8', inc: [3, 4, 5], n: 8, at: 1.5 } },
+  { n: 3, from: 2.1, to: 4.8, dr: '4,80', raw: ['Ton, schluffig, steif,', 'grau'], en: 'Clay, silty, stiff, grey', din: 'T', notation: 'T, u', strat: 'Holocene floodplain clay', age: 'Quaternary', colour: 'grey', consistency: 'stiff', weathering: null, m: 'Read', c: 0.95, spt: { raw: '4,5,5 = 10', inc: [4, 5, 5], n: 10, at: 3.5 }, rem: ['GW 3,10', 'RWS 2,40'] },
+  { n: 4, from: 4.8, to: 8.2, dr: '8,20', raw: ['Schluff, sandig, weich', 'bis steif, graubraun'], en: 'Silt, sandy, soft to stiff, grey-brown', din: 'U', notation: 'U, s', strat: 'Holocene floodplain silt', age: 'Quaternary', colour: 'grey-brown', consistency: 'soft to stiff', weathering: null, m: 'OCR', c: 0.81, spt: { raw: '2,3,4 = 7', inc: [2, 3, 4], n: 7, at: 6 } },
+  { n: 5, from: 8.2, to: 11.2, dr: '11,20', raw: ['Kies, sandig, dicht,', 'gerundet, grau'], en: 'Gravel, sandy, dense, rounded, grey', din: 'G', notation: 'G, s', strat: 'Pleistocene river gravel', age: 'Quaternary', colour: 'grey', consistency: 'dense', weathering: null, m: 'Read', c: 0.93, spt: { raw: '50/30', refusal: true, blows: 50, pen: 30, at: 10.5 } },
+  { n: 6, from: 11.2, to: 14.5, dr: '14,50', raw: ['Sandstein, verwittert,', 'mürbe, rotbraun', '(Stubensandstein)'], en: 'Sandstone, weathered, friable, red-brown', din: 'Sst', notation: 'Sst', strat: 'Stubensandstein (Middle Keuper)', age: 'Triassic', colour: 'red-brown', consistency: null, weathering: 'weathered, friable', m: 'OCR', c: 0.79, rem: ['TCR 74', 'RQD 18'] },
 ];
 
 /** Page of a layer: layers 1–4 on sheet 1 (p.7), 5–6 on sheet 2 (p.8). */
@@ -55,7 +59,7 @@ function bk07Values(): ExtractedValue[] {
   add({ key: K.startDate, field: 'StartDate', group: b, label: 'Start date', raw: '12.03.2019', value: '2019-03-12', page: 7, box: [356, 94, 80, 20], method: 'Read', confidence: 0.95, note: 'read as DD.MM.YYYY (German form)' });
   add({ key: K.method, field: EXTRA_FIELDS.drillingMethod, group: b, label: 'Drilling method', raw: 'Rotationskernbohrung', value: 'Rotary core drilling', page: 7, box: null, method: 'Read', confidence: 0.91 });
   add({ key: K.finalDepth, field: 'BoreholeDepth', group: b, label: 'Final depth', raw: '18,00 m', value: '18.00', unit: 'm', page: 7, box: [376, 116, 60, 20], method: 'OCR', confidence: 0.82, lint: { severity: 'error', message: 'Log bottom 14.50 m ≠ final depth 18.00 m' } });
-  add({ key: K.elevation, field: 'Surface Elevation', group: b, label: 'Surface elevation', raw: '241,35 m NN', value: '241.35', unit: 'm NN', page: 7, box: [126, 138, 88, 20], method: 'OCR', confidence: 0.86, note: 'datum stored as printed, unconfirmed' });
+  add({ key: K.elevation, field: 'Surface Elevation', group: b, label: 'Surface elevation', raw: '241,35 m NN', value: '241.35', unit: 'm', page: 7, box: [126, 138, 88, 20], method: 'OCR', confidence: 0.86, note: 'datum: NN (as printed, unconfirmed)' });
   add({ key: K.xy, field: multiField('X-Coordinate', 'Y-Coordinate'), group: b, label: 'X / Y', raw: 'R 3 513 420 · H 5 405 870', value: '3513420 / 5405870', page: 7, box: [96, 160, 243, 20], method: 'Read', confidence: 0.94 });
   add({ key: K.crs, field: 'CoordinateSystem', group: b, label: 'CRS', raw: 'not stated', value: NB_CRS.name, page: 7, box: [96, 160, 243, 20], method: 'Guessed', confidence: 0.71, kind: 'crs' });
   add({ key: K.rockHead, field: EXTRA_FIELDS.rockHead, group: b, label: 'Rock head', raw: 'Sandstein ab 11,20 m', value: '11.20', unit: 'm', page: 8, box: [106, 282, 250, 54], method: 'Derived', confidence: 0.9, formula: 'top of first rock layer (layer 6)' });
@@ -72,7 +76,7 @@ function bk07Values(): ExtractedValue[] {
       const spt = toSpt(l.spt);
       const lint = sptLint(spt);
       add({
-        ...base, key: K.spt(l.n), field: 'SPT', label: `SPT @ ${spt.depth.toFixed(2)} m`, raw: spt.raw, value: formatSpt(spt),
+        ...base, key: K.spt(l.n), field: 'SPT', label: `SPT @ ${l.spt.at.toFixed(2)} m`, raw: spt.raw, value: formatSpt(spt),
         box: [362, y - 4, textWidth(spt.raw), 20], method: 'Read', confidence: spt.refusal ? 0.9 : 0.92,
         kind: 'spt', refusal: spt.refusal, spt, ...(lint ? { lint } : {}),
       });
@@ -88,8 +92,11 @@ function bk07Values(): ExtractedValue[] {
 function bk07Layers(): Layer[] {
   return LAY.map((l) => ({
     n: l.n, from: l.from, to: l.to,
-    lithology: l.en, lithologyAsPrinted: l.raw.join(' '), din: l.din,
-    pattern: l.pat, fill: l.fill, strat: l.st, method: l.m, confidence: l.c,
+    lithology: l.en, lithologyAsPrinted: l.raw.join(' '), din: l.din, dinNotation: l.notation,
+    stratigraphicName: l.strat, engineeringSoilUnit: null, geologicAge: l.age,
+    colour: l.colour, consistency: l.consistency, moisture: null, weathering: l.weathering,
+    isCore: l.n === 6 ? true : null,
+    method: l.m, confidence: l.c,
     ...(l.spt ? { spt: toSpt(l.spt) } : {}),
     ...(l.n === 6 ? { tcr: 74, rqd: 18 } : {}),
   }));
@@ -98,12 +105,17 @@ function bk07Layers(): Layer[] {
 /** The BK-07 borehole at the given map position (prototype BK7 override: 48.7905, 9.1835). */
 export function bk07(lat: number, lng: number): Borehole {
   const layers = bk07Layers();
+  const values = bk07Values();
   return {
     uid: `${NB_DOC_ID}:BK-07`,
     id: 'BK-07',
     documentId: NB_DOC_ID,
     sourceFile: NB_FILE,
     project: NB_PROJECT,
+    revision: 1,
+    reviewStatus: deriveReviewStatus(values),
+    // The open question: which coordinate system the report uses.
+    openClarifications: 1,
     lat,
     lng,
     onMap: true,
@@ -111,13 +123,20 @@ export function bk07(lat: number, lng: number): Borehole {
     finalDepth: 18,
     logBottom: layers[layers.length - 1].to,
     crs: { ...NB_CRS, status: 'inferred' },
+    meta: {
+      aliases: ['BK 7'], elevationDatum: 'NN', depthOrigin: 'ground', depthSource: 'printed',
+      xRaw: '3 513 420', yRaw: '5 405 870', axisLabelsRaw: 'Rechts, Hoch', localX: 3513420, localY: 5405870,
+    },
     layers,
     groundwater: [
-      { type: 'strike', depth: 3.1, key: K.gwStrike },
-      { type: 'rest', depth: 2.4, key: K.gwRest },
+      { type: 'strike', depth: 3.1, elevation: null, date: null, raw: 'GW 3,10', key: K.gwStrike },
+      { type: 'rest', depth: 2.4, elevation: null, date: null, raw: 'RWS 2,40', key: K.gwRest },
     ],
+    samples: [],
+    testResults: [],
     rockHead: 11.2,
-    values: bk07Values(),
+    values,
+    pages: [...BK07_PAGES],
     primaryPage: 7,
   };
 }
