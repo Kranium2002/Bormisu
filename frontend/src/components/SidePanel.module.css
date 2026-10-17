@@ -342,20 +342,12 @@
   }
 }
 
-/* ‹ source 1 of N › for a value cited on several pages. */
+/* ORIGINAL · file, page n (as uploaded) above the page. */
+.pageCaption {
+  margin-bottom: var(--space-2);
+}
+
+/* ‹ source 1 of N › (SourceStepper) under the value's label. */
 .stepper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
   margin-top: var(--space-2);
-}
-
-.stepButton {
-  composes: iconButton from '../styles/buttons.module.css';
-}
-
-.stepText {
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-  color: var(--c-text);
 }

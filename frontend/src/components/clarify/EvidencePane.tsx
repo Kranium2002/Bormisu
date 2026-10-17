@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { PAGE_W, type DocumentSummary, type Evidence } from '../../domain/types';
 import { useAppStore, usePage, type PageLoad } from '../../store/appStore';
 import { ScanPage, type ScanBox } from '../ScanPage';
+import { OriginalLabel } from '../SideLabel';
 import styles from './Clarify.module.css';
 import { evidencePages, type EvidencePage } from './clarifyModel';
 
@@ -18,12 +19,17 @@ interface PageViewProps {
   load: PageLoad;
   /** File name when the page is in another document than the question's, else null. */
   otherFile: string | null;
+  /** File name of the page's document when the store has it (named in the ORIGINAL caption). */
+  fileName?: string | null;
   /** The document has no page images (e.g. a spreadsheet). */
   noPages: boolean;
 }
 
-/** One evidence page with its boxes highlighted, or why it can't be shown (pure; rendered in tests). */
-export function EvidencePageView({ page, load, otherFile, noPages }: PageViewProps) {
+/**
+ * One evidence page with its boxes highlighted, or why it can't be shown (pure; rendered in tests).
+ * Its caption says it is the original as uploaded.
+ */
+export function EvidencePageView({ page, load, otherFile, fileName, noPages }: PageViewProps) {
   const title = `Page ${page.page}${otherFile ? ` · ${otherFile}` : ''}`;
   const boxes: ScanBox[] = page.boxes.map((box, i) => ({
     id: `ev${i}`,
@@ -54,7 +60,9 @@ export function EvidencePageView({ page, load, otherFile, noPages }: PageViewPro
   return (
     <figure className={styles.evPage} aria-label={title}>
       <figcaption className={styles.evCaption}>
-        <span className={styles.evTitle}>{title}</span>
+        <span className={styles.evTitle}>
+          <OriginalLabel file={otherFile ?? fileName} page={page.page} />
+        </span>
         {snippets.length > 0 && <span className={styles.evSnippet}>“{snippets.join('” · “')}”</span>}
         {load.status === 'ready' && !noPages && !page.boxes.length && <span className={styles.evNoBox}>no box on this page</span>}
       </figcaption>
@@ -69,7 +77,7 @@ function EvidencePageItem({ page, questionDocumentId }: { page: EvidencePage; qu
   const noPages = hasNoPages(doc);
   const load = usePage(noPages ? null : page.documentId, page.page);
   const otherFile = page.documentId === questionDocumentId ? null : (doc?.name ?? 'another document');
-  return <EvidencePageView page={page} load={load} otherFile={otherFile} noPages={noPages} />;
+  return <EvidencePageView page={page} load={load} otherFile={otherFile} fileName={doc?.name} noPages={noPages} />;
 }
 
 /**

@@ -1,12 +1,17 @@
-/* The sheet screen: a toolbar over a grey desk with an A4-like page on it. */
+/*
+ * The sheet screen: a toolbar over a grey desk with an A4-like page on it, the original page beside
+ * it (SheetSource.module.css: the desk scrolls on its own, the pane next to it).
+ */
 .screen {
   position: absolute;
   inset: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
   background: var(--c-scan-bg);
 }
 
 .toolbar {
+  flex: none;
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
@@ -247,6 +252,62 @@
   margin-left: 1px;
 }
 
+/*
+ * A value the record has: a button that looks exactly like the text (same font, colour, wrapping),
+ * so the A4 look doesn't change; it shows the value in the original page.
+ */
+.value {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.value.mono {
+  font-family: var(--font-mono);
+}
+
+.value.missing {
+  color: var(--c-faint);
+  font-style: italic;
+}
+
+.value:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* The value the original page shows (hovered or clicked), its header field and layer row: marked like a highlighter. */
+.valueActive,
+.fieldActive,
+.rowActive td {
+  background: var(--c-amber-bg);
+}
+
+.valueActive {
+  box-shadow: 0 0 0 2px var(--c-amber-bg);
+}
+
+/* The clicked value: it stays shown when the pointer leaves. */
+.valuePinned {
+  box-shadow: 0 0 0 2px var(--c-amber-bg), 0 0 0 3px var(--c-amber);
+}
+
+.field[data-value-key],
+tr[data-value-key] {
+  cursor: pointer;
+}
+
 .footer {
   border-top: 1px solid var(--c-border);
   padding-top: var(--space-2);
@@ -325,6 +386,19 @@
 
   .profileRow {
     grid-template-columns: 62mm minmax(0, 1fr);
+  }
+
+  /* The values print as plain text: no hover, pinned or focus marks. */
+  .valueActive,
+  .valuePinned,
+  .fieldActive,
+  .rowActive td {
+    background: none !important;
+    box-shadow: none !important;
+  }
+
+  .value {
+    outline: none !important;
   }
 
   /* A block that doesn't fit on the page goes to the next one whole. */
