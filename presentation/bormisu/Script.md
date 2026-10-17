@@ -81,13 +81,16 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 > But borehole reports are confidential. So the same pipeline runs on open models — PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
 > That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
 
-## 11 · Team (~10 s)
+## 11 · Team — skipped for now
 
 > That's us — Team Tiramisu, built in Breisgau.
 
-## 12 · Finisher (~5 s)
+## 12 · In a nutshell (~15 s)
 
-> Every borehole. One standard. Bormisu.
+> So, in a nutshell:
+> It's multilingual — any language, any format, even handwriting.
+> It's a sovereign stack — cloud today, your own server or a Mac mini tomorrow.
+> And it's ready to use — now.
 
 ## 13 · Questions
 

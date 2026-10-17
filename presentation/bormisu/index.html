@@ -161,12 +161,17 @@
   .member .nm { font-family: var(--display); font-size: 48px; font-weight: 600; color: var(--espresso); }
   .member .r { font-size: 24px; color: var(--muted); margin-top: 8px; }
 
-  /* 12 Finisher */
-  .finisher .logo { width: 520px; height: 520px; }
+  /* 12 In a nutshell: three points left, logo right */
+  .finisher { flex-direction: row; align-items: center; justify-content: space-between; }
+  .finisher .left { display: flex; flex-direction: column; }
+  .finisher .nut { font-family: var(--display); font-size: 96px; font-weight: 700; letter-spacing: -0.035em; }
+  .finisher .pts { list-style: none; margin: 64px 0 0; padding: 0; display: flex; flex-direction: column; gap: 36px; }
+  .finisher .pts li { display: flex; align-items: center; gap: 32px; font-family: var(--display); font-size: 64px; font-weight: 600; letter-spacing: -0.02em; }
+  .finisher .pts .ck { width: 72px; height: 72px; border-radius: 50%; background: var(--ladyfinger); color: var(--espresso); display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 700; flex: none; }
+  .finisher .pts .now { color: var(--ladyfinger); }
+  .finisher .logo { width: 620px; height: 620px; }
   .is-active .finisher-logo { animation: bore 1.6s var(--ease) both; }
   @keyframes bore { from { transform: scale(0.4) rotate(-200deg); opacity: 0; } to { transform: none; opacity: 1; } }
-  .finisher .line { font-family: var(--display); font-size: 84px; font-weight: 600; letter-spacing: -0.03em; margin-top: 40px; color: var(--cream); }
-  .finisher .line span { color: var(--ladyfinger); }
 
   /* 13 Questions */
   .close .big { font-family: var(--display); font-size: 220px; font-weight: 700; letter-spacing: -0.045em; line-height: 1; }
@@ -322,8 +327,8 @@
     </div>
   </section>
 
-  <!-- 11 TEAM — TODO: add a team photo (team.jpg) and confirm roles -->
-  <section class="light" data-label="11 Team">
+  <!-- 11 TEAM — skipped for now (data-deck-skip); remove the attribute to bring it back -->
+  <section class="light" data-label="11 Team" data-deck-skip>
     <div class="eyebrow" data-anim>Team Tiramisu</div>
     <div class="title" data-anim style="--d: 150ms;">Built in Breisgau.</div>
     <div class="team">
@@ -336,10 +341,17 @@
     </div>
   </section>
 
-  <!-- 12 FINISHER -->
-  <section class="dark finisher center" data-label="12 Finisher">
-    <img class="logo finisher-logo" src="logo.png" alt="" />
-    <div class="line" data-anim style="--d: 1200ms;">Every borehole. <span>One standard.</span></div>
+  <!-- 12 IN A NUTSHELL -->
+  <section class="dark finisher" data-label="12 In a nutshell">
+    <div class="left">
+      <div class="nut" data-anim>In a nutshell.</div>
+      <ul class="pts">
+        <li data-anim style="--d: 400ms;"><span class="ck">✓</span>Multilingual</li>
+        <li data-anim style="--d: 650ms;"><span class="ck">✓</span>Sovereign stack</li>
+        <li data-anim style="--d: 900ms;"><span class="ck">✓</span><span>Ready to use <span class="now">now</span></span></li>
+      </ul>
+    </div>
+    <img class="logo finisher-logo" src="logo.png" alt="Bormisu logo" />
   </section>
 
   <!-- 13 QUESTIONS -->
