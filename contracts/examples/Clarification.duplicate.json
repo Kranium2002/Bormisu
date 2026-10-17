@@ -1,0 +1,56 @@
+{
+  "clarification_id": "cl_01M54CF8C88EPGF54RZXH0DYHE",
+  "kind": "duplicate",
+  "status": "open",
+  "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+  "borehole_uids": [
+    "bh_01M54CC1V0HG9R735BT821BSXT"
+  ],
+  "path": null,
+  "question": "Page 13 looks like a copy of page 8 (FHL-BH02). Is it the same log?",
+  "fields": [
+    {
+      "name": "same_log",
+      "widget": "boolean",
+      "label": "Page 13 shows the same log as page 8",
+      "help": null,
+      "required": true,
+      "default": true
+    },
+    {
+      "name": "keep_page",
+      "widget": "select",
+      "label": "Which page should be used?",
+      "help": null,
+      "required": false,
+      "options": [
+        {
+          "value": 8,
+          "label": "Page 8"
+        },
+        {
+          "value": 13,
+          "label": "Page 13"
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": null,
+      "snippet": null
+    },
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 13,
+      "box": null,
+      "snippet": null
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T07:33:25Z",
+  "resolved_at": null
+}

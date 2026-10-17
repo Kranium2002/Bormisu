@@ -1,0 +1,36 @@
+{
+  "result_set_id": "rs_01M54KFQ00FEC8WSCRC53N36BX",
+  "count": 0,
+  "located_count": 0,
+  "unlocated_count": 0,
+  "excluded_unreviewed": 0,
+  "uids": [],
+  "bbox": [
+    -1.8,
+    53.6,
+    -1.75,
+    53.63
+  ],
+  "area": {
+    "type": "bbox",
+    "bbox": [
+      -1.8,
+      53.6,
+      -1.75,
+      53.63
+    ]
+  },
+  "definition": {
+    "include_unreviewed": false,
+    "area": {
+      "type": "bbox",
+      "bbox": [
+        -1.8,
+        53.6,
+        -1.75,
+        53.63
+      ]
+    }
+  },
+  "created_at": "2026-10-17T09:36:00Z"
+}

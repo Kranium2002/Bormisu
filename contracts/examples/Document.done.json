@@ -1,0 +1,61 @@
+{
+  "document_id": "doc_01M54AV7B076NM6GKCF4BXQMCH",
+  "file_name": "fictional-vector-log.pdf",
+  "project": "Demo Ridge Tunnel",
+  "status": "done",
+  "error": null,
+  "mime_type": "application/pdf",
+  "size_bytes": 389120,
+  "sha256": "67f66bc9be6b60292d92abd0bf06a3f0a9cb932190cc1e13a4222b71c453ce9b",
+  "page_count": 2,
+  "found": {
+    "boreholes": 1,
+    "layers": 3,
+    "spt": 0,
+    "groundwater": 0
+  },
+  "pages": [
+    {
+      "n": 1,
+      "type": "log",
+      "role": "log_sheet",
+      "used": true,
+      "unused_reason": null,
+      "borehole_ids": [
+        "DRT-B7"
+      ],
+      "sheet_label": "SHEET 1 OF 1",
+      "handwriting": "none",
+      "language": "en",
+      "ocr": "done",
+      "duplicate_of": null
+    },
+    {
+      "n": 2,
+      "type": "lab_table",
+      "role": "lab_results",
+      "used": true,
+      "unused_reason": null,
+      "borehole_ids": [
+        "DRT-B7"
+      ],
+      "sheet_label": null,
+      "handwriting": "none",
+      "language": "en",
+      "ocr": "done",
+      "duplicate_of": null
+    }
+  ],
+  "completeness": null,
+  "progress": {
+    "pages_total": 2,
+    "pages_classified": 2,
+    "pages_ocr_total": 2,
+    "pages_ocr_done": 2,
+    "boreholes_extracted": 1
+  },
+  "duplicate_of": null,
+  "open_clarifications": 0,
+  "created_at": "2026-10-17T07:05:00Z",
+  "updated_at": "2026-10-17T08:58:30Z"
+}

@@ -1,0 +1,43 @@
+{
+  "clarification_id": "cl_01M54CEYKRKB5FMRA8F4DNXNNF",
+  "kind": "unit_ambiguous",
+  "status": "open",
+  "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+  "borehole_uids": [
+    "bh_01M54CB4HGT2NXJXQZD6BE0FGK"
+  ],
+  "path": "test_results[3].value",
+  "question": "The unit weight of sample SP2 is printed as '1,95' without a unit. Which unit is it?",
+  "fields": [
+    {
+      "name": "value",
+      "widget": "number_unit",
+      "label": "Unit weight",
+      "help": null,
+      "required": true,
+      "unit_options": [
+        "kN/m³",
+        "t/m³",
+        "g/cm³"
+      ],
+      "default": 1.95
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 9,
+      "box": [
+        0.4,
+        0.38,
+        0.08,
+        0.02
+      ],
+      "snippet": "γ = 1,95"
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T07:33:15Z",
+  "resolved_at": null
+}

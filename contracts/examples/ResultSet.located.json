@@ -1,0 +1,26 @@
+{
+  "result_set_id": "rs_01M54KDWD0M4CHNNAS55ZV63FC",
+  "count": 4,
+  "located_count": 2,
+  "unlocated_count": 2,
+  "excluded_unreviewed": 0,
+  "uids": [
+    "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+    "bh_01M54CC1V0HG9R735BT821BSXT",
+    "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+    "bh_01M54B3F0GBNJ9N3650KGFT5AE"
+  ],
+  "bbox": [
+    -1.973322,
+    53.672644,
+    8.505846,
+    53.875923
+  ],
+  "area": null,
+  "definition": {
+    "min_depth_m": 5.0,
+    "include_unreviewed": true,
+    "area": null
+  },
+  "created_at": "2026-10-17T09:35:00Z"
+}

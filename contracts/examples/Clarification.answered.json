@@ -1,0 +1,65 @@
+{
+  "clarification_id": "cl_01M54B4CA0W47DXJPWN3VK41D3",
+  "kind": "crs_confirm",
+  "status": "answered",
+  "document_id": "doc_01M54AV7B076NM6GKCF4BXQMCH",
+  "borehole_uids": [
+    "bh_01M54B3F0GBNJ9N3650KGFT5AE"
+  ],
+  "path": null,
+  "question": "Which coordinate system do the coordinates in fictional-vector-log.pdf use?",
+  "fields": [
+    {
+      "name": "crs",
+      "widget": "crs_picker",
+      "label": "Coordinate system",
+      "help": null,
+      "required": true,
+      "options": [
+        {
+          "value": "EPSG:27700",
+          "label": "OSGB36 / British National Grid",
+          "evidence": {
+            "document_id": "doc_01M54AV7B076NM6GKCF4BXQMCH",
+            "page": 1,
+            "box": [
+              0.6,
+              0.08,
+              0.32,
+              0.03
+            ],
+            "snippet": "Easting 401860  Northing 419575"
+          }
+        }
+      ]
+    },
+    {
+      "name": "swap_axes",
+      "widget": "boolean",
+      "label": "The first printed value is the northing",
+      "help": null,
+      "required": false,
+      "default": false
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54AV7B076NM6GKCF4BXQMCH",
+      "page": 1,
+      "box": [
+        0.6,
+        0.08,
+        0.32,
+        0.03
+      ],
+      "snippet": "Easting 401860  Northing 419575"
+    }
+  ],
+  "answer": {
+    "crs": "EPSG:27700",
+    "swap_axes": false
+  },
+  "answered_by": "Example Reviewer",
+  "created_at": "2026-10-17T07:10:00Z",
+  "resolved_at": "2026-10-17T08:20:00Z"
+}

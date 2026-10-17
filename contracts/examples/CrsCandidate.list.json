@@ -1,0 +1,47 @@
+[
+  {
+    "crs": "EPSG:27700",
+    "label": "OSGB36 / British National Grid",
+    "score": 0.94,
+    "verdict": "match",
+    "note": "Printed labels E, N; the point falls 1.1 km from the geocoded place 'Harrowmere'.",
+    "swap_axes": false,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 53.660458,
+        "lon": -1.949844
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:27700",
+    "label": "OSGB36 / British National Grid (axes swapped)",
+    "score": 0.31,
+    "verdict": "shifted",
+    "note": "With the axes swapped the point still lands in Great Britain, 21 km from 'Harrowmere'.",
+    "swap_axes": true,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 53.527058,
+        "lon": -1.726626
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:25830",
+    "label": "ETRS89 / UTM zone 30N",
+    "score": 0.02,
+    "verdict": "out_of_range",
+    "note": "The point falls near the equator, far outside the area around the geocoded place.",
+    "swap_axes": false,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 3.783275,
+        "lon": -3.869862
+      }
+    ]
+  }
+]
