@@ -22,7 +22,7 @@ from .anchor import anchor_tile, detect_hlines, unanchor
 from .classify import _raw_path, _save, classify_page, load_raw
 from .inputs import Document, PageSource
 from .reconcile import DEPTH_LIMITS, PageResult, reconcile_log, reconcile_spt
-from .render import crop_norm, file_sha1, render_page, rotate_upright, vector_words
+from .render import crop_norm, file_sha1, render_page, rotate_by, vector_words
 from .schemas import PROMPT_VERSION
 from .tiles import TileSpec, merge_spt_tiles, merge_tiles, plan_tiles, render_tile
 from .vector import parse_vector_page, vector_ok
@@ -81,7 +81,7 @@ def _extract_tiles(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, c
     pre = cfg.preprocess == "always" or (cfg.preprocess == "auto" and cl.get("read_quality") in ("faded", "photo"))
     img = render_page(src, cfg.dpi, workdir, preprocess=pre)
     if rot:
-        img, _ = rotate_upright(img)
+        img = rotate_by(img, rot)
     W, H = Image.open(img).size
     specs = plan_tiles((W, H), cl.get("table_body"), cl.get("column_header_band"), tile_px=cfg.tile_px,
                        overlap=cfg.overlap, rows_estimate=cl.get("rows_estimate"), max_rows_per_tile=cfg.max_rows_per_tile)
@@ -162,7 +162,7 @@ def _header(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, cl: dict
         return raw["header"]
     img = render_page(src, cfg.dpi, workdir)
     if rot:
-        img, _ = rotate_upright(img)
+        img = rotate_by(img, rot)
     hb = cl.get("header_band")
     if not hb or len(hb) != 4 or hb[3] - hb[1] < 0.02:
         hb = (0.0, 0.0, 1.0, 0.3)

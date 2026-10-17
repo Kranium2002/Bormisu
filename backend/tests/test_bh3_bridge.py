@@ -309,3 +309,44 @@ def test_a_failing_page_does_not_stop_the_document(tmp_path: Path) -> None:
     for r in results:
         assert r.page_type == "unread"
         assert r.route == "error" or r.issues
+
+
+def test_sideways_page_is_turned_before_reading(tmp_path: Path) -> None:
+    calls: list = []
+    vlm = _vlm(tmp_path, calls)
+    fake = vlm.llm
+    answer = fake.complete_vision_json
+    seen = {"classify": 0}
+
+    def sideways_once(image_bytes, mime, system, user_text, schema, name, **kw):
+        out, meta = answer(image_bytes, mime, system, user_text, schema, name, **kw)
+        if name == "classify":
+            seen["classify"] += 1
+            if seen["classify"] == 1:
+                out = {**out, "text_rotation": 90}
+        return out, meta
+
+    fake.complete_vision_json = sideways_once
+    results = bridge.read_pages(
+        "scan.png", vlm=vlm, workdir=tmp_path / "work", image_paths={1: _scan(tmp_path)}
+    )
+    assert results[0].page_type == "log"
+    assert seen["classify"] == 2  # classified again on the turned image
+    assert any("rotated 90" in n for n in results[0].notes)
+    assert results[0].layers
+
+
+def test_sideways_check_flags_vertical_text_lines(tmp_path: Path) -> None:
+    from app.bh3.classify import _looks_sideways
+
+    im = Image.new("RGB", (1240, 1754), "white")
+    d = ImageDraw.Draw(im)
+    for y in range(120, 1650, 36):  # lines of "words" across the page, like printed text
+        for x in range(80, 1100, 70):
+            d.rectangle([x, y, x + 50, y + 14], fill="black")
+    upright = tmp_path / "upright.png"
+    im.save(upright)
+    sideways = tmp_path / "sideways.png"
+    im.rotate(90, expand=True).save(sideways)
+    assert not _looks_sideways(upright)
+    assert _looks_sideways(sideways)

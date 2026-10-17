@@ -166,6 +166,19 @@ def crop_norm(img_path: Path, bbox: tuple[float, float, float, float], out_path:
     return out_path
 
 
+def rotate_by(img_path: Path, degrees: int) -> Path:
+    """The image turned CLOCKWISE by 90, 180 or 270 degrees (cached next to it); 0 returns it unchanged."""
+    degrees %= 360
+    if not degrees:
+        return img_path
+    from PIL import Image
+    out = img_path.with_name(img_path.stem + f"_rot{degrees}.jpg")
+    if not (out.exists() and image_ok(out)):
+        with Image.open(img_path) as im:
+            save_atomic(im.rotate(-degrees, expand=True), out)
+    return out
+
+
 def rotate_upright(img_path: Path) -> tuple[Path, int]:
     """Landscape strips (wider than 1.6× height) are rotated 90° clockwise so the depth axis runs down."""
     from PIL import Image
