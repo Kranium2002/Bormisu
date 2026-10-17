@@ -40,7 +40,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from app.config import get_settings
 from app.providers import reasoning
 from app.providers.base import ProviderError, Usage, check_budget, record_usage, token_cost
-from app.providers.llm import _answer, post_openrouter_chat
+from app.providers.llm import _answer, post_openai_chat, post_openrouter_chat
 from app.providers.ocr_mistral import OcrResponse, data_url
 from app.providers.ocr_openai import page_png, unfence
 from app.providers.schema import strict_json_schema
@@ -143,17 +143,52 @@ def _size(png: bytes) -> tuple[int, int]:
 class OpenRouterVisionOcrClient:
     """OcrEngine over a vision model on OpenRouter; one page per call."""
 
+    provider = PROVIDER
+    label = "OpenRouter OCR"
+
     def __init__(self, http: httpx.AsyncClient | None = None) -> None:
         self.settings = get_settings()
         if self.settings.openrouter_api_key is None:
             raise ProviderError("OpenRouter is not configured.", retryable=False)
         self._http = http
 
+    def _model(self) -> str:
+        return self.settings.openrouter_ocr_model
+
+    def _tag(self, model: str) -> str:
+        return model_tag(model)
+
+    def _body(
+        self, model: str, messages: list[dict[str, Any]], response_format: dict[str, Any]
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0,
+            "max_tokens": OCR_MAX_OUTPUT_TOKENS,
+            "response_format": response_format,
+        }
+        if not self.settings.openrouter_fields:  # another OpenAI-compatible server on OPENROUTER_BASE_URL
+            return body
+        thinking = reasoning.openrouter_reasoning(model, "off")  # copying text needs no thinking
+        return {
+            **body,
+            "max_tokens": reasoning.output_tokens(OCR_MAX_OUTPUT_TOKENS, thinking),
+            "provider": {
+                "require_parameters": True,
+                "data_collection": self.settings.openrouter_data_collection,
+            },
+            "usage": {"include": True},
+            "reasoning": thinking,
+        }
+
+    async def _post(self, body: dict[str, Any]) -> dict[str, Any]:
+        return await post_openrouter_chat(self._http, body, label=self.label, timeout_s=TIMEOUT_S)
+
     async def ocr(self, data: bytes, mime: str, *, document_id: str | None, page_count: int) -> OcrResponse:
         if page_count != 1:
             raise ProviderError("OCR with a vision model takes one page per request.", retryable=False)
-        settings = self.settings
-        model = settings.openrouter_ocr_model
+        model = self._model()
         png = await asyncio.to_thread(page_png, data, mime)
         width, height = await asyncio.to_thread(_size, png)
         messages: list[dict[str, Any]] = [
@@ -172,23 +207,7 @@ class OpenRouterVisionOcrClient:
         }
         for attempt in range(2):
             await check_budget(token_cost(model, ESTIMATE_INPUT_TOKENS, ESTIMATE_OUTPUT_TOKENS))
-            thinking = reasoning.openrouter_reasoning(model, "off")  # copying text needs no thinking
-            body: dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-                "temperature": 0,
-                "max_tokens": reasoning.output_tokens(OCR_MAX_OUTPUT_TOKENS, thinking),
-                "response_format": response_format,
-                "provider": {
-                    "require_parameters": True,
-                    "data_collection": settings.openrouter_data_collection,
-                },
-                "usage": {"include": True},
-                "reasoning": thinking,
-            }
-            payload = await post_openrouter_chat(
-                self._http, body, label="OpenRouter OCR", timeout_s=TIMEOUT_S
-            )
+            payload = await self._post(self._body(model, messages, response_format))
             usage = payload.get("usage") or {}
             in_tok, out_tok = usage.get("prompt_tokens"), usage.get("completion_tokens")
             reported = usage.get("cost")
@@ -200,7 +219,7 @@ class OpenRouterVisionOcrClient:
             text, finish, refusal = _answer(payload)
             ok = text is not None and finish != "length"
             await record_usage(
-                Usage(PROVIDER, "ocr", payload.get("model") or model, in_tok, out_tok, 1, cost, ok),
+                Usage(self.provider, "ocr", payload.get("model") or model, in_tok, out_tok, 1, cost, ok),
                 document_id,
             )
             if finish == "length":
@@ -208,7 +227,7 @@ class OpenRouterVisionOcrClient:
             if text is None or not text.strip():
                 if refusal is not None:
                     raise ProviderError("The model declined to read this page.", retryable=True)
-                raise ProviderError("OpenRouter OCR returned no reading for this page.", retryable=True)
+                raise ProviderError(f"{self.label} returned no reading for this page.", retryable=True)
             try:
                 reading = PageReading.model_validate(json.loads(unfence(text)))
             except (ValueError, ValidationError) as exc:
@@ -222,7 +241,7 @@ class OpenRouterVisionOcrClient:
                     {"role": "user", "content": f"{FIX_JSON} {str(exc)[:1500]}\nReturn corrected JSON only."},
                 ]
                 continue
-            tag = model_tag(model)
+            tag = self._tag(model)
             raw = {
                 "pages": [raw_page(reading, width, height)],
                 "model": tag,
@@ -230,3 +249,43 @@ class OpenRouterVisionOcrClient:
             }
             return OcrResponse(raw, tag, 1)
         raise ProviderError("The page reading did not match the expected structure.", retryable=True)
+
+
+def openai_vision_tag(model: str) -> str:
+    """The openai_vision run's model (cache key and ocr_runs.model)."""
+    return f"openai-vision:{model}"
+
+
+class OpenAIVisionOcrClient(OpenRouterVisionOcrClient):
+    """The same page reading with boxes on OPENAI_BASE_URL (the "openai_vision" route): OpenAI, or any
+    OpenAI-compatible server such as Ollama with a local vision model. The model is OPENAI_OCR_MODEL (unset:
+    CHAT_MODEL); requests are plain chat completions (app.providers.llm.post_openai_chat); box quality depends
+    on the model following the 0-1000, y-first convention of data/prompts/ocr_boxes.txt."""
+
+    provider = "openai"
+    label = "OpenAI OCR"
+
+    def __init__(self, http: httpx.AsyncClient | None = None) -> None:
+        self.settings = get_settings()
+        if self.settings.openai_api_key is None:
+            raise ProviderError("OpenAI is not configured.", retryable=False)
+        self._http = http
+
+    def _model(self) -> str:
+        return self.settings.openai_ocr_model_name
+
+    def _tag(self, model: str) -> str:
+        return openai_vision_tag(model)
+
+    def _body(
+        self, model: str, messages: list[dict[str, Any]], response_format: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "model": model,
+            "messages": messages,
+            "max_completion_tokens": OCR_MAX_OUTPUT_TOKENS,
+            "response_format": response_format,
+        }
+
+    async def _post(self, body: dict[str, Any]) -> dict[str, Any]:
+        return await post_openai_chat(self._http, body, label=self.label, timeout_s=TIMEOUT_S)

@@ -242,6 +242,7 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     assert bridge.vlm_args == ("https://openrouter.ai/api/v1", "google/gemini-3.5-flash")
     assert bridge.llm_model == "google/gemini-3.5-flash"
     assert bridge.vlm_options["extra_body"]["reasoning"] == {"effort": "low"}
+    assert bridge.vlm_options["timeout_s"] == get_settings().request_timeout_s  # REQUEST_TIMEOUT_S
     assert bridge.built_with["doc_id"] == doc_id and bridge.built_with["llm"] is not None
     assert fakes.extractor.calls == 0  # bh3 covered every log page
     doc = await document(client, doc_id)

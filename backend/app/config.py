@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 LlmRoute = Literal["mistral", "openrouter", "openai"]
-OcrRoute = Literal["openrouter_vision", "mistral", "openrouter", "openai"]
+OcrRoute = Literal["openrouter_vision", "mistral", "openrouter", "openai", "openai_vision"]
 ModelRole = Literal["classifier", "extractor"]
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 # The document model on OpenRouter: page classifier, extractor, bh3's page reading, second reads, sheet
@@ -76,7 +76,9 @@ class Settings(BaseSettings):
     openrouter_app_url: str = "http://localhost:8080"
     openrouter_data_collection: Literal["allow", "deny"] = "deny"
     mistral_base_url: str = "https://api.mistral.ai/v1"
-    # The variable the openai SDK (chat) reads; structured calls and OCR with an OpenAI key use it too.
+    # The variable the openai SDK (chat) reads; structured calls, OCR and bh3 with an OpenAI key use it too.
+    # Any OpenAI-compatible server works, e.g. local models on Ollama: http://ollama:11434/v1 (README, "Local
+    # models"). Its OPENAI_API_KEY may be any non-blank value then; model ids without a price cost 0.
     openai_base_url: str = OPENAI_BASE_URL
     # Which provider runs the classifier, extractor, second reads, sheet mapping and bh3's page reading:
     # openrouter (Gemini by default), openai, mistral (direct API), or auto (openrouter -> openai -> mistral,
@@ -108,13 +110,19 @@ class Settings(BaseSettings):
     # Which OCR route the pipeline uses: openrouter_vision (OPENROUTER_OCR_MODEL reads the page render on
     # OpenRouter; text blocks with boxes), mistral (direct API, needs MISTRAL_API_KEY; boxes and confidence),
     # openrouter (Mistral OCR via the OpenRouter file-parser plugin, text only), openai (a vision model
-    # transcribes the page render, text only), or auto: openrouter_vision -> mistral -> openrouter -> openai,
-    # the first whose key is set; a 401/403 moves on to the next configured route (remembered per process).
+    # transcribes the page render, text only), openai_vision (like openrouter_vision, with OPENAI_OCR_MODEL on
+    # OPENAI_BASE_URL, e.g. a local model; never chosen by auto), or auto: openrouter_vision -> mistral ->
+    # openrouter -> openai, the first whose key is set; a 401/403 moves on to the next configured route
+    # (remembered per process).
     # With OCR_FALLBACK=none, auto uses only the routes with boxes (openrouter_vision, mistral).
-    ocr_provider: Literal["auto", "openrouter_vision", "openrouter", "mistral", "openai"] = "auto"
+    ocr_provider: Literal["auto", "openrouter_vision", "openrouter", "mistral", "openai", "openai_vision"] = (
+        "auto"
+    )
     # Recorded and budgeted per page for the OpenRouter route (parser price: 2 USD per 1,000 pages).
     openrouter_ocr_usd_per_page: float = 0.002
     chat_model: str = "gpt-6.1-sol"
+    # Longest chat turn (all model rounds and tools) in seconds; unset: 60. Raise it for slow local models.
+    chat_turn_timeout_s: float | None = None
     embedding_model: str = "qwen/qwen3-embedding-8b"
     # Reasoning ("thinking") for the classifier and extractor on OpenRouter. Copying printed values needs
     # none, and reasoning tokens count against max_tokens: with it on, answers can end before the JSON.
@@ -187,6 +195,7 @@ class Settings(BaseSettings):
         "openai_extractor_model",
         "openai_ocr_model",
         "openai_bh3_model",
+        "chat_turn_timeout_s",
         mode="before",
     )
     @classmethod
@@ -274,6 +283,7 @@ class Settings(BaseSettings):
             "mistral": self.mistral_api_key,
             "openrouter": self.openrouter_api_key,
             "openai": self.openai_api_key,
+            "openai_vision": self.openai_api_key,
         }
         if self.ocr_provider != "auto":
             return [self.ocr_provider] if keys[self.ocr_provider] is not None else []
@@ -310,6 +320,18 @@ class Settings(BaseSettings):
         if provider == "mistral":
             return self.mistral_extractor_model if role == "extractor" else self.mistral_classifier_model
         return self.extractor_model if role == "extractor" else self.classifier_model
+
+    @property
+    def openrouter_fields(self) -> bool:
+        """True when OPENROUTER_BASE_URL is OpenRouter itself: only then do requests carry OpenRouter's own
+        fields (provider routing, usage with cost, reasoning). Another OpenAI-compatible server gets plain
+        chat completions on the OpenRouter routes."""
+        return "openrouter.ai" in self.openrouter_base_url
+
+    @property
+    def openai_is_openai(self) -> bool:
+        """False when OPENAI_BASE_URL points at another OpenAI-compatible server (e.g. Ollama)."""
+        return "api.openai.com" in self.openai_base_url
 
     @property
     def openai_ocr_model_name(self) -> str:

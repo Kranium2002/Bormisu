@@ -5,7 +5,9 @@ tools of `app.chat.registry`. Text deltas stream out as `text-delta`; each compl
 validated, run against the database and answered with `function_call_output`, while the UI receives
 `tool-input-available`, `tool-output-available` and the tool's data parts. At most MAX_TOOL_ROUNDS
 rounds of tool calls run per turn (then the model must answer in text) and the whole turn has
-TURN_TIMEOUT_S. Requests use stream=True and store=False, so nothing persists at the provider.
+CHAT_TURN_TIMEOUT_S (default TURN_TIMEOUT_S). Requests use stream=True and store=False, so nothing persists
+at the provider. OPENAI_BASE_URL may name another server with /v1/responses (e.g. Ollama); it gets no tools
+on the final round, since it may ignore tool_choice.
 
 The model client is a callable that takes the request body and yields Responses streaming events as
 JSON objects (`openai_model` for the real API; tests inject hand-written fictional events).
@@ -212,8 +214,9 @@ async def run_turn(request: ChatRequest, model: ChatModel, out: MessageWriter) -
             await check_budget()
         except BudgetExceededError as exc:
             raise ChatError(BUDGET_TEXT) from exc
+        settings = get_settings()
         body: dict[str, Any] = {
-            "model": get_settings().chat_model,
+            "model": settings.chat_model,
             "instructions": instructions,
             "input": list(items),
             "tools": tools,
@@ -222,6 +225,10 @@ async def run_turn(request: ChatRequest, model: ChatModel, out: MessageWriter) -
             "store": False,
             "stream": True,
         }
+        if final and not settings.openai_is_openai:
+            # Another OpenAI-compatible server (e.g. Ollama) may ignore tool_choice: offer no tools at all.
+            for key in ("tools", "tool_choice", "parallel_tool_calls"):
+                body.pop(key)
         calls, text = await _model_round(model, body, out)
         if text:
             answered = True
@@ -254,7 +261,7 @@ async def _produce(
     request: ChatRequest, model: ChatModel, out: MessageWriter, queue: asyncio.Queue[Chunk | None]
 ) -> None:
     try:
-        async with asyncio.timeout(TURN_TIMEOUT_S):
+        async with asyncio.timeout(turn_timeout_s()):
             await run_turn(request, model, out)
     except TimeoutError:
         out.fail(TIMEOUT_TEXT)
@@ -296,14 +303,20 @@ async def chat_stream(request: ChatRequest, model: ChatModel) -> AsyncIterator[s
 # ------------------------------------------------------------------------------------------------
 
 
+def turn_timeout_s() -> float:
+    """CHAT_TURN_TIMEOUT_S, else TURN_TIMEOUT_S."""
+    return get_settings().chat_turn_timeout_s or TURN_TIMEOUT_S
+
+
 @lru_cache(maxsize=2)
-def _client(api_key: str) -> openai.AsyncOpenAI:
-    return openai.AsyncOpenAI(api_key=api_key, max_retries=1, timeout=TURN_TIMEOUT_S)
+def _client(api_key: str, base_url: str, timeout_s: float) -> openai.AsyncOpenAI:
+    return openai.AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=1, timeout=timeout_s)
 
 
-def openai_model(api_key: str) -> ChatModel:
-    """Responses API streaming as JSON events; provider errors become safe ChatErrors."""
-    client = _client(api_key)
+def openai_model(api_key: str, base_url: str | None = None) -> ChatModel:
+    """Responses API streaming as JSON events on OPENAI_BASE_URL (OpenAI, or an OpenAI-compatible server
+    with /v1/responses such as Ollama); provider errors become safe ChatErrors."""
+    client = _client(api_key, base_url or get_settings().openai_base_url, turn_timeout_s())
 
     async def stream(body: dict[str, Any]) -> AsyncIterator[ChatEvent]:
         create: Any = client.responses.create
@@ -329,5 +342,6 @@ def openai_model(api_key: str) -> ChatModel:
 
 def get_chat_model() -> ChatModel | None:
     """FastAPI dependency: the configured chat model client, or None without OPENAI_API_KEY."""
-    key = get_settings().openai_api_key
-    return None if key is None else openai_model(key.get_secret_value())
+    settings = get_settings()
+    key = settings.openai_api_key
+    return None if key is None else openai_model(key.get_secret_value(), settings.openai_base_url)
