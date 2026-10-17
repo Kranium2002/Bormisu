@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useT } from '../../../i18n';
 import type { DrawShape } from './drawTools';
 import styles from './DrawToolbar.module.css';
 
@@ -41,6 +42,7 @@ const TOOLS: { shape: DrawShape; label: string; hint: string; icon: ReactNode }[
  */
 export function DrawToolbar({ mode, areaShown, onDraw, onCancel, onRemoveArea }: Props) {
   const active = TOOLS.find((t) => t.shape === mode);
+  const tr = useT();
   return (
     <div className={styles.wrap}>
       <div className={styles.toolbar} role="toolbar" aria-label="Select an area" aria-orientation="vertical">
@@ -51,7 +53,7 @@ export function DrawToolbar({ mode, areaShown, onDraw, onCancel, onRemoveArea }:
             className={`${styles.tool} ${mode === t.shape ? styles.active : ''}`}
             aria-label={t.label}
             aria-pressed={mode === t.shape}
-            title={t.label}
+            title={tr(t.label)}
             onClick={() => (mode === t.shape ? onCancel() : onDraw(t.shape))}
           >
             <svg viewBox="0 0 20 20" aria-hidden="true" className={styles.icon}>
@@ -60,7 +62,7 @@ export function DrawToolbar({ mode, areaShown, onDraw, onCancel, onRemoveArea }:
           </button>
         ))}
         {areaShown && (
-          <button type="button" className={`${styles.tool} ${styles.remove}`} aria-label="Remove the selected area" title="Remove the selected area" onClick={onRemoveArea}>
+          <button type="button" className={`${styles.tool} ${styles.remove}`} aria-label="Remove the selected area" title={tr('Remove the selected area')} onClick={onRemoveArea}>
             <svg viewBox="0 0 20 20" aria-hidden="true" className={styles.icon}>
               <path d="M5 6.5h10M8 6.5V4.5h4v2M6.5 6.5l.8 9h5.4l.8-9" />
             </svg>
@@ -68,7 +70,7 @@ export function DrawToolbar({ mode, areaShown, onDraw, onCancel, onRemoveArea }:
         )}
       </div>
       <div className={styles.hint} role="status">
-        {active ? active.hint : ''}
+        {active ? tr(active.hint) : ''}
       </div>
     </div>
   );

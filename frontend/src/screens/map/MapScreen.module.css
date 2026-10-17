@@ -1,137 +1,103 @@
 /*
- * Map screen (FRONTEND.md section 6): explore panel | map over RESULTS and NOT ON MAP.
- *   >= 1280 px  three panes: panel column, map, results band under it.
- *   768–1279 px the panel opens over the map from the SEARCH & FILTERS toggle.
- *   < 768 px    the panel is a full-screen sheet; map, results and NOT ON MAP stack and the page
- *               scrolls vertically, never horizontally.
+ * Map screen (frontend_din): the map fills the screen; FILTERS sits right of the zoom buttons, the
+ * result set's chip at the top centre, the legend bottom left, the area tools on the right edge.
  */
 .screen {
   position: absolute;
   inset: 0;
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-}
-
-.centre {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) 300px;
-}
-
-/* The panel toggle: only while the panel is not a column. */
-.toolbar {
-  grid-row: 1;
-  display: none;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--c-border);
-  background: var(--c-surface);
-  color: var(--c-text);
-}
-
-.toggle {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--c-dark);
-  border-radius: 2px;
-  background: var(--c-dark);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  cursor: pointer;
-}
-
-/* Three bars, drawn so the button's name stays its text. */
-.toggle::before {
-  content: '';
-  width: 14px;
-  height: 2px;
-  background: currentColor;
-  box-shadow: 0 -4px 0 currentColor, 0 4px 0 currentColor;
-}
-
-.toggle:hover {
-  background: var(--c-surface);
-  color: var(--c-dark);
-}
-
-.toggle:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: 2px;
-}
-
-.toolbarNote {
-  font-size: 12px;
-  color: var(--c-green-text);
-  font-weight: 700;
-}
-
-.mapCell {
-  grid-row: 2;
-  position: relative;
-  min-height: 0;
-  /* Keeps Leaflet's pane and control z-indexes (400–1000) below the explore overlay, the side panel and dialogs. */
+  overflow: hidden;
+  /* Keeps Leaflet's pane and control z-indexes (400–1000) below the side panel and dialogs. */
   isolation: isolate;
 }
 
-.bottom {
-  grid-row: 3;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  border-top: 1px solid var(--c-border);
+/* FILTERS and its panel: right of Leaflet's zoom buttons (10 px in, 34 px wide). */
+.controls {
+  position: absolute;
+  top: 10px;
+  left: 54px;
+  z-index: calc(var(--z-map-overlay) + 2);
 }
 
-.bottom > aside {
-  border-left: 1px solid var(--c-border);
+.toggle {
+  composes: secondary from '../../styles/buttons.module.css';
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: 2px;
+  box-shadow: var(--shadow-card);
 }
 
-@media (max-width: 1279px) {
-  .screen {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.toggle.toggleOpen,
+.toggle.toggleOpen:hover:not(:disabled) {
+  background: var(--c-dark);
+  color: var(--c-on-accent);
+}
 
-  .toolbar {
-    display: flex;
-  }
+/* The number of active filters. */
+.count {
+  composes: chip from '../../styles/chips.module.css';
+  background: var(--c-amber);
+  color: var(--c-text);
+  letter-spacing: 0;
+}
 
-  .bottom {
-    grid-template-columns: minmax(0, 1fr) 240px;
-  }
+/* The active result set as a chip at the top centre; collapsed while no set is active. */
+.summary {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: calc(var(--z-map-overlay) + 1);
+  max-width: min(640px, calc(100% - 340px));
+}
+
+.summaryOn {
+  background: var(--c-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.openList {
+  composes: quiet link from '../../styles/buttons.module.css';
+  padding: 2px var(--space-1);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* While the header search filters the pins: how many match. */
+.searchNote {
+  position: absolute;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-map-overlay);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  background: var(--c-dark);
+  color: var(--c-on-accent);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  box-shadow: var(--shadow-card);
 }
 
 @media (max-width: 767px) {
-  .screen {
-    display: block;
-    overflow-x: hidden;
-    overflow-y: auto;
+  /* The chip goes under FILTERS so it never covers the area tools on the right. */
+  .summary {
+    top: 52px;
+    left: 10px;
+    right: 56px;
+    transform: none;
+    max-width: none;
   }
 
-  .centre {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .mapCell {
-    flex: none;
-    height: 55vh;
-    min-height: 260px;
-  }
-
-  .bottom {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .bottom > aside {
-    border-left: 0;
-    border-top: 1px solid var(--c-border);
+  .searchNote {
+    top: auto;
+    bottom: 10px;
+    left: auto;
+    right: 10px;
+    transform: none;
+    white-space: normal;
+    max-width: calc(100% - 20px);
   }
 }

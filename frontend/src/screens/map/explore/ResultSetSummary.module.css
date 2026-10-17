@@ -1,4 +1,4 @@
-/* The active result set above the RESULTS table; collapsed to nothing while no set is active. */
+/* The active result set in one line; collapsed to nothing while no set is active. */
 .bar {
   display: flex;
   flex-wrap: wrap;
@@ -9,52 +9,56 @@
 
 .active {
   padding: 6px 10px;
-  border-left: 3px solid var(--c-green);
+  border-left: 3px solid var(--c-dark);
   background: var(--c-selected);
   color: var(--c-text);
 }
 
+/* The chip over the map: one line, white. */
+.compact.active {
+  flex-wrap: nowrap;
+  background: var(--c-surface);
+}
+
 .tag {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--c-green-text);
+  letter-spacing: var(--ls-head);
+  color: var(--c-muted);
 }
 
 /* Never display:none: an empty live region stays in the accessibility tree, so the next set is announced. */
 .summary {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
+.compact .summary {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+/* The rest of the line in the compact chip: read by screen readers only. */
+.rest {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--c-red);
 }
 
 .clear {
+  composes: secondary small from '../../../styles/buttons.module.css';
   margin-left: auto;
-  appearance: none;
-  border: 1px solid var(--c-dark);
-  border-radius: 2px;
-  padding: 3px 10px;
-  background: var(--c-surface);
-  color: var(--c-dark);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  cursor: pointer;
-}
-
-.clear:hover {
-  background: var(--c-hover);
-}
-
-.clear:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: 2px;
 }

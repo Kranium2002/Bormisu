@@ -10,6 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { BoreholeFilter, BoreholeReviewStatus } from '../../../domain/types';
+import { useT } from '../../../i18n';
 import { useAppStore } from '../../../store/appStore';
 import styles from './FilterPanel.module.css';
 import {
@@ -90,12 +91,13 @@ function DepthInput({ field, label, text, error, disabled, describedBy, onText }
   describedBy?: string;
   onText(field: DepthField, text: string): void;
 }) {
+  const t = useT();
   const id = DEPTH_ID[field];
   const described = [error ? `${id}-error` : null, describedBy ?? null].filter(Boolean).join(' ') || undefined;
   return (
     <div className={styles.field}>
       <label htmlFor={id} className={styles.label}>
-        {label}
+        {t(label)}
       </label>
       <input
         id={id}
@@ -105,7 +107,7 @@ function DepthInput({ field, label, text, error, disabled, describedBy, onText }
         autoComplete="off"
         value={text}
         disabled={disabled}
-        title={disabled ? 'Choose DIN codes first' : undefined}
+        title={disabled ? t('Choose DIN codes first') : undefined}
         aria-invalid={!!error}
         aria-describedby={described}
         onChange={(e) => onText(field, e.target.value)}
@@ -117,6 +119,7 @@ function DepthInput({ field, label, text, error, disabled, describedBy, onText }
 /** The section's form, from props (server-rendered in tests). */
 export function FilterPanelView(p: FilterPanelViewProps) {
   const { filter, texts, errors, busy, onChange } = p;
+  const t = useT();
   const groups = useMemo(() => dinGroups(p.dinQuery), [p.dinQuery]);
   const codes = filter.dinCodes;
   const submit = (e: FormEvent) => {
@@ -125,12 +128,12 @@ export function FilterPanelView(p: FilterPanelViewProps) {
   };
   const tri = (name: string, legend: string, value: boolean | null, set: (v: boolean | null) => void) => (
     <fieldset className={styles.tri}>
-      <legend className={styles.legend}>{legend}</legend>
+      <legend className={styles.legend}>{t(legend)}</legend>
       <div className={styles.options}>
-        {TRI.map((t) => (
-          <label key={t.value} className={styles.option}>
-            <input id={`filter-${name}-${t.value}`} type="radio" name={`filter-${name}`} value={t.value} checked={toTri(value) === t.value} onChange={() => set(fromTri(t.value))} />
-            {t.label}
+        {TRI.map((o) => (
+          <label key={o.value} className={styles.option}>
+            <input id={`filter-${name}-${o.value}`} type="radio" name={`filter-${name}`} value={o.value} checked={toTri(value) === o.value} onChange={() => set(fromTri(o.value))} />
+            {t(o.label)}
           </label>
         ))}
       </div>
@@ -141,14 +144,14 @@ export function FilterPanelView(p: FilterPanelViewProps) {
     <form className={styles.form} aria-label="Filters" aria-busy={busy} onSubmit={submit} noValidate>
       <div className={styles.field}>
         <label htmlFor="filter-search" className={styles.label}>
-          Search
+          {t('Search')}
         </label>
         <input
           id="filter-search"
           className={styles.input}
           type="text"
           autoComplete="off"
-          placeholder="ID, name, location or project"
+          placeholder={t('ID, name, location or project')}
           value={filter.search ?? ''}
           onChange={(e) => onChange({ search: textOf(e.target.value) })}
         />
@@ -157,7 +160,7 @@ export function FilterPanelView(p: FilterPanelViewProps) {
       <div className={styles.pair}>
         <div className={styles.field}>
           <label htmlFor="filter-country" className={styles.label}>
-            Country
+            {t('Country')}
           </label>
           <input
             id="filter-country"
@@ -170,7 +173,7 @@ export function FilterPanelView(p: FilterPanelViewProps) {
         </div>
         <div className={styles.field}>
           <label htmlFor="filter-project" className={styles.label}>
-            Project
+            {t('Project')}
           </label>
           <input
             id="filter-project"
@@ -191,7 +194,7 @@ export function FilterPanelView(p: FilterPanelViewProps) {
 
       <div className={styles.field}>
         <label htmlFor="filter-document" className={styles.label}>
-          Document
+          {t('Document')}
         </label>
         <select
           id="filter-document"
@@ -199,7 +202,7 @@ export function FilterPanelView(p: FilterPanelViewProps) {
           value={filter.documentId ?? ''}
           onChange={(e) => onChange({ documentId: e.target.value || null })}
         >
-          <option value="">Any document</option>
+          <option value="">{t('Any document')}</option>
           {p.documents.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
@@ -209,7 +212,7 @@ export function FilterPanelView(p: FilterPanelViewProps) {
       </div>
 
       <fieldset className={styles.group}>
-        <legend className={styles.legend}>Final depth</legend>
+        <legend className={styles.legend}>{t('Final depth')}</legend>
         <div className={styles.pair}>
           <DepthInput field="minDepth" label="Minimum depth (m)" text={texts.minDepth} error={errors.minDepth} onText={p.onDepthText} />
           <DepthInput field="maxDepth" label="Maximum depth (m)" text={texts.maxDepth} error={errors.maxDepth} onText={p.onDepthText} />
@@ -218,24 +221,24 @@ export function FilterPanelView(p: FilterPanelViewProps) {
           (f) =>
             errors[f] && (
               <p key={f} id={`${DEPTH_ID[f]}-error`} className={styles.fieldError} role="alert">
-                {errors[f]}
+                {t(errors[f] ?? '')}
               </p>
             ),
         )}
-        <p className={styles.hint}>A borehole whose depth is not stated never matches a depth bound.</p>
+        <p className={styles.hint}>{t('A borehole whose depth is not stated never matches a depth bound.')}</p>
       </fieldset>
 
       <fieldset className={styles.group}>
-        <legend className={styles.legend}>DIN 4023 codes</legend>
+        <legend className={styles.legend}>{t('DIN 4023 codes')}</legend>
         <label htmlFor="filter-din-find" className={styles.sublabel}>
-          Find a code
+          {t('Find a code')}
         </label>
         <input
           id="filter-din-find"
           className={styles.input}
           type="text"
           autoComplete="off"
-          placeholder="Code or name, e.g. G or gravel"
+          placeholder={t('Code or name, e.g. G or gravel')}
           value={p.dinQuery}
           onChange={(e) => p.onDinQuery(e.target.value)}
         />
@@ -243,7 +246,7 @@ export function FilterPanelView(p: FilterPanelViewProps) {
           {groups.map((g) => (
             <div key={g.kind} role="group" aria-labelledby={`filter-din-kind-${g.kind}`}>
               <div id={`filter-din-kind-${g.kind}`} className={styles.dinKind}>
-                {g.label}
+                {t(g.label)}
               </div>
               {g.items.map((item) => (
                 <label key={item.code} className={styles.check}>
@@ -262,15 +265,15 @@ export function FilterPanelView(p: FilterPanelViewProps) {
               ))}
             </div>
           ))}
-          {!groups.length && <p className={styles.hint}>No DIN code matches “{p.dinQuery.trim()}”.</p>}
+          {!groups.length && <p className={styles.hint}>{t('No DIN code matches')} “{p.dinQuery.trim()}”.</p>}
         </div>
         <div className={styles.chosen}>
           <p className={styles.hint} aria-live="polite">
-            {codes.length ? `${codes.length} chosen: ${codes.map((c) => `${c} ${dinName(c)}`).join(', ')}` : 'None chosen: any lithology.'}
+            {codes.length ? `${codes.length} ${t('chosen')}: ${codes.map((c) => `${c} ${dinName(c)}`).join(', ')}` : t('None chosen: any lithology.')}
           </p>
           {codes.length > 0 && (
             <button type="button" className={styles.link} onClick={() => onChange({ dinCodes: [], lithologyMinDepth: null })}>
-              CLEAR CODES
+              {t('CLEAR CODES')}
             </button>
           )}
         </div>
@@ -285,11 +288,11 @@ export function FilterPanelView(p: FilterPanelViewProps) {
         />
         {errors.lithologyMinDepth && (
           <p id="filter-lith-depth-error" className={styles.fieldError} role="alert">
-            {errors.lithologyMinDepth}
+            {t(errors.lithologyMinDepth)}
           </p>
         )}
         <p id="filter-lith-hint" className={styles.hint}>
-          {codes.length ? 'A layer with a chosen code must reach below this depth.' : 'Choose DIN codes first.'}
+          {codes.length ? t('A layer with a chosen code must reach below this depth.') : t('Choose DIN codes first.')}
         </p>
       </fieldset>
 
@@ -299,7 +302,7 @@ export function FilterPanelView(p: FilterPanelViewProps) {
       </div>
 
       <fieldset className={styles.group}>
-        <legend className={styles.legend}>Review status</legend>
+        <legend className={styles.legend}>{t('Review status')}</legend>
         <div className={styles.options}>
           {REVIEW.map((r) => (
             <label key={r.value} className={styles.option}>
@@ -309,11 +312,11 @@ export function FilterPanelView(p: FilterPanelViewProps) {
                 checked={filter.reviewStatus.includes(r.value)}
                 onChange={() => onChange({ reviewStatus: toggled(filter.reviewStatus, r.value) })}
               />
-              {r.label}
+              {t(r.label)}
             </label>
           ))}
         </div>
-        <p className={styles.hint}>None ticked: any status.</p>
+        <p className={styles.hint}>{t('None ticked: any status.')}</p>
       </fieldset>
 
       <div className={styles.inline}>
@@ -325,18 +328,18 @@ export function FilterPanelView(p: FilterPanelViewProps) {
           onChange={() => onChange({ includeUnreviewed: !filter.includeUnreviewed })}
         />
         <label htmlFor="filter-include-unreviewed" className={styles.inlineLabel}>
-          Include unreviewed boreholes
+          {t('Include unreviewed boreholes')}
         </label>
       </div>
       <p id="filter-include-hint" className={styles.hint}>
-        Off: only approved boreholes; the others are counted as left out.
+        {t('Off: only approved boreholes; the others are counted as left out.')}
       </p>
 
       {filter.area && (
         <div className={styles.area}>
-          <span>{areaText(filter.area)}</span>
+          <span>{t(areaText(filter.area))}</span>
           <button type="button" className={styles.link} onClick={() => onChange({ area: null })}>
-            REMOVE AREA
+            {t('REMOVE AREA')}
           </button>
         </div>
       )}
@@ -346,13 +349,13 @@ export function FilterPanelView(p: FilterPanelViewProps) {
           type="submit"
           className={styles.apply}
           disabled={busy}
-          title={busy ? 'The filter is being applied' : undefined}
+          title={busy ? t('The filter is being applied') : undefined}
           aria-describedby={p.error && !busy ? 'filter-apply-error' : undefined}
         >
-          {busy ? 'APPLYING…' : 'APPLY'}
+          {busy ? t('APPLYING…') : t('APPLY')}
         </button>
         <button type="button" className={styles.reset} onClick={p.onReset}>
-          RESET
+          {t('RESET')}
         </button>
       </div>
       {p.error && !busy && (

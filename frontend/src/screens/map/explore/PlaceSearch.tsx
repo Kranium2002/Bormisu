@@ -8,6 +8,7 @@
  */
 import { useState, type FormEvent } from 'react';
 import type { PlaceCandidate } from '../../../domain/types';
+import { useT } from '../../../i18n';
 import { useAppStore } from '../../../store/appStore';
 import styles from './PlaceSearch.module.css';
 import { chosenAfterSearch, noUploadedBoreholes, placeCountText, placeKindText, placeStatusText } from './placeModel';
@@ -40,12 +41,13 @@ export function PlaceSearchView({ text, onTextChange, onSubmit, onChoose, busy, 
     e.preventDefault();
     onSubmit();
   };
+  const t = useT();
   const status = placeStatusText({ busy, error, places });
   return (
     <div className={styles.root}>
       <form role="search" aria-label="Place search" className={styles.form} onSubmit={submit} noValidate>
         <label htmlFor="place-query" className={styles.label}>
-          Town, address or place
+          {t('Town, address or place')}
         </label>
         <div className={styles.row}>
           <input
@@ -58,19 +60,19 @@ export function PlaceSearchView({ text, onTextChange, onSubmit, onChoose, busy, 
             spellCheck={false}
             aria-describedby={hint ? 'place-hint' : undefined}
           />
-          <button type="submit" className={styles.submit} disabled={busy} title={busy ? 'Searching…' : undefined}>
-            SEARCH
+          <button type="submit" className={styles.submit} disabled={busy} title={busy ? t('Searching…') : undefined}>
+            {t('SEARCH')}
           </button>
         </div>
         {hint && (
           <p id="place-hint" className={styles.hint}>
-            {hint}
+            {t(hint)}
           </p>
         )}
       </form>
       <div className={styles.results} aria-busy={busy}>
         <p className={`${styles.status} ${error ? styles.error : ''}`} role="status">
-          {status}
+          {t(status)}
         </p>
         {!!places?.length && (
           <ul className={styles.list} aria-label="Places found">
@@ -98,7 +100,7 @@ export function PlaceSearchView({ text, onTextChange, onSubmit, onChoose, busy, 
                   </button>
                   {none && (
                     <p id={`place-none-${i}`} className={styles.none}>
-                      No uploaded boreholes here
+                      {t('No uploaded boreholes here')}
                     </p>
                   )}
                 </li>

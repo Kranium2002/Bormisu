@@ -1,5 +1,6 @@
 import { chatOffReason, CHAT_BUTTON_ID } from '../../chat/view';
 import { dataSourceKind } from '../../data/createDataSource';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import styles from '../chat/Chat.module.css';
 
@@ -8,6 +9,7 @@ export function ChatButtonView({ open, offReason, onToggle }: { open: boolean; o
   // Off with the reason as its tooltip; still focusable (aria-disabled), so keyboard users get the reason too.
   // An open drawer can always be closed from here.
   const off = !open && offReason !== null;
+  const t = useT();
   return (
     <div className={styles.buttonWrap}>
       <button
@@ -16,12 +18,12 @@ export function ChatButtonView({ open, offReason, onToggle }: { open: boolean; o
         className={`${styles.headerButton} ${open ? styles.headerButtonOpen : ''}`}
         aria-expanded={open}
         aria-disabled={off ? true : undefined}
-        title={off ? offReason : open ? 'Close the chat' : 'Ask the chat assistant'}
+        title={off ? t(offReason) : open ? t('Close the chat') : t('Ask the chat assistant')}
         onClick={() => {
           if (!off) onToggle();
         }}
       >
-        CHAT
+        {t('CHAT')}
       </button>
     </div>
   );

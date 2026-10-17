@@ -30,7 +30,7 @@ const BLANK_TILE = Buffer.from(
 export const API = '/api/v1';
 
 /** Pin and chip colours (src/theme.ts COL). */
-export const COLOR = { approved: '#7DB713', attention: '#E39B00', grey: '#A3A3A2', unknownDin: '#E0E0E0' } as const;
+export const COLOR = { approved: '#1E7B34', attention: '#E39B00', grey: '#A3A3A2', unknownDin: '#E0E0E0' } as const;
 
 /** Status chip labels (src/theme.ts statusChip). */
 export const STATUS_LABEL = {
@@ -351,27 +351,38 @@ export async function reload(page: Page): Promise<void> {
   await loaded(page);
 }
 
-/** A link of the header nav (MAP, UPLOAD & QUEUE with its badge, REVIEW). */
-export const navLink = (page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW') =>
+/** A link of the header nav (MAP, LIST, UPLOAD & QUEUE and INBOX with their badges). */
+export type NavName = 'MAP' | 'LIST' | 'UPLOAD & QUEUE' | 'INBOX';
+export const navLink = (page: Page, name: NavName) =>
   page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: new RegExp(`^${name}`) });
 
-/** Goes to one of the three main screens through the header nav. */
-export async function nav(page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
-  await navLink(page, name).click();
+/**
+ * Goes to a main screen through the header nav. Review has no tab (it opens from UPLOAD & QUEUE and
+ * the detail): 'REVIEW' goes to /review in the page (no reload), which opens the review target.
+ */
+export async function nav(page: Page, name: NavName | 'REVIEW'): Promise<void> {
+  if (name !== 'REVIEW') {
+    await navLink(page, name).click();
+    return;
+  }
+  await page.evaluate(() => {
+    window.history.pushState(null, '', '/review');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
 }
 
 /** A RESULTS row by its borehole ID as printed. */
 export const resultRow = (page: Page, id: string) =>
   page.locator('[role="table"] [role="row"][data-uid]').filter({ has: page.getByText(id, { exact: true }) });
 
-/** From the map screen: opens the Detail screen of a borehole through its RESULTS row. */
+/** Opens the Detail screen of a borehole through its row in LIST. */
 export async function openDetail(page: Page, id: string): Promise<void> {
-  await nav(page, 'MAP');
+  await nav(page, 'LIST');
   await resultRow(page, id).click();
   await expect(page.getByRole('heading', { level: 1, name: id, exact: true })).toBeVisible();
 }
 
-/** Opens the Review screen of a borehole: RESULTS row → Detail → › OPEN IN REVIEW. */
+/** Opens the Review screen of a borehole: LIST row → Detail → › OPEN IN REVIEW. */
 export async function openReview(page: Page, id: string): Promise<void> {
   await openDetail(page, id);
   await page.getByRole('button', { name: '› OPEN IN REVIEW' }).click();

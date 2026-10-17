@@ -15,25 +15,27 @@
   border: 1px solid var(--c-nav-idle);
   border-radius: 2px;
   background: none;
-  color: #fff;
-  font-size: 12px;
+  color: var(--c-surface);
+  font-size: var(--fs-sm);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--ls-caps);
 }
 
 .headerButton:hover {
-  border-color: #fff;
+  border-color: var(--c-surface);
 }
 
+/* White ring on the black bar. */
 .headerButton:focus-visible {
-  outline: 2px solid #fff;
+  outline: var(--focus-ring-on-dark);
   outline-offset: 2px;
 }
 
+/* Open: inverted, white on the black bar. */
 .headerButtonOpen {
-  background: var(--c-green);
-  border-color: var(--c-green);
-  color: var(--c-on-green);
+  background: var(--c-surface);
+  border-color: var(--c-surface);
+  color: var(--c-text);
 }
 
 .headerButton[aria-disabled='true'],
@@ -85,21 +87,13 @@
 .title {
   margin: 0;
   flex: 1;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--ls-head);
 }
 
 .headButton {
-  cursor: pointer;
-  background: none;
-  border: 1px solid var(--c-border-strong);
-  border-radius: 2px;
-  padding: 5px 9px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--c-text);
+  composes: secondary small from '../../styles/buttons.module.css';
 }
 
 .headButton[aria-disabled='true'] {
@@ -108,13 +102,8 @@
 }
 
 .close {
-  cursor: pointer;
+  composes: iconButton from '../../styles/buttons.module.css';
   font-size: 22px;
-  line-height: 1;
-  background: none;
-  border: 0;
-  padding: 0 2px;
-  color: var(--c-text);
 }
 
 .off {
@@ -147,7 +136,7 @@
 .user {
   align-self: flex-end;
   max-width: 85%;
-  background: var(--c-green-bg);
+  background: var(--c-selected);
   color: var(--c-text);
   padding: 8px 11px;
   border-radius: 6px 6px 0 6px;
@@ -187,7 +176,7 @@
   flex: none;
   width: 12px;
   text-align: center;
-  color: var(--c-green-text);
+  color: var(--c-text);
 }
 
 .tool[data-tool-state='running'] .toolMark {
@@ -210,10 +199,10 @@
   min-width: 18px;
   margin: 0 2px;
   padding: 0 4px;
-  border: 1px solid var(--c-ok-border);
+  border: 1px solid var(--c-border-strong);
   border-radius: 9px;
-  background: var(--c-green-bg);
-  color: var(--c-green-text);
+  background: var(--c-surface);
+  color: var(--c-text);
   font-size: 10.5px;
   font-weight: 800;
   line-height: 16px;
@@ -223,8 +212,9 @@
 
 .cite:hover,
 .cite:focus-visible {
-  background: var(--c-green);
-  color: var(--c-on-green);
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-on-accent);
 }
 
 .sources {
@@ -245,7 +235,7 @@
 /* result and question cards */
 .card {
   border: 1px solid var(--c-border);
-  border-left: 3px solid var(--c-green);
+  border-left: 3px solid var(--c-text);
   border-radius: 2px;
   padding: 10px 12px;
   display: flex;
@@ -292,35 +282,22 @@
   overflow-wrap: anywhere;
 }
 
-/* buttons */
-.primary,
-.secondary,
-.stop {
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+/* buttons: the shared hierarchy (styles/buttons.module.css) */
+.primary {
+  composes: primary small from '../../styles/buttons.module.css';
   white-space: nowrap;
 }
 
-.primary {
-  background: var(--c-green);
-  color: var(--c-on-green);
-  border: 0;
-}
-
 .secondary {
-  background: var(--c-surface);
-  color: var(--c-dark);
-  border: 1px solid var(--c-border-strong);
+  composes: secondary small from '../../styles/buttons.module.css';
+  white-space: nowrap;
 }
 
 .stop {
-  background: var(--c-surface);
+  composes: secondary small from '../../styles/buttons.module.css';
+  white-space: nowrap;
   color: var(--c-red);
-  border: 1px solid var(--c-red);
+  border-color: var(--c-red);
 }
 
 .primary[aria-disabled='true'],
@@ -357,7 +334,7 @@
   gap: 10px;
   padding: 8px 10px;
   background: var(--c-selected);
-  border: 1px solid var(--c-ok-border);
+  border: 1px solid var(--c-border);
   border-radius: 2px;
   font-size: 12px;
   line-height: 1.4;
@@ -395,7 +372,7 @@
 .chipOn {
   background: var(--c-dark);
   border-color: var(--c-dark);
-  color: #fff;
+  color: var(--c-on-accent);
 }
 
 .chip[aria-disabled='true'] {
@@ -424,7 +401,7 @@
 }
 
 .input:focus {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: -1px;
 }
 
@@ -446,7 +423,7 @@
   gap: 10px;
   padding: 10px 12px;
   background: var(--c-surface);
-  border-left: 3px solid var(--c-green);
+  border-left: 3px solid var(--c-text);
   box-shadow: var(--shadow-popover);
   border-radius: 2px;
   font-size: 13px;

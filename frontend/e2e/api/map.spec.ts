@@ -313,9 +313,9 @@ test('search for an unplotted borehole says why it is not on the map instead of 
     await search.fill(r.metadata.borehole_id);
     await search.press('Enter');
     await expect(page.getByRole('banner').getByRole('status')).toHaveText(
-      `${r.metadata.borehole_id}: ${UNPLOTTED_LABEL[r.unplotted_reason ?? '']}. Listed under Not on map.`,
+      `${r.metadata.borehole_id}: ${UNPLOTTED_LABEL[r.unplotted_reason ?? '']}. Shown in LIST.`,
     );
-    await expect(popup(page)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/list$/);
   }
 });
 

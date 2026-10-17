@@ -375,7 +375,10 @@ export const createMapDataSlice: SliceCreator<MapDataSlice> = (ctx) => {
 
     showNotOnMap(documentId) {
       set({ notOnMapFocus: { documentId, nonce: nextNonce() } });
-      if (get().screen !== 'map') get().go('map');
+      const s = get();
+      // The boreholes without a pin are listed in LIST; without a router (unit tests) the map stands in.
+      if (s.navigator) s.showRoute({ kind: 'list' });
+      else if (s.screen !== 'map') s.go('map');
     },
 
     revealPlaced(target, lead) {
