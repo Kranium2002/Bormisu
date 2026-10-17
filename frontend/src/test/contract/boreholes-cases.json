@@ -1,0 +1,1039 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "array:BoreholeRecord",
+  "example": [
+    {
+      "uid": "bh_01JFICT00000000000000TQ01",
+      "document_id": "doc_01JFICT0000000000000000D6",
+      "source_file": "tamarind_quay_logs.xlsx",
+      "pages": [],
+      "revision": 9,
+      "updated_at": "2026-10-17T08:30:00Z",
+      "review_status": "approved",
+      "crs_status": "confirmed",
+      "plotted": true,
+      "unplotted_reason": null,
+      "rock_head_m": null,
+      "metadata": {
+        "borehole_id": "TQ-01",
+        "project_name": "Tamarind Quay Outfall (fictional)",
+        "borehole_depth_m": 12,
+        "coordinates": {
+          "latitude": 1.2834,
+          "longitude": 103.8607,
+          "local_x": 30512.4,
+          "local_y": 29870.1,
+          "coordinate_system": "SVY21",
+          "crs_code": "EPSG:3414",
+          "x_raw": "30512.4",
+          "y_raw": "29870.1",
+          "axis_labels_raw": "E, N"
+        }
+      },
+      "stratigraphy": [
+        {
+          "thickness_m": null,
+          "original_description": "Marine clay, very soft",
+          "english_lithology": "Marine clay, very soft",
+          "description_language": null,
+          "din4023_code": "T",
+          "din4023_notation": "T",
+          "uscs_group": null,
+          "stratigraphic_name": null,
+          "engineering_soil_unit": null,
+          "geologic_age": null,
+          "colour": null,
+          "consistency_density": null,
+          "moisture": null,
+          "weathering": null,
+          "is_core": null,
+          "rqd_pct": null,
+          "core_recovery_pct": null,
+          "spt_n_value": null,
+          "spt_raw": null,
+          "spt_refusal": null,
+          "spt_increments": null,
+          "spt_increment_mm": null,
+          "spt_penetration_cm": null,
+          "spt_depth_m": null,
+          "ucs_mpa": null,
+          "depth_from_m": 0,
+          "depth_to_m": 12
+        }
+      ],
+      "groundwater": [],
+      "samples": [],
+      "test_results": [],
+      "provenance": {
+        "metadata.borehole_id": {
+          "page": null,
+          "box": null,
+          "raw": "TQ-01",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Metadata!A2"
+        },
+        "metadata.project_name": {
+          "page": null,
+          "box": null,
+          "raw": "Tamarind Quay Outfall",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Metadata!G2"
+        },
+        "metadata.borehole_depth_m": {
+          "page": null,
+          "box": null,
+          "raw": "12",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Metadata!L2"
+        },
+        "metadata.coordinates.local_x": {
+          "page": null,
+          "box": null,
+          "raw": "30512.4",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Metadata!I2"
+        },
+        "metadata.coordinates.local_y": {
+          "page": null,
+          "box": null,
+          "raw": "29870.1",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Metadata!J2"
+        },
+        "metadata.coordinates.coordinate_system": {
+          "page": null,
+          "box": null,
+          "raw": "SVY21",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Metadata!K2"
+        },
+        "metadata.coordinates.latitude": {
+          "page": null,
+          "box": null,
+          "raw": null,
+          "method": "derived",
+          "confidence": null,
+          "status": "approved",
+          "state": "ok"
+        },
+        "metadata.coordinates.longitude": {
+          "page": null,
+          "box": null,
+          "raw": null,
+          "method": "derived",
+          "confidence": null,
+          "status": "approved",
+          "state": "ok"
+        },
+        "stratigraphy[0].depth_to_m": {
+          "page": null,
+          "box": null,
+          "raw": "12",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Logdata!C2"
+        },
+        "stratigraphy[0].english_lithology": {
+          "page": null,
+          "box": null,
+          "raw": "Marine clay, very soft",
+          "method": "read",
+          "confidence": 1,
+          "status": "approved",
+          "state": "ok",
+          "cell": "Logdata!E2"
+        }
+      },
+      "lint": [],
+      "open_clarifications": 0
+    },
+    {
+      "uid": "bh_01JFICT00000000000000TQ02",
+      "document_id": "doc_01JFICT0000000000000000D6",
+      "source_file": "tamarind_quay_logs.xlsx",
+      "pages": [],
+      "revision": 1,
+      "updated_at": "2026-10-17T08:00:00Z",
+      "review_status": "unreviewed",
+      "crs_status": "unknown",
+      "plotted": false,
+      "unplotted_reason": "no_coordinates",
+      "rock_head_m": null,
+      "metadata": {
+        "borehole_id": "TQ-02",
+        "project_name": "Tamarind Quay Outfall (fictional)",
+        "borehole_depth_m": null,
+        "coordinates": {
+          "latitude": null,
+          "longitude": null,
+          "local_x": null,
+          "local_y": null,
+          "coordinate_system": null,
+          "crs_code": null,
+          "x_raw": null,
+          "y_raw": null,
+          "axis_labels_raw": null
+        }
+      },
+      "stratigraphy": [],
+      "groundwater": [],
+      "samples": [],
+      "test_results": [],
+      "provenance": {
+        "metadata.borehole_id": {
+          "page": null,
+          "box": null,
+          "raw": "TQ-02",
+          "method": "read",
+          "confidence": 1,
+          "status": "unreviewed",
+          "state": "ok",
+          "cell": "Metadata!A3"
+        },
+        "metadata.project_name": {
+          "page": null,
+          "box": null,
+          "raw": "Tamarind Quay Outfall",
+          "method": "read",
+          "confidence": 1,
+          "status": "unreviewed",
+          "state": "ok",
+          "cell": "Metadata!G3"
+        },
+        "metadata.coordinates.local_x": {
+          "page": null,
+          "box": null,
+          "raw": null,
+          "method": "read",
+          "confidence": null,
+          "status": "unreviewed",
+          "state": "not_in_source",
+          "cell": "Metadata!I3"
+        }
+      },
+      "lint": [
+        {
+          "path": "metadata.coordinates",
+          "rule": "no_coordinates",
+          "severity": "warning",
+          "message": "No coordinates in the source"
+        }
+      ],
+      "open_clarifications": 0
+    },
+    {
+      "uid": "bh_01JFICT00000000000000LA01",
+      "document_id": "doc_01JFICT0000000000000000D7",
+      "source_file": "lagoa_azul_sondagens.pdf",
+      "pages": [
+        3
+      ],
+      "revision": 1,
+      "updated_at": "2026-10-17T08:00:00Z",
+      "review_status": "unreviewed",
+      "crs_status": "unknown",
+      "plotted": false,
+      "unplotted_reason": "crs_unknown",
+      "rock_head_m": null,
+      "metadata": {
+        "borehole_id": "SP-01",
+        "project_name": "Lagoa Azul Metro (fictional)",
+        "country": "Brazil",
+        "borehole_depth_m": 20.45,
+        "surface_elevation_mASL": 742.3,
+        "elevation_datum": "COTA",
+        "coordinates": {
+          "latitude": null,
+          "longitude": null,
+          "local_x": 1250.5,
+          "local_y": 830.2,
+          "coordinate_system": "Malha local da obra",
+          "crs_code": null,
+          "x_raw": "E 1250,50",
+          "y_raw": "N 830,20",
+          "axis_labels_raw": "E, N"
+        }
+      },
+      "stratigraphy": [
+        {
+          "thickness_m": null,
+          "original_description": "Argila siltosa, mole",
+          "english_lithology": "Clay, silty, soft",
+          "description_language": "pt",
+          "din4023_code": "T",
+          "din4023_notation": "T, u",
+          "uscs_group": null,
+          "stratigraphic_name": null,
+          "engineering_soil_unit": null,
+          "geologic_age": null,
+          "colour": null,
+          "consistency_density": null,
+          "moisture": null,
+          "weathering": null,
+          "is_core": null,
+          "rqd_pct": null,
+          "core_recovery_pct": null,
+          "spt_n_value": 4,
+          "spt_raw": "1/1/3",
+          "spt_refusal": null,
+          "spt_increments": [
+            1,
+            1,
+            3
+          ],
+          "spt_increment_mm": null,
+          "spt_penetration_cm": null,
+          "spt_depth_m": 1,
+          "ucs_mpa": null,
+          "depth_from_m": 0,
+          "depth_to_m": 20.45
+        }
+      ],
+      "groundwater": [],
+      "samples": [],
+      "test_results": [],
+      "provenance": {
+        "metadata.borehole_id": {
+          "page": 3,
+          "box": [
+            0.1,
+            0.05,
+            0.1,
+            0.02
+          ],
+          "raw": "SP-01",
+          "method": "read",
+          "confidence": 0.97,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.project_name": {
+          "page": 3,
+          "box": [
+            0.1,
+            0.02,
+            0.4,
+            0.02
+          ],
+          "raw": "Metro Lagoa Azul",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.country": {
+          "page": 3,
+          "box": [
+            0.5,
+            0.02,
+            0.1,
+            0.02
+          ],
+          "raw": "Brasil",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.borehole_depth_m": {
+          "page": 3,
+          "box": [
+            0.7,
+            0.05,
+            0.08,
+            0.02
+          ],
+          "raw": "20,45 m",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.surface_elevation_mASL": {
+          "page": 3,
+          "box": [
+            0.7,
+            0.08,
+            0.1,
+            0.02
+          ],
+          "raw": "Cota 742,30",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.elevation_datum": {
+          "page": 3,
+          "box": [
+            0.7,
+            0.08,
+            0.04,
+            0.02
+          ],
+          "raw": "Cota",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.local_x": {
+          "page": 3,
+          "box": [
+            0.1,
+            0.08,
+            0.12,
+            0.02
+          ],
+          "raw": "E 1250,50",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.local_y": {
+          "page": 3,
+          "box": [
+            0.3,
+            0.08,
+            0.12,
+            0.02
+          ],
+          "raw": "N 830,20",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.coordinate_system": {
+          "page": 3,
+          "box": [
+            0.45,
+            0.08,
+            0.2,
+            0.02
+          ],
+          "raw": "Malha local da obra",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[0].depth_to_m": {
+          "page": 3,
+          "box": [
+            0.05,
+            0.5,
+            0.06,
+            0.02
+          ],
+          "raw": "20,45",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[0].english_lithology": {
+          "page": 3,
+          "box": [
+            0.15,
+            0.3,
+            0.3,
+            0.02
+          ],
+          "raw": "Argila siltosa, mole",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[0].spt_n_value": {
+          "page": 3,
+          "box": [
+            0.62,
+            0.3,
+            0.08,
+            0.02
+          ],
+          "raw": "1/1/3",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        }
+      },
+      "lint": [],
+      "open_clarifications": 1
+    },
+    {
+      "uid": "bh_01JFICT00000000000000LA02",
+      "document_id": "doc_01JFICT0000000000000000D7",
+      "source_file": "lagoa_azul_sondagens.pdf",
+      "pages": [
+        4
+      ],
+      "revision": 1,
+      "updated_at": "2026-10-17T08:00:00Z",
+      "review_status": "unreviewed",
+      "crs_status": "inferred",
+      "plotted": false,
+      "unplotted_reason": "crs_unconfirmed",
+      "rock_head_m": null,
+      "metadata": {
+        "borehole_id": "SP-02",
+        "project_name": "Lagoa Azul Metro (fictional)",
+        "borehole_depth_m": 15,
+        "coordinates": {
+          "latitude": null,
+          "longitude": null,
+          "local_x": 333410,
+          "local_y": 7395120,
+          "coordinate_system": null,
+          "crs_code": null,
+          "x_raw": "7.395.120",
+          "y_raw": "333.410",
+          "axis_labels_raw": "N, E"
+        }
+      },
+      "stratigraphy": [
+        {
+          "thickness_m": null,
+          "original_description": "Areia fina, medianamente compacta",
+          "english_lithology": "Sand, fine, medium dense",
+          "description_language": null,
+          "din4023_code": "fS",
+          "din4023_notation": "fS",
+          "uscs_group": null,
+          "stratigraphic_name": null,
+          "engineering_soil_unit": null,
+          "geologic_age": null,
+          "colour": null,
+          "consistency_density": null,
+          "moisture": null,
+          "weathering": null,
+          "is_core": null,
+          "rqd_pct": null,
+          "core_recovery_pct": null,
+          "spt_n_value": null,
+          "spt_raw": null,
+          "spt_refusal": null,
+          "spt_increments": null,
+          "spt_increment_mm": null,
+          "spt_penetration_cm": null,
+          "spt_depth_m": null,
+          "ucs_mpa": null,
+          "depth_from_m": 0,
+          "depth_to_m": 15
+        }
+      ],
+      "groundwater": [],
+      "samples": [],
+      "test_results": [],
+      "provenance": {
+        "metadata.borehole_id": {
+          "page": 4,
+          "box": [
+            0.1,
+            0.05,
+            0.1,
+            0.02
+          ],
+          "raw": "SP-02",
+          "method": "read",
+          "confidence": 0.97,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.project_name": {
+          "page": 4,
+          "box": [
+            0.1,
+            0.02,
+            0.4,
+            0.02
+          ],
+          "raw": "Metro Lagoa Azul",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.borehole_depth_m": {
+          "page": 4,
+          "box": [
+            0.7,
+            0.05,
+            0.08,
+            0.02
+          ],
+          "raw": "15,00 m",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.local_x": {
+          "page": 4,
+          "box": [
+            0.3,
+            0.08,
+            0.12,
+            0.02
+          ],
+          "raw": "333.410",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.local_y": {
+          "page": 4,
+          "box": [
+            0.1,
+            0.08,
+            0.12,
+            0.02
+          ],
+          "raw": "7.395.120",
+          "method": "read",
+          "confidence": 0.96,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[0].depth_to_m": {
+          "page": 4,
+          "box": [
+            0.05,
+            0.5,
+            0.06,
+            0.02
+          ],
+          "raw": "15,00",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[0].english_lithology": {
+          "page": 4,
+          "box": [
+            0.15,
+            0.3,
+            0.3,
+            0.02
+          ],
+          "raw": "Areia fina, medianamente compacta",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        }
+      },
+      "lint": [
+        {
+          "path": "metadata.coordinates.local_x",
+          "rule": "crs_inferred",
+          "severity": "warning",
+          "message": "Coordinate system not printed; inferred from the value ranges"
+        }
+      ],
+      "open_clarifications": 1
+    },
+    {
+      "uid": "bh_01JFICT00000000000000OS01",
+      "document_id": "doc_01JFICT0000000000000000D8",
+      "source_file": "misc_site_logs.pdf",
+      "pages": [
+        1
+      ],
+      "revision": 1,
+      "updated_at": "2026-10-17T08:00:00Z",
+      "review_status": "unreviewed",
+      "crs_status": "stated",
+      "plotted": false,
+      "unplotted_reason": "implausible",
+      "rock_head_m": null,
+      "metadata": {
+        "borehole_id": "OS-01",
+        "project_name": null,
+        "borehole_depth_m": 3,
+        "coordinates": {
+          "latitude": 0.0004,
+          "longitude": 0.0002,
+          "local_x": null,
+          "local_y": null,
+          "coordinate_system": "WGS84",
+          "crs_code": "EPSG:4326",
+          "x_raw": "0.0004",
+          "y_raw": "0.0002",
+          "axis_labels_raw": "lat, lon"
+        }
+      },
+      "stratigraphy": [],
+      "groundwater": [],
+      "samples": [],
+      "test_results": [],
+      "provenance": {
+        "metadata.borehole_id": {
+          "page": 1,
+          "box": [
+            0.1,
+            0.05,
+            0.1,
+            0.02
+          ],
+          "raw": "OS-01",
+          "method": "read",
+          "confidence": 0.97,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.latitude": {
+          "page": 1,
+          "box": [
+            0.1,
+            0.08,
+            0.1,
+            0.02
+          ],
+          "raw": "0.0004",
+          "method": "ocr",
+          "confidence": 0.5,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.longitude": {
+          "page": 1,
+          "box": [
+            0.3,
+            0.08,
+            0.1,
+            0.02
+          ],
+          "raw": "0.0002",
+          "method": "ocr",
+          "confidence": 0.5,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.coordinate_system": {
+          "page": 1,
+          "box": [
+            0.45,
+            0.08,
+            0.08,
+            0.02
+          ],
+          "raw": "WGS84",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.borehole_depth_m": {
+          "page": 1,
+          "box": [
+            0.7,
+            0.05,
+            0.08,
+            0.02
+          ],
+          "raw": "3.0 m",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        }
+      },
+      "lint": [
+        {
+          "path": "metadata.coordinates.latitude",
+          "rule": "implausible_location",
+          "severity": "error",
+          "message": "Coordinates lie at 0, 0"
+        }
+      ],
+      "open_clarifications": 0
+    },
+    {
+      "uid": "bh_01JFICT00000000000000MP01",
+      "document_id": "doc_01JFICT0000000000000000D8",
+      "source_file": "misc_site_logs.pdf",
+      "pages": [
+        2
+      ],
+      "revision": 3,
+      "updated_at": "2026-10-17T08:30:00Z",
+      "review_status": "in_review",
+      "crs_status": "stated",
+      "plotted": true,
+      "unplotted_reason": null,
+      "rock_head_m": null,
+      "metadata": {
+        "borehole_id": "MP-01",
+        "project_name": "Misc Pier Survey (fictional)",
+        "borehole_depth_m": 8,
+        "notes": "Note printed without a provenance entry (fictional)",
+        "coordinates": {
+          "latitude": 40.7003,
+          "longitude": -74.0121,
+          "local_x": 980100,
+          "local_y": 195300,
+          "coordinate_system": "NAD83 / New York Long Island (ftUS)",
+          "crs_code": "EPSG:2263",
+          "x_raw": "980,100",
+          "y_raw": "195,300",
+          "axis_labels_raw": "E, N"
+        }
+      },
+      "stratigraphy": [
+        {
+          "thickness_m": null,
+          "original_description": "Organic SILT",
+          "english_lithology": "Organic silt",
+          "description_language": null,
+          "din4023_code": null,
+          "din4023_notation": null,
+          "uscs_group": null,
+          "stratigraphic_name": null,
+          "engineering_soil_unit": null,
+          "geologic_age": null,
+          "colour": null,
+          "consistency_density": null,
+          "moisture": null,
+          "weathering": null,
+          "is_core": null,
+          "rqd_pct": null,
+          "core_recovery_pct": null,
+          "spt_n_value": null,
+          "spt_raw": null,
+          "spt_refusal": null,
+          "spt_increments": null,
+          "spt_increment_mm": null,
+          "spt_penetration_cm": null,
+          "spt_depth_m": null,
+          "ucs_mpa": null,
+          "depth_from_m": 0,
+          "depth_to_m": 3
+        },
+        {
+          "thickness_m": null,
+          "original_description": "Medium SAND",
+          "english_lithology": "Sand, medium",
+          "description_language": null,
+          "din4023_code": "mS",
+          "din4023_notation": "mS",
+          "uscs_group": null,
+          "stratigraphic_name": null,
+          "engineering_soil_unit": null,
+          "geologic_age": null,
+          "colour": null,
+          "consistency_density": null,
+          "moisture": null,
+          "weathering": null,
+          "is_core": null,
+          "rqd_pct": null,
+          "core_recovery_pct": null,
+          "spt_n_value": 18,
+          "spt_raw": "N=18",
+          "spt_refusal": null,
+          "spt_increments": null,
+          "spt_increment_mm": null,
+          "spt_penetration_cm": null,
+          "spt_depth_m": null,
+          "ucs_mpa": null,
+          "depth_from_m": 3,
+          "depth_to_m": 8
+        }
+      ],
+      "groundwater": [],
+      "samples": [],
+      "test_results": [],
+      "provenance": {
+        "metadata.borehole_id": {
+          "page": 2,
+          "box": [
+            0.1,
+            0.05,
+            0.1,
+            0.02
+          ],
+          "raw": "MP-01",
+          "method": "read",
+          "confidence": 0.98,
+          "status": "approved",
+          "state": "ok"
+        },
+        "metadata.project_name": {
+          "page": 2,
+          "box": [
+            0.1,
+            0.02,
+            0.3,
+            0.02
+          ],
+          "raw": "Misc Pier Survey",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.local_x": {
+          "page": 2,
+          "box": [
+            0.1,
+            0.08,
+            0.12,
+            0.02
+          ],
+          "raw": "980,100",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.local_y": {
+          "page": 2,
+          "box": [
+            0.3,
+            0.08,
+            0.12,
+            0.02
+          ],
+          "raw": "195,300",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.coordinates.coordinate_system": {
+          "page": 2,
+          "box": [
+            0.45,
+            0.08,
+            0.3,
+            0.02
+          ],
+          "raw": "NAD83 NY-LI ftUS",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "metadata.borehole_depth_m": {
+          "page": 2,
+          "box": [
+            0.7,
+            0.05,
+            0.08,
+            0.02
+          ],
+          "raw": "8.0 m",
+          "method": "ocr",
+          "confidence": null,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[0].depth_to_m": {
+          "page": 2,
+          "box": [
+            0.05,
+            0.3,
+            0.06,
+            0.02
+          ],
+          "raw": "3.0",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[0].english_lithology": {
+          "page": 2,
+          "box": [
+            0.15,
+            0.3,
+            0.3,
+            0.02
+          ],
+          "raw": "Organic SILT",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[1].depth_to_m": {
+          "page": 2,
+          "box": [
+            0.05,
+            0.5,
+            0.06,
+            0.02
+          ],
+          "raw": "8.0",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[1].english_lithology": {
+          "page": 2,
+          "box": [
+            0.15,
+            0.5,
+            0.3,
+            0.02
+          ],
+          "raw": "Medium SAND",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        },
+        "stratigraphy[1].spt_n_value": {
+          "page": 2,
+          "box": [
+            0.62,
+            0.5,
+            0.06,
+            0.02
+          ],
+          "raw": "N=18",
+          "method": "read",
+          "confidence": 0.95,
+          "status": "unreviewed",
+          "state": "ok"
+        }
+      },
+      "lint": [
+        {
+          "path": "stratigraphy[1].spt_depth_m",
+          "rule": "spt_depth_missing",
+          "severity": "warning",
+          "message": "SPT depth not stated"
+        }
+      ],
+      "open_clarifications": 0
+    }
+  ]
+}

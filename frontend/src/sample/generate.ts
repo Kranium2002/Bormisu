@@ -6,7 +6,8 @@
 import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
 import { formatSpt } from '../domain/spt';
-import type { Borehole, ExtractedValue, Layer, Method, PageItem, PatternId, Spt } from '../domain/types';
+import { deriveReviewStatus } from '../domain/status';
+import type { Borehole, ExtractedValue, Layer, Method, PageItem, Sample, Spt, TestResult, UnplottedReason } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
 import { Ln, sampleValue, T, textWidth, type SampleValueInput } from './helpers';
 import { NB_CRS, NB_PROJECT } from './neckarbogen';
@@ -14,8 +15,9 @@ import { NB_CRS, NB_PROJECT } from './neckarbogen';
 /* ---------- projects and seeds (prototype PROJ, BHS) ---------- */
 
 /**
- * Per-borehole base code: r = reviewed, a = attention (one lint warning), u / x = unreviewed,
- * N = no coordinates in source, C = CRS unknown (local site grid), M = named but missing (skipped).
+ * Per-borehole base code: r = reviewed, a = attention (one lint warning and an open datum question),
+ * u / x = unreviewed, N = no coordinates in source, C = CRS unknown (local site grid), M = named but
+ * missing (skipped).
  */
 export interface Project { name: string; pre: string; lat: number; lng: number; list: string; nb?: boolean }
 
@@ -31,7 +33,7 @@ export const PROJECTS: Project[] = [
 
 export interface Seed {
   id: string; project: string; nb: boolean; lat: number; lng: number; depth: number;
-  base: string; onMap: boolean; reason: string;
+  base: string; onMap: boolean; reason: UnplottedReason | null;
 }
 
 /** All borehole seeds in prototype order, with the BK-07 override. */
@@ -51,7 +53,7 @@ export function makeSeeds(): Seed[] {
         depth: Number((10 + ((i * 7 + pi * 3) % 17) + (i % 2 ? 0.5 : 0)).toFixed(2)),
         base: t,
         onMap: !(t === 'N' || t === 'C'),
-        reason: t === 'N' ? 'No coordinates in source' : t === 'C' ? 'CRS unknown (local site grid)' : '',
+        reason: t === 'N' ? 'no_coordinates' : t === 'C' ? 'crs_unknown' : null,
       });
     }),
   );
@@ -62,27 +64,45 @@ export function makeSeeds(): Seed[] {
 
 /* ---------- geology per project (prototype GEO) ---------- */
 
-interface Unit { en: string; de: string; din: string; pat: PatternId; fill: string; st: string; th: number[]; rock: boolean }
-const U = (en: string, de: string, din: string, pat: PatternId, fill: string, st: string, th: number[], rock = false): Unit =>
-  ({ en, de, din, pat, fill, st, th, rock });
+/** Soil family of a unit: picks the SPT range and whether an SPT is drilled at all. */
+type Family = 'topsoil' | 'fill' | 'clay' | 'silt' | 'sand' | 'gravel' | 'marl' | 'rock';
 
-const FILL = U('Fill: sand, gravelly, rubble', 'Auffüllung: Sand, kiesig, Bauschutt', 'A', 'fill', '#EFEFEF', 'y', [0.8, 2.5]);
-const TOP = U('Topsoil: silt, humic', 'Mutterboden: Schluff, humos', 'Mu', 'topsoil', '#E8D9C4', 'qh', [0.2, 0.5]);
-const SAND = U('Sand, fine to medium, medium dense', 'Sand, fein- bis mittelkörnig, mitteldicht', 'S', 'sand', '#FFF5B0', 'qh', [2, 5]);
-const GRAV = U('Gravel, sandy, dense', 'Kies, sandig, dicht', 'G, s', 'gravel', '#FFFACD', 'qp', [2, 4.5]);
-const LOESS = U('Silt, fine sandy (loess), stiff', 'Schluff, feinsandig (Löss), steif', 'U, fs', 'silt', '#E1EAB8', 'qw', [2, 4]);
-const TILL = U('Boulder clay, stiff, with stones', 'Geschiebemergel, steif, steinig', 'Mg', 'marl', '#E5D6B8', 'qp', [3, 6]);
-const CLAY = U('Clay, silty, stiff, grey', 'Ton, schluffig, steif, grau', 'T, u', 'clay', '#DCD2EA', 'qh', [2, 4]);
+/**
+ * One geological unit: English and printed (German) description, the main component as a key of
+ * din_codes.json plus the full DIN short form, a plain-text stratigraphic name and age, thickness range.
+ */
+interface Unit {
+  en: string; de: string; din: string; notation: string; family: Family;
+  strat: string; age: string | null; th: number[]; rock: boolean;
+}
+const U = (en: string, de: string, din: string, notation: string, family: Family, strat: string, age: string | null, th: number[], rock = false): Unit =>
+  ({ en, de, din, notation, family, strat, age, th, rock });
+
+const FILL = U('Fill: sand, gravelly, rubble', 'Auffüllung: Sand, kiesig, Bauschutt', 'A', 'A', 'fill', 'Made ground', null, [0.8, 2.5]);
+const TOP = U('Topsoil: silt, humic', 'Mutterboden: Schluff, humos', 'Mu', 'Mu', 'topsoil', 'Holocene topsoil', 'Quaternary', [0.2, 0.5]);
+const SAND = U('Sand, fine to medium, medium dense', 'Sand, fein- bis mittelkörnig, mitteldicht', 'S', 'S', 'sand', 'Holocene sand', 'Quaternary', [2, 5]);
+const GRAV = U('Gravel, sandy, dense', 'Kies, sandig, dicht', 'G', 'G, s', 'gravel', 'Pleistocene river gravel', 'Quaternary', [2, 4.5]);
+const LOESS = U('Silt, fine sandy (loess), stiff', 'Schluff, feinsandig (Löss), steif', 'Lö', 'U, fs', 'silt', 'Weichselian loess', 'Quaternary', [2, 4]);
+const TILL = U('Boulder clay, stiff, with stones', 'Geschiebemergel, steif, steinig', 'Mg', 'Mg', 'marl', 'Pleistocene till', 'Quaternary', [3, 6]);
+const CLAY = U('Clay, silty, stiff, grey', 'Ton, schluffig, steif, grau', 'T', 'T, u', 'clay', 'Holocene floodplain clay', 'Quaternary', [2, 4]);
 
 const GEO: Record<string, Unit[]> = {
-  [NB_PROJECT]: [TOP, FILL, CLAY, GRAV, U('Sandstone, weathered, friable', 'Sandstein, verwittert, mürbe', 'Sst', 'sst', '#FFD08A', 'kmS', [0], true)],
-  'Elbquerung Ost': [FILL, SAND, TILL, U('Clay, fat, dark grey (Lauenburg clay)', 'Ton, fett, dunkelgrau (Lauenburger Ton)', 'T', 'clay', '#C9C1E0', 'qp', [0])],
-  'Mainufer-Sammler': [FILL, { ...GRAV, en: 'Gravel, sandy (Main terrace)', de: 'Kies, sandig (Mainterrasse)' }, U('Clay, calcareous, stiff (Frankfurt clay)', 'Ton, kalkig, steif (Frankfurter Ton)', 'T, k', 'clay', '#DCD2EA', 'tm', [3, 6]), U('Limestone, jointed', 'Kalkstein, klüftig', 'Kst', 'lst', '#B7D7F0', 'tm', [0], true)],
-  'Emscher-Kanal Ost': [FILL, LOESS, SAND, U('Marlstone, slightly weathered', 'Mergelstein, angewittert', 'Mst', 'marl', '#D9E3C4', 'kro', [0], true)],
+  [NB_PROJECT]: [TOP, FILL, CLAY, GRAV, U('Sandstone, weathered, friable', 'Sandstein, verwittert, mürbe', 'Sst', 'Sst', 'rock', 'Stubensandstein (Middle Keuper)', 'Triassic', [0], true)],
+  'Elbquerung Ost': [FILL, SAND, TILL, U('Clay, fat, dark grey (Lauenburg clay)', 'Ton, fett, dunkelgrau (Lauenburger Ton)', 'T', 'T', 'clay', 'Lauenburg clay', 'Quaternary', [0])],
+  'Mainufer-Sammler': [
+    FILL,
+    { ...GRAV, en: 'Gravel, sandy (Main terrace)', de: 'Kies, sandig (Mainterrasse)', strat: 'Main terrace gravel' },
+    U('Clay, calcareous, stiff (Frankfurt clay)', 'Ton, kalkig, steif (Frankfurter Ton)', 'T', 'T, k', 'clay', 'Frankfurt clay', 'Neogene', [3, 6]),
+    U('Limestone, jointed', 'Kalkstein, klüftig', 'Kst', 'Kst', 'rock', 'Miocene limestone', 'Neogene', [0], true),
+  ],
+  'Emscher-Kanal Ost': [FILL, LOESS, SAND, U('Marlstone, slightly weathered', 'Mergelstein, angewittert', 'Mst', 'Mst', 'rock', 'Emscher marl', 'Cretaceous', [0], true)],
   'Spree-Kabeltunnel': [FILL, SAND, TILL, { ...SAND, th: [0] }],
-  'Rheinbogen-Fernwärme': [FILL, SAND, { ...GRAV, en: 'Gravel, sandy, cobbly (Rhine terrace)', de: 'Kies, sandig, steinig (Rheinterrasse)' }, { ...SAND, th: [0] }],
-  'City-Ring Leipzig': [FILL, LOESS, GRAV, { ...CLAY, st: 'tm', th: [0] }],
+  'Rheinbogen-Fernwärme': [FILL, SAND, { ...GRAV, en: 'Gravel, sandy, cobbly (Rhine terrace)', de: 'Kies, sandig, steinig (Rheinterrasse)', strat: 'Rhine lower terrace' }, { ...SAND, th: [0] }],
+  'City-Ring Leipzig': [FILL, LOESS, GRAV, { ...CLAY, strat: 'Miocene clay', age: 'Neogene', th: [0] }],
 };
+
+/** Projects whose rock cores were sampled and tested in the lab (one UCS test per rock layer). */
+const CORE_TESTED = new Set(['Mainufer-Sammler', 'Emscher-Kanal Ost']);
 
 /* ---------- deterministic helpers ---------- */
 
@@ -123,7 +143,7 @@ export function wrapT(t: string, n: number): string[] {
 interface GenLayer extends Unit {
   n: number; from: number; to: number; m: Method; c: number;
   y: number; lines: string[]; rem: string[];
-  spt?: Spt; tcr?: number; rqd?: number;
+  spt?: Spt; sptAt?: number; tcr?: number; rqd?: number;
 }
 
 /** Where a generated borehole lives: its document and page. */
@@ -163,14 +183,15 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
       l.rqd = Math.round(R(12, 80));
       return;
     }
-    if (l.pat === 'topsoil' || h < 0.8) return;
+    if (l.family === 'topsoil' || h < 0.8) return;
     const depth = Math.round((l.from + h / 2) * 2) / 2;
-    if (l.pat === 'gravel' && rnd() < 0.45) {
+    l.sptAt = depth;
+    if (l.family === 'gravel' && rnd() < 0.45) {
       const pen = 5 + Math.floor(rnd() * 5) * 5;
       l.spt = { raw: `50/${pen}`, depth, refusal: true, blows: 50, penetrationCm: pen };
       return;
     }
-    const rg = ({ fill: [3, 9], clay: [6, 15], silt: [4, 11], sand: [10, 30], gravel: [24, 44], marl: [22, 40] } as Record<string, number[]>)[l.pat] ?? [5, 15];
+    const rg = ({ fill: [3, 9], clay: [6, 15], silt: [4, 11], sand: [10, 30], gravel: [24, 44], marl: [22, 40] } as Record<string, number[]>)[l.family] ?? [5, 15];
     const N = Math.round(R(rg[0], rg[1]));
     const b2 = Math.floor(N / 2);
     const inc = [Math.max(1, Math.round(N / 3)), b2, N - b2];
@@ -186,6 +207,8 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
   const core = rnd() < 0.6;
   const rockLayer = layers.find((l) => l.rock);
   const elev = R(32, 240).toFixed(2);
+  // Drawn after every prototype value, so the prototype's numbers stay the same.
+  const ucs = rockLayer && CORE_TESTED.has(seed.project) ? Math.round(R(4, 60) * 10) / 10 : null;
   const pad = (n: number) => String(n).padStart(2, '0');
   const dateRaw = `${pad(dd)}.${pad(mm)}.${yy}`;
   const dateIso = `${yy}-${pad(mm)}-${pad(dd)}`;
@@ -231,6 +254,9 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
   ];
   const tail: ValueDraft[] = [];
   const layerVals: ValueDraft[] = [];
+  const labVals: ValueDraft[] = [];
+  const samples: Sample[] = [];
+  const testResults: TestResult[] = [];
   let gw: { s: Box4 | null; r: Box4 | null } = { s: null, r: null };
 
   layers.forEach((l, i) => {
@@ -241,8 +267,8 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
     const lv = { group: 'layer' as const, layer: l.n, method: l.m, confidence: l.c };
     layerVals.push({ ...lv, key: K.bottom(l.n), field: EXTRA_FIELDS.depthTo, label: 'Bottom depth', raw: cm(l.to), value: l.to.toFixed(2), unit: 'm', box: [26, y - 4, 44, 20] });
     layerVals.push({ ...lv, key: K.lithology(l.n), field: 'Lithology/SoilName', label: `Layer ${l.n} lithology`, raw: l.de, value: l.en, din: l.din, box: lith, kind: 'lithology' });
-    if (l.spt) {
-      layerVals.push({ ...lv, key: K.spt(l.n), field: 'SPT', label: `SPT @ ${l.spt.depth.toFixed(2)} m`, raw: l.spt.raw, value: formatSpt(l.spt), box: [362, y - 4, Math.round(l.spt.raw.length * 6.6 + 8), 20], method: 'Read', confidence: 0.9, kind: 'spt', refusal: l.spt.refusal, spt: l.spt });
+    if (l.spt && l.sptAt != null) {
+      layerVals.push({ ...lv, key: K.spt(l.n), field: 'SPT', label: `SPT @ ${l.sptAt.toFixed(2)} m`, raw: l.spt.raw, value: formatSpt(l.spt), box: [362, y - 4, Math.round(l.spt.raw.length * 6.6 + 8), 20], method: 'Read', confidence: 0.9, kind: 'spt', refusal: l.spt.refusal, spt: l.spt });
     }
     if (gwS >= l.from && gwS < l.to) {
       const k = l.rem.length;
@@ -257,6 +283,20 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
       if (l === rockLayer) {
         tail.push({ key: K.rockHead, field: EXTRA_FIELDS.rockHead, label: 'Rock head', raw: `${l.de.split(',')[0]} ab ${cm(l.from)} m`, value: l.from.toFixed(2), unit: 'm', box: lith, method: 'Derived', confidence: 0.9, formula: `top of first rock layer (layer ${l.n})` });
       }
+      if (l === rockLayer && ucs != null) {
+        // One core sample from the middle of the rock layer, tested for UCS.
+        const from = Math.round(((l.from + l.to) / 2) * 10) / 10;
+        const name = 'KP 1';
+        const j = l.rem.length;
+        l.rem.push(`${name}: ${cm(from)} m`, `UCS ${cm(ucs, 1)} MPa`);
+        const sBox: Box4 = [462, y - 4 + j * 16, 76, 20];
+        const tBox: Box4 = [462, y + 12 + j * 16, 76, 20];
+        labVals.push({ group: 'sample', index: 0, key: K.sampleName(0), field: 'SampleName', label: 'Sample', raw: name, value: name, box: sBox, method: 'Read', confidence: 0.94 });
+        labVals.push({ group: 'sample', index: 0, key: K.sampleDepth(0), field: 'SampleDepth', label: `Sample ${name} depth`, raw: `${cm(from)} m`, value: from.toFixed(2), unit: 'm', box: sBox, method: 'Read', confidence: 0.94 });
+        labVals.push({ group: 'test', index: 0, key: K.test(0), field: 'UCS', label: 'UCS', raw: `UCS ${cm(ucs, 1)} MPa`, value: String(ucs), unit: 'MPa', box: tBox, method: 'OCR', confidence: 0.88 });
+        samples.push({ name, typeCode: 'core', from, to: Math.round((from + 0.3) * 10) / 10, key: K.sampleName(0) });
+        testResults.push({ name: 'UCS', value: ucs, qualifier: null, unit: 'MPa', sampleName: name, depth: from, key: K.test(0) });
+      }
     }
   });
   tail.push({ key: K.notes, field: 'Notes', label: 'Remarks', raw: '', value: '', box: null, method: 'Read', state: 'not in source' });
@@ -266,7 +306,7 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
   ];
   const values = applyBase(
     seed.base,
-    [...head, ...tail, ...gwVals, ...layerVals].map((v) => sampleValue({ group: 'borehole', ...v, page })),
+    [...head, ...tail, ...gwVals, ...layerVals, ...labVals].map((v) => sampleValue({ group: 'borehole', ...v, page })),
   );
 
   const borehole: Borehole = {
@@ -275,20 +315,38 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
     documentId: at.documentId,
     sourceFile: at.file,
     project: seed.project,
+    revision: 1,
+    reviewStatus: deriveReviewStatus(values),
+    // Open questions: the report's coordinate system (Neckarbogen) or the elevation datum (base "a").
+    openClarifications: seed.nb || seed.base === 'a' ? 1 : 0,
     lat: seed.onMap ? seed.lat : null,
     lng: seed.onMap ? seed.lng : null,
     onMap: seed.onMap,
-    unplottedReason: seed.reason || null,
+    unplottedReason: seed.reason,
     finalDepth: fd,
     logBottom: layers[layers.length - 1].to,
     crs,
+    meta: {
+      aliases: [idRaw],
+      elevationDatum: 'NN',
+      depthOrigin: 'ground',
+      depthSource: 'printed',
+      xRaw: hasCoords ? fmtN(A) : null,
+      yRaw: hasCoords ? fmtN(B) : null,
+      axisLabelsRaw: hasCoords ? xLab.map((x) => x.replace(':', '')).join(', ') : null,
+      localX: hasCoords ? A : null,
+      localY: hasCoords ? B : null,
+    },
     layers: layers.map(toLayer),
     groundwater: [
-      { type: 'strike', depth: gwS, key: K.gwStrike },
-      { type: 'rest', depth: gwR, key: K.gwRest },
+      { type: 'strike', depth: gwS, elevation: null, date: null, raw: `GW ${cm(gwS)}`, key: K.gwStrike },
+      { type: 'rest', depth: gwR, elevation: null, date: null, raw: `RWS ${cm(gwR)}`, key: K.gwRest },
     ],
+    samples,
+    testResults,
     rockHead: rockLayer ? rockLayer.from : null,
     values,
+    pages: [page],
     primaryPage: page,
   };
   const printed = { project: seed.project, idRaw, dateRaw, methRaw, fdRaw, elevRaw, xLab, xA: fmtN(A), xB: fmtN(B), hasCoords, crsRaw };
@@ -316,8 +374,12 @@ function applyBase(base: string, values: ExtractedValue[]): ExtractedValue[] {
 function toLayer(l: GenLayer): Layer {
   return {
     n: l.n, from: l.from, to: l.to,
-    lithology: l.en, lithologyAsPrinted: l.de, din: l.din,
-    pattern: l.pat, fill: l.fill, strat: l.st, method: l.m, confidence: l.c,
+    lithology: l.en, lithologyAsPrinted: l.de, din: l.din, dinNotation: l.notation,
+    stratigraphicName: l.strat, engineeringSoilUnit: null, geologicAge: l.age,
+    colour: null, consistency: null, moisture: null, weathering: null,
+    // Rock layers were cored (they have TCR and RQD); for soils the log doesn't say.
+    isCore: l.rock ? true : null,
+    method: l.m, confidence: l.c,
     ...(l.spt ? { spt: l.spt } : {}),
     ...(l.tcr != null ? { tcr: l.tcr } : {}),
     ...(l.rqd != null ? { rqd: l.rqd } : {}),

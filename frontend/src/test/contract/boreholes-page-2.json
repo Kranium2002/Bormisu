@@ -1,0 +1,201 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "BoreholeList",
+  "example": {
+    "count": 3,
+    "boreholes": [
+      {
+        "uid": "bh_01JFICT00000000000000KR01",
+        "document_id": "doc_01JFICT0000000000000000D2",
+        "source_file": "kestrel_ridge_scans.pdf",
+        "pages": [
+          2
+        ],
+        "revision": 2,
+        "updated_at": "2026-10-17T08:30:00Z",
+        "review_status": "unreviewed",
+        "crs_status": "stated",
+        "plotted": true,
+        "unplotted_reason": null,
+        "rock_head_m": null,
+        "metadata": {
+          "borehole_id": "KR-01",
+          "project_name": "Kestrel Ridge Bypass (fictional)",
+          "borehole_depth_m": 4,
+          "depth_origin": "ground",
+          "coordinates": {
+            "latitude": 59.9139,
+            "longitude": 10.7522,
+            "local_x": null,
+            "local_y": null,
+            "coordinate_system": "WGS 84",
+            "crs_code": "EPSG:4326",
+            "x_raw": "59°54'50\"N",
+            "y_raw": "10°45'08\"E",
+            "axis_labels_raw": "N, E"
+          }
+        },
+        "stratigraphy": [
+          {
+            "thickness_m": null,
+            "original_description": "Leire, siltig",
+            "english_lithology": "Clay, silty",
+            "description_language": "no",
+            "din4023_code": "Zx",
+            "din4023_notation": "Zx",
+            "uscs_group": null,
+            "stratigraphic_name": null,
+            "engineering_soil_unit": null,
+            "geologic_age": null,
+            "colour": null,
+            "consistency_density": null,
+            "moisture": null,
+            "weathering": null,
+            "is_core": null,
+            "rqd_pct": null,
+            "core_recovery_pct": null,
+            "spt_n_value": null,
+            "spt_raw": null,
+            "spt_refusal": null,
+            "spt_increments": null,
+            "spt_increment_mm": null,
+            "spt_penetration_cm": null,
+            "spt_depth_m": null,
+            "ucs_mpa": null,
+            "depth_from_m": 0,
+            "depth_to_m": 4
+          }
+        ],
+        "groundwater": [],
+        "samples": [],
+        "test_results": [],
+        "provenance": {
+          "metadata.borehole_id": {
+            "page": 2,
+            "box": [
+              0.1,
+              0.05,
+              0.1,
+              0.02
+            ],
+            "raw": "KR-01",
+            "method": "read",
+            "confidence": 0.98,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "metadata.project_name": {
+            "page": 1,
+            "box": [
+              0.1,
+              0.3,
+              0.5,
+              0.03
+            ],
+            "raw": "Kestrel Ridge Bypass",
+            "method": "read",
+            "confidence": 0.97,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "metadata.depth_origin": {
+            "page": null,
+            "box": null,
+            "raw": null,
+            "method": "derived",
+            "confidence": null,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "metadata.coordinates.coordinate_system": {
+            "page": 2,
+            "box": [
+              0.5,
+              0.08,
+              0.1,
+              0.02
+            ],
+            "raw": "WGS 84",
+            "method": "read",
+            "confidence": 0.96,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "metadata.coordinates.latitude": {
+            "page": 2,
+            "box": [
+              0.1,
+              0.08,
+              0.15,
+              0.02
+            ],
+            "raw": "59°54'50\"N",
+            "method": "read",
+            "confidence": 0.97,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "metadata.coordinates.longitude": {
+            "page": 2,
+            "box": [
+              0.3,
+              0.08,
+              0.15,
+              0.02
+            ],
+            "raw": "10°45'08\"E",
+            "method": "read",
+            "confidence": 0.97,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "metadata.borehole_depth_m": {
+            "page": 2,
+            "box": [
+              0.7,
+              0.05,
+              0.08,
+              0.02
+            ],
+            "raw": "4,0 m",
+            "method": "read",
+            "confidence": 0.96,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "stratigraphy[0].depth_to_m": {
+            "page": 2,
+            "box": [
+              0.05,
+              0.3,
+              0.06,
+              0.02
+            ],
+            "raw": "4,0",
+            "method": "ocr",
+            "confidence": 0.9,
+            "status": "unreviewed",
+            "state": "ok"
+          },
+          "stratigraphy[0].english_lithology": {
+            "page": 2,
+            "box": [
+              0.15,
+              0.3,
+              0.3,
+              0.02
+            ],
+            "raw": "Leire, siltig",
+            "method": "ocr",
+            "confidence": 0.9,
+            "status": "unreviewed",
+            "state": "ok"
+          }
+        },
+        "lint": [],
+        "open_clarifications": 0
+      }
+    ],
+    "next_cursor": null
+  }
+}

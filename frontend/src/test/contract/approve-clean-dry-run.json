@@ -1,0 +1,7 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "response:approveClean:200",
+  "example": {
+    "count": 7
+  }
+}

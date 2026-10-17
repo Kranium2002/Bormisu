@@ -1,0 +1,7 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "response:confirmCrs:200",
+  "example": {
+    "updated": 2
+  }
+}
