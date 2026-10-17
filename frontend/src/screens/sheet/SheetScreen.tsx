@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { ChartExport } from '../../components/ChartExport';
 import { useT } from '../../i18n';
 import { useLocationRoute } from '../../routing/RouteSync';
 import { boreholePath, routeUid, sheetPath } from '../../routing/urlState';
 import { useBorehole, useDocument } from '../../store/appStore';
-import { ProfileColumn, ProfileLegend } from '../detail/ProfileColumn';
+import { ProfileColumn, profileExportInfo, ProfileLegend } from '../detail/ProfileColumn';
 import { sheetLang, sheetModel, sheetT, type SheetCell, type SheetLang } from './sheetModel';
 import styles from './SheetScreen.module.css';
 
@@ -38,6 +39,7 @@ export function SheetScreen() {
   const b = useBorehole(uid);
   const doc = useDocument(b?.documentId);
   const navigate = useNavigate();
+  const profileRef = useRef<SVGSVGElement>(null);
   const lang = sheetLang(route.kind === 'sheet' ? route.lang : null);
   const st = (en: string) => sheetT(lang, en);
   const model = useMemo(() => (b ? sheetModel(b, lang, { pages: doc?.pages ?? [], today: new Date() }) : null), [b, lang, doc]);
@@ -93,10 +95,13 @@ export function SheetScreen() {
 
         <section className={`${styles.block} ${styles.profileRow}`} aria-label={st('Profile and layers')}>
           <div className={styles.profile}>
-            <div className={styles.blockHead}>
-              {st('PROFILE')} <span className={styles.note}>DIN 4023 · {model.depthNote}</span>
+            <div className={`${styles.blockHead} ${styles.profileHead}`}>
+              <span>
+                {st('PROFILE')} <span className={styles.note}>DIN 4023 · {model.depthNote}</span>
+              </span>
+              <ChartExport target={profileRef} info={profileExportInfo(b, { t: st, de: lang === 'de' })} />
             </div>
-            <ProfileColumn borehole={b} selectedLayer={-1} onSelectLayer={noop} onOpenSource={noop} readOnly t={st} />
+            <ProfileColumn ref={profileRef} borehole={b} selectedLayer={-1} onSelectLayer={noop} onOpenSource={noop} readOnly t={st} />
           </div>
           <div className={styles.layers}>
             <div className={styles.blockHead}>{st('LAYERS')}</div>

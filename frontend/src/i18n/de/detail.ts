@@ -107,4 +107,18 @@ export const detail: Record<string, string> = {
   'Previous source': 'Vorherige Quelle',
   'Next source': 'Nächste Quelle',
   'No box on this page': 'Kein Rahmen auf dieser Seite',
+
+  // chart image (copy / download of the profile)
+  'DIN 4023 profile': 'Bohrprofil nach DIN 4023',
+  'Chart image': 'Diagramm als Bild',
+  'Copy chart as image': 'Diagramm als Bild kopieren',
+  'Download chart as PNG': 'Diagramm als PNG herunterladen',
+  'Download chart as SVG': 'Diagramm als SVG herunterladen',
+  'Chart copied': 'Diagramm kopiert',
+  'Chart downloaded': 'Diagramm heruntergeladen',
+  'Could not create the chart image': 'Das Bild des Diagramms konnte nicht erstellt werden',
+  'Could not copy to the clipboard: the chart was downloaded instead':
+    'Kopieren in die Zwischenablage nicht möglich: Das Diagramm wurde stattdessen heruntergeladen',
+  'Copying images isn’t available here: the chart was downloaded instead':
+    'Bilder kopieren ist hier nicht möglich: Das Diagramm wurde stattdessen heruntergeladen',
 };

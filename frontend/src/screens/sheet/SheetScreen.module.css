@@ -137,6 +137,14 @@
   margin-bottom: var(--space-2);
 }
 
+/* PROFILE with the chart's copy / download buttons at its right end (not printed). */
+.profileHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .note {
   font-weight: 400;
   letter-spacing: 0;

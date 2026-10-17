@@ -1,0 +1,39 @@
+/* Copy / download a chart: a quiet row of small icon buttons; never printed. */
+.tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  /* As tall as the text line they sit in: the card head keeps its height. */
+  margin: -5px 0;
+}
+
+.tool {
+  composes: iconButton from '../styles/buttons.module.css';
+  width: 26px;
+  height: 26px;
+}
+
+.svgTool {
+  composes: iconButton from '../styles/buttons.module.css';
+  width: auto;
+  height: 26px;
+  padding: 0 5px;
+  font: 700 var(--fs-2xs) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media print {
+  .tools {
+    display: none;
+  }
+}
