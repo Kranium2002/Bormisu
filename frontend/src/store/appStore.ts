@@ -4,7 +4,7 @@
  */
 import { useEffect } from 'react';
 import { create } from 'zustand';
-import { createDataSource, dataSourceKind } from '../data/createDataSource';
+import { createDataSource } from '../data/createDataSource';
 import { PartialSaveError, type BackendMode, type DataSource } from '../data/DataSource';
 import {
   applyValuePatch,
@@ -89,8 +89,6 @@ export interface AppState {
   backendMode: BackendMode | null;
 
   screen: Screen;
-  /** Always true in sample mode: the DEMO banner can't be dismissed. */
-  sampleBannerVisible: boolean;
   toast: Toast | null;
 
   boreholes: Borehole[];
@@ -354,7 +352,6 @@ export const useAppStore = create<AppState>()((set, get) => {
     documentsUnavailable: false,
     backendMode: null,
     screen: 'map',
-    sampleBannerVisible: dataSourceKind() === 'sample',
     toast: null,
     boreholes: [],
     documents: [],

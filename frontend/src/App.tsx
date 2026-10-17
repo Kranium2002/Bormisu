@@ -1,6 +1,6 @@
 import { useEffect, type ComponentType } from 'react';
 import styles from './App.module.css';
-import { Banner, BACKEND_DEMO_BANNER_TEXT, SampleBanner } from './components/Banner';
+import { Banner, BACKEND_DEMO_BANNER_TEXT } from './components/Banner';
 import { EmptyState, withInlineCode } from './components/EmptyState';
 import { Header } from './components/Header';
 import { SidePanel } from './components/SidePanel';
@@ -46,7 +46,6 @@ function Body() {
 export function App() {
   const init = useAppStore((s) => s.init);
   const escape = useAppStore((s) => s.escape);
-  const sampleBanner = useAppStore((s) => s.sampleBannerVisible);
   const backendDemo = useAppStore((s) => s.backendMode === 'demo');
   const crsDialogOpen = useAppStore((s) => s.crsDialogOpen);
 
@@ -65,7 +64,7 @@ export function App() {
   return (
     <div className={styles.app}>
       <Header />
-      {sampleBanner ? <SampleBanner /> : backendDemo && <Banner text={BACKEND_DEMO_BANNER_TEXT} />}
+      {backendDemo && <Banner text={BACKEND_DEMO_BANNER_TEXT} />}
       <main className={styles.main}>
         <Body />
         <SidePanel />

@@ -56,12 +56,12 @@ export function MetadataCard({ borehole: b, onOpenSource }: Props) {
             lat={pin.lat}
             lng={pin.lng}
             color={pinColor(boreholeStatus(b))}
-            label={`Map of ${b.id} at ${loc.text}`}
+            label={`Map of ${b.id} at ${pin.lat.toFixed(4)}, ${pin.lng.toFixed(4)}`}
           />
         ) : (
           <div className={`${styles.map} ${styles.noMap}`}>No usable coordinates</div>
         )}
-        <div className={`${styles.locText} ${TONE_CLASS[loc.tone]}`}>{loc.text}</div>
+        {loc && <div className={`${styles.locText} ${TONE_CLASS[loc.tone]}`}>{loc.text}</div>}
       </div>
     </section>
   );

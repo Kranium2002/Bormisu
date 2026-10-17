@@ -20,11 +20,11 @@ export function Header() {
 
   return (
     <header className={styles.header}>
-      <div className={styles.brand}>
+      <button type="button" className={styles.brand} onClick={() => go('map')} aria-label="Bormisu: go to the map">
         <div className={styles.logo} aria-hidden="true">H</div>
         <div className={styles.name}>BORMISU</div>
         <div className={styles.tagline}>Borehole Intelligence for Herrenknecht</div>
-      </div>
+      </button>
       <nav className={styles.nav} aria-label="Main">
         {NAV.map((n) => {
           const active = screen === n.screen || (n.screen === 'map' && screen === 'detail');

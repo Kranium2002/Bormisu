@@ -12,7 +12,6 @@ import {
   locationInfo,
   metadataRows,
   reviewedText,
-  shortCrsName,
   shown,
   sourceLink,
   unreviewedCount,
@@ -60,7 +59,7 @@ describe('shown', () => {
 describe('metadataRows', () => {
   it('lists the eight rows in prototype order', () => {
     expect(metadataRows(shortLog()).map((r) => r.label)).toEqual([
-      'Final depth', 'Rock head', 'Surface elevation', 'X / Y', 'CRS', 'Start date', 'Drilling method', 'Remarks',
+      'Final depth', 'Rock head', 'Surface elevation', 'CRS', 'Start date', 'Drilling method', 'Remarks',
     ]);
   });
 
@@ -74,7 +73,7 @@ describe('metadataRows', () => {
   it('marks the elevation datum as unconfirmed and the CRS by its status', () => {
     const rows = metadataRows(shortLog());
     expect(rows[2].chips.map((c) => c.label)).toEqual(['Datum unconfirmed']);
-    expect(rows[4].chips.map((c) => c.label)).toEqual(['Stated']);
+    expect(rows[3].chips.map((c) => c.label)).toEqual(['Stated']);
   });
 
   it('says "not reached" for a missing rock head, with nothing to point at', () => {
@@ -86,7 +85,7 @@ describe('metadataRows', () => {
   });
 
   it('fades the source icon for values that are not in the source', () => {
-    const remarks = metadataRows(shortLog())[7];
+    const remarks = metadataRows(shortLog())[6];
     expect(remarks.shown).toEqual({ text: 'not in source', missing: true });
     expect(remarks.source).toEqual({ clickable: true, title: 'Show source', dim: true });
   });
@@ -94,7 +93,7 @@ describe('metadataRows', () => {
   it('shows a flag as a chip', () => {
     const b = shortLog();
     b.values = b.values.map((v) => (v.key === K.crs ? { ...v, status: 'flagged', flag: 'check zone' } : v));
-    expect(metadataRows(b)[4].chips.map((c) => c.label)).toEqual(['Stated', 'Flagged']);
+    expect(metadataRows(b)[3].chips.map((c) => c.label)).toEqual(['Stated', 'Flagged']);
   });
 });
 
@@ -115,9 +114,9 @@ describe('crsChip', () => {
 
 // X05: numbers in the mono face, words in the sans.
 describe('metadata row faces', () => {
-  it('marks depths, elevation, X / Y and the start date as numeric', () => {
+  it('marks depths, elevation and the start date as numeric', () => {
     const numeric = metadataRows(shortLog()).filter((r) => r.numeric).map((r) => r.label);
-    expect(numeric).toEqual(['Final depth', 'Rock head', 'Surface elevation', 'X / Y', 'Start date']);
+    expect(numeric).toEqual(['Final depth', 'Rock head', 'Surface elevation', 'Start date']);
   });
 });
 
@@ -167,23 +166,9 @@ describe('reviewedText', () => {
   });
 });
 
-describe('shortCrsName', () => {
-  it('shortens the long CRS names for the map caption', () => {
-    expect(shortCrsName('ETRS89 / UTM zone 32N')).toBe('ETRS89 / UTM 32N');
-    expect(shortCrsName('DHDN / 3-degree Gauss-Krüger zone 3')).toBe('DHDN / GK zone 3');
-    expect(shortCrsName('local site grid')).toBe('local site grid');
-  });
-});
-
 describe('locationInfo', () => {
-  it('names the CRS the position comes from', () => {
-    expect(locationInfo(makeBorehole({ lat: 48.7905, lng: 9.1835 }))).toEqual({
-      text: '48.7905, 9.1835 · from ETRS89 / UTM 32N (stated)',
-      tone: 'muted',
-    });
-    const inferred = makeBorehole({ crs: { name: 'DHDN / GK zone 3', code: 'EPSG:31467', status: 'inferred' } });
-    expect(locationInfo(inferred).tone).toBe('amber');
-    expect(locationInfo(inferred).text).toContain('from inferred CRS, confirm in review');
+  it('has no caption when the borehole has a pin', () => {
+    expect(locationInfo(makeBorehole({ lat: 48.7905, lng: 9.1835 }))).toBeNull();
   });
 
   it('explains a borehole that is not on the map', () => {

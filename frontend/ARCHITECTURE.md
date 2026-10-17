@@ -7,7 +7,7 @@ React 19 + TypeScript + Vite. It is a port of the Claude Design prototype `Bormi
 1. **No hard-coded sample data outside `src/sample/`.** The sample data is fictional, for demo mode only. Every file in `src/sample/` starts with this comment:
    `// DEMO ONLY: fictional sample data. Used only when VITE_DATA_SOURCE=sample. Not part of the production data path.`
    Screens, store, domain and export code must **never** import from `src/sample/`. Only `src/data/createDataSource.ts` may import it, and only behind the flag.
-2. **The data source is chosen once**, in `src/data/createDataSource.ts`, from `import.meta.env.VITE_DATA_SOURCE`: `api` (default) or `sample`. When `sample` is active, the app shows the DEMO banner ("Demo mode: fictional sample loaded. Live extraction needs an API key."), which can't be dismissed.
+2. **The data source is chosen once**, in `src/data/createDataSource.ts`, from `import.meta.env.VITE_DATA_SOURCE`: `api` (default) or `sample`. The sample data is fictional; there is no banner for it.
 3. **The standard format is defined once**, in `src/schema/targetFormat.ts`: the Herrenknecht `BoreholeDataFormat.xlsx` field list (sections, field names, formats, units). Export and labels read from it. Don't repeat field names elsewhere.
 4. **No challenge data anywhere.** Nothing from the organisers' dataset gets copied, quoted or used in fixtures.
 5. Plain CSS modules (`*.module.css`) plus design tokens in `src/styles/tokens.css`. Inline `style` only for values computed at runtime (positions, colours that depend on state).

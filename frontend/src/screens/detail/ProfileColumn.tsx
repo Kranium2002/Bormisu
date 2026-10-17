@@ -1,9 +1,9 @@
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { K } from '../../domain/keys';
 import type { Borehole, GroundwaterReading, Layer } from '../../domain/types';
 import { COL, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
 import { GW_LABEL } from './detailModel';
-import { CORED_PATTERN, CORED_W, GW_SYMBOL, layerFill, MISSING_PATTERN, patternDefs, PROP_K, propertySymbols } from './dinPatterns';
+import { CORED_PATTERN, CORED_W, GW_SYMBOL, layerFill, lithologyLegend, MISSING_PATTERN, patternDefs, PROP_K, propertySymbols } from './dinPatterns';
 import {
   depthScale,
   depthTicks,
@@ -289,42 +289,54 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
   );
 }
 
-/** Legend under the profile: only the symbols this profile draws. Nothing drawn, no legend. */
-export function ProfileLegend({ borehole }: { borehole: Borehole }) {
-  const { groundwater, refusal } = drawnMarks(borehole);
+/** A legend swatch: a small rect filled with a colour or a pattern the profile defines. */
+const Swatch = ({ fill, w = 24, stroke = INK, sw = 0.5 }: { fill: string; w?: number; stroke?: string; sw?: number }) => (
+  <svg width={w} height="12" aria-hidden="true">
+    <rect x={sw / 2} y={sw / 2} width={w - sw} height={12 - sw} fill={fill} stroke={stroke} strokeWidth={sw} />
+  </svg>
+);
+
+/**
+ * Legend under the profile (DIN 4023 §5.10): every symbol, fill and line the profile draws, grouped by where
+ * it sits. Swatches reuse the profile's own patterns.
+ */
+export function ProfileLegend({ borehole: b, selectedLayer }: { borehole: Borehole; selectedLayer?: number }) {
+  const { groundwater, refusal, rockHead } = drawnMarks(b);
+  const lith = lithologyLegend(b.layers);
+  const strat = [...new Set(b.layers.map((l) => l.strat).filter(Boolean))];
   const gwTypes = [...new Set(groundwater.map((g) => g.type))];
-  // DIN 4023 §5.10: every symbol drawn is explained. Table 6 symbols once each, in first-seen order.
-  const props = [...new Map(borehole.layers.flatMap((l) => propertySymbols(l.props)).map((p) => [p.key, p])).values()];
-  const cored = borehole.layers.some((l) => l.props?.core);
-  if (!gwTypes.length && !props.length && !cored && !refusal) return null;
+  const props = [...new Map(b.layers.flatMap((l) => propertySymbols(l.props)).map((p) => [p.key, p])).values()];
+  const cored = b.layers.some((l) => l.props?.core);
+  const nl = notLogged(b);
+  const item = (key: string, swatch: ReactNode, label: string) => (
+    <span key={key} className={styles.legendItem}>{swatch}{label}</span>
+  );
   return (
     <div className={styles.legend}>
-      {gwTypes.map((t) => (
-        <span key={t} className={styles.legendItem}>
-          <svg width="12" height="11" aria-hidden="true"><GwSymbol type={t} x={0} tipY={11} /></svg>
-          {`GW ${GW_LABEL[t].toLowerCase()}`}
-        </span>
-      ))}
-      {cored && (
-        <span className={styles.legendItem}>
-          <svg width={CORED_W} height="12" aria-hidden="true"><rect width={CORED_W} height="12" fill={`url(#${CORED_PATTERN})`} /></svg>
-          cored
-        </span>
-      )}
-      {props.map((p) => (
-        <span key={p.key} className={styles.legendItem}>
-          <svg width={p.w} height="12" aria-hidden="true">
-            {p.patternId ? <rect width={p.w} height="12" fill={`url(#${p.patternId})`} />
-              : <svg width={p.w} height={p.h} viewBox={`0 0 ${p.w / PROP_K} ${p.h / PROP_K}`} dangerouslySetInnerHTML={{ __html: p.markup! }} />}
-          </svg>
-          {p.label}
-        </span>
-      ))}
-      {refusal && (
-        <span className={styles.legendItem}>
-          <span className={styles.rBadge} aria-hidden="true">R</span>SPT refusal: click for source
-        </span>
-      )}
+      {lith.length > 0 && <div className={styles.legendHead}>Lithology (DIN 4023)</div>}
+      {lith.map((e) => item(e.key, <Swatch fill={e.fill} />, e.label))}
+
+      <div className={styles.legendHead}>Left of the column</div>
+      {strat.map((c) => item(`strat-${c}`, <Swatch fill={STRAT_COLORS[c] ?? STRAT_FALLBACK} w={16} />, `${c} · stratigraphic unit (Strat.)`))}
+      {gwTypes.map((t) => item(`gw-${t}`,
+        <svg width="12" height="11" aria-hidden="true"><GwSymbol type={t} x={0} tipY={11} /></svg>,
+        `groundwater ${GW_LABEL[t].toLowerCase()}`))}
+      {cored && item('cored', <svg width={CORED_W} height="12" aria-hidden="true"><rect width={CORED_W} height="12" fill={`url(#${CORED_PATTERN})`} /></svg>, 'cored section')}
+      {item('depth', <svg width="16" height="12" aria-hidden="true"><path d="M2 6 H14" stroke={INK} /></svg>, 'depth in m below ground')}
+
+      {(props.length > 0 || refusal || rockHead != null) && <div className={styles.legendHead}>Right of the column</div>}
+      {props.map((p) => item(p.key,
+        <svg width={p.w} height="12" aria-hidden="true">
+          {p.patternId ? <rect width={p.w} height="12" fill={`url(#${p.patternId})`} />
+            : <svg width={p.w} height={p.h} viewBox={`0 0 ${p.w / PROP_K} ${p.h / PROP_K}`} dangerouslySetInnerHTML={{ __html: p.markup! }} />}
+        </svg>, p.label))}
+      {rockHead != null && item('rock', <svg width="24" height="12" aria-hidden="true"><path d="M1 6 H23" stroke={COL.dark} strokeWidth="1.5" strokeDasharray="6 3" /></svg>, 'rock head')}
+      {refusal && item('refusal', <span className={styles.rBadge} aria-hidden="true">R</span>, 'SPT refusal: click for source')}
+
+      <div className={styles.legendHead}>Profile</div>
+      {b.layers.some((l) => l.n === selectedLayer) && item('sel', <Swatch fill="none" stroke={COL.green} sw={2} />, 'selected layer')}
+      {nl && item('nl', <svg width="24" height="12" aria-hidden="true"><rect x=".5" y=".5" width="23" height="11" fill={`url(#${NL_PATTERN})`} stroke={COL.red} strokeDasharray="4 3" /></svg>, 'not logged: the log stops above the final depth')}
+      {item('et', <span className={styles.legendCode}>ET</span>, 'final depth (Endteufe)')}
     </div>
   );
 }

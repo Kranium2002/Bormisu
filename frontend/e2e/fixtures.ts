@@ -34,7 +34,6 @@ export { expect };
 /** Opens the app (optionally with a query, e.g. '?focus=DE') and waits for the sample data to load (map screen). */
 export async function openApp(page: Page, query = ''): Promise<void> {
   await page.goto(`/${query}`);
-  await expect(page.getByText('Demo mode: fictional sample loaded. Live extraction needs an API key.')).toBeVisible();
   await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
 }
 

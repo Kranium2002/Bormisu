@@ -80,7 +80,7 @@ export function DetailScreen() {
             <span className={styles.profileNote}>DIN 4023 · depth in m bgl</span>
           </div>
           <ProfileColumn borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
-          <ProfileLegend borehole={b} />
+          <ProfileLegend borehole={b} selectedLayer={selectedLayer} />
         </section>
 
         <div className={styles.right}>

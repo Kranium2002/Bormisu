@@ -27,6 +27,18 @@
   color: var(--c-muted);
 }
 
+.legendHead {
+  flex-basis: 100%;
+  margin-top: var(--space-1);
+  font-weight: 600;
+  color: var(--c-muted);
+}
+
+.legendCode {
+  font-weight: 700;
+  font-size: var(--fs-2xs);
+}
+
 .legendItem {
   display: flex;
   align-items: center;

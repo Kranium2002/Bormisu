@@ -130,7 +130,6 @@ export function metadataRows(b: Borehole): MetaRow[] {
     metaRow(b, 'Surface elevation', K.elevation, true, (v) =>
       v && v.state === 'ok' ? [{ label: 'Datum unconfirmed', tone: 'grey', title: v.note ?? 'Height datum stored as printed' }] : [],
     ),
-    metaRow(b, 'X / Y', K.xy, true),
     metaRow(b, 'CRS', K.crs, false, () => [crsChip(b)]),
     metaRow(b, 'Start date', K.startDate, true),
     metaRow(b, 'Drilling method', K.method, false),
@@ -156,22 +155,11 @@ export function reviewedText(b: Borehole): string {
 
 export interface LocationInfo { text: string; tone: 'muted' | 'amber' | 'red' }
 
-/** Compact CRS name for the one-line map caption: "ETRS89 / UTM 32N", "DHDN / GK zone 3". */
-export function shortCrsName(name: string): string {
-  return name.replace(/3-degree Gauss-Kr(?:ü|ue|u)ger/i, 'GK').replace(/\bUTM zone\s+/i, 'UTM ');
-}
-
-/** Caption under the mini map: coordinates and which CRS they come from, or why there is no pin. */
-export function locationInfo(b: Borehole): LocationInfo {
-  if (b.lat == null || b.lng == null || !b.onMap) {
-    const reason = b.unplottedReason ?? 'No usable coordinates';
-    return { text: `${reason}: not on the map`, tone: reason.startsWith('CRS') ? 'amber' : 'red' };
-  }
-  const at = `${b.lat.toFixed(4)}, ${b.lng.toFixed(4)}`;
-  const { name, status } = b.crs;
-  if (status === 'inferred') return { text: `${at} · from inferred CRS, confirm in review`, tone: 'amber' };
-  if (status === 'unknown' || !name) return { text: `${at} · CRS unknown`, tone: 'red' };
-  return { text: `${at} · from ${shortCrsName(name)} (${status})`, tone: 'muted' };
+/** Caption under the mini map, only when there is no pin: why the borehole is not on the map. */
+export function locationInfo(b: Borehole): LocationInfo | null {
+  if (b.lat != null && b.lng != null && b.onMap) return null;
+  const reason = b.unplottedReason ?? 'No usable coordinates';
+  return { text: `${reason}: not on the map`, tone: reason.startsWith('CRS') ? 'amber' : 'red' };
 }
 
 /* ---------- layers ---------- */
