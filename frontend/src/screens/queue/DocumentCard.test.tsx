@@ -1,9 +1,11 @@
 /** Server-rendered document card (fictional document): progress, questions, duplicates, retry. */
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeClarification } from '../../components/clarify/clarifyFixtures';
+import { resetTestStore } from '../../components/clarify/testStore';
 import { placeholderPage } from '../../domain/pages';
 import type { Health } from '../../domain/types';
-import { fakeSource, makeHealth } from '../../store/testing';
+import { makeHealth } from '../../store/testing';
 import { retryBlockedReason } from '../../store/uploads';
 import { makeDocument, makePage } from '../../test/fixtures';
 import { CLASSIFIED_UNKNOWN_PAGE, PAGE_TYPE_META } from '../../theme';
@@ -12,6 +14,11 @@ import { PageTip, THUMBNAIL_WIDTH } from './PageStrip';
 import { NOT_RETRYABLE } from './queueView';
 
 const noop = () => undefined;
+
+// Server rendering reads the store's initial state: the test store adds the questions (F12).
+vi.mock('../../store/appStore', async (importOriginal) => (await import('../../components/clarify/testStore')).mockAppStore(await importOriginal()));
+
+beforeEach(() => resetTestStore());
 
 describe('DocumentCard', () => {
   it('shows progress bars, open questions and the page map from the classified pages', () => {
@@ -27,6 +34,34 @@ describe('DocumentCard', () => {
     expect(html).toContain('2 open questions');
     expect(html).toContain('title="p.1 · log · used: log sheet · OCR done"');
     expect(html).toContain('title="p.2 · not classified yet"');
+  });
+
+  describe('F12: the open-questions badge', () => {
+    const doc = makeDocument({ status: 'needs_review', step: 2, openClarifications: 2 });
+    const badge = () => renderToStaticMarkup(<DocumentCard doc={doc} onShowDocument={noop} />).match(/<button[^>]*>2 open questions<\/button>/)?.[0] ?? '';
+
+    it('is a button that opens the document’s first unresolved question', () => {
+      resetTestStore({
+        clarificationsState: 'ready',
+        clarifications: [
+          makeClarification({ id: 'cl_other', documentId: 'doc_OTHER' }),
+          makeClarification({ id: 'cl_skipped', documentId: doc.id, status: 'skipped' }),
+          makeClarification({ id: 'cl_open', documentId: doc.id }),
+        ],
+      });
+      expect(badge()).toContain('title="Answer the first open question of this document"');
+      expect(badge()).not.toContain('disabled');
+    });
+
+    it('opens the inbox while the questions are not loaded', () => {
+      resetTestStore({ navigator: { navigate: noop } });
+      expect(badge()).toContain('title="Open the inbox"');
+    });
+
+    it('without a router or questions it is off and says why', () => {
+      expect(badge()).toContain('disabled=""');
+      expect(badge()).toContain('title="The questions are not loaded"');
+    });
   });
 
   it('shows a failure with RETRY, and a duplicate of an unlisted upload as text', () => {
@@ -106,7 +141,7 @@ describe('DocumentCard', () => {
       expect(cells).toHaveLength(2);
       for (const c of cells) expect(c).not.toContain(' title=');
       // A source without page images gives no URL: the native tooltip stays.
-      const none = renderToStaticMarkup(<DocumentCard doc={doc} thumbnailUrl={fakeSource({ boreholes: [], documents: [] }).thumbnailUrl} onShowDocument={noop} />);
+      const none = renderToStaticMarkup(<DocumentCard doc={doc} thumbnailUrl={() => null} onShowDocument={noop} />);
       expect(none).toContain('title="p.1 · log · used: log sheet · OCR done"');
     });
 

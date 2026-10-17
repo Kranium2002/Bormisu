@@ -1,13 +1,16 @@
+import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router';
 import { APP_NAME } from '../config';
 import { mapHref, reviewHref, reviewOffReason } from '../routing/navLinks';
 import { useLocationRoute } from '../routing/RouteSync';
-import type { RouteKind } from '../routing/urlState';
+import { inboxPath, type RouteKind } from '../routing/urlState';
 import { useAppStore } from '../store/appStore';
+import { ClarificationHost } from './clarify/ClarificationHost';
+import { questionCountText, unresolvedCount } from './clarify/clarifyModel';
 import styles from './Header.module.css';
 import { ReviewerName } from './ReviewerName';
 
-type Section = 'map' | 'queue' | 'review';
+type Section = 'map' | 'queue' | 'review' | 'inbox';
 
 /** The nav section a route belongs to: a borehole's detail is part of MAP. */
 const SECTION: Record<RouteKind, Section | null> = {
@@ -16,14 +19,37 @@ const SECTION: Record<RouteKind, Section | null> = {
   queue: 'queue',
   reviewIndex: 'review',
   review: 'review',
+  inbox: 'inbox',
   notFound: null,
 };
+
+/** Accessible name of the INBOX link: the count is part of it. */
+export function inboxLinkLabel(n: number): string {
+  return n > 0 ? `INBOX, ${questionCountText(n)}` : 'INBOX, no unresolved questions';
+}
+
+/**
+ * Text for a polite live region when the number of unresolved questions changes (an answer, a skip, a
+ * new question); nothing for the first count after loading.
+ */
+function useCountAnnouncement(n: number, ready: boolean): string {
+  const [text, setText] = useState('');
+  const last = useRef<number | null>(null);
+  useEffect(() => {
+    if (!ready) return;
+    if (last.current !== null && last.current !== n) setText(`Inbox: ${questionCountText(n)}`);
+    last.current = n;
+  }, [n, ready]);
+  return text;
+}
 
 /**
  * App bar: brand, navigation links (amber badge = documents waiting for review), search with a message
  * popover, your name. The link to the current page carries aria-current="page"; its section is
  * underlined (MAP also on a borehole's detail). MAP returns to the last map view; REVIEW goes to the
  * last reviewed borehole or the first document in review, and is off with the reason when there is none.
+ * INBOX carries the number of unresolved clarification questions (in its name, and announced
+ * politely when it changes); the question dialog is mounted here once, over every screen.
  */
 export function Header() {
   const section = SECTION[useLocationRoute().kind];
@@ -35,6 +61,16 @@ export function Header() {
   const setQuery = useAppStore((s) => s.setQuery);
   const search = useAppStore((s) => s.search);
   const searchMessage = useAppStore((s) => s.searchMessage);
+  const questions = useAppStore((s) => unresolvedCount(s.clarifications));
+  const questionsState = useAppStore((s) => s.clarificationsState);
+  const loadClarifications = useAppStore((s) => s.loadClarifications);
+  const dataReady = useAppStore((s) => s.loadState === 'ready');
+  const announcement = useCountAnnouncement(questions, questionsState === 'ready');
+
+  // The badge needs the questions on every screen: load them once the data is there, unless done.
+  useEffect(() => {
+    if (dataReady && questionsState === 'idle') void loadClarifications();
+  }, [dataReady, questionsState, loadClarifications]);
 
   const itemClass = (s: Section) => ({ isActive }: { isActive: boolean }) =>
     `${styles.navItem} ${isActive || section === s ? styles.active : ''}`;
@@ -72,7 +108,18 @@ export function Header() {
             REVIEW
           </span>
         )}
+        <NavLink to={inboxPath()} end className={itemClass('inbox')} aria-label={inboxLinkLabel(questions)}>
+          INBOX
+          {questions > 0 && (
+            <span className={styles.badge} aria-hidden="true">
+              {questions}
+            </span>
+          )}
+        </NavLink>
       </nav>
+      <span className={styles.srOnly} aria-live="polite" aria-atomic="true">
+        {announcement}
+      </span>
       <div className={styles.search}>
         <input
           className={styles.input}
@@ -91,6 +138,7 @@ export function Header() {
         )}
       </div>
       <ReviewerName />
+      <ClarificationHost />
     </header>
   );
 }

@@ -21,6 +21,8 @@ interface Props {
   canChooseCrs: boolean;
   /** The value's source is in another document than the borehole's (e.g. a lab spreadsheet). */
   elsewhere?: boolean;
+  /** An unresolved question about this value: its Question button opens the question dialog. */
+  questionId?: string | null;
 }
 
 const stop = (e: MouseEvent) => e.stopPropagation();
@@ -30,12 +32,13 @@ const NOTE_CLASS: Record<Note['tone'], string> = { faint: styles.noteFaint, ok: 
 /**
  * One value in the Review list (prototype field row): label + page (or spreadsheet cell), raw →
  * normalised (or the 3-line lithology, or the state), readings side by side when readers disagreed,
- * AI value struck through after an edit, note, lint, flag, inline edit / flag input, more actions
+ * AI value struck through after an edit, note, lint, flag, the Question button when an unresolved
+ * question is about the value, inline edit / flag input, more actions
  * while focused, method badge and ✓ ✎ ⚑. A value without a provenance entry can't be reviewed:
  * its actions are disabled with the reason. A read-only value (`readOnlyReason`) can't be edited, but
  * can be approved, flagged and set to a state.
  */
-function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChooseCrs, elsewhere = false }: Props) {
+function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChooseCrs, elsewhere = false, questionId = null }: Props) {
   const focusValue = useAppStore((s) => s.focusValue);
   const toggleApprove = useAppStore((s) => s.toggleApprove);
   const toggleFlag = useAppStore((s) => s.toggleFlag);
@@ -46,6 +49,7 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
   const setState = useAppStore((s) => s.setState);
   const openSource = useAppStore((s) => s.openSource);
   const openCrsDialog = useAppStore((s) => s.openCrsDialog);
+  const openClarification = useAppStore((s) => s.openClarification);
 
   const isState = v.state !== 'ok';
   const isLith = v.kind === 'lithology' && !isState;
@@ -142,6 +146,20 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
           </span>
         )}
         {v.flag && <span className={styles.flagText}>⚑ Flagged: {v.flag}</span>}
+        {questionId && (
+          <button
+            type="button"
+            className={styles.question}
+            aria-label={`Question about ${v.label}`}
+            title="The backend asks a question about this value: open it"
+            onClick={(e) => {
+              e.stopPropagation();
+              openClarification(questionId);
+            }}
+          >
+            ? Question
+          </button>
+        )}
 
         {editing && (
           <div className={styles.edit} onClick={stop}>

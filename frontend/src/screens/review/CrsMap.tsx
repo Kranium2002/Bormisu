@@ -1,5 +1,6 @@
 import * as L from 'leaflet';
 import { useEffect, useRef } from 'react';
+import { plottablePoints, verdictColor } from '../../components/clarify/crsView';
 import { compactAttribution, osmTileLayer, removeMap } from '../../components/leaflet';
 import type { CrsCandidate } from '../../domain/types';
 import { COL } from '../../theme';
@@ -18,15 +19,10 @@ interface Props {
   labels: Record<string, string>;
 }
 
-/** Pin colour by the backend's verdict: green = match, red = shifted, grey = no verdict. */
-function pinFill(c: CrsCandidate): string {
-  if (c.verdict === 'match') return COL.green;
-  if (c.verdict === 'shifted') return COL.red;
-  return COL.grey;
-}
 
 /**
- * Leaflet map of the CRS dialog: the picked candidate's pins (coloured by verdict) and the dashed
+ * Leaflet map of the CRS dialog: the picked candidate's pins (coloured by verdict: match green,
+ * shifted amber, no verdict grey; out of range has none) and the dashed
  * site circle at the centroid of the matching candidate. The view covers every candidate, so
  * switching candidates shows the pins jump.
  */
@@ -53,7 +49,7 @@ export function CrsMap({ candidates, pick, labels }: Props) {
 
   useEffect(() => {
     const m = map.current;
-    const pts = candidates.flatMap((c) => c.points.map((p) => L.latLng(p.lat, p.lng)));
+    const pts = candidates.flatMap((c) => plottablePoints(c).map((p) => L.latLng(p.lat, p.lng)));
     if (!m || !pts.length) return;
     const bounds = L.latLngBounds(pts);
     const site = siteCentre(candidates);
@@ -67,8 +63,8 @@ export function CrsMap({ candidates, pick, labels }: Props) {
     g.clearLayers();
     const c = candidates[pick];
     if (!c || c.verdict === 'out_of_range') return;
-    const fill = pinFill(c);
-    for (const p of c.points) {
+    const fill = verdictColor(c.verdict);
+    for (const p of plottablePoints(c)) {
       L.circleMarker([p.lat, p.lng], { radius: 6, color: '#fff', weight: 2, fillColor: fill, fillOpacity: 1 })
         .bindTooltip(labels[p.uid] ?? p.uid, { direction: 'top', offset: [0, -6] })
         .addTo(g);

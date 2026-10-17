@@ -32,7 +32,7 @@ import {
 } from './fixtures';
 
 
-interface Candidate { crs: string; label: string; verdict?: string; note?: string | null; score?: number; swap_axes?: boolean }
+interface Candidate { crs: string; label: string; verdict?: string | null; note?: string | null; score?: number; swap_axes?: boolean }
 interface Clarification { clarification_id: string; kind: string; status: string; document_id: string; borehole_uids: string[] }
 
 const VERDICT_TEXT: Record<string, string> = { match: 'pins on site', shifted: 'shifted from the site', out_of_range: 'out of range' };
@@ -67,6 +67,38 @@ test('FE-CRS-1: a borehole waiting for a CRS confirmation offers CHOOSE CRS… i
   await expect(row).toContainText('not stated in source');
   await row.click({ position: { x: 12, y: 12 } });
   await expect(row.getByRole('button', { name: 'CHOOSE CRS…' })).toBeVisible();
+});
+
+/** Verdict colours of the dialog (src/components/clarify/crsView.ts verdictColor), as the browser reports them. */
+const VERDICT_RGB: Record<string, string> = {
+  match: 'rgb(125, 183, 19)',
+  shifted: 'rgb(227, 155, 0)',
+  out_of_range: 'rgb(200, 16, 46)',
+  none: 'rgb(163, 163, 162)',
+};
+
+test('F13: every candidate shows its verdict colour and a mini-map; the picked one is large (read-only)', async ({ page, request }) => {
+  const doc = await unconfirmedDocument(request);
+  test.skip(!doc, 'no document with crs_unconfirmed boreholes left: reseed');
+  const candidates = await getJson<Candidate[]>(request, `/documents/${doc!.id}/crs-candidates`);
+  await openApp(page);
+  await openReview(page, doc!.boreholes[0].metadata.borehole_id);
+  const crsRow = await crsActionRow(page);
+  await crsRow.click({ position: { x: 12, y: 12 } });
+  await crsRow.getByRole('button', { name: 'CHOOSE CRS…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'CONFIRM CRS FOR THE WHOLE DOCUMENT' });
+  const radios = dialog.getByRole('radio');
+  await expect(radios).toHaveCount(candidates.length);
+  for (const [i, c] of candidates.entries()) {
+    const verdict = c.verdict ?? 'none';
+    await expect(radios.nth(i)).toHaveAttribute('data-verdict', verdict);
+    await expect(radios.nth(i)).toHaveCSS('border-left-color', VERDICT_RGB[verdict]);
+  }
+  // One thumbnail per candidate on the configured basemap (decorative), and the picked candidate large.
+  await expect(dialog.locator('.leaflet-container[aria-hidden="true"]')).toHaveCount(candidates.length);
+  await expect(dialog.getByLabel('Map preview of the picked CRS')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
 });
 
 test('the dialog lists the server candidates with verdicts; confirming places every borehole of the document', async ({ page, request }) => {
