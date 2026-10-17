@@ -26,10 +26,12 @@ Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on th
 
 | Mode | When | What works |
 |---|---|---|
-| `demo` | `OPENROUTER_API_KEY` or the OCR provider (`MISTRAL_API_KEY`, or OpenRouter as fallback) is missing | Everything except processing new uploads: `POST /documents` answers `409 demo_mode`. Review, map, clarifications and place search work on existing (for example seeded) data. |
-| `live` | Both keys are set | Uploads are processed in the background. |
+| `demo` | Neither `OPENROUTER_API_KEY` nor `OPENAI_API_KEY` is set (`MISTRAL_API_KEY` alone covers OCR only) | Everything except processing new uploads: `POST /documents` answers `409 demo_mode`. Review, map, clarifications and place search work on existing (for example seeded) data. |
+| `live` | Any one of `OPENROUTER_API_KEY` or `OPENAI_API_KEY` is set | Uploads are processed in the background. |
 
-`GET /api/health` reports the mode and which providers are configured. Keys are read only by the backend from the environment; they never reach the browser, logs or git. The chat assistant also needs `OPENAI_API_KEY`.
+`GET /api/health` reports the mode and which providers are configured. Keys are read only by the backend from the environment; they never reach the browser, logs or git. The chat assistant needs `OPENAI_API_KEY`.
+
+Which provider does what: the classifier and extractor run on OpenRouter, or on OpenAI when only that key is set (`LLM_PROVIDER`). OCR runs on Mistral directly, else Mistral OCR through OpenRouter, else an OpenAI vision model (`OCR_PROVIDER`). In `auto` mode a refused key (401/403) moves on to the next configured provider.
 
 ## How it works
 
@@ -91,9 +93,10 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENROUTER_API_KEY` | — | Page classifier and extractor (alias `OPEN_ROUTER_KEY`) |
+| `OPENROUTER_API_KEY` | — | Page classifier, extractor and OCR fallback (alias `OPEN_ROUTER_KEY`) |
 | `MISTRAL_API_KEY` | — | Mistral OCR on the important pages |
-| `OPENAI_API_KEY` | — | Chat assistant |
+| `OPENAI_API_KEY` | — | Chat assistant; classifier, extractor and OCR when OpenRouter is not configured |
+| `LLM_PROVIDER` / `OCR_PROVIDER` | `auto` / `auto` | Force one provider (`openrouter`, `openai`; OCR also `mistral`) |
 | `MAX_UPLOAD_MB` | `200` | Upload limit (reported in `/api/health`) |
 | `WEB_PORT` / `API_PORT` / `DB_PORT` | `8080` / `8000` / `5432` | Published host ports |
 

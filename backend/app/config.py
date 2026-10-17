@@ -11,6 +11,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
+LlmRoute = Literal["openrouter", "openai"]
+OcrRoute = Literal["mistral", "openrouter", "openai"]
+ModelRole = Literal["classifier", "extractor"]
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+
 
 def _find_upwards(relative: str) -> Path:
     """Locate a repository file from the backend package (works in the repo and in the image)."""
@@ -51,14 +56,27 @@ class Settings(BaseSettings):
     openrouter_app_url: str = "http://localhost:8080"
     openrouter_data_collection: Literal["allow", "deny"] = "deny"
     mistral_base_url: str = "https://api.mistral.ai/v1"
+    # The variable the openai SDK (chat) reads; structured calls and OCR with an OpenAI key use it too.
+    openai_base_url: str = OPENAI_BASE_URL
+    # Which provider runs the classifier, extractor, second reads and sheet mapping: openrouter, openai, or
+    # auto (openrouter when its key is set, else openai; a 401/403 on one moves to the other when that one
+    # is configured, remembered per process).
+    llm_provider: Literal["auto", "openrouter", "openai"] = "auto"
+    # OpenRouter model ids
     classifier_model: str = "mistralai/mistral-small-2603"
     extractor_model: str = "mistralai/mistral-large-4-0"
+    # OpenAI model ids (unset or blank: CHAT_MODEL)
+    openai_classifier_model: str | None = None
+    openai_extractor_model: str | None = None
+    openai_ocr_model: str | None = None
     mistral_ocr_model: str = "mistral-ocr-latest"
     ocr_fallback: Literal["openrouter", "none"] = "openrouter"
     # Which OCR route the pipeline uses: mistral (direct API, needs MISTRAL_API_KEY; boxes and confidence),
-    # openrouter (Mistral OCR via the OpenRouter file-parser plugin, text only), or auto (mistral when its key
-    # is set, else openrouter; a Mistral 401/403 falls back to openrouter when OpenRouter is configured).
-    ocr_provider: Literal["auto", "openrouter", "mistral"] = "auto"
+    # openrouter (Mistral OCR via the OpenRouter file-parser plugin, text only), openai (a vision model
+    # transcribes the page render, text only), or auto: mistral -> openrouter -> openai, the first whose key
+    # is set; a 401/403 moves on to the next configured route (remembered per process). With
+    # OCR_FALLBACK=none, auto uses mistral only.
+    ocr_provider: Literal["auto", "openrouter", "mistral", "openai"] = "auto"
     # Recorded and budgeted per page for the OpenRouter route (parser price: 2 USD per 1,000 pages).
     openrouter_ocr_usd_per_page: float = 0.002
     chat_model: str = "gpt-6.1-sol"
@@ -109,11 +127,26 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("eval_data_dir", "eval_expected", "provider_budget_usd", mode="before")
+    @field_validator(
+        "eval_data_dir",
+        "eval_expected",
+        "provider_budget_usd",
+        "openai_classifier_model",
+        "openai_extractor_model",
+        "openai_ocr_model",
+        mode="before",
+    )
     @classmethod
     def _blank_path_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("openai_base_url", mode="before")
+    @classmethod
+    def _blank_is_openai(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return OPENAI_BASE_URL
         return value
 
     # Derived values -------------------------------------------------------------------------
@@ -154,25 +187,55 @@ class Settings(BaseSettings):
         return self.ocr_route is not None
 
     @property
-    def ocr_route(self) -> Literal["mistral", "openrouter"] | None:
-        """The OCR route OCR_PROVIDER selects with the keys at hand (None: no OCR provider)."""
-        has_mistral = self.mistral_api_key is not None
-        has_openrouter = self.openrouter_api_key is not None
-        if self.ocr_provider == "mistral":
-            return "mistral" if has_mistral else None
-        if self.ocr_provider == "openrouter":
-            return "openrouter" if has_openrouter else None
-        if has_mistral:
-            return "mistral"
-        return "openrouter" if has_openrouter and self.ocr_fallback == "openrouter" else None
+    def ocr_routes(self) -> list[OcrRoute]:
+        """The OCR routes OCR_PROVIDER allows with the keys at hand, in the order they are tried."""
+        keys: dict[OcrRoute, SecretStr | None] = {
+            "mistral": self.mistral_api_key,
+            "openrouter": self.openrouter_api_key,
+            "openai": self.openai_api_key,
+        }
+        if self.ocr_provider != "auto":
+            return [self.ocr_provider] if keys[self.ocr_provider] is not None else []
+        order: tuple[OcrRoute, ...] = (
+            ("mistral", "openrouter", "openai") if self.ocr_fallback == "openrouter" else ("mistral",)
+        )
+        return [route for route in order if keys[route] is not None]
+
+    @property
+    def ocr_route(self) -> OcrRoute | None:
+        """The first OCR route (None: no OCR provider)."""
+        routes = self.ocr_routes
+        return routes[0] if routes else None
+
+    @property
+    def llm_routes(self) -> list[LlmRoute]:
+        """The providers LLM_PROVIDER allows for structured model calls with the keys at hand, in order."""
+        keys: dict[LlmRoute, SecretStr | None] = {
+            "openrouter": self.openrouter_api_key,
+            "openai": self.openai_api_key,
+        }
+        if self.llm_provider != "auto":
+            return [self.llm_provider] if keys[self.llm_provider] is not None else []
+        return [route for route in ("openrouter", "openai") if keys[route] is not None]
+
+    def llm_model(self, role: ModelRole, provider: LlmRoute) -> str:
+        """The model id of the classifier or the extractor on a provider."""
+        if provider == "openai":
+            chosen = self.openai_extractor_model if role == "extractor" else self.openai_classifier_model
+            return chosen or self.chat_model
+        return self.extractor_model if role == "extractor" else self.classifier_model
+
+    @property
+    def openai_ocr_model_name(self) -> str:
+        return self.openai_ocr_model or self.chat_model
 
     @property
     def classifier_configured(self) -> bool:
-        return self.openrouter_api_key is not None
+        return bool(self.llm_routes)
 
     @property
     def extractor_configured(self) -> bool:
-        return self.openrouter_api_key is not None
+        return bool(self.llm_routes)
 
     @property
     def chat_configured(self) -> bool:

@@ -3,6 +3,11 @@
 A run is keyed by the hash of (model, parameters, document sha256, pages); a stored run with the same key is
 reused, so a retry or a worker restart never repeats a paid call. Raw provider JSON is stored on disk; blocks
 are normalised (ids p{n}.b{i}, boxes [x, y, w, h] on the page render).
+
+Routes (Settings.ocr_routes): mistral (direct, chunks of pages, boxes and confidence), openrouter (Mistral OCR
+through the file-parser plugin) and openai (a vision model transcribes the page render); the last two are
+text only and take one page per request. In auto mode a 401/403 moves the rest of the run to the next
+configured route, and later runs of this process try the refused route last.
 """
 
 from __future__ import annotations
@@ -134,7 +139,6 @@ async def _store_results(doc_id: str, run: OcrRun, chunk: Sequence[int], respons
 
 
 async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
-    global _MISTRAL_REFUSED
     settings = get_settings()
     async with get_sessionmaker()() as session:
         doc = await session.get(Document, document_id)
@@ -159,14 +163,15 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
     if not todo:
         await update_progress(document_id, emit=True)
         return
-    route = "custom" if engine is not None else (settings.ocr_route or "mistral")
-    if route == "mistral" and _MISTRAL_REFUSED and _falls_back_possible(settings):
-        route = "openrouter"
+    # The injected engine, or OCR_PROVIDER's routes without those refused earlier in this process. With none
+    # configured, the Mistral client says so.
+    chain = ["custom"] if engine is not None else (route_chain(settings) or ["mistral"])
+    route = chain[0]
     engine, model, provider = _engine_for(route, engine)
 
     def plan(pages_left: list[int]) -> list[list[int]]:
-        if source is None or route == "openrouter":
-            return [[n] for n in pages_left]  # images, and the OpenRouter route: one page per request
+        if source is None or route in ONE_PAGE_ROUTES:
+            return [[n] for n in pages_left]  # images, and the text-only routes: one page per request
         return plan_chunks(
             pages_left,
             sizes,
@@ -179,7 +184,6 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
     failures: list[ProviderError] = []
     while queue:
         chunk = queue.pop(0)
-        attempted += 1
         key = params_hash(model, sha256, chunk)
         async with get_sessionmaker()() as session:
             stored = await session.scalar(
@@ -205,34 +209,39 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
                 response = None
         if response is None:
             try:
-                # Always our own renders, rebuilt as a PDF: broken structure, odd fonts, huge embedded images
-                # and rotation metadata of the original never reach the provider, and the provider's page
-                # geometry is the render's, so its boxes line up with the page images.
-                data = await asyncio.to_thread(renders_pdf, [render_keys[n] for n in chunk])
+                # Always our own renders: broken structure, odd fonts, huge embedded images and rotation
+                # metadata of the original never reach the provider, and the provider's page geometry is the
+                # render's, so its boxes line up with the page images.
+                data, mime = await asyncio.to_thread(request_data, route, [render_keys[n] for n in chunk])
                 if hasattr(engine, "current_pages"):
                     engine.current_pages = list(chunk)  # test doubles read the original's text layer
-                response = await engine.ocr(
-                    data, "application/pdf", document_id=document_id, page_count=len(chunk)
-                )
+                response = await engine.ocr(data, mime, document_id=document_id, page_count=len(chunk))
+                _REFUSED_ROUTES.discard(route)  # reading again: back to its place in the order
             except ProviderError as exc:
                 await _mark_failed(document_id, run.id, chunk, str(exc))
-                if _falls_back(route, exc, settings):
-                    # The Mistral key is refused: go on through OpenRouter for this and every later page,
-                    # and for later documents of this worker process.
-                    if not _MISTRAL_REFUSED:
+                following = _next_route(chain, route, exc)
+                if following is not None:
+                    # This route's key is refused: go on with the next configured route for this and every
+                    # later page, and for later documents of this worker process.
+                    if route not in _REFUSED_ROUTES:
                         logger.warning(
-                            "Mistral OCR refused the key (%s); using OCR through OpenRouter", exc.status
+                            "OCR route %s refused the key (%s); using the %s route",
+                            route,
+                            exc.status,
+                            following,
                         )
-                    _MISTRAL_REFUSED = True
-                    route = "openrouter"
+                    _REFUSED_ROUTES.add(route)
+                    route = following
                     engine, model, provider = _engine_for(route, None)
                     queue = plan(sorted({n for c in [chunk, *queue] for n in c}))
                     continue
+                attempted += 1
                 logger.warning("OCR failed for %s pages %s: %s", document_id, chunk, exc)
                 failures.append(exc)
                 if not exc.retryable:
                     break
                 continue
+        attempted += 1
         await _store_results(document_id, run, chunk, response)
         await update_progress(document_id, emit=True)
     if failures and len(failures) == attempted:
@@ -248,14 +257,47 @@ def _engine_for(route: str, engine: OcrEngine | None) -> tuple[OcrEngine, str, s
         from app.providers.ocr_openrouter import MODEL_TAG, OpenRouterOcrClient
 
         return OpenRouterOcrClient(), MODEL_TAG, "openrouter"
+    if route == "openai":
+        from app.providers.ocr_openai import OpenAIOcrClient, model_tag
+
+        return OpenAIOcrClient(), model_tag(settings.openai_ocr_model_name), "openai"
     from app.providers.ocr_mistral import MistralOcrClient
 
     return MistralOcrClient(), settings.mistral_ocr_model, "mistral"
 
 
-# Set when the Mistral key was refused in this process (auto mode then goes straight to OpenRouter).
-_MISTRAL_REFUSED = False
+# OCR routes whose key was refused (401/403) in this process: auto mode tries them last, until one reads a
+# page again.
+_REFUSED_ROUTES: set[str] = set()
+# Text-only routes: one page per request, so every text maps to its page.
+ONE_PAGE_ROUTES = frozenset({"openrouter", "openai"})
 OCR_PDF_DPI = 150.0  # page size of the rebuilt PDF; the pixels are the stored render's
+
+
+def route_chain(settings: Settings) -> list[str]:
+    """OCR_PROVIDER's routes in the order they are tried, the routes refused earlier in this process moved to
+    the end."""
+    routes: list[str] = list(settings.ocr_routes)
+    return [r for r in routes if r not in _REFUSED_ROUTES] + [r for r in routes if r in _REFUSED_ROUTES]
+
+
+def _next_route(chain: Sequence[str], route: str, exc: ProviderError) -> str | None:
+    """The next configured route when this route's key is refused (401/403). Only auto mode has more than one
+    route, so an explicit OCR_PROVIDER never moves."""
+    if route == "custom" or exc.status not in (401, 403) or route not in chain:
+        return None
+    index = chain.index(route)
+    return chain[index + 1] if index + 1 < len(chain) else None
+
+
+def request_data(route: str, render_keys: Sequence[str | None]) -> tuple[bytes, str]:
+    """What a route is sent: the stored page render itself on the OpenAI route (a vision model reads images),
+    else the renders rebuilt as a PDF."""
+    if route == "openai":
+        if len(render_keys) != 1 or not render_keys[0]:
+            raise ProviderError("A page has no rendered image to read.", retryable=False)
+        return get_storage().get_bytes(render_keys[0]), "image/png"
+    return renders_pdf(render_keys), "application/pdf"
 
 
 def renders_pdf(render_keys: Sequence[str | None]) -> bytes:
@@ -270,15 +312,6 @@ def renders_pdf(render_keys: Sequence[str | None]) -> bytes:
     out = io.BytesIO()
     images[0].save(out, format="PDF", save_all=True, append_images=images[1:], resolution=OCR_PDF_DPI)
     return out.getvalue()
-
-
-def _falls_back_possible(settings: Settings) -> bool:
-    return settings.ocr_provider == "auto" and settings.openrouter_api_key is not None
-
-
-def _falls_back(route: str, exc: ProviderError, settings: Settings) -> bool:
-    """auto mode only: a refused Mistral key (401/403) switches to OpenRouter when it is configured."""
-    return route == "mistral" and exc.status in (401, 403) and _falls_back_possible(settings)
 
 
 async def _mark_failed(document_id: str, run_id: str, chunk: Sequence[int], error: str) -> None:

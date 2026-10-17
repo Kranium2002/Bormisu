@@ -88,7 +88,7 @@ from app.pipeline.schemas import (
 )
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
 from app.providers.base import ProviderError, token_cost
-from app.providers.llm_openrouter import text_part
+from app.providers.llm import active_model, text_part
 from app.review.paths import PathError, get_value, set_value
 from app.review.service import canonical_label, create_borehole
 from app.schemas.boreholes import ProvenanceIn
@@ -1071,21 +1071,22 @@ class SheetMapper(Protocol):
 
 
 class OpenRouterSheetMapper:
-    """The extractor model on OpenRouter with the strict SheetMapping schema (reasoning off by the client's
-    default; the budget is checked by the client before the call)."""
+    """The extractor model on the configured provider (OpenRouter or OpenAI, app.providers.llm) with the
+    strict SheetMapping schema (reasoning off by the client's default; the budget is checked by the client
+    before the call)."""
 
     def __init__(self) -> None:
-        from app.providers.llm_openrouter import OpenRouterClient
+        from app.providers.llm import LlmClient
 
-        self.client = OpenRouterClient()
+        self.client = LlmClient()
 
     async def map_sheets(
         self, preview: Preview, *, document_id: str
     ) -> tuple[SheetMapping, str | None, float]:
-        model = get_settings().extractor_model
+        model = self.client.model_for("extractor")
         max_tokens = output_tokens_for(preview)
         result = await self.client.structured(
-            model=model,
+            role="extractor",
             output=SheetMapping,
             system=system_prompt(),
             content=[text_part(preview.text)],
@@ -1137,7 +1138,7 @@ async def ensure_mapping(
     document_id: str, sha256: str, preview: Preview, *, mapper: SheetMapper | None = None
 ) -> MappingRun:
     """The stored mapping for this file and preview, or one model call whose answer is stored."""
-    model = get_settings().extractor_model
+    model = active_model("extractor")
     key = mapping_cache_key(sha256, model, preview)
     stored = await _stored_mapping(key)
     if stored is not None:
