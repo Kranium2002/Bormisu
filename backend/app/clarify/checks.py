@@ -25,6 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clarify.service import add_boreholes, create_clarification
 from app.db.models import Borehole, Clarification, Document, FieldValue
+from app.normalize.coordinates import parse_coordinates
+from app.normalize.crs import local_grid
 from app.review.service import (
     SourceRef,
     apply_patches,
@@ -80,6 +82,15 @@ def needs_location(record: dict[str, Any]) -> str | None:
     return location.strip() if isinstance(location, str) and location.strip() else None
 
 
+def local_grid_of(record: dict[str, Any], crs_status: str) -> str | None:
+    """The local grid a record's printed coordinates are in, when no system places them; None otherwise."""
+    if crs_status not in ("unknown", "inferred"):
+        return None
+    coords = (record.get("metadata") or {}).get("coordinates") or {}
+    parsed = parse_coordinates(coords.get("x_raw"), coords.get("y_raw"), coords.get("axis_labels_raw"))
+    return local_grid(coords.get("coordinate_system"), parsed)
+
+
 async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
     """One `locate_borehole` question per borehole of `doc` without coordinates but with a printed place.
     Returns how many questions were asked for the first time."""
@@ -92,7 +103,8 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
     ).all()
     asked = 0
     for bh in boreholes:
-        location = needs_location(bh.record)
+        grid = local_grid_of(bh.record, bh.crs_status)
+        location = needs_location(bh.record) if grid is None else grid
         if location is None:
             continue
         key = f"locate_borehole:{bh.uid}"
@@ -113,6 +125,9 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
             question=(
                 f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
                 f"'{location}'. Where was it drilled?"
+                if grid is None
+                else f"{bh.label_raw} in {doc.file_name} is positioned in the local grid '{grid}', which no "
+                "map coordinate system places. Where was it drilled?"
             ),
             fields=[
                 {
