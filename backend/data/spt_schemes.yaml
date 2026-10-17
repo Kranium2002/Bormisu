@@ -52,3 +52,7 @@ n_labels: [N, N30, "N(30)", N-value, N value, SPT N, SPT-N, SPT, Nspt, N spt, N_
 
 # Words between a blow count and its penetration ("50 for 120 mm", "50 auf 12 cm").
 penetration_joiners: [for, in, auf, pour, en, em, op, på, per, über]
+
+# Two identical SPT results whose depths lie within one drive length are one test (logs often print the
+# top and the base of the drive interval). Generic: the standard drive is 450 mm.
+duplicate_window_m: 0.5

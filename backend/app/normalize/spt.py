@@ -566,3 +566,9 @@ def parse_spt(
         computed_n=computed_n,
         reason="; ".join(dict.fromkeys(reasons)) or None,
     )
+
+
+def duplicate_window_m() -> float:
+    """Depth (m) within which two identical SPT results are one test printed twice (spt_schemes.yaml)."""
+    value = load_data("spt_schemes.yaml").get("duplicate_window_m")
+    return float(value) if isinstance(value, int | float) else 0.0

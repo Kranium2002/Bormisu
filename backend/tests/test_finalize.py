@@ -984,3 +984,16 @@ async def test_group_label_from_the_classifier_and_document_done_when_approved(d
         await session.commit()
     await finalize_document(AU_DOC)
     assert (await document(AU_DOC)).status == "done"
+
+
+def test_a_test_printed_over_its_drive_interval_is_one_spt() -> None:
+    """Top and base of one drive (identical blows within one drive length) are one test, not two."""
+    block = next(iter(DE_BLOCKS))
+    top = spt(rv("1,50", block), rv("5/7/9", block), rv("N=16", block))
+    base = spt(rv("1,95", block), rv("5/7/9", block), rv("N=16", block))
+    with_twin = de_result().model_copy(update={"spt": [top, base]})
+    draft = build_record("doc_X", DE_GROUP, outcome(with_twin, DE_BLOCKS))
+    assert draft.body is not None
+    held = [layer for layer in draft.body["stratigraphy"] if layer.get("spt_raw")]
+    assert len(held) == 1 and held[0]["spt_depth_m"] == 1.5
+    assert any("repeats a test" in w for w in draft.warnings)

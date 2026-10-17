@@ -539,6 +539,8 @@ class _Builder:
         return None
 
     def spt(self, layers: Sequence[_Item]) -> None:
+        window = spt_parser.duplicate_window_m()
+        seen: list[tuple[float, str | None, str | None]] = []
         for j, test in enumerate(self.result.spt):
             blows, n_text = printed(test.blows_raw), printed(test.n_raw)
             note = printed(test.increment_note_raw)
@@ -549,6 +551,12 @@ class _Builder:
             if depth is None:
                 self.warnings.append(f"{where}: depth not readable; not attached to a layer")
                 continue
+            # One test is printed over its drive interval (e.g. top and base): the same result within one
+            # drive length is the same test, listed twice.
+            if any(abs(depth - d) <= window and (blows, n_text) == (b, n) for d, b, n in seen):
+                self.warnings.append(f"{where} at {depth:g} m repeats a test within {window:g} m; dropped")
+                continue
+            seen.append((depth, blows, n_text))
             target = self.layer_at(layers, depth)
             if target is None:
                 self.warnings.append(f"{where} at {depth:g} m lies outside the logged layers; not attached")
