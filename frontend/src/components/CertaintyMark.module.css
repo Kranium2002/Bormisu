@@ -19,3 +19,13 @@
   background: var(--c-amber-bg);
   color: var(--c-amber-text);
 }
+
+.flagged {
+  background: var(--c-red-bg);
+  color: var(--c-red);
+}
+
+.missing {
+  background: var(--c-line);
+  color: var(--c-faint);
+}

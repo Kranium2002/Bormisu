@@ -63,9 +63,9 @@ describe('metadataRows', () => {
 
   it('shows ? on an unapproved lint, and ✓ once a reviewer approved it', () => {
     const b = shortLog();
-    expect(metadataRows(b)[0].certainty?.sure).toBe(false);
+    expect(metadataRows(b)[0].certainty?.kind).toBe('unsure');
     b.values = b.values.map((v) => (v.key === K.finalDepth ? { ...v, status: 'approved' } : v));
-    expect(metadataRows(b)[0].certainty).toEqual({ sure: true, title: 'Reviewed' });
+    expect(metadataRows(b)[0].certainty).toEqual({ kind: 'sure', title: 'Reviewed' });
   });
 
   it('says "not reached" for a missing rock head, with nothing to point at', () => {
@@ -73,7 +73,7 @@ describe('metadataRows', () => {
     const rock = metadataRows(b)[1];
     expect(rock.shown).toEqual({ text: 'not reached', missing: true });
     expect(rock.key).toBeNull();
-    expect(rock.certainty?.sure).toBe(true);
+    expect(rock.certainty?.kind).toBe('sure');
   });
 
   it('fades the source icon for values that are not in the source', () => {
@@ -82,10 +82,10 @@ describe('metadataRows', () => {
     expect(remarks.source).toEqual({ clickable: true, title: 'Show source', dim: true });
   });
 
-  it('shows a flagged value as ? with the reason', () => {
+  it('shows a flagged value as ! with the reason', () => {
     const b = shortLog();
     b.values = b.values.map((v) => (v.key === K.crs ? { ...v, status: 'flagged', flag: 'check zone' } : v));
-    expect(metadataRows(b)[3].certainty).toEqual({ sure: false, title: 'Flagged: check zone' });
+    expect(metadataRows(b)[3].certainty).toEqual({ kind: 'flagged', title: 'Flagged: check zone' });
   });
 });
 
@@ -184,7 +184,7 @@ describe('groundwaterRows', () => {
   it('shows type, depth and the raw text', () => {
     expect(groundwaterRows(shortLog())).toEqual([
       {
-        key: K.gwStrike, type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', certainty: { sure: true, title: 'AI sure (90 %)' },
+        key: K.gwStrike, type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', certainty: { kind: 'sure', title: 'AI sure (90 %)' },
         source: { clickable: true, title: 'Show source', dim: false },
       },
     ]);

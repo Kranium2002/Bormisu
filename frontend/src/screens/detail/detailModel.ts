@@ -87,7 +87,7 @@ export function metadataRows(b: Borehole): MetaRow[] {
     : // No rock layer in the log: rock head is derived as "not reached", nothing to point at.
       {
         label: 'Rock head', key: null, shown: { text: 'not reached', missing: true }, numeric: true,
-        certainty: { sure: true, title: 'No rock in the log' }, source: sourceLink(b, null),
+        certainty: { kind: 'sure', title: 'No rock in the log' }, source: sourceLink(b, null),
       };
   return [
     metaRow(b, 'Final depth', K.finalDepth, true),

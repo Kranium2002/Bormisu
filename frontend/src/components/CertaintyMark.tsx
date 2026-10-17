@@ -1,11 +1,13 @@
-import type { Certainty } from '../domain/certainty';
+import type { Certainty, CertaintyKind } from '../domain/certainty';
 import styles from './CertaintyMark.module.css';
 
-/** Green ✓ (reviewed or AI sure) or yellow ? (AI unsure); why is in the tooltip. */
+const GLYPH: Record<CertaintyKind, string> = { sure: '✓', unsure: '?', flagged: '!', missing: '–' };
+
+/** Green ✓ sure · yellow ? unsure · red ! flagged · grey – not in the source; why is in the tooltip. */
 export function CertaintyMark({ certainty: c }: { certainty: Certainty }) {
   return (
-    <span className={`${styles.mark} ${c.sure ? styles.sure : styles.unsure}`} title={c.title} aria-label={c.title} role="img">
-      {c.sure ? '✓' : '?'}
+    <span className={`${styles.mark} ${styles[c.kind]}`} title={c.title} aria-label={c.title} role="img">
+      {GLYPH[c.kind]}
     </span>
   );
 }
