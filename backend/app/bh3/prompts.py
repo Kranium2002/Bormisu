@@ -12,7 +12,9 @@ SYSTEM_CLASSIFY = (
     "log table, and the table body (data rows only). Boxes are normalised 0..1 with origin top-left and may "
     "be loose. Return only JSON matching the schema; use null for a box you cannot find."
 )
-USER_CLASSIFY = "Classify this page and locate the header, the column titles and the table body."
+USER_CLASSIFY = ("Classify this page and locate the header, the column titles and the table body. If the page is "
+                 "scanned sideways or upside down, say in text_rotation how far it must be turned clockwise to read "
+                 "normally.")
 
 SYSTEM_TILE_LOG = (
     "You transcribe one image of a borehole log table into JSON. The image shows the column titles on top "

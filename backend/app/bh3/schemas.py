@@ -62,6 +62,9 @@ CLASSIFY_SCHEMA = _obj({
     "header_band": _bbox("Box around the metadata header (project, hole no, dates, coordinates)."),
     "column_header_band": _bbox("Box around the row of column titles of the log table (Depth, Description, SPT...)."),
     "table_body": _bbox("Box around the data rows of the log table below the column titles, excluding footers."),
+    "text_rotation": {"type": "integer", "enum": [0, 90, 180, 270],
+                      "description": "how many degrees CLOCKWISE this image must be turned so that its main printed text "
+                                     "reads normally (left to right, lines running across); 0 if it already does"},
     "notes": {"type": "string", "description": "anything unusual: rotated page, two logs on one page, feet units, "
                                                "unreadable areas. Empty string if nothing."},
 })
