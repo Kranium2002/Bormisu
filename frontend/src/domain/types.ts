@@ -80,6 +80,9 @@ export interface Spt {
 }
 
 /** One independent reading of a value when two readers disagreed (handwriting). */
+/** One page a value is cited on, with its box there (null: no box on that page). */
+export interface SourceRef { page: number; box: Box | null }
+
 export interface Reading { reader: string; text: string; confidence: number | null }
 
 /** One extracted value with provenance and review state. The detail screen reads displayed values from here. */
@@ -117,6 +120,11 @@ export interface ExtractedValue {
   aiValue: string;        // original AI value, kept after an edit
   /** Independent readings, shown side by side when readers disagreed. */
   readings?: Reading[];
+  /**
+   * Every page the value is cited on, in order, when it is more than one (e.g. a layer continued on
+   * the next sheet; evidence 1.2.2 lists the same value on each page). Absent: only `page`.
+   */
+  sources?: SourceRef[];
   note?: string; formula?: string; lint?: Lint; flag?: string;
   kind?: 'crs' | 'lithology' | 'spt';
   din?: string; refusal?: boolean; spt?: Spt;

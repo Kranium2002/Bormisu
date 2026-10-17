@@ -19,6 +19,7 @@ import type {
   PlaceCandidate,
   ResultSet,
   Screen,
+  SourceRef,
 } from '../domain/types';
 
 export type LoadState = 'loading' | 'ready' | 'error';
@@ -38,6 +39,8 @@ export interface SourcePanel {
   cell?: string;
   /** Opened from a page cell (queue page strip), not from a value. */
   pageOnly?: boolean;
+  /** Every page the value is cited on when more than one; the panel steps through them. */
+  sources?: SourceRef[];
 }
 export interface CompletenessPanel { kind: 'completeness'; documentId: string }
 export type PanelState = SourcePanel | CompletenessPanel | null;
