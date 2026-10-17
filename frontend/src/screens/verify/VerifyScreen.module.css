@@ -95,8 +95,8 @@
   flex: none;
   position: relative;
   cursor: pointer;
-  min-width: 36px;
-  height: 48px;
+  min-width: 32px;
+  height: 28px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -112,6 +112,10 @@
 
 .stripCurrent {
   border: 2px solid var(--c-accent);
+}
+
+.withThumb {
+  height: 56px;
 }
 
 .thumb {
@@ -498,6 +502,15 @@
   .bar {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
+  }
+
+  .header {
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .zoomText,
+  .pageText {
+    min-width: 36px;
   }
 
   .editInput {

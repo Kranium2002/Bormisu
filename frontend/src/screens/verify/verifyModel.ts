@@ -170,10 +170,11 @@ export function pageAspect(natural: { w: number; h: number } | null): number {
 
 /**
  * Font size (px) of a value drawn into its box: as tall as the box allows, narrowed so the text fits
- * its width (about 0.6 em per character), between 7 and 48 px.
+ * its width (a monospace character is about 0.62 em; 12 px go to the border, also when selected, and padding),
+ * between 6 and 48 px.
  */
 export function fontSizeFor(text: string, box: Box, pageW: number, pageH: number): number {
   const byHeight = box.h * pageH * 0.72;
-  const byWidth = (box.w * pageW) / (Math.max(1, text.length) * 0.6);
-  return Math.round(Math.min(48, Math.max(7, Math.min(byHeight, byWidth))) * 10) / 10;
+  const byWidth = Math.max(0, box.w * pageW - 12) / (Math.max(1, text.length) * 0.62);
+  return Math.round(Math.min(48, Math.max(6, Math.min(byHeight, byWidth))) * 10) / 10;
 }

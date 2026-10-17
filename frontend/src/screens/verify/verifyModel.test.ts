@@ -59,7 +59,7 @@ describe('verifyModel', () => {
     expect(stepZoom(0.5, -1)).toBe(0.5);
     // 0.03 × 780 px tall box → about 16.8 px, unless the text is too long for its width.
     expect(fontSizeFor('BK-07', box, 560, 780)).toBe(16.8);
-    expect(fontSizeFor('a very long normalised value', box, 560, 780)).toBeLessThan(8);
+    expect(fontSizeFor('a very long normalised value', box, 560, 780)).toBe(6);
   });
 
   it('has a /verify/:uid?page=n route', () => {

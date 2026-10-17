@@ -184,7 +184,7 @@ function Verify({ b }: { b: Borehole }) {
               <button
                 key={n}
                 type="button"
-                className={`${styles.stripPage} ${n === page ? styles.stripCurrent : ''}`}
+                className={`${styles.stripPage} ${url ? styles.withThumb : ''} ${n === page ? styles.stripCurrent : ''}`}
                 onClick={() => goPage(n)}
                 aria-current={n === page ? 'page' : undefined}
                 aria-label={`${t('PAGE')} ${n}`}
