@@ -116,10 +116,21 @@ def run_extraction(store: Store, document_id: str, path: Path) -> None:
             for n in (pr.stats or {}).get("names") or []:
                 if n and n not in expected:
                     expected.append(n)
+        from ..assemble import _name_key
         from ..reconcile import clean_name
-        expected = [clean_name(n) for n in expected]
+        found_keys = {_name_key((b.get("metadata") or {}).get("BoreholeName")) for b in holes}
+        seen_keys: set = set()
+        expected_ids = []
+        for n in (clean_name(n) for n in expected):
+            k = _name_key(n)
+            if not n or not k or k in seen_keys:
+                continue
+            seen_keys.add(k)
+            # the names the classifier saw, spelled as the extraction spelled them when they match ("BH2" = "BH 2")
+            match = next((b for b in holes if _name_key((b.get("metadata") or {}).get("BoreholeName")) == k), None)
+            expected_ids.append((match.get("metadata") or {}).get("BoreholeName") if match else n)
         d = document_from_result(document_id, store.document(document_id)["file_name"], holes, str(path), store, page_results=results,
-                                 expected_ids=[e for e in expected if e])
+                                 expected_ids=expected_ids)
         d.update({"status": "needs_review", "error": None, "seconds": round(time.time() - t0, 1),
                   "cost_usd": round(vlm.cost(), 3), "vision_calls": vlm.ledger.calls})
         with store.lock(document_id):
@@ -189,6 +200,8 @@ def create_app(store: Store) -> FastAPI:
     svc = Service(store)
     app = FastAPI(title="bh3 API (Bormisu)", version=__version__, docs_url="/docs")
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+    from fastapi.middleware.gzip import GZipMiddleware
+    app.add_middleware(GZipMiddleware, minimum_size=1024)   # the full list with provenance is ~6 MB raw; dev proxies choke on that
     app.state.store = store
 
     @app.exception_handler(Exception)

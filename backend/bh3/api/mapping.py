@@ -222,12 +222,25 @@ def map_borehole(b: dict, document_id: str, uid: str, source: Optional[str], con
             note = f"confirmed EPSG:{epsg} by {confirmed_crs.get('confirmed_by') or 'reviewer'}"
     plotted = lat is not None and lon is not None and status != "outlier"
     unplotted = None if plotted else ("outlier" if status == "outlier" else ("no coordinates" if _num(m.get("X-Coordinate")) is None else "CRS unknown"))
-    coord_system = m.get("CoordinateSystem") or (f"EPSG:{epsg}" if epsg and status in ("assumed", "confirmed") else None)
+    # the printed text names the system only when it parsed (exact); an assumed / confirmed system is shown as its EPSG code
+    coord_system = m.get("CoordinateSystem") if status == "exact" else (f"EPSG:{epsg}" if epsg and status in ("assumed", "confirmed") else m.get("CoordinateSystem"))
 
     layers_out = []
-    layers = b.get("layers") or []
+    layers = [L for L in (b.get("layers") or []) if _num(L.get("top")) is not None or _num(L.get("bottom")) is not None]
+    # the UI draws every layer, so an open top / bottom is closed from its neighbours (never invented beyond
+    # the next boundary or the final depth); the provenance keeps the printed value
+    tops = [_num(L.get("top")) for L in layers]
+    bots = [_num(L.get("bottom")) for L in layers]
+    final = _num(m.get("BoreholeDepth"))
+    for i in range(len(layers)):
+        if tops[i] is None:
+            tops[i] = bots[i - 1] if i > 0 and bots[i - 1] is not None else (0.0 if i == 0 else tops[i - 1])
+    for i in range(len(layers)):
+        if bots[i] is None:
+            nxt = tops[i + 1] if i + 1 < len(layers) else None
+            bots[i] = nxt if nxt is not None and nxt >= tops[i] else (final if final is not None and final >= tops[i] else tops[i])
     for i, L in enumerate(layers):
-        top, bot = _r(L.get("top")), _r(L.get("bottom"))
+        top, bot = _r(tops[i]), _r(bots[i])
         lp = L.get("prov") or {}
         spt = _spt_fields(points, _num(L.get("top")), _num(L.get("bottom")))
         core_pts = [p for p in points if p.get("kind") in ("RQD", "TCR") and _num(p.get("depth")) is not None and top is not None and bot is not None
@@ -287,7 +300,8 @@ def map_borehole(b: dict, document_id: str, uid: str, source: Optional[str], con
         "crs_note": note, "rock_head_m": rock_head,
         "metadata": {
             "borehole_id": m.get("BoreholeName") or b.get("borehole_id"), "borehole_name": m.get("BoreholeName"),
-            "location_name": m.get("LocationName"), "project_id": m.get("ProjectID"), "project_name": m.get("ProjectName"),
+            "location_name": m.get("LocationName"), "project_id": m.get("ProjectID"),
+            "project_name": m.get("ProjectName") or m.get("ProjectID") or m.get("LocationName"),
             "client": extra.get("Client") or m.get("Client"), "drilling_contractor": extra.get("Contractor") or m.get("Contractor"),
             "drilling_date": m.get("StartDate"), "end_date": m.get("EndDate"), "drilling_method": extra.get("Method"),
             "surface_elevation_mASL": _r(m.get("Surface Elevation")), "borehole_depth_m": _r(m.get("BoreholeDepth")),
