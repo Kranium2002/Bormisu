@@ -74,6 +74,8 @@ interface Props {
   doc: DocumentSummary;
   /** Briefly highlighted (e.g. after "Same file as …" pointed here). */
   highlighted?: boolean;
+  /** Why RETRY is off (demo mode: the backend can't extract), or null. */
+  retryBlocked?: string | null;
   /** Scrolls to and highlights another document's card. */
   onShowDocument(id: string): void;
 }
@@ -81,9 +83,9 @@ interface Props {
 /**
  * One document of the queue. When it has a reviewable borehole, the card (and its hint) opens Review.
  * It shows progress while the backend works, open questions, a duplicate link and, after a failure,
- * the error with RETRY.
+ * the error with RETRY (disabled with the reason in demo mode).
  */
-export function DocumentCard({ doc, highlighted, onShowDocument }: Props) {
+export function DocumentCard({ doc, highlighted, retryBlocked = null, onShowDocument }: Props) {
   const openReview = useAppStore((s) => s.openReview);
   const retryDocument = useAppStore((s) => s.retryDocument);
   const documents = useAppStore((s) => s.documents);
@@ -168,8 +170,9 @@ export function DocumentCard({ doc, highlighted, onShowDocument }: Props) {
             <button
               type="button"
               className={styles.retry}
-              disabled={retrying}
-              title={retrying ? 'Re-queuing…' : 'Re-queue this document from its last successful step'}
+              disabled={retrying || !!retryBlocked}
+              title={retryBlocked ?? (retrying ? 'Re-queuing…' : 'Re-queue this document from its last successful step')}
+              aria-description={retryBlocked ?? undefined}
               onClick={(e) => void onRetry(e)}
             >
               {retrying ? 'RETRYING…' : 'RETRY'}

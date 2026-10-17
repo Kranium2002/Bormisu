@@ -114,6 +114,10 @@ export interface PatchTarget {
   type: PatchValueType;
   pair?: readonly [string, string];
   current?: readonly [string, string];
+  /** Why an edit is refused before sending (approve, flag, state and reset still work); same text as the value's readOnlyReason. */
+  readOnly?: string;
+  /** SPT row on the N value: the layer's spt_raw path when it is a provenance key; a text that is no whole N goes there. */
+  sptRaw?: string;
 }
 
 /** A domain borehole plus the backend target of each patchable value key. */
@@ -121,6 +125,11 @@ export interface AdaptedBorehole {
   borehole: Borehole;
   /** Only values whose paths are provenance keys are patchable. */
   targets: Record<string, PatchTarget>;
+  /**
+   * Paths of the values shown without a provenance entry (read-only). The contract allows sparse
+   * provenance, so this is no error; the data source logs one summary per load.
+   */
+  unsourced: string[];
 }
 
 interface ValueSpec {
@@ -144,8 +153,16 @@ interface ValueSpec {
   rawFallback?: string;
   /** Forces a row even when the value is null and has no provenance (e.g. an SPT refusal without N). */
   shown?: boolean;
+  /** Why the value can't be edited here although it has provenance (PatchTarget.readOnly). */
+  readOnly?: string;
+  /** PatchTarget.sptRaw. */
+  sptRaw?: string;
   extra?: Partial<ExtractedValue>;
 }
+
+/** The CRS code is set only through the CRS dialog (POST /documents/{id}/crs); the backend refuses edits of it. */
+const CRS_CODE = 'metadata.coordinates.crs_code';
+const CHOOSE_CRS = 'Set the coordinate system with CHOOSE CRS…';
 
 const GROUP_ORDER: Record<ExtractedValue['group'], number> = { borehole: 0, groundwater: 1, layer: 2, sample: 3, test: 4 };
 
@@ -171,7 +188,7 @@ function toReadings(list: WireProvenance['readings']): Reading[] | undefined {
 const GENERIC_LABELS: Record<string, string> = {
   depth_from_m: 'Top depth', thickness_m: 'Thickness', original_description: 'Description as printed',
   description_language: 'Description language', din4023_code: 'DIN 4023 code', din4023_notation: 'DIN 4023 notation',
-  uscs_group: 'USCS group', spt_raw: 'SPT as printed', spt_refusal: 'SPT refusal', spt_increments: 'SPT increments',
+  uscs_group: 'USCS group', spt_n_value: 'SPT N', spt_raw: 'SPT as printed', spt_refusal: 'SPT refusal', spt_increments: 'SPT increments',
   spt_increment_mm: 'SPT increment length', spt_penetration_cm: 'SPT penetration', spt_depth_m: 'SPT depth',
   elevation_m: 'GW elevation', date: 'Date', raw: 'As printed', type: 'Type', type_code: 'Sample type',
   depth_to_m: 'Depth to', latitude: 'Latitude', longitude: 'Longitude', crs_code: 'CRS code', x_raw: 'X as printed',
@@ -180,6 +197,22 @@ const GENERIC_LABELS: Record<string, string> = {
 };
 
 const NUMERIC_FIELD = /(_m|_pct|_mpa|_deg|_cm|_mm|_mASL|_value)$/;
+
+/** Units of wire fields without a dedicated row, by the end of the field name (depths are below). */
+const GENERIC_UNITS: [RegExp, string][] = [[/_cm$/, 'cm'], [/_mm$/, 'mm'], [/_pct$/, '%'], [/_mpa$/, 'MPa'], [/_deg$/, '°']];
+
+/** A latitude or longitude the backend derived (a CRS transform): at most 7 decimals, so no float noise. */
+const derivedDegrees = (v: number) => String(Number(v.toFixed(7)));
+
+/**
+ * Unit and number format of a wire field without a dedicated row: depths (`*_m`) like every other
+ * depth in m; latitude and longitude in degrees, as sent unless derived; else by the name's ending.
+ */
+function genericUnit(name: string, method: Schemas['Method'] | undefined): Pick<ValueSpec, 'unit' | 'format'> {
+  if (name === 'latitude' || name === 'longitude') return { unit: '°', ...(method === 'derived' ? { format: derivedDegrees } : {}) };
+  if (/_m$/.test(name)) return { unit: 'm', format: depthText };
+  return { unit: GENERIC_UNITS.find(([end]) => end.test(name))?.[1] ?? '' };
+}
 
 /** Group, layer and index of a provenance path. */
 function placeOf(path: string): Pick<ExtractedValue, 'group' | 'layer' | 'index'> {
@@ -201,8 +234,9 @@ function testField(name: string): { field: string; unit: string } {
 
 /**
  * Maps one backend BoreholeRecord to a domain Borehole. Values: one row for every provenance key and
- * for every non-null field the UI shows. A non-null value without provenance is a backend bug: it gets
- * a row without method or confidence, can't be patched, and logs one console warning.
+ * for every non-null field the UI shows. The contract allows sparse provenance (review_status counts
+ * only values with an entry): a non-null value without one gets a read-only row without method or
+ * confidence, can't be patched, and is listed in `unsourced` (no console output here).
  * Throws when the record has no uid.
  */
 export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
@@ -219,6 +253,7 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
   const rowPaths = new Map<string, string[]>();
   const used = new Set<string>();
   const values: ExtractedValue[] = [];
+  const unsourced: string[] = [];
 
   const add = (s: ValueSpec): ExtractedValue | null => {
     const pair = typeof s.path === 'string' ? null : s.path;
@@ -231,15 +266,19 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
     const placed = { group: s.group, ...(s.layer != null ? { layer: s.layer } : {}), ...(s.index != null ? { index: s.index } : {}) };
     let v: ExtractedValue;
     if (!ps.length) {
-      console.warn(`Backend bug: borehole ${uid} has a value at ${paths.join(' / ')} without a provenance entry.`);
+      if (text) unsourced.push(paths.join(' / '));
       v = {
         key: s.key, field: s.field, label: s.label, ...placed, raw: s.rawFallback ?? '', value: text, unit: s.unit ?? '',
         page: null, box: null, hasProvenance: false, method: null, confidence: null, status: 'unreviewed', state: 'ok',
         aiValue: text, ...s.extra,
       };
     } else {
-      const cell = ps.find((p) => p.cell)?.cell ?? null;
-      const page = cell ? null : (ps.find((p) => p.page != null)?.page ?? null);
+      // The entry the source is shown from: a spreadsheet cell, else a page; it may be another document's.
+      const source = ps.find((p) => p.cell) ?? ps.find((p) => p.page != null) ?? ps[0];
+      const cell = source.cell ?? null;
+      const page = cell ? null : (source.page ?? null);
+      const otherDocument = source.document_id && source.document_id !== rec.document_id ? source.document_id : null;
+      const readOnly = s.readOnly ?? (provPaths.includes(CRS_CODE) ? CHOOSE_CRS : undefined);
       const boxes = cell ? [] : ps.filter((p) => p.page === page).map((p) => toBox(p.box)).filter((b): b is Box => b != null);
       const raws = ps.map((p) => p.raw).filter((r): r is string => !!r);
       const confs = ps.map((p) => p.confidence).filter((c): c is number => c != null);
@@ -263,6 +302,8 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
         page,
         box: boxes.length ? boxes.reduce(unionBox) : null,
         ...(cell ? { cell } : {}),
+        ...(otherDocument ? { documentId: otherDocument } : {}),
+        ...(readOnly ? { readOnlyReason: readOnly } : {}),
         hasProvenance: true,
         method: methods.includes('Edited') ? 'Edited' : methods[0],
         confidence: confs.length === ps.length && confs.length ? Math.min(...confs) : null,
@@ -274,7 +315,10 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
         ...s.extra,
       };
       const current = pair && Array.isArray(s.value) ? ([wireText(s.value[0]), wireText(s.value[1])] as const) : undefined;
-      targets[s.key] = { paths: provPaths, type: s.type ?? 'string', ...(pair ? { pair, ...(current ? { current } : {}) } : {}) };
+      targets[s.key] = {
+        paths: provPaths, type: s.type ?? 'string', ...(pair ? { pair, ...(current ? { current } : {}) } : {}),
+        ...(readOnly ? { readOnly } : {}), ...(s.sptRaw ? { sptRaw: s.sptRaw } : {}),
+      };
     }
     rowPaths.set(s.key, paths);
     values.push(v);
@@ -300,8 +344,12 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
   meta(K.finalDepth, 'metadata.borehole_depth_m', 'BoreholeDepth', 'Final depth', md.borehole_depth_m, 'm', 'number', depthText);
   meta(K.boreholeLength, 'metadata.borehole_length_m', 'BoreholeLength', 'Borehole length', md.borehole_length_m, 'm', 'number', depthText);
   meta(K.inclination, 'metadata.inclination_deg', EXTRA_FIELDS.inclination, 'Inclination', md.inclination_deg, '°', 'number');
-  meta(K.elevation, 'metadata.surface_elevation_mASL', 'Surface Elevation', 'Surface elevation', md.surface_elevation_mASL,
-    md.elevation_datum ? `m ${md.elevation_datum}` : 'm', 'number', depthText);
+  // The unit is m; the datum as printed stays in the metadata and in the note (it may name the unit too: "m s.n.m.").
+  add({
+    key: K.elevation, path: 'metadata.surface_elevation_mASL', field: 'Surface Elevation', label: 'Surface elevation', group: 'borehole',
+    value: md.surface_elevation_mASL, unit: 'm', type: 'number', format: depthText,
+    ...(md.elevation_datum ? { extra: { note: `datum: ${md.elevation_datum}` } } : {}),
+  });
   meta(K.elevationDatum, 'metadata.elevation_datum', EXTRA_FIELDS.elevationDatum, 'Elevation datum', md.elevation_datum);
   meta(K.depthOrigin, 'metadata.depth_origin', EXTRA_FIELDS.depthOrigin, 'Depth origin', md.depth_origin);
 
@@ -336,12 +384,14 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
     if (used.has(path)) continue;
     const wire = valueAt(rec, path);
     const name = /(\w+)$/.exec(path)?.[1] ?? path;
-    const type: PatchValueType =
-      typeof wire === 'number' || (wire == null && NUMERIC_FIELD.test(name)) ? 'number'
+    // An N tracked without any SPT data (e.g. illegible) follows the SPT row's rules for N.
+    const sptRaw = name === 'spt_n_value' && has(path.replace(/spt_n_value$/, 'spt_raw')) ? path.replace(/spt_n_value$/, 'spt_raw') : undefined;
+    const type: PatchValueType = name === 'spt_n_value' ? 'spt'
+      : typeof wire === 'number' || (wire == null && NUMERIC_FIELD.test(name)) ? 'number'
         : typeof wire === 'boolean' || name.startsWith('is_') || name === 'spt_refusal' ? 'boolean' : 'string';
     add({
       key: path, path, field: name, label: GENERIC_LABELS[name] ?? name.replace(/_/g, ' '), ...placeOf(path),
-      value: wire, type, shown: true,
+      value: wire, type, shown: true, ...genericUnit(name, prov[path].method), ...(sptRaw ? { sptRaw } : {}),
     });
   }
 
@@ -382,6 +432,7 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
 
   return {
     targets,
+    unsourced,
     borehole: {
       uid,
       id: md.borehole_id,
@@ -407,7 +458,8 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
       rockHead: rec.rock_head_m ?? null,
       values,
       pages,
-      primaryPage: pages[0] ?? 1,
+      // A record read only from a spreadsheet has no page: no primary page, never an invented page 1.
+      primaryPage: pages[0] ?? null,
     },
   };
 }
@@ -446,6 +498,10 @@ function sptPath(base: string, has: (p: string) => boolean): string {
   return [`${base}.spt_n_value`, `${base}.spt_raw`, `${base}.spt_refusal`].find(has) ?? `${base}.spt_n_value`;
 }
 
+/** Why the English lithology can't be edited on a row that stands for the printed description. */
+const ENGLISH_OVER_PRINTED =
+  'Shown in English, but the backend tracks only the printed description of this layer: an edit here would overwrite the printed text.';
+
 function adaptLayer(l: WireLayer, i: number, add: Add, has: (p: string) => boolean): Layer {
   const n = i + 1;
   const base = `stratigraphy[${i}]`;
@@ -453,9 +509,17 @@ function adaptLayer(l: WireLayer, i: number, add: Add, has: (p: string) => boole
   const din = l.din4023_code ?? null;
   add({ ...at, key: K.bottom(n), path: `${base}.depth_to_m`, field: EXTRA_FIELDS.depthTo, label: 'Bottom depth',
     value: l.depth_to_m, format: depthText, unit: 'm', type: 'number' });
+  // The lithology row stands for english_lithology when the backend tracks it, else for the printed
+  // description (the seed tracks a layer's text there). It shows the English lithology when there is one.
+  const desc = `${base}.original_description`;
+  const onDesc = !has(`${base}.english_lithology`) && has(desc);
+  const english = l.english_lithology ?? null;
   const lith = add({
-    ...at, key: K.lithology(n), path: `${base}.english_lithology`, field: 'Lithology/SoilName', label: 'Lithology',
-    value: l.english_lithology, rawFallback: l.original_description ?? '', extra: { kind: 'lithology', ...(din ? { din } : {}) },
+    ...at, key: K.lithology(n), path: onDesc ? desc : `${base}.english_lithology`, field: 'Lithology/SoilName', label: 'Lithology',
+    value: english ?? (onDesc ? l.original_description : null), rawFallback: l.original_description ?? '',
+    ...(onDesc && english != null ? { readOnly: ENGLISH_OVER_PRINTED } : {}),
+    // The English text has no entry of its own here, so it is its own machine value.
+    extra: { kind: 'lithology', ...(din ? { din } : {}), ...(onDesc && english != null ? { aiValue: english } : {}) },
   });
   const text = (key: string, wire: string, field: string, label: string, value: unknown) =>
     add({ ...at, key, path: `${base}.${wire}`, field, label, value });
@@ -471,11 +535,14 @@ function adaptLayer(l: WireLayer, i: number, add: Add, has: (p: string) => boole
   const spt = adaptSpt(l);
   if (spt) {
     const path = sptPath(base, has);
+    const onN = path.endsWith('spt_n_value');
+    // On N, a text that is no whole number (a refusal) can only go to the printed SPT text, when tracked.
+    const sptRaw = onN && has(`${base}.spt_raw`) ? `${base}.spt_raw` : undefined;
     // The increment lint is added once the backend's own findings are attached (adaptBorehole).
     add({
       ...at, key: K.spt(n), path, field: 'SPT', label: spt.depth == null ? 'SPT (depth not stated)' : `SPT @ ${spt.depth.toFixed(2)} m`,
       value: null, text: formatSpt(spt), rawFallback: spt.raw, shown: true,
-      type: path.endsWith('spt_n_value') ? 'spt' : path.endsWith('spt_refusal') ? 'boolean' : 'string',
+      type: onN ? 'spt' : path.endsWith('spt_refusal') ? 'boolean' : 'string', ...(sptRaw ? { sptRaw } : {}),
       extra: { kind: 'spt', spt, refusal: spt.refusal },
     });
   }
@@ -530,11 +597,14 @@ const GW_VALUE_LABEL: Record<GroundwaterType, string> = {
   strike: 'GW strike', rest: 'GW rest level', standpipe: 'GW standpipe', other: 'GW reading',
 };
 
-/** Every groundwater reading, keyed by its index in the backend list (depth may be null). */
+/**
+ * Every groundwater reading, keyed by its index in the backend list (depth may be null). The depth is
+ * "m bgl" only when the record states depths below ground; any other or no stated origin is plain "m"
+ * (Detail states the origin separately).
+ */
 function adaptGroundwater(rec: WireBorehole, add: Add): GroundwaterReading[] {
   const list = rec.groundwater ?? [];
-  const origin = rec.metadata.depth_origin;
-  const unit = origin == null || origin === 'ground' ? 'm bgl' : 'm';
+  const unit = rec.metadata.depth_origin === 'ground' ? 'm bgl' : 'm';
   return list.map((g, i) => {
     const type = GW_TYPES.find((t) => t === g.type) ?? 'other';
     // Several readings of one type: tell them apart by date, else by count ("GW rest level 2").
@@ -597,6 +667,17 @@ export function stepOf(status: DocumentStatus): DocumentStep {
   return STEP[status] ?? 0;
 }
 
+/**
+ * The UI step of a document. The Document has no failed stage, so a failed one is placed by its
+ * progress only: failed during extraction (step 1) once every page was classified, else during
+ * classification (step 0).
+ */
+function documentStep(d: WireDocument): DocumentStep {
+  if (d.status !== 'failed') return stepOf(d.status);
+  const pr = d.progress;
+  return pr && pr.pages_total > 0 && pr.pages_classified >= pr.pages_total ? 1 : 0;
+}
+
 /** True once the backend has stopped working on a document. */
 export function isTerminal(status: DocumentStatus): boolean {
   return status === 'needs_review' || status === 'done' || status === 'failed';
@@ -643,7 +724,7 @@ export function adaptDocument(d: WireDocument): DocumentSummary {
     project: d.project ?? '',
     status: d.status,
     pages,
-    step: stepOf(d.status),
+    step: documentStep(d),
     progress: pr
       ? {
           pagesTotal: pr.pages_total, pagesClassified: pr.pages_classified, pagesOcrTotal: pr.pages_ocr_total,

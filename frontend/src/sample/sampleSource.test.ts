@@ -36,7 +36,8 @@ describe('sample data', () => {
     expect(bk7.uid).toBe('nb:BK-07');
     expect(documents[0].reviewBoreholeUid).toBe(bk7.uid);
     expect([bk7.lat, bk7.lng, bk7.finalDepth, bk7.logBottom]).toEqual([48.7905, 9.1835, 18, 14.5]);
-    expect(bk7.values.find((v) => v.key === K.spt(2))?.lint?.message).toBe('Increments 4 + 5 = 9 ≠ N 8');
+    // A check of the client: shown, but never counted as attention (uiv-B6).
+    expect(bk7.values.find((v) => v.key === K.spt(2))?.lint).toEqual({ severity: 'error', message: 'Increments 4 + 5 = 9 ≠ N 8', client: true });
     expect(bk7.values.find((v) => v.key === K.spt(5))).toMatchObject({ value: 'refusal · 50 blows / 30 cm', label: 'SPT @ 10.50 m' });
     expect(bk7.layers[4].spt).toMatchObject({ refusal: true, depth: 10.5, blows: 50, penetrationCm: 30 });
     expect(displayStatus(bk7)).toBe('attention');
@@ -78,6 +79,16 @@ describe('sample data', () => {
       expect(b.reviewStatus, b.id).toBe(deriveReviewStatus(b.values));
       expect(b.values.every((v) => v.hasProvenance && v.method != null)).toBe(true);
       expect(b.pages.length).toBeGreaterThan(0);
+      expect(b.primaryPage, b.id).toBe(b.pages[0]);
+    }
+  });
+
+  it('gives the surface elevation the unit m and the datum as printed in the note, as the API adapter does (uiv-B3)', async () => {
+    const { boreholes } = await load();
+    for (const b of boreholes) {
+      const v = b.values.find((x) => x.key === K.elevation);
+      expect([v?.unit, v?.note], b.id).toEqual(['m', 'datum: NN (as printed, unconfirmed)']);
+      expect(b.meta.elevationDatum, b.id).toBe('NN');
     }
   });
 

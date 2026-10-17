@@ -10,10 +10,10 @@ import type { DocumentSummary, ValuePatch } from '../domain/types';
 import { duplicateText } from '../screens/queue/queueView';
 import { useAppStore } from '../store/appStore';
 import { readyStore } from '../store/testing';
-import { EXAMPLES_MISSING, EXAMPLES_PRESENT, example, examplesOf, schemaFiles } from '../test/contract/examples';
+import { EXAMPLES, EXAMPLES_MISSING, EXAMPLES_PRESENT, example, examplesOf, schemaFiles } from '../test/contract/examples';
 import { contractErrors } from '../test/contract/schema';
 import type { WireBorehole, WireBoreholeList, WireDocument, WireDocumentList, WireError, WireUploadAccepted, WireValuePatch } from './adapters';
-import { createApiSource, MAX_BACKOFF_MS } from './apiSource';
+import { createApiSource, MAX_BACKOFF_MS, SPT_N_ONLY } from './apiSource';
 import { ApiError, SaveError } from './errors';
 
 const BASE = '/api/v1';
@@ -124,13 +124,17 @@ const patches = (calls: Call[]) => calls.filter((c) => c.method === 'PATCH').map
 const pdf = (name: string) => new File(['%PDF-1.7 fictional'], name, { type: 'application/pdf' });
 
 let warn: MockInstance<typeof console.warn>;
+/** The source's one-line summary of values without a provenance entry (examples before 1.1.0 have many). */
+let info: MockInstance<typeof console.info>;
 beforeEach(() => {
   warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   warn.mockRestore();
+  info.mockRestore();
 });
 
 describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES_PRESENT ? '' : ` — skipped: ${EXAMPLES_MISSING}`}`, () => {
@@ -150,6 +154,9 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
       // A document in review opens its first borehole.
       const review = documents.find((d) => d.id === 'doc_01M54BPP80DBVM60TJD6V5NPM0');
       expect(review?.reviewBoreholeUid).toBe(boreholes.find((b) => b.documentId === review?.id)?.uid);
+      // Sparse provenance is allowed: at most one summary line for the load, no warning per value.
+      expect(warn).not.toHaveBeenCalled();
+      expect(info.mock.calls.length).toBeLessThanOrEqual(1);
     });
   });
 
@@ -163,8 +170,14 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
       ['ValuePatch.set_state.json', K.colour(4), () => ({ state: 'not in source' })],
     ];
 
+    /** ValuePatch examples of contract features this frontend does not send yet, with the reason. */
+    const NOT_SENT: Record<string, string> = {
+      'ValuePatch.approve_confirmed_by.json': 'confirmed_by on a PATCH is contract 1.1.0; this frontend builds against 1.0.0',
+    };
+
     it('covers every ValuePatch example', () => {
-      expect(cases().map(([file]) => file).sort()).toEqual(schemaFiles().filter((f) => f.startsWith('ValuePatch.')));
+      const covered = [...cases().map(([file]) => file), ...Object.keys(NOT_SENT).filter((f) => f in EXAMPLES)];
+      expect(covered.sort()).toEqual(schemaFiles().filter((f) => f.startsWith('ValuePatch.')));
     });
 
     it.each(cases())('%s (value %s)', async (file, key, build) => {
@@ -215,13 +228,53 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
     });
 
     it('refuses a value without a provenance entry without sending anything', async () => {
-      const { calls } = examplesBackend();
+      const { calls, records } = examplesBackend();
+      // FHL-BH01's client as a backend with sparse provenance sends it: printed, without an entry.
+      delete (records.get(FULL) as WireBorehole).provenance['metadata.client'];
       const api = createApiSource(BASE);
       await api.load();
-      // FHL-BH01's client is printed but has no provenance entry in the example.
+      // One summary for the whole load, never a warning per value.
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(String(info.mock.calls[0][0])).toMatch(/values? in \d+ boreholes? (has|have) no provenance entry/);
+      expect(warn).not.toHaveBeenCalled();
       const failed = await api.updateValue(FULL, K.client, { status: 'approved' }).catch((e: unknown) => e);
       expect(failed).toMatchObject({ name: 'SaveError', current: { uid: FULL, revision: 4 } });
       expect(patches(calls)).toEqual([]);
+    });
+
+    it('DV-15: a text that is no whole N goes to spt_raw where the backend tracks it, else it is refused unsent', async () => {
+      const { calls, records } = examplesBackend();
+      const prov = (records.get(FULL) as WireBorehole).provenance;
+      expect(Object.keys(prov)).toContain('stratigraphy[1].spt_n_value');
+      // An example without the printed SPT text tracked: refused before sending.
+      const raw = prov['stratigraphy[1].spt_raw'];
+      delete prov['stratigraphy[1].spt_raw'];
+      const api = createApiSource(BASE);
+      await api.load();
+      const refused = await api.updateValue(FULL, K.spt(2), { value: '50/12', method: 'Edited' }).catch((e: unknown) => e);
+      expect(refused).toMatchObject({ name: 'SaveError', message: SPT_N_ONLY });
+      expect(patches(calls)).toEqual([]);
+      // With it tracked: the text goes there.
+      prov['stratigraphy[1].spt_raw'] = raw ?? { ...prov['stratigraphy[1].spt_n_value'], method: 'read' };
+      await api.getBorehole(FULL);
+      const saved = await api.updateValue(FULL, K.spt(2), { value: '50/12', method: 'Edited' });
+      expect(patches(calls)).toEqual([{ path: 'stratigraphy[1].spt_raw', action: 'edit', value: '50/12', if_revision: 4 }]);
+      expect(contractErrors('ValuePatch', patches(calls)[0])).toEqual([]);
+      expect(saved.layers[1].spt?.raw).toBe('50/12');
+      await api.updateValue(FULL, K.spt(2), { value: 'N = 21', method: 'Edited' });
+      expect(patches(calls).at(-1)).toEqual({ path: 'stratigraphy[1].spt_n_value', action: 'edit', value: 21, if_revision: 5 });
+    });
+
+    it('uiv-B7: the CRS code row of the approved example can be approved but not edited', async () => {
+      const APPROVED = 'bh_01M54B3F0GBNJ9N3650KGFT5AE';
+      const { calls } = examplesBackend();
+      const api = createApiSource(BASE);
+      await api.load();
+      const failed = await api.updateValue(APPROVED, K.crs, { value: 'EPSG:4326', method: 'Edited' }).catch((e: unknown) => e);
+      expect(failed).toMatchObject({ name: 'SaveError', message: 'Set the coordinate system with CHOOSE CRS…' });
+      expect(patches(calls)).toEqual([]);
+      await api.updateValue(APPROVED, K.crs, { status: 'unreviewed' });
+      expect(patches(calls)).toEqual([{ path: 'metadata.coordinates.crs_code', action: 'reset', if_revision: 6 }]);
     });
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeMeta } from '../test/fixtures';
-import { decimalComma, metres, parseNumber, printedCoordinates, unplottedText } from './format';
+import { decimal, decimalComma, lintText, metres, parseNumber, printedCoordinates, unplottedText } from './format';
 
 describe('unplottedText', () => {
   it('labels the backend reason codes and makes no reason up', () => {
@@ -25,6 +25,22 @@ describe('decimalComma', () => {
     expect(decimalComma(18)).toBe('18,00');
     expect(decimalComma(0.4)).toBe('0,40');
     expect(decimalComma(241.354, 1)).toBe('241,4');
+  });
+});
+
+describe('decimal', () => {
+  it('prints decimals with the app’s decimal point (uiv-B8)', () => {
+    expect(decimal(18)).toBe('18.00');
+    expect(decimal(241.354, 1)).toBe('241.4');
+  });
+});
+
+describe('lintText', () => {
+  it('marks a lint the app added itself', () => {
+    expect(lintText({ severity: 'error', message: 'Refusal with N' })).toBe('Refusal with N');
+    expect(lintText({ severity: 'error', message: 'Increments 4 + 5 = 9 ≠ N 8', client: true })).toBe(
+      'Increments 4 + 5 = 9 ≠ N 8 (checked by the app, not the backend)',
+    );
   });
 });
 

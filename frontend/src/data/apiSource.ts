@@ -59,11 +59,23 @@ function serialise(text: string, type: PatchValueType): unknown {
     if (/^(no|false|n)$/i.test(t)) return false;
     return text;
   }
-  if (type === 'spt') {
-    const n = /^(?:n\s*=\s*)?(\d+)$/i.exec(t);
-    return n ? Number(n[1]) : text;
-  }
   return parseNumber(t) ?? text;
+}
+
+/** Why an SPT text that is no whole N can't be saved on a row whose layer has no tracked printed SPT text. */
+export const SPT_N_ONLY = 'Enter N as a whole number. A refusal can only be corrected where the backend tracks the printed SPT text.';
+
+/**
+ * The edit of an SPT row on the integer N: a whole number ("9", "N = 9") is sent as N (blank clears
+ * it); any other text (a refusal such as "50/12") goes to the layer's printed SPT text when the backend
+ * tracks it, else it is refused here instead of being answered with a 422.
+ */
+function sptEdit(text: string, target: PatchTarget): PatchBody[] {
+  const t = text.trim();
+  const n = /^(?:n\s*=\s*)?(\d+)$/i.exec(t);
+  if (!t || n) return target.paths.map((path) => ({ path, action: 'edit', value: n ? Number(n[1]) : null }));
+  if (target.sptRaw) return [{ path: target.sptRaw, action: 'edit', value: text }];
+  throw new Error(SPT_N_ONLY);
 }
 
 /** True when two texts of one value are the same, numbers compared as numbers ("12.50" = "12.5"). */
@@ -76,9 +88,11 @@ function sameText(a: string, b: string): boolean {
 /**
  * The edit bodies of one value: one per path. A two-field value ("X / Y") is split into its parts and
  * each part goes to its path. A part whose path has no provenance entry can't be saved: changing it
- * is refused rather than silently dropped.
+ * is refused rather than silently dropped. A read-only value (e.g. the CRS code) refuses every edit.
  */
 function editBodies(text: string, target: PatchTarget): PatchBody[] {
+  if (target.readOnly) throw new Error(target.readOnly);
+  if (target.type === 'spt') return sptEdit(text, target);
   if (!target.pair) return target.paths.map((path) => ({ path, action: 'edit', value: serialise(text, target.type) }));
   const sep = MULTI_FIELD_SEPARATOR.trim();
   const both = `Enter both values separated by "${sep}", e.g. 512345 ${sep} 6123456`;
@@ -154,6 +168,8 @@ export function createApiSource(base: string): DataSource {
   const saving = new Map<string, Promise<unknown>>();
   /** Documents being followed right now: one poll loop per document. */
   const following = new Set<string>();
+  /** Values without a provenance entry already reported (`<uid> <path>`). */
+  const reported = new Set<string>();
 
   async function request<T>(method: string, path: string, body?: FormData | object): Promise<T> {
     const init: RequestInit = { method, headers: { Accept: 'application/json' } };
@@ -196,6 +212,30 @@ export function createApiSource(base: string): DataSource {
     const known = records.get(adapted.borehole.uid);
     if (!known || known.borehole.revision <= adapted.borehole.revision) records.set(adapted.borehole.uid, adapted);
     return adapted;
+  }
+
+  /**
+   * One console.info for a load or refetch batch: how many values the batch shows without a provenance
+   * entry (read-only), with a few examples. The contract allows sparse provenance, so this is no
+   * warning; values reported before are not counted again.
+   */
+  function reportUnsourced(batch: AdaptedBorehole[]): void {
+    let boreholes = 0;
+    const fresh: string[] = [];
+    for (const a of batch) {
+      const own = a.unsourced.map((path) => `${a.borehole.uid} ${path}`).filter((x) => !reported.has(x));
+      for (const x of own) reported.add(x);
+      if (own.length) boreholes += 1;
+      fresh.push(...own);
+    }
+    if (!fresh.length) return;
+    const values = fresh.length === 1 ? '1 value' : `${fresh.length} values`;
+    const holes = boreholes === 1 ? '1 borehole' : `${boreholes} boreholes`;
+    const more = fresh.length > 3 ? ', …' : '';
+    console.info(
+      `${values} in ${holes} ${fresh.length === 1 ? 'has' : 'have'} no provenance entry (the contract allows sparse provenance): ` +
+        `shown read-only. E.g. ${fresh.slice(0, 3).join(', ')}${more}`,
+    );
   }
 
   /** Boreholes the source knows for a document, in list order. */
@@ -322,18 +362,24 @@ export function createApiSource(base: string): DataSource {
 
     async load() {
       const [list, docList] = await Promise.all([listBoreholes(), request<WireDocumentList>('GET', '/documents')]);
-      const boreholes = list.map((rec) => remember(rec).borehole);
+      const adapted = list.map(remember);
+      reportUnsourced(adapted);
+      const boreholes = adapted.map((a) => a.borehole);
       const documents = docList.documents.map(summarise);
       return { boreholes, documents };
     },
 
     async getBorehole(uid) {
-      return remember(await request<WireBorehole>('GET', `/boreholes/${enc(uid)}`)).borehole;
+      const adapted = remember(await request<WireBorehole>('GET', `/boreholes/${enc(uid)}`));
+      reportUnsourced([adapted]);
+      return adapted.borehole;
     },
 
     async documentBoreholes(documentId) {
       const list = await request<WireBorehole[]>('GET', `/documents/${enc(documentId)}/boreholes`);
-      const boreholes = list.map((rec) => remember(rec).borehole);
+      const adapted = list.map(remember);
+      reportUnsourced(adapted);
+      const boreholes = adapted.map((a) => a.borehole);
       // The answer is the document's full list: a borehole it no longer has (merged or removed) is gone.
       const listed = new Set(boreholes.map((b) => b.uid));
       for (const [uid, r] of records) if (r.borehole.documentId === documentId && !listed.has(uid)) records.delete(uid);

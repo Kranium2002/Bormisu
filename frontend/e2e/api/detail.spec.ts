@@ -8,13 +8,13 @@
  * real list answer in the browser (route) and checks the drawing. Read-only: changes nothing.
  */
 import { readFileSync } from 'node:fs';
-import { DIN_CODES, COLOR, expect, knownBug, openApp, openDetail, records, test, UNPLOTTED_LABEL, type WireRecord } from './fixtures';
+import { DIN_CODES, COLOR, expect, openApp, openDetail, records, test, UNPLOTTED_LABEL, type WireRecord } from './fixtures';
 
 const profile = (page: import('@playwright/test').Page, id: string) =>
   page.getByRole('group', { name: new RegExp(`^DIN 4023 profile of ${id.replace(/[-]/g, '\\-')},`) });
 
-/** "18,00" style labels of the profile (decimal comma). */
-const comma = (n: number) => n.toFixed(2).replace('.', ',');
+/** "18.00" style labels of the profile (decimal point, uiv-B8: the comma is kept only for the sample's printed text). */
+const decimal = (n: number) => n.toFixed(2);
 
 test('every layer fills with url(#<pattern_id>) of its DIN code, the patterns are defined once in the page', async ({ page, request }) => {
   const all = (await records(request)).filter((r) => r.stratigraphy.length > 0);
@@ -48,7 +48,7 @@ test('every layer fills with url(#<pattern_id>) of its DIN code, the patterns ar
     await expect(profile(page, id).locator('rect[fill="#fff"]')).toHaveCount(aLayers);
     // Final depth label; unknown depth says so and is never 0.
     const depth = r.metadata.borehole_depth_m;
-    await expect(profile(page, id)).toContainText(depth != null && depth > 0 ? `ET ${comma(depth)} m` : 'ET not stated');
+    await expect(profile(page, id)).toContainText(depth != null && depth > 0 ? `ET ${decimal(depth)} m` : 'ET not stated');
   }
 });
 
@@ -152,7 +152,6 @@ const metaRow = (page: import('@playwright/test').Page, label: string) =>
 test('FE-DISP-1: surface elevation names its datum once (no "m m s.n.m.", no "NHN · datum NHN")', async ({ page, request }) => {
   const withDatum = (await records(request)).filter((r) => r.metadata.elevation_datum && r.metadata.surface_elevation_mASL != null);
   test.skip(!withDatum.length, 'no seeded elevation with a datum');
-  knownBug('FE-DISP-1', 'the unit is built as "m <datum>" and the row appends "· datum <datum>" again');
   await openApp(page);
   for (const r of withDatum) {
     await openDetail(page, r.metadata.borehole_id);
@@ -166,7 +165,6 @@ test('FE-DISP-1: surface elevation names its datum once (no "m m s.n.m.", no "NH
 test('CONTRACT-2: a rock head the backend left null is not shown as a Derived "not reached"', async ({ page, request }) => {
   const r = (await records(request)).find((x) => x.rock_head_m == null && !x.provenance.rock_head_m && x.stratigraphy.length > 0);
   test.skip(!r, 'no seeded borehole without a rock head');
-  knownBug('CONTRACT-2', 'rock_head_m null is shown as "not reached" with a Derived badge that no provenance entry backs');
   await openApp(page);
   await openDetail(page, r!.metadata.borehole_id);
   await expect(metaRow(page, 'Rock head')).not.toContainText('Derived');

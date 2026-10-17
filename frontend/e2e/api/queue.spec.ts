@@ -6,7 +6,7 @@
  * including one `failed` with an error and one still `classifying`. Read-only: RETRY is not
  * clicked, because a re-queued seed document cannot be put back (see the report).
  */
-import { documents, expect, knownBug, nav, openApp, test, type WireDocument } from './fixtures';
+import { documents, expect, getJson, nav, openApp, test, type WireDocument } from './fixtures';
 
 const PAGE_TYPE_NAME: Record<string, string> = {
   log: 'log', lab_table: 'lab table', text: 'text', drawing: 'drawing', photo: 'photo', unknown: 'not classified yet',
@@ -61,7 +61,6 @@ test('FE-QUEUE-1: a classified page of type unknown (e.g. a duplicate) is not ca
   const docs = await documents(request);
   const hit = docs.flatMap((d) => d.pages.filter((p) => p.type === 'unknown' && p.role).map((p) => ({ d, p })))[0];
   test.skip(!hit, 'no seeded page of type unknown with a role');
-  knownBug('FE-QUEUE-1', 'PAGE_TYPE_META.unknown is named "not classified yet", also for classified pages');
   await openApp(page);
   await nav(page, 'UPLOAD & QUEUE');
   const cell = card(page, hit!.d).getByRole('group', { name: `Page map of ${hit!.d.file_name}` }).getByRole('button').nth(hit!.p.n - 1);
@@ -99,8 +98,9 @@ test('progress, found counts and open questions come from the document', async (
   }
 });
 
-test('a failed document shows the backend error and RETRY; a working one says Processing…', async ({ page, request }) => {
+test('a failed document shows the backend error and RETRY (off in demo mode, BE-RETRY-1); a working one says Processing…', async ({ page, request }) => {
   const docs = await documents(request);
+  const { mode } = await getJson<{ mode: string }>(request, '/health');
   const failed = docs.filter((d) => d.status === 'failed');
   const working = docs.filter((d) => ['queued', 'classifying', 'extracting'].includes(d.status));
   expect(failed.length + working.length, 'seeded failed / in-progress documents').toBeGreaterThan(0);
@@ -109,7 +109,14 @@ test('a failed document shows the backend error and RETRY; a working one says Pr
   for (const d of failed) {
     const c = card(page, d);
     await expect(c.getByRole('alert')).toHaveText(`Extraction failed: ${d.error}`);
-    await expect(c.getByRole('button', { name: 'RETRY' })).toBeEnabled();
+    const retry = c.getByRole('button', { name: 'RETRY' });
+    // Without provider keys a retry cannot extract anything: RETRY is off with the reason.
+    if (mode === 'demo') {
+      await expect(retry).toBeDisabled();
+      await expect(retry).toHaveAttribute('title', 'Live extraction needs API keys');
+    } else {
+      await expect(retry).toBeEnabled();
+    }
   }
   for (const d of working) await expect(card(page, d)).toContainText('Processing…');
 });
@@ -133,7 +140,6 @@ test('CONTRACT-1: a failed document marks the step that failed, not "classifying
   const docs = await documents(request);
   const d = docs.find((x) => x.status === 'failed' && x.progress && x.progress.pages_classified === x.progress.pages_total);
   test.skip(!d, 'no seeded document that failed after classification');
-  knownBug('CONTRACT-1', 'Document has no failed stage; the UI maps every failure to step 0 (classifying)');
   await openApp(page);
   await nav(page, 'UPLOAD & QUEUE');
   const failedStep = card(page, d!).getByRole('list', { name: 'Processing status' }).locator('li[aria-current="step"]');

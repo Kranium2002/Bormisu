@@ -335,6 +335,21 @@ describe('review saves', () => {
     expect(patches(calls)).toEqual([]);
   });
 
+  it('DV-15: refuses an SPT text that is no whole N before sending, where the backend tracks no printed SPT text', async () => {
+    const { calls } = backend();
+    const api = createApiSource(BASE);
+    await api.load();
+    const failed = await api.updateValue(HL01, K.spt(4), { value: '50/12', method: 'Edited', status: 'approved' }).catch((e: unknown) => e);
+    expect(failed).toBeInstanceOf(SaveError);
+    expect(failed).toMatchObject({
+      message: 'Enter N as a whole number. A refusal can only be corrected where the backend tracks the printed SPT text.',
+      current: { uid: HL01, revision: 4 },
+    });
+    expect(patches(calls)).toEqual([]);
+    await api.updateValue(HL01, K.spt(4), { value: 'N = 9', method: 'Edited' });
+    expect(patches(calls)).toEqual([{ path: 'stratigraphy[3].spt_n_value', action: 'edit', value: 9, if_revision: 4 }]);
+  });
+
   it('a failed save does not block the next one', async () => {
     let fail = true;
     backend((c) => {
@@ -350,6 +365,49 @@ describe('review saves', () => {
     const good = api.updateValue(HL01, K.finalDepth, { status: 'approved' });
     await expect(bad).rejects.toMatchObject({ code: 'unparseable_value' });
     await expect(good).resolves.toMatchObject({ revision: 5 });
+  });
+});
+
+describe('values without a provenance entry (the contract allows sparse provenance)', () => {
+  it('logs at most one console.info summary per load or refetch batch, never a warning per value', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const { records } = backend((c) =>
+      c.url.endsWith('/boreholes?limit=5000')
+        ? json(200, { ...fixture<WireBoreholeList>('boreholes-page-1'), boreholes: [records.get(HL01), records.get(HL02)] })
+        : undefined,
+    );
+    for (const uid of [HL01, HL02]) {
+      const rec = records.get(uid) as WireBorehole;
+      delete rec.provenance['metadata.project_name'];
+      delete rec.provenance['metadata.borehole_depth_m'];
+    }
+    const api = createApiSource(BASE);
+    const { boreholes } = await api.load();
+    expect(warn).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledTimes(1);
+    const summary = String(info.mock.calls[0][0]);
+    expect(summary).toMatch(/^4 values in 2 boreholes have no provenance entry/);
+    expect(summary).toContain(`${HL01} metadata.project_name`);
+    // Still shown, read-only.
+    expect(boreholes[0].values.find((v) => v.key === K.finalDepth)).toMatchObject({ value: '15.50', hasProvenance: false, method: null });
+    // A refetch of the same values adds no second summary; a batch with a new one adds one.
+    await api.documentBoreholes(D1);
+    expect(info).toHaveBeenCalledTimes(1);
+    delete (records.get(HL02) as WireBorehole).provenance['metadata.coordinates.coordinate_system'];
+    await api.documentBoreholes(D1);
+    await api.getBorehole(HL02);
+    expect(info).toHaveBeenCalledTimes(2);
+    expect(String(info.mock.calls[1][0])).toMatch(/^1 value in 1 borehole has no provenance entry.*metadata\.coordinates\.coordinate_system/);
+    expect(warn).not.toHaveBeenCalled();
+    info.mockRestore();
+  });
+
+  it('logs nothing when every value has an entry', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    backend();
+    await createApiSource(BASE).load();
+    expect(info).not.toHaveBeenCalled();
+    info.mockRestore();
   });
 });
 

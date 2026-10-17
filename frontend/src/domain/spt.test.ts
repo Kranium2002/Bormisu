@@ -9,10 +9,11 @@ describe('sptDepthText', () => {
 });
 
 describe('sptLint', () => {
-  it('flags increments that do not add up to N', () => {
+  it('flags increments that do not add up to N, as a check of the client (never server attention)', () => {
     expect(sptLint({ raw: '3,4,5 = 8', depth: 1.5, refusal: false, increments: [3, 4, 5], n: 8 })).toEqual({
       severity: 'error',
       message: 'Increments 4 + 5 = 9 ≠ N 8',
+      client: true,
     });
   });
 

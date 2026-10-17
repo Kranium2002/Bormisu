@@ -3,7 +3,7 @@
  * a 378 x 660 SVG whose depth axis runs from y = 28 (0 m) over 576 px down to the final depth.
  * DIN patterns repeat at their native tile size (scale 1 for the whole profile), never stretched.
  */
-import { decimalComma } from '../../domain/format';
+import { decimal } from '../../domain/format';
 import type { Borehole, Layer } from '../../domain/types';
 
 export const PROFILE_W = 378;
@@ -107,7 +107,7 @@ export function notLogged(b: Pick<Borehole, 'finalDepth' | 'logBottom' | 'layers
   return {
     from: b.logBottom,
     to: b.finalDepth,
-    label: `log ends ${decimalComma(b.logBottom)} ≠ ET ${decimalComma(b.finalDepth)}`,
+    label: `log ends ${decimal(b.logBottom)} ≠ ET ${decimal(b.finalDepth)}`,
   };
 }
 

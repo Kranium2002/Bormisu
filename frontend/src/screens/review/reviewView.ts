@@ -3,8 +3,9 @@
  * No React, no store: unit-tested in reviewView.test.ts.
  */
 import type { ScanBox, ScanBoxVariant } from '../../components/ScanPage';
-import { printedCoordinates } from '../../domain/format';
+import { crsLabel, printedCoordinates } from '../../domain/format';
 import { K } from '../../domain/keys';
+import { fromOtherDocument } from '../../domain/review';
 import { sptDepthText } from '../../domain/spt';
 import type { Borehole, Box, CrsCandidate, CrsVerdict, ExtractedValue, Reading } from '../../domain/types';
 
@@ -29,10 +30,10 @@ export function orderedValues(b: Borehole): ExtractedValue[] {
     .map((x) => x.v);
 }
 
-/** Heading of a layer group: "LAYER 5 · 8.20–11.20 M · P.8". */
+/** Heading of a layer group: "LAYER 5 · 8.20–11.20 M · P.8" (a page of the borehole's own document). */
 export function layerTitle(b: Borehole, n: number): string {
   const l = b.layers.find((x) => x.n === n);
-  const page = b.values.find((v) => v.layer === n && v.page != null)?.page;
+  const page = b.values.find((v) => v.layer === n && v.page != null && !fromOtherDocument(b, v))?.page;
   const range = l ? ` · ${l.from.toFixed(2)}–${l.to.toFixed(2)} M` : '';
   return `LAYER ${n}${range}${page ? ` · P.${page}` : ''}`;
 }
@@ -69,11 +70,14 @@ export function rowKeys(rows: ReviewRow[]): string[] {
   return rows.flatMap((r) => (r.kind === 'field' ? [r.value.key] : []));
 }
 
-/** Pages that hold this borehole's values, ascending: one sheet tab each. */
+/**
+ * Pages of the borehole's own document that hold its values, ascending: one sheet tab each. Without
+ * any, its first page; a borehole without pages (e.g. a spreadsheet) has no tab, never a made-up page 1.
+ */
 export function sheetPages(b: Borehole): number[] {
   const pages = new Set<number>();
-  for (const v of b.values) if (v.page != null) pages.add(v.page);
-  if (!pages.size && b.documentId && !b.values.some((v) => v.cell)) pages.add(b.primaryPage);
+  for (const v of b.values) if (v.page != null && !fromOtherDocument(b, v)) pages.add(v.page);
+  if (!pages.size && b.documentId && b.primaryPage != null && !b.values.some((v) => v.cell)) pages.add(b.primaryPage);
   return [...pages].sort((x, y) => x - y);
 }
 
@@ -97,19 +101,21 @@ const boxId = (b: Box) => `${b.x.toFixed(4)},${b.y.toFixed(4)},${b.w.toFixed(4)}
 const isPrinted = (v: ExtractedValue) => v.method !== 'Derived' && v.method !== 'Guessed';
 
 /**
- * Value boxes on one page. When several values share a box (the CRS guessed from the X / Y line,
- * the rock head derived from a lithology), only the first printed one is drawn, plus the focused
- * one while it is focused. The focused box is drawn last, so it is on top.
+ * Value boxes on one page of the borehole's own document (values from another document are never
+ * drawn here). When several values share a box (the CRS guessed from the X / Y line, the rock head
+ * derived from a lithology), only the first printed one is drawn, plus the focused one while it is
+ * focused. The focused box is drawn last, so it is on top.
  */
 export function scanBoxes(
   b: Borehole,
-  page: number,
+  page: number | null,
   focusKey: string | null,
   onClick: (key: string) => void,
 ): ScanBox[] {
   const groups = new Map<string, ExtractedValue[]>();
+  if (page == null) return [];
   for (const v of orderedValues(b)) {
-    if (v.page !== page || !v.box) continue;
+    if (v.page !== page || !v.box || fromOtherDocument(b, v)) continue;
     const id = boxId(v.box);
     groups.set(id, [...(groups.get(id) ?? []), v]);
   }
@@ -136,15 +142,21 @@ export function noPageText(v: Pick<ExtractedValue, 'method'>): string {
 
 /**
  * Caption under the scan: page and sheet; "box not found, page shown" for a focused value without a
- * box; the cell for a spreadsheet value; "no source reference" for a value without provenance.
+ * box; the cell for a spreadsheet value; "no source reference" for a value without provenance; where
+ * a value from another document is (`elsewhere`); "no source page" for a borehole without pages.
  */
-export function scanCaption(page: number, sheets: number[], focused: ExtractedValue | undefined): Caption {
+export function scanCaption(page: number | null, sheets: number[], focused: ExtractedValue | undefined, elsewhere = false): Caption {
   if (focused && !focused.hasProvenance) {
     return { text: `${focused.label}: no source reference from the backend`, tone: 'warn' };
+  }
+  if (focused && elsewhere) {
+    const where = focused.cell ? `spreadsheet cell ${focused.cell} in` : focused.page != null ? `page ${focused.page} of` : 'source in';
+    return { text: `${focused.label}: ${where} another document · Larger source view shows it`, tone: 'normal' };
   }
   if (focused?.cell) return { text: `${focused.label}: spreadsheet cell ${focused.cell}, no page image`, tone: 'normal' };
   // A value whose source entry names no page: the page shown is not its source.
   if (focused && focused.page == null && focused.state === 'ok') return { text: `${focused.label}: ${noPageText(focused)}`, tone: 'warn' };
+  if (page == null) return { text: 'no source page for this borehole', tone: 'normal' };
   if (focused && !focused.box && focused.state === 'ok') {
     return { text: `${focused.label}: box not found, page shown`, tone: 'warn' };
   }
@@ -153,12 +165,14 @@ export function scanCaption(page: number, sheets: number[], focused: ExtractedVa
   return { text: `page ${page}${sheet} · click a box to jump to its field`, tone: 'normal' };
 }
 
-/** "p.7", "p.7 · no box", the spreadsheet cell ("Logdata!C5"), "no source reference" or "" (prototype pageTxt). */
-export function pageText(v: ExtractedValue): string {
+/**
+ * "p.7", "p.7 · no box", the spreadsheet cell ("Logdata!C5"), "no source reference" or "" (prototype
+ * pageTxt). A value from another document (`elsewhere`) says so: its page is not one of this report's.
+ */
+export function pageText(v: ExtractedValue, elsewhere = false): string {
   if (!v.hasProvenance) return 'no source reference';
-  if (v.cell) return v.cell;
-  if (v.page == null) return '';
-  return v.box ? `p.${v.page}` : `p.${v.page} · no box`;
+  const where = v.cell ? v.cell : v.page == null ? '' : v.box || elsewhere ? `p.${v.page}` : `p.${v.page} · no box`;
+  return elsewhere ? [where, 'other document'].filter(Boolean).join(' · ') : where;
 }
 
 /** Raw text as printed, in quotes, or an em dash. */
@@ -191,10 +205,25 @@ export function fieldNote(b: Borehole, v: ExtractedValue): Note | null {
   }
   if (v.key === K.xy) {
     const printed = printedCoordinates(b.meta);
-    const text = [printed ? `as printed: ${printed}` : '', v.note ?? ''].filter(Boolean).join(' · ');
-    return text ? { text, tone: 'faint' } : null;
+    // Without a CRS row the X / Y row offers CHOOSE CRS…, so it names the CRS the server has (FE-CRS-1/2).
+    const crs = b.values.some((x) => x.kind === 'crs') ? '' : xyCrsText(b);
+    const text = [printed ? `as printed: ${printed}` : '', crs, v.note ?? ''].filter(Boolean).join(' · ');
+    const tone = crs && b.crs.status !== 'confirmed' ? 'warn' : 'faint';
+    return text ? { text, tone } : null;
   }
   return v.note ? { text: v.note, tone: 'faint' } : null;
+}
+
+/**
+ * The CRS on the X / Y row of a borehole without a CRS row (the source prints no system): a confirmed
+ * one by its name or code, else what is missing. Nothing for a stated CRS.
+ */
+function xyCrsText(b: Borehole): string {
+  const name = crsLabel(b.crs);
+  if (b.crs.status === 'confirmed') return name ? `CRS ${name}, confirmed for the whole document` : 'CRS confirmed for the whole document';
+  if (b.crs.status === 'inferred') return `CRS not stated in source${name ? ` · inferred ${name}` : ''}, confirm it for the document`;
+  if (b.crs.status === 'unknown') return 'CRS not known, so this borehole is not on the map';
+  return '';
 }
 
 /** Hover text of an SPT value: its depth ("depth not stated" when the source has none) and how N is formed. */

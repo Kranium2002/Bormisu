@@ -3,14 +3,15 @@ import type { Lint, Spt } from './types';
 
 /**
  * Checks a non-refusal SPT: the 2nd + 3rd increments must add up to N.
- * Returns an error lint like "Increments 4 + 5 = 9 ≠ N 8", or undefined when consistent.
+ * Returns an error lint like "Increments 4 + 5 = 9 ≠ N 8", or undefined when consistent. The backend
+ * has no such rule, so the lint is the client's own (`client: true`): shown, never counted as attention.
  */
 export function sptLint(spt: Spt): Lint | undefined {
   const inc = spt.increments;
   if (spt.refusal || spt.n == null || !inc || inc.length < 3) return undefined;
   const sum = inc[1] + inc[2];
   if (sum === spt.n) return undefined;
-  return { severity: 'error', message: `Increments ${inc[1]} + ${inc[2]} = ${sum} ≠ N ${spt.n}` };
+  return { severity: 'error', message: `Increments ${inc[1]} + ${inc[2]} = ${sum} ≠ N ${spt.n}`, client: true };
 }
 
 /** Normalised display text: "N = 8" or "refusal · 50 blows / 30 cm". */

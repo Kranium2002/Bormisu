@@ -4,9 +4,12 @@ import { COL, pinColor, statusChip } from '../../theme';
 import {
   crsCell,
   depthText,
+  fitPadding,
   initialBounds,
   isPlotted,
+  LEGEND_EXTENT,
   legendEntries,
+  legendExtent,
   notOnMapReason,
   popupCrsWarning,
   resultsSummary,
@@ -56,6 +59,40 @@ describe('legendEntries', () => {
   it('an inferred CRS alone is not attention: the server opens a question for it', () => {
     const b = makeBorehole({ crs: { name: 'Fictional grid', code: null, status: 'inferred' } });
     expect(statusByUid([b]).get(b.uid)).toBe('unreviewed');
+  });
+
+  it('a lint error the app added itself is not attention; a backend lint error is', () => {
+    const b = makeBorehole();
+    const own = { ...b, values: [...b.values, makeValue({ key: 'spt', lint: { severity: 'error', message: 'Increments 4 + 5 = 9 ≠ N 8', client: true } })] };
+    const server = { ...b, values: [...b.values, makeValue({ key: 'spt', lint: { severity: 'error', message: 'Refusal with N' } })] };
+    expect(statusByUid([own]).get(b.uid)).toBe('unreviewed');
+    expect(statusByUid([server]).get(b.uid)).toBe('attention');
+  });
+});
+
+describe('FE-MAP-1: fitting the pins keeps them out from under the REVIEW STATUS legend', () => {
+  const legend = { width: 170, height: 150 };
+
+  it('on a wide map, pads the left side by the legend’s width plus the margin', () => {
+    expect(fitPadding({ width: 1100, height: 540 }, legend)).toEqual({ paddingTopLeft: [194, 24], paddingBottomRight: [24, 24] });
+  });
+
+  it('on a tall map, pads the bottom by the legend’s height plus the margin', () => {
+    expect(fitPadding({ width: 400, height: 900 }, legend)).toEqual({ paddingTopLeft: [24, 24], paddingBottomRight: [24, 174] });
+  });
+
+  it('measures the legend from the map’s bottom-left corner', () => {
+    const map = { left: 0, top: 88, right: 1140, bottom: 630 };
+    expect(legendExtent(map, { left: 12, top: 485, right: 168, bottom: 606 })).toEqual({ width: 168, height: 145 });
+  });
+
+  it('falls back to the size the legend’s CSS gives it when it can’t be measured', () => {
+    const map = { left: 0, top: 88, right: 1140, bottom: 630 };
+    expect(legendExtent(map, null)).toEqual(LEGEND_EXTENT);
+    expect(legendExtent(map, { left: 0, top: 0, right: 0, bottom: 0 })).toEqual(LEGEND_EXTENT);
+    // left 12 + about 156 wide; bottom 24 + about 122 high (MapLegend.module.css).
+    expect(LEGEND_EXTENT.width).toBeGreaterThanOrEqual(168);
+    expect(LEGEND_EXTENT.height).toBeGreaterThanOrEqual(146);
   });
 });
 
