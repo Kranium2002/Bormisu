@@ -1,14 +1,5 @@
 # Bormisu — Speaker Script (5 min)
 
-The slides carry almost no text. Everything is said here.
-Open `index.html` in Chrome, arrow keys to advance.
-Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it automatically.
-Slide 11 (Team) is skipped for now, so you click straight from 10 to 12.
-
-## 01 · Title (~10 s)
-
-> Hi, we're **Team Tiramisu**, and this is **Bormisu**.
-
 ## 02 · Hook: more than 3 million hours (~25 s)
 
 *(the number counts up to > 3,000,000 — let it land)*
@@ -21,18 +12,17 @@ Slide 11 (Team) is skipped for now, so you click straight from 10 to 12.
 
 ## 03 · Herrenknecht video (~30 s, talk over the footage)
 
-> All of that because of one company: Herrenknecht.
-> The world's most advanced tunnel boring machine company — from Schwanau, just down the road.
+> All of that because of one of Europes greates hidden Champions: Herrenknecht.
+> The world's most advanced tunnel boring machine company,
 > They build the machines for the Paris Metro, the Grand Paris Express.
-> They bored the Gotthard Base Tunnel — 57 kilometres through the Alps.
+> Their machines dug London's Elizabeth line, right under the city.
 > In Hong Kong, they built the biggest tunnel boring machine ever — 17.6 metres — for the airport link under the sea.
-> And they also built for Stuttgart 21…
 
 ## 04 · Stuttgart 21 🤫 (~5 s)
 
 *(construction photo of Stuttgart main station, the 🤫 is already on screen)*
 
-> …but we don't talk about that.
+>And they also built for Stuttgart 21 but we don't talk about that.
 
 *(let the laugh happen, then move on)*
 
@@ -125,7 +115,8 @@ Slide 11 (Team) is skipped for now, so you click straight from 10 to 12.
 
 ### Slide 03 (said over the video)
 
-- Gotthard Base Tunnel bored with Herrenknecht machines: [Herrenknecht press release](https://www.herrenknecht.com/en/newsroom/pressreleasedetail/gotthard-base-tunnel-mechanized-tunnelling-completed-on-the-north-side/), [Wikipedia](https://en.wikipedia.org/wiki/Herrenknecht)
+- Gotthard Base Tunnel (hook, slide 02) bored with Herrenknecht machines: [Herrenknecht press release](https://www.herrenknecht.com/en/newsroom/pressreleasedetail/gotthard-base-tunnel-mechanized-tunnelling-completed-on-the-north-side/), [Wikipedia](https://en.wikipedia.org/wiki/Herrenknecht)
+- London Crossrail / Elizabeth line, TBMs built by Herrenknecht: [gfxspeak](https://gfxspeak.com/archives/burrowing-machines-crossrail/), [The Construction Index](https://www.theconstructionindex.co.uk/news/view/crossrail-tbm-ellie-breaks-through-in-docklands?amp=1)
 - Grand Paris Express, 19 Herrenknecht TBMs: [Tunnelbuilder](https://tunnelbuilder.com/News/Launch-of-the-first-TBM-for-the-Grand-Paris-Express-.aspx)
 - Hong Kong Tuen Mun–Chek Lap Kok, 17.6 m Mixshield, largest TBM: [Herrenknecht reference](https://herrenknecht.com/en/references/referencesdetail/hong-kong-tuen-mun-chek-lap-kok-link), [Guinness](https://www.guinnessworldrecords.com/world-records/78259-largest-tunnel-boring-machine)
 - Stuttgart 21 Filder Tunnel, Herrenknecht TBM "SUSE": [Herrenknecht press release](https://herrenknecht.com/en/newsroom/pressreleasedetail/suse-sibylle-wanda-and-kaethchen-from-baden-set-a-fast-pace-in-swabia)
