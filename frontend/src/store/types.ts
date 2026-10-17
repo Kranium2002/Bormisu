@@ -1,17 +1,23 @@
 /**
  * State and action types of the app store. The store is one zustand store made of slices
- * (data, review, map, upload, panel, settings); each slice file builds its part from a shared
+ * (data, review, map, map data, upload, panel, settings, events, clarifications); each slice file builds its part from a shared
  * StoreContext (context.ts).
  */
 import type { DataSource } from '../data/DataSource';
 import type {
+  Area,
   Borehole,
+  BoreholeFilter,
   Box,
+  Clarification,
   CrsCandidate,
   DocumentSummary,
   FieldState,
   Health,
+  MapFeature,
   PageContent,
+  PlaceCandidate,
+  ResultSet,
   Screen,
 } from '../domain/types';
 
@@ -266,4 +272,79 @@ export interface SettingsSlice {
   setReviewerName(name: string): void;
 }
 
-export type AppState = DataSlice & ReviewSlice & MapSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice;
+/** Outcome of answering a clarification: field errors from a 422 are keyed by field name. */
+export type AnswerResult = { ok: true } | { ok: false; message: string; fieldErrors: Record<string, string> };
+
+/**
+ * The map's data: light features of every plotted borehole (pins, clusters, legend, results table,
+ * search), the active result set (filters, area selection, chat), place search, and full records
+ * fetched on demand into the boreholes cache (Review, Detail, exports).
+ */
+export interface MapDataSlice {
+  features: MapFeature[];
+  /** Uids of the boreholes that are not on the map (their full records are in boreholes). */
+  unplottedUids: string[];
+  /** The filter panel's state; applyFilter runs it. */
+  filter: BoreholeFilter;
+  /** The active result set and its plotted members, or null. */
+  resultSet: ResultSet | null;
+  resultSetFeatures: MapFeature[] | null;
+  /** A result set or filter request in flight, and the last error to show. */
+  resultSetBusy: boolean;
+  resultSetError: string | null;
+  /** Place search: the last query, its candidates (null before a search), busy flag and error. */
+  placeQuery: string;
+  places: PlaceCandidate[] | null;
+  placeBusy: boolean;
+  placeError: string | null;
+  /**
+   * Fetch state of full records requested on demand, by uid: absent when cached or never asked.
+   * Route screens show LOADING while 'loading' and BOREHOLE NOT FOUND only for 'missing'.
+   */
+  recordLoads: Record<string, 'loading' | 'missing' | 'error'>;
+  /** A bbox to fly to and outline dashed (a place, a fit_bounds), or null; nonce changes per request. */
+  mapOutline: { bbox: [number, number, number, number]; outline: boolean; nonce: number } | null;
+
+  /** Fetches one full record unless cached; resolves null when the server has no such borehole. */
+  ensureBorehole(uid: string): Promise<Borehole | null>;
+  /** Fetches the full records of a document unless all are cached (Review, Detail, exports). */
+  ensureDocumentBoreholes(documentId: string): Promise<Borehole[]>;
+  /** Reloads the map layer and the unplotted list (after a CRS confirmation, an answered question …). */
+  refreshMap(): Promise<void>;
+  setFilter(patch: Partial<BoreholeFilter>): void;
+  /** Runs the filter panel's filter (plus the current area) as a result set; its id goes in the URL. */
+  applyFilter(): Promise<void>;
+  /** Selects by an area drawn on the map (rectangle, polygon, circle), with the panel's filter. */
+  selectArea(area: Area): Promise<void>;
+  /** Shows a stored result set (URL rs=, chat show_result_set); fit flies the map to its bbox. */
+  showResultSet(id: string, options?: { fit?: boolean }): Promise<void>;
+  /** "Reset": clears the result set, the area and the filter panel. */
+  clearResultSet(): void;
+  /** Place search on submit: one candidate flies there, several are listed, none says so. */
+  searchPlace(query: string): Promise<void>;
+  /** Flies to a listed place candidate (and outlines it when it holds no uploaded borehole). */
+  choosePlace(index: number): void;
+}
+
+/** Clarification questions: the inbox, the badge and the dialog (FRONTEND.md F12). */
+export interface ClarificationsSlice {
+  /** Unresolved questions (open or skipped), oldest first, from GET /clarifications and live events. */
+  clarifications: Clarification[];
+  clarificationsState: 'idle' | 'loading' | 'ready' | 'error';
+  /** The question shown in the dialog, or null. */
+  activeClarificationId: string | null;
+
+  loadClarifications(): Promise<void>;
+  /** Opens the dialog (from the inbox, a document card, Review or the chat). */
+  openClarification(id: string): void;
+  closeClarification(): void;
+  /**
+   * Sends the answer with the reviewer's name. On success the question leaves the list and the
+   * affected records, the document and the map are refreshed (a CRS answer can plot a whole file).
+   */
+  answerClarification(id: string, values: Record<string, unknown>): Promise<AnswerResult>;
+  /** Leaves the question for later (it stays in the inbox as skipped and keeps its badge). */
+  skipClarification(id: string): Promise<void>;
+}
+
+export type AppState = DataSlice & ReviewSlice & MapSlice & MapDataSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice & ClarificationsSlice;

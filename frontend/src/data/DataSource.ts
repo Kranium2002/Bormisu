@@ -1,18 +1,29 @@
 import type {
   Borehole,
+  BoreholeFilter,
+  Clarification,
+  ClarificationStatus,
   CrsCandidate,
   CrsConfirmation,
   DocumentSummary,
   Health,
   LiveEvent,
   LiveStatus,
+  MapFeature,
   PageContent,
+  PlaceCandidate,
+  ResultSet,
   UploadProgress,
   UploadResult,
   ValuePatch,
 } from '../domain/types';
 
-export interface LoadResult { boreholes: Borehole[]; documents: DocumentSummary[] }
+/**
+ * What the app loads at boot: the documents, the light map layer of every plotted borehole, and the
+ * full records of the boreholes that are not on the map (few; the "Not on map" list). Full records
+ * of plotted boreholes are fetched on demand (getBorehole, documentBoreholes).
+ */
+export interface LoadResult { documents: DocumentSummary[]; features: MapFeature[]; unplotted: Borehole[] }
 
 export interface UploadOptions {
   /** Project label shared by files dropped together (typed by the user, else the dropped folder's name). */
@@ -40,8 +51,26 @@ export interface DataSource {
   readonly kind: 'api' | 'sample';
   /** Mode, providers and upload limits. Called once at boot. */
   health(): Promise<Health>;
-  /** All boreholes and documents. */
+  /** Documents, map features and the unplotted boreholes (see LoadResult). */
   load(): Promise<LoadResult>;
+  /** Map features of plotted boreholes (GET /map/boreholes.geojson), optionally of one document. */
+  mapFeatures(documentId?: string): Promise<MapFeature[]>;
+  /** Full records of the boreholes that are not on the map (GET /boreholes?plotted=false). */
+  unplotted(): Promise<Borehole[]>;
+  /** Runs a filter (search panel, area selection) and stores it as a result set (POST /result-sets). */
+  createResultSet(filter: BoreholeFilter): Promise<ResultSet>;
+  /** A stored result set by id (URL rs=, chat). */
+  getResultSet(id: string): Promise<ResultSet>;
+  /** Map features of a result set's plotted members (GET /result-sets/{id}/geojson). */
+  resultSetFeatures(id: string): Promise<MapFeature[]>;
+  /** Place search on submit (GET /geocode): uploaded places first, then the geocoder; may be empty. */
+  geocode(query: string): Promise<PlaceCandidate[]>;
+  /** Clarification questions, oldest first (default: status open). */
+  clarifications(options?: { status?: ClarificationStatus; documentId?: string }): Promise<Clarification[]>;
+  /** Answers a question; 422 answer_invalid / validation_error carry field errors (ApiError.errors). */
+  answerClarification(id: string, values: Record<string, unknown>, answeredBy: string | null): Promise<Clarification>;
+  /** Leaves a question for later; it can still be answered. */
+  skipClarification(id: string): Promise<Clarification>;
   /** One borehole at its latest revision (after a conflict, an event or a CRS confirmation). */
   getBorehole(uid: string): Promise<Borehole>;
   /** All boreholes of one document (after extraction, a CRS confirmation or approve-clean). */
