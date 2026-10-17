@@ -248,23 +248,30 @@ export function legendEntries(rows: MapRow[]): LegendEntry[] {
 
 /** One row of the map legend. */
 export interface LegendRow extends ColourClass {
+  /** Boreholes in the class, on the map or not. */
   count: number;
+  /** Of those, the ones with a pin. */
+  onMap: number;
 }
 
 /**
- * The legend of the current colour mode: one row per class with the number of pins in it. Counted
- * are the pins drawn on the map, or, while a result set is active, its highlighted members (the
- * dimmed pins are not what the map shows). "Other depth" is listed only when a pin falls into it.
+ * The legend of the current colour mode: one row per class with the number of boreholes in it, placed
+ * on the map or listed under NOT ON MAP, and how many of them have a pin. Counted are the given rows,
+ * or, while a result set is active, its members among them. "Other depth" is listed only when a
+ * borehole falls into it.
  */
 export function legendRows(rows: MapRow[], colourBy: ColourBy, members: ReadonlySet<string> | null = null, classes: readonly DepthClass[] = DEPTH_CLASSES): LegendRow[] {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, { count: number; onMap: number }>();
   for (const r of rows) {
-    if (!r.pin || (members && !members.has(r.uid))) continue;
+    if (members && !members.has(r.uid)) continue;
     const key = colourClassOf(r, colourBy, classes).key;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const c = counts.get(key) ?? { count: 0, onMap: 0 };
+    c.count += 1;
+    if (r.pin) c.onMap += 1;
+    counts.set(key, c);
   }
   return colourClasses(colourBy, classes)
-    .map((c) => ({ ...c, count: counts.get(c.key) ?? 0 }))
+    .map((c) => ({ ...c, count: counts.get(c.key)?.count ?? 0, onMap: counts.get(c.key)?.onMap ?? 0 }))
     .filter((c) => c.key !== DEPTH_OTHER_KEY || c.count > 0);
 }
 

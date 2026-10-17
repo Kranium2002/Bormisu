@@ -1,0 +1,32 @@
+/* Drawing a planned line: the hint with FINISH and CANCEL over the top centre of the map. */
+.bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 120px);
+  padding: 6px 8px 6px 12px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: var(--shadow-card);
+  border-radius: 4px;
+}
+
+.hint {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.primary {
+  composes: primary small from '../../../styles/buttons.module.css';
+  flex: none;
+}
+
+.secondary {
+  composes: secondary small from '../../../styles/buttons.module.css';
+  flex: none;
+}

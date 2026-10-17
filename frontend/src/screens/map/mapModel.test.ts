@@ -206,29 +206,36 @@ describe('F9: legend rows and counts', () => {
     pin('b', { status: 'approved', depth: 15 }),
     pin('c', { status: 'in_review', depth: null }),
     pin('d', { status: 'attention', depth: 120 }),
-    // Not on the map: never counted.
+    // Not on the map: counted in its class, but not as on the map.
     { ...pin('e', { depth: 4 }), pin: null },
   ];
 
-  it('status mode: four rows in legend order with the drawn pins counted', () => {
-    expect(legendRows(rows, 'status').map((r) => [r.key, r.label, r.count])).toEqual([
-      ['approved', 'Approved', 2],
-      ['in_review', 'In review', 1],
-      ['unreviewed', 'Unreviewed', 0],
-      ['attention', 'Needs attention', 1],
+  it('status mode: four rows in legend order counting every borehole, placed or not, and how many are on the map', () => {
+    expect(legendRows(rows, 'status').map((r) => [r.key, r.label, r.count, r.onMap])).toEqual([
+      ['approved', 'Approved', 2, 2],
+      ['in_review', 'In review', 1, 1],
+      ['unreviewed', 'Unreviewed', 1, 0],
+      ['attention', 'Needs attention', 1, 1],
     ]);
+  });
+
+  it('with every borehole under NOT ON MAP the rows still count them (none on the map)', () => {
+    const offMap = rows.map((r) => ({ ...r, pin: null }));
+    expect(legendRows(offMap, 'status').map((r) => [r.count, r.onMap])).toEqual([[2, 0], [1, 0], [1, 0], [1, 0]]);
   });
 
   it('depth mode: one row per configured class plus "Depth not stated"; the unknown depth is counted there', () => {
     const depth = legendRows(rows, 'depth');
     expect(depth.map((r) => r.label)).toEqual([...DEPTH_CLASSES.map((c) => c.label), 'Depth not stated']);
-    expect(depth.map((r) => r.count)).toEqual([1, 1, 0, 0, 1, 1]);
-    expect(depth.reduce((a, r) => a + r.count, 0)).toBe(4);
+    expect(depth.map((r) => r.count)).toEqual([2, 1, 0, 0, 1, 1]);
+    expect(depth.map((r) => r.onMap)).toEqual([1, 1, 0, 0, 1, 1]);
+    expect(depth.reduce((a, r) => a + r.count, 0)).toBe(5);
   });
 
-  it('with a result set active, counts its highlighted members only', () => {
+  it('with a result set active, counts its members only (placed or not)', () => {
     const members = new Set(['a', 'c', 'e']);
-    expect(legendRows(rows, 'status', members).map((r) => r.count)).toEqual([1, 1, 0, 0]);
+    expect(legendRows(rows, 'status', members).map((r) => r.count)).toEqual([1, 1, 1, 0]);
+    expect(legendRows(rows, 'status', members).map((r) => r.onMap)).toEqual([1, 1, 0, 0]);
     expect(legendRows(rows, 'depth', members).find((r) => r.key === 'depth-none')?.count).toBe(1);
   });
 });

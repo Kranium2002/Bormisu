@@ -88,8 +88,9 @@
 
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 0 8px;
 }
 
 .dot {
@@ -109,6 +110,14 @@
   font-family: var(--font-mono);
   color: var(--c-muted);
   margin-left: 10px;
+}
+
+/* "n on map" under the label, when some boreholes of the row are only in NOT ON MAP. */
+.onMap {
+  flex-basis: 100%;
+  padding-left: 19px;
+  font-size: 10px;
+  color: var(--c-muted);
 }
 
 /* NOT ON MAP (n) and LIST ›: the boreholes LIST shows with their reason. */

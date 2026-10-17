@@ -65,7 +65,8 @@ export const createAlignmentSlice: SliceCreator<AlignmentSlice> = ({ set, get })
     alignment: null,
     alignmentResult: null,
     alignmentBufferM: DEFAULT_BUFFER_M,
-    alignmentIncludeUnreviewed: false,
+    // On, as the map shows unreviewed pins: fresh uploads are unreviewed, and off would hide every hit.
+    alignmentIncludeUnreviewed: true,
     alignmentBusy: null,
     alignmentError: null,
     alignmentDrawing: false,

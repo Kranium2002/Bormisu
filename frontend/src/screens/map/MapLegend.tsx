@@ -24,10 +24,11 @@ const MODES: { value: ColourBy; label: string }[] = [
 
 /**
  * Legend over the bottom-left of the map, with the "Colour by: status | depth" switch (FRONTEND.md
- * F9): one row per colour class with the number of pins in it. Counted are the pins on the map (only
- * the matching ones while the header search holds a query), or
- * the highlighted members while a result set is active. The counts are announced (aria-live) as they
- * change. The map measures the legend (`ref`) to keep pins out from under it when it fits them.
+ * F9): one row per colour class with the number of boreholes in it, placed on the map or not (only
+ * the matching ones while the header search holds a query), or the members while a result set is
+ * active. A row whose boreholes are not all placed says how many are on the map. The counts are
+ * announced (aria-live) as they change. The map measures the legend (`ref`) to keep pins out from
+ * under it when it fits them.
  */
 export function MapLegend({ ref }: Props) {
   const colourBy = useColourMode((s) => s.colourBy);
@@ -42,11 +43,11 @@ export function MapLegend({ ref }: Props) {
   const titleId = useId();
   const switchId = useId();
 
-  const { pins, notOnMap } = useMemo(() => mapRows(features, boreholes, unplottedUids), [features, boreholes, unplottedUids]);
-  // While the header search holds a query the map keeps only the matching pins: count those (as MapScreen draws them).
-  const shownPins = useMemo(() => (isFilterQuery(query) ? pins.filter((p) => matchesQuery(p, query)) : pins), [pins, query]);
+  const { rows: all, notOnMap } = useMemo(() => mapRows(features, boreholes, unplottedUids), [features, boreholes, unplottedUids]);
+  // While the header search holds a query only the matching boreholes count (the map keeps only their pins).
+  const shown = useMemo(() => (isFilterQuery(query) ? all.filter((r) => matchesQuery(r, query)) : all), [all, query]);
   const members = useMemo(() => (resultSet ? new Set(resultSet.uids) : null), [resultSet]);
-  const rows = useMemo(() => legendRows(shownPins, colourBy, members), [shownPins, colourBy, members]);
+  const rows = useMemo(() => legendRows(shown, colourBy, members), [shown, colourBy, members]);
 
   // With a result set active, the counts are its members'.
   const title = members ? (colourBy === 'status' ? 'SELECTION · STATUS' : 'SELECTION · DEPTH') : colourBy === 'status' ? 'REVIEW STATUS' : 'FINAL DEPTH';
@@ -88,6 +89,11 @@ export function MapLegend({ ref }: Props) {
             <span className={styles.dot} style={{ background: r.paint.fill, borderColor: r.paint.stroke }} aria-hidden="true" />
             <span className={styles.label}>{t(r.label)}</span>
             <span className={styles.count}>{r.count}</span>
+            {r.onMap < r.count && (
+              <span className={styles.onMap}>
+                {r.onMap} {t('on map')}
+              </span>
+            )}
           </li>
         ))}
       </ul>

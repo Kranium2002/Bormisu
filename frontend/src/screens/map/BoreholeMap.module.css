@@ -25,6 +25,13 @@
   border: 0;
 }
 
+/* While a shape is drawn, a click on a cluster or a pin adds a point (it reaches the map), instead of
+   zooming into the cluster or opening the pin's popup. */
+.root[data-drawing] .cluster,
+.root[data-drawing] :global(.leaflet-pins-pane) canvas {
+  pointer-events: none;
+}
+
 .clusterRing {
   box-sizing: border-box;
   width: 100%;

@@ -44,6 +44,12 @@ async function legendRows(page: Page): Promise<[string, number][]> {
     .evaluateAll((lis) => lis.map((li) => [li.children[1].textContent ?? '', Number(li.children[2].textContent)] as [string, number]));
 }
 
+/** The n of the legend's NOT ON MAP (n): boreholes the legend counts that have no pin. */
+async function notOnMapCount(page: Page): Promise<number> {
+  const text = (await legend(page).getByRole('heading', { name: /NOT ON MAP/ }).textContent()) ?? '';
+  return Number(/\((\d+)\)/.exec(text)?.[1]);
+}
+
 /** Fill colours drawn on the pins' canvas, with at least `min` exact pixels each (edges are blends). */
 async function canvasColours(page: Page, min = 12): Promise<string[]> {
   return mapRegion(page)
@@ -157,10 +163,13 @@ test.describe('map canvas', () => {
     await expect(first).toHaveAttribute('role', 'img');
     await expect(first).toHaveAttribute('aria-label', /^\d+ boreholes?: /);
     await expect(mapRegion(page).locator('.leaflet-marker-icon[tabindex]')).toHaveCount(0);
-    // The status legend counts every pin once.
+    // The status legend counts every borehole once, on the map or under NOT ON MAP, and says how many are on the map.
     const rows = await legendRows(page);
     expect(rows.map(([label]) => label)).toEqual(['Approved', 'In review', 'Unreviewed', 'Needs attention']);
-    expect(rows.reduce((a, [, n]) => a + n, 0)).toBe(SAMPLE_PINS);
+    const offMap = await notOnMapCount(page);
+    expect(offMap).toBeGreaterThan(0);
+    expect(rows.reduce((a, [, n]) => a + n, 0)).toBe(SAMPLE_PINS + offMap);
+    await expect(legend(page).getByText(/^\d+ on map$/).first()).toBeVisible();
     await expect(legend(page).locator('ul')).toHaveAttribute('aria-live', 'polite');
 
     // A click on a cluster zooms into it; every pin is still counted once.
@@ -282,7 +291,7 @@ test.describe('map canvas', () => {
     await expect(mapRegion(page).locator('[data-map-shape="area"]')).toHaveCount(0);
     await expect(mapRegion(page)).toHaveAttribute('data-members', '0');
     await expect(legend(page)).toContainText('REVIEW STATUS');
-    expect((await legendRows(page)).reduce((a, [, n]) => a + n, 0)).toBe(SAMPLE_PINS);
+    expect((await legendRows(page)).reduce((a, [, n]) => a + n, 0)).toBe(SAMPLE_PINS + (await notOnMapCount(page)));
     await expect(page.getByRole('button', { name: 'Remove the selected area' })).toHaveCount(0);
   });
 
@@ -313,6 +322,43 @@ test.describe('map canvas', () => {
     await page.mouse.click(...at(0.7, 0.5));
     await expect.poll(() => new URL(page.url()).searchParams.get('rs')).not.toBe(polygonSet);
     await expect(mapRegion(page).locator('[data-map-shape="area"]')).toHaveCount(1);
+  });
+
+  test('planned line: while drawing, a bar says how with FINISH and CANCEL; a click on a cluster adds a point instead of zooming', async ({ page }) => {
+    const zoomOf = () => Number(new URL(page.url()).searchParams.get('at')?.split(',')[2]);
+    await page.getByRole('button', { name: 'PLANNED LINE' }).click();
+    const panel = (await page.locator('#planned-line-panel').boundingBox())!;
+    await page.getByRole('button', { name: 'DRAW LINE' }).click();
+    const bar = page.getByRole('toolbar', { name: 'Drawing a planned line' });
+    await expect(bar).toContainText('Click to add points · double-click or Enter to finish · Esc to cancel');
+    const finish = bar.getByRole('button', { name: 'FINISH' });
+    await expect(finish).toBeDisabled();
+
+    // The first point on a cluster (one outside the panel): the map stays where it is.
+    const before = zoomOf();
+    const boxes = await clusters(page).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON() as DOMRect));
+    const inPanel = (x: number, y: number) => x >= panel.x && x <= panel.x + panel.width && y >= panel.y && y <= panel.y + panel.height;
+    const c = boxes.map((b) => [b.x + b.width / 2, b.y + b.height / 2] as const).find(([x, y]) => !inPanel(x, y))!;
+    expect(c, 'a cluster outside the panel').toBeDefined();
+    await page.mouse.click(c[0], c[1]);
+    await page.waitForTimeout(700);
+    expect(zoomOf()).toBe(before);
+    await expect(finish).toBeDisabled();
+    const map = (await mapRegion(page).boundingBox())!;
+    await page.mouse.click(c[0] + (c[0] > map.x + map.width / 2 ? -80 : 80), c[1] + 40);
+    await expect(finish).toBeEnabled();
+
+    // FINISH ends the drawing and hands the line on (sample mode has no server to measure it).
+    await finish.click();
+    await expect(bar).toHaveCount(0);
+    await expect(page.locator('#planned-line-panel [role="alert"]')).toBeVisible();
+
+    // CANCEL ends a drawing without a line.
+    await page.getByRole('button', { name: 'DRAW LINE' }).click();
+    await expect(bar).toBeVisible();
+    await bar.getByRole('button', { name: 'CANCEL' }).click();
+    await expect(bar).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'DRAW LINE' })).toBeVisible();
   });
 
   test('prefers-reduced-motion: a result set and a search move the map at once instead of flying', async ({ page }) => {
@@ -361,14 +407,19 @@ test.describe('map canvas', () => {
 test.describe('header search on the map', () => {
   test.beforeEach(async ({ page }) => openApp(page));
 
-  test('the legend counts only the pins the search keeps (Needs attention included), and all again when cleared', async ({ page }) => {
+  test('the legend counts only the boreholes the search keeps (Needs attention included), and all again when cleared', async ({ page }) => {
     const total = async () => (await legendRows(page)).reduce((a, [, n]) => a + n, 0);
-    await expect.poll(total).toBe(SAMPLE_PINS);
+    await expect.poll(async () => (await total()) - (await notOnMapCount(page))).toBe(SAMPLE_PINS);
+    const all = await total();
     await page.getByLabel('Search project or borehole ID').fill('BK-11');
     await expect.poll(total).toBe(1);
     expect(await legendRows(page)).toContainEqual(['Needs attention', 1]);
+    // A borehole that is not on the map still counts while the search keeps it.
+    await page.getByLabel('Search project or borehole ID').fill('BK-13');
+    await expect.poll(total).toBe(1);
+    await expect(legend(page).getByText('0 on map')).toBeVisible();
     await page.getByRole('button', { name: 'Clear the search' }).click();
-    await expect.poll(total).toBe(SAMPLE_PINS);
+    await expect.poll(total).toBe(all);
   });
 
   test('search "EQ-03" flies to the pin and opens its popup, from any screen; the pin goes into the URL', async ({ page }) => {

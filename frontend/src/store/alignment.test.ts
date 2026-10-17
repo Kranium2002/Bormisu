@@ -120,14 +120,14 @@ async function ready(answer: (id: string, q: AlignmentQueryOptions) => Promise<A
 const file = () => new File(['{}'], 'line.geojson', { type: 'application/geo+json' });
 
 describe('planned line: upload and show', () => {
-  it('uploads with the current distance, asks for the hits (approved only), flies to the band and shows the hits as the result set', async () => {
+  it('uploads with the current distance, asks for the hits (unreviewed included, as on the map), flies to the band and shows the hits as the result set', async () => {
     const { uploadAlignment, queryAlignment } = await ready();
     expect(st().alignmentBufferM).toBe(DEFAULT_BUFFER_M);
-    expect(st().alignmentIncludeUnreviewed).toBe(false);
+    expect(st().alignmentIncludeUnreviewed).toBe(true);
     const before = st().mapOutline?.nonce ?? 0;
     expect(await st().uploadAlignment(file(), { epsg: 25832 })).toBe(true);
     expect(uploadAlignment).toHaveBeenCalledWith(expect.any(File), { epsg: 25832, bufferM: 100 });
-    expect(queryAlignment).toHaveBeenCalledWith(LINE.id, { bufferM: 100, includeUnreviewed: false });
+    expect(queryAlignment).toHaveBeenCalledWith(LINE.id, { bufferM: 100, includeUnreviewed: true });
     expect(st().alignment?.id).toBe(LINE.id);
     expect(st().alignmentResult?.hits.map((h) => h.uid)).toEqual([A.uid, B.uid]);
     expect(st().alignmentBusy).toBeNull();
@@ -168,10 +168,10 @@ describe('planned line: distance and review scope', () => {
     const { queryAlignment } = await ready(async (_id, q) => lineResult({ bufferM: q.bufferM ?? 100, includeUnreviewed: q.includeUnreviewed }));
     await st().uploadAlignment(file());
     await st().setAlignmentBuffer(150);
-    expect(queryAlignment).toHaveBeenLastCalledWith(LINE.id, { bufferM: 150, includeUnreviewed: false });
-    await st().setAlignmentIncludeUnreviewed(true);
     expect(queryAlignment).toHaveBeenLastCalledWith(LINE.id, { bufferM: 150, includeUnreviewed: true });
-    expect(st().alignmentResult).toMatchObject({ bufferM: 150, includeUnreviewed: true });
+    await st().setAlignmentIncludeUnreviewed(false);
+    expect(queryAlignment).toHaveBeenLastCalledWith(LINE.id, { bufferM: 150, includeUnreviewed: false });
+    expect(st().alignmentResult).toMatchObject({ bufferM: 150, includeUnreviewed: false });
     const calls = queryAlignment.mock.calls.length;
     await st().setAlignmentBuffer(0);
     await st().setAlignmentBuffer(1001);
@@ -228,7 +228,7 @@ describe('planned line: clear, delete, earlier lines', () => {
     useAppStore.setState({ alignments: [{ ...LINE, bufferM: 250 }] });
     await st().openAlignment(LINE.id);
     expect(st().alignmentBufferM).toBe(250);
-    expect(queryAlignment).toHaveBeenLastCalledWith(LINE.id, { bufferM: 250, includeUnreviewed: false });
+    expect(queryAlignment).toHaveBeenLastCalledWith(LINE.id, { bufferM: 250, includeUnreviewed: true });
     expect(st().alignment?.id).toBe(LINE.id);
   });
 

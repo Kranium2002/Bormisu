@@ -51,6 +51,7 @@ import { MAP_MAX_ZOOM } from './canvas/clusterOptions';
 import { useColourMode } from './canvas/colourMode';
 import { DrawToolbar } from './canvas/DrawToolbar';
 import { DrawTools, type DrawShape } from './canvas/drawTools';
+import { LineDrawBar } from './canvas/LineDrawBar';
 import { flyToBbox, FLY_DURATION_S, prefersReducedMotion } from './canvas/motion';
 import { PinLayer } from './canvas/pinLayer';
 import { MapShapes } from './canvas/shapes';
@@ -144,6 +145,8 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
   });
 
   const [drawMode, setDrawMode] = useState<DrawShape | null>(null);
+  /** Points of the planned line being drawn (FINISH needs two). */
+  const [linePoints, setLinePoints] = useState(0);
   const colourBy = useColourMode((s) => s.colourBy);
   const resultSet = useAppStore((s) => s.resultSet);
   const resultSetBusy = useAppStore((s) => s.resultSetBusy);
@@ -300,6 +303,9 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
         setDrawMode(shape);
         // Drawing a line ended (finished, Esc, another tool): the store's draw request ends with it.
         if (was === 'line' && shape !== 'line') useAppStore.getState().setAlignmentDrawing(false);
+      },
+      onLinePoints: (count) => {
+        if (!disposed.current) setLinePoints(count);
       },
     });
     mapRef.current = map;
@@ -499,8 +505,9 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
   };
 
   return (
-    <div ref={rootRef} className={styles.root} role="region" aria-label="Borehole map" data-colour-by={colourBy}>
+    <div ref={rootRef} className={styles.root} role="region" aria-label="Borehole map" data-colour-by={colourBy} data-drawing={drawMode ?? undefined}>
       <div ref={hostRef} className={styles.host} />
+      {drawMode === 'line' && <LineDrawBar points={linePoints} onFinish={() => drawRef.current?.finish()} onCancel={() => drawRef.current?.cancel()} />}
       <DrawToolbar
         mode={drawMode}
         areaShown={areaShown != null}

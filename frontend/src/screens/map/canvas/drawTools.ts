@@ -51,7 +51,12 @@ export interface DrawToolsOptions {
   onLine?(points: [number, number][]): void;
   /** Drawing started (the shape) or ended (null). */
   onMode(shape: DrawShape | null): void;
+  /** The number of points of the line being drawn (0 when a line drawing starts). */
+  onLinePoints?(count: number): void;
 }
+
+/** Geoman's Line draw handler: `_finishShape` is what a double-click or Enter runs (not in its typings). */
+type PmLineDraw = { _finishShape?(): void };
 
 /** The [lng, lat] points of a drawn polyline (a nested list of a multi-line is flattened). */
 function lineFromDrawn(layer: L.Layer): [number, number][] {
@@ -113,6 +118,12 @@ export class DrawTools {
     });
   }
 
+  /** Finishes the line being drawn, as a double-click or Enter would (geoman ignores it below two points). */
+  finish(): void {
+    if (this.active !== 'line') return;
+    (this.map.pm?.Draw as unknown as { Line?: PmLineDraw } | undefined)?.Line?._finishShape?.();
+  }
+
   /** Ends drawing without a shape. */
   cancel(): void {
     const pm = this.map.pm;
@@ -129,9 +140,14 @@ export class DrawTools {
     this.active = null;
   }
 
-  private readonly onStart = (e: { shape: string }) => {
+  private readonly onStart = (e: { shape: string; workingLayer?: L.Layer }) => {
     this.active = SHAPE_OF[e.shape] ?? null;
     this.o.onMode(this.active);
+    if (this.active !== 'line') return;
+    // The line's points so far (FINISH needs two); geoman fires pm:vertexadded on the layer being drawn.
+    this.o.onLinePoints?.(0);
+    const layer = e.workingLayer;
+    layer?.on('pm:vertexadded', () => this.o.onLinePoints?.(lineFromDrawn(layer).length));
   };
 
   private readonly onEnd = () => {

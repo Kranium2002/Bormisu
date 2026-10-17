@@ -6,6 +6,7 @@ export const map: Record<string, string> = {
   FILTERED: 'GEFILTERT',
   'OPEN LIST ›': 'LISTE ÖFFNEN ›',
   'LIST ›': 'LISTE ›',
+  'on map': 'auf der Karte',
   CLEAR: 'LEEREN',
   CLOSE: 'SCHLIESSEN',
   'Selecting boreholes…': 'Bohrungen werden ausgewählt…',

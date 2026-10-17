@@ -8,7 +8,7 @@
  * - The line, its band and the hits (as the active result set: pins highlighted, LIST, chat) are on
  *   the map; the table lists the hits by chainage. A row shows its borehole on the map (its popup
  *   opens), DETAIL › opens it. The distance (Enter or leaving the field) and "Include unreviewed"
- *   (off: approved boreholes only) ask again.
+ *   (on by default, as the map shows unreviewed pins; off: approved boreholes only) ask again.
  * - Notes say how many unreviewed boreholes inside the band are hidden, and how many boreholes are not
  *   on the map and so cannot be checked against the line.
  * - CLEAR takes the line off the map; DELETE removes it; earlier lines can be shown again.

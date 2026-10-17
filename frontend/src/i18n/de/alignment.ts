@@ -6,6 +6,10 @@ export const alignment: Record<string, string> = {
   'CHOOSE FILE': 'DATEI WÄHLEN',
   'DRAW LINE': 'TRASSE ZEICHNEN',
   'CANCEL DRAWING': 'ZEICHNEN ABBRECHEN',
+  'Click to add points · double-click or Enter to finish · Esc to cancel':
+    'Klicken fügt Punkte hinzu · Doppelklick oder Enter schließt ab · Esc bricht ab',
+  FINISH: 'ABSCHLIESSEN',
+  CANCEL: 'ABBRECHEN',
   'Planned line file': 'Datei der geplanten Trasse',
   'Click the points of the line; double-click or press Enter to finish. Esc cancels.':
     'Die Punkte der Trasse klicken; Doppelklick oder Enter schließt ab. Esc bricht ab.',
