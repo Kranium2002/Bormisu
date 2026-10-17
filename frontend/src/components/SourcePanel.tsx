@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { certaintyOf } from '../domain/certainty';
 import { pageUsageText } from '../domain/pages';
 import { PAGE_H, type DocumentSummary, type ExtractedValue } from '../domain/types';
 import {
@@ -11,8 +12,9 @@ import {
   type PageLoad,
   type SourcePanel as SourcePanelState,
 } from '../store/appStore';
+import { useT } from '../i18n';
 import { PAGE_TYPE_META, pageMeta } from '../theme';
-import { MethodBadge } from './MethodBadge';
+import { CertaintyMark } from './CertaintyMark';
 import { ScanPage } from './ScanPage';
 import { PanelHeader } from './PanelHeader';
 import styles from './SidePanel.module.css';
@@ -29,7 +31,48 @@ export function noPageNote(value: Pick<ExtractedValue, 'method'> | undefined): s
 }
 
 /**
- * Source panel: the value's page with its box highlighted, the raw text and the method, in the
+ * A field to correct the value right next to its scan: a changed text becomes the value (SAVE), the
+ * same text confirms it (CONFIRM); both count as reviewed, so its dot turns green. A value the backend
+ * sets elsewhere (readOnlyReason) can only be confirmed, and says why.
+ */
+function CorrectValue({ value, onCorrect }: { value: ExtractedValue; onCorrect(text: string): void }) {
+  const t = useT();
+  const [text, setText] = useState(value.value);
+  const readOnly = !!value.readOnlyReason;
+  const changed = !readOnly && text.trim() !== value.value;
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    onCorrect(readOnly ? value.value : text);
+  };
+  return (
+    <form className={styles.correct} onSubmit={submit}>
+      <div className={styles.correctRow}>
+        <input
+          className={styles.correctInput}
+          value={readOnly ? value.value : text}
+          readOnly={readOnly}
+          onChange={(e) => setText(e.target.value)}
+          aria-label={`${t('Corrected value for')} ${value.label}`}
+          placeholder={value.state === 'ok' ? '' : t(value.state)}
+        />
+        {value.unit && <span className={styles.correctUnit}>{value.unit}</span>}
+        <button type="submit" className={changed ? styles.correctSave : styles.correctConfirm}>
+          {changed ? t('SAVE') : t('CONFIRM')}
+        </button>
+      </div>
+      {readOnly && <div className={styles.correctNote}>{value.readOnlyReason}</div>}
+    </form>
+  );
+}
+
+/** Why a value can't be corrected in the document view; null when it can. */
+export function correctionBlocked(value: Pick<ExtractedValue, 'hasProvenance'>): string | null {
+  return value.hasProvenance ? null : 'No source reference from the backend: this value can’t be corrected here.';
+}
+
+/**
+ * Source panel (the document view): the value's page with its box highlighted, the raw text, its
+ * status dot and a field to correct or confirm it (see CorrectValue), in the
  * document the source is in (a value can come from another document than its borehole's, e.g. a lab
  * spreadsheet; the panel names that file). "Box not found: page shown" when the value has no box. A
  * spreadsheet value shows its cell reference ("Sheet!C5") instead of a page; a value on no page
@@ -37,6 +80,7 @@ export function noPageNote(value: Pick<ExtractedValue, 'method'> | undefined): s
  * reviewable values.
  */
 export function SourcePanel({ panel }: { panel: SourcePanelState }) {
+  const correctValue = useAppStore((s) => s.correctValue);
   const value = useValue(panel.uid, panel.key);
   const borehole = useBorehole(panel.uid);
   const doc = useDocument(panel.documentId);
@@ -63,6 +107,7 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
       ownFile={ownFile}
       page={page}
       onOpenInReview={reviewable ? openInReview : undefined}
+      onCorrect={panel.uid && panel.key && !panel.pageOnly ? (text) => correctValue(panel.uid!, panel.key!, text) : undefined}
     />
   );
 }
@@ -75,12 +120,15 @@ interface ViewProps {
   /** File name of the borehole's own document, when the panel shows that document. */
   ownFile?: string;
   page: PageLoad;
-  /** Shown as OPEN IN REVIEW when the value can be reviewed. */
+  /** Shown as OPEN FULL REVIEW › when the value can be reviewed. */
   onOpenInReview?: () => void;
+  /** Saves a correction (or a confirmation) of the value; without it there is no field. */
+  onCorrect?: (text: string) => void;
 }
 
 /** What the Source panel shows, from the store's data (pure; rendered in tests without a store). */
-export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInReview }: ViewProps) {
+export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInReview, onCorrect }: ViewProps) {
+  const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
   /** Neither a page nor a cell to show: a value on no page, or a borehole without pages. */
   const noPage = panel.page == null && !panel.cell;
@@ -100,7 +148,9 @@ export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInRevi
     el.scrollTop = box && boxBottom + 40 > el.clientHeight ? Math.max(0, pageTop + box.y * PAGE_H * SCALE - 160) : 0;
   }, [content, box]);
 
-  const title = value ? value.label.toUpperCase() : panel.page != null ? `PAGE ${panel.page}` : 'NO PAGE';
+  // The value's label keeps its case ('SPT @ 10.50 m').
+  const title = value ? value.label : panel.page != null ? `${t('page')} ${panel.page}` : t('no page');
+  const blocked = value ? correctionBlocked(value) : null;
   const label = panel.cell
     ? `${fileName} · cell ${panel.cell}`
     : noPage
@@ -117,15 +167,20 @@ export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInRevi
   return (
     <>
       <PanelHeader>
-        <div className={styles.heading}>SOURCE · {title}</div>
+        <div className={styles.heading}>
+          {t('SOURCE')} · <span className={styles.headingLabel}>{title}</span>
+        </div>
         {label && <div className={styles.sub}>{label}</div>}
         <div className={styles.meta}>
-          {value?.method && <MethodBadge method={value.method} confidence={value.confidence} formula={value.formula} />}
+          {value && <CertaintyMark certainty={certaintyOf(value)} />}
           {detail && <span className={styles.raw}>{detail}</span>}
         </div>
-        {value && !box && !panel.cell && !onNoPage && <div className={styles.noBox}>Box not found: page shown</div>}
+        {value && !box && !panel.cell && !onNoPage && <div className={styles.noBox}>{t('Box not found: page shown')}</div>}
+        {value && onCorrect && !blocked && <CorrectValue key={`${panel.uid}:${value.key}`} value={value} onCorrect={onCorrect} />}
+        {value && onCorrect && blocked && <div className={styles.correctNote}>{t(blocked)}</div>}
       </PanelHeader>
-      <div ref={scrollRef} className={styles.scroll}>
+      {/* A tab stop of its own, so arrow keys scroll the page. */}
+      <div ref={scrollRef} className={styles.scroll} role="region" aria-label="Source page" tabIndex={0}>
         {panel.cell ? (
           <div className={styles.cellSource}>
             <div className={styles.cellRef}>{panel.cell}</div>
@@ -152,9 +207,9 @@ export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInRevi
       {value && onOpenInReview && (
         <div className={styles.foot}>
           <button type="button" className={styles.primary} onClick={onOpenInReview}>
-            OPEN IN REVIEW
+            {t('OPEN FULL REVIEW ›')}
           </button>
-          <span className={styles.sub}>Esc to close</span>
+          <span className={styles.sub}>{t('Esc to close')}</span>
         </div>
       )}
     </>

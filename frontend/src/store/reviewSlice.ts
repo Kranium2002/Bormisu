@@ -54,10 +54,10 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
     return v;
   };
 
-  /** Applies a patch to a value of the review borehole at once and saves it (see the file comment). */
-  function save(key: string, patch: ValuePatch): void {
+  /** Applies a patch to a value of a borehole (the review borehole by default) at once and saves it (see the file comment). */
+  function save(key: string, patch: ValuePatch, uid: string | null = get().reviewUid): void {
     const source = get().source;
-    const b = find(get().reviewUid);
+    const b = find(uid);
     if (!source || !b) return;
     const order = saves.begin(b);
     replaceBorehole(b.uid, (x) => applyValuePatch(x, key, patch));
@@ -319,6 +319,21 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       await map;
       // "… · N boreholes placed" with the map flown there (SHOW ON MAP off the map); without pins the text alone.
       if (!get().revealPlaced({ documentId }, text)) get().showToast(text);
+    },
+
+    correctValue(uid, key, text) {
+      const v = find(uid)?.values.find((x) => x.key === key);
+      if (!v) return;
+      if (!v.hasProvenance) {
+        get().showToast(NO_SOURCE_REFERENCE);
+        return;
+      }
+      // A value the backend sets elsewhere can be confirmed, not changed.
+      if (v.readOnlyReason && text.trim() && text.trim() !== v.value) {
+        get().showToast(v.readOnlyReason);
+        return;
+      }
+      save(key, editPatch(v, text), uid);
     },
 
     closeCrsDialog() {
