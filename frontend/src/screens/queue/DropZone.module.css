@@ -27,6 +27,14 @@
   background: var(--c-drop);
 }
 
+/* Demo mode: no uploads, the reason is shown in the zone. */
+.disabled,
+.disabled:hover {
+  cursor: not-allowed;
+  border-color: var(--c-border);
+  background: var(--c-line);
+}
+
 /* Visually hidden but focusable: Tab reaches the chooser, Enter/Space opens it. */
 .input {
   position: absolute;

@@ -1,6 +1,6 @@
 import { MethodBadge } from '../../components/MethodBadge';
 import { SourceIcon } from '../../components/SourceIcon';
-import { boreholeStatus } from '../../domain/review';
+import { displayStatus } from '../../domain/status';
 import type { Borehole } from '../../domain/types';
 import { pinColor } from '../../theme';
 import { Chips } from './Chips';
@@ -16,7 +16,10 @@ interface Props {
 
 const TONE_CLASS = { muted: styles.locMuted, amber: styles.locAmber, red: styles.locRed } as const;
 
-/** METADATA rows (value, chips, method badge, source icon) next to the LOCATION mini map. */
+/**
+ * METADATA rows (value, chips, method badge, source icon) next to the LOCATION mini map. Rows for
+ * fields the source doesn't have are left out; unknown values read "not in source", never 0.
+ */
 export function MetadataCard({ borehole: b, onOpenSource }: Props) {
   const rows = metadataRows(b);
   const loc = locationInfo(b);
@@ -34,14 +37,17 @@ export function MetadataCard({ borehole: b, onOpenSource }: Props) {
               <div className={styles.value}>
                 <span className={`${card.mono} ${r.shown.missing ? card.missing : ''}`}>{r.shown.text}</span>
                 <Chips chips={r.chips} />
+                {r.sub && <span className={styles.sub}>{r.sub}</span>}
               </div>
               <div>{r.method && <MethodBadge method={r.method} confidence={r.confidence} formula={r.formula} />}</div>
               <div>
-                <SourceIcon
-                  dim={r.dimSource}
-                  title={key ? 'Show source' : 'Nothing printed to show'}
-                  onClick={key ? () => onOpenSource(key) : undefined}
-                />
+                {r.source !== 'none' && (
+                  <SourceIcon
+                    dim={r.source === 'dim'}
+                    title={key ? 'Show source' : 'Nothing printed to show'}
+                    onClick={key ? () => onOpenSource(key) : undefined}
+                  />
+                )}
               </div>
             </div>
           );
@@ -53,7 +59,7 @@ export function MetadataCard({ borehole: b, onOpenSource }: Props) {
           <LocationMap
             lat={pin.lat}
             lng={pin.lng}
-            color={pinColor(boreholeStatus(b))}
+            color={pinColor(displayStatus(b))}
             label={`Map of ${b.id} at ${loc.text}`}
           />
         ) : (

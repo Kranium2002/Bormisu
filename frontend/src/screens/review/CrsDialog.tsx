@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CrsCandidate } from '../../domain/types';
+import type { CrsVerdict } from '../../domain/types';
 import { useAppStore, useReviewBorehole } from '../../store/appStore';
 import styles from './CrsDialog.module.css';
 import { CrsMap } from './CrsMap';
-import { crsIntro } from './reviewView';
+import { crsIntro, scoreText, VERDICT_LABEL } from './reviewView';
 
-const NOTE_CLASS: Record<CrsCandidate['verdict'], string> = {
+const NOTE_CLASS: Record<CrsVerdict, string> = {
   match: styles.noteMatch,
   shifted: styles.noteShifted,
   out_of_range: styles.noteOut,
 };
 
 /**
- * Confirm the CRS once for the whole document (prototype template lines 341–355): candidates on the
- * left, a map preview of the picked candidate's pins on the right, "out of range" overlay, and
- * CONFIRM FOR WHOLE DOCUMENT (disabled for an out-of-range candidate). App renders it while
- * crsDialogOpen is true; Escape closes it via the store. The store preselects the candidate the
- * document currently uses and reports loading via crsLoading.
+ * Confirm the CRS once for the whole document (prototype template lines 341–355): the backend's
+ * candidates on the left (label, code, verdict in colour with the backend's note and score, a
+ * swap-axes mark), a map preview of the picked candidate's pins on the right, "out of range"
+ * overlay, and CONFIRM FOR WHOLE DOCUMENT (disabled for an out-of-range candidate). The store sends
+ * the candidate's swap-axes flag and your name, then reloads the document's boreholes. App renders it
+ * while crsDialogOpen is true; Escape closes it via the store.
  */
 export function CrsDialog() {
   const candidates = useAppStore((s) => s.crsCandidates);
@@ -26,6 +27,7 @@ export function CrsDialog() {
   const close = useAppStore((s) => s.closeCrsDialog);
   const boreholes = useAppStore((s) => s.boreholes);
   const loading = useAppStore((s) => s.crsLoading);
+  const reviewerName = useAppStore((s) => s.reviewerName);
   const b = useReviewBorehole();
   const [busy, setBusy] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
@@ -34,7 +36,15 @@ export function CrsDialog() {
 
   const labels = useMemo(() => Object.fromEntries(boreholes.map((x) => [x.uid, x.id])), [boreholes]);
   const current = candidates[pick];
-  const canConfirm = !!current && current.verdict !== 'out_of_range' && !busy;
+  const outOfRange = current?.verdict === 'out_of_range';
+  const canConfirm = !!current && !outOfRange && !busy;
+  const confirmTitle = !current
+    ? 'No candidate to confirm'
+    : outOfRange
+      ? 'This candidate places the coordinates out of range'
+      : busy
+        ? 'Confirming…'
+        : undefined;
 
   useEffect(() => {
     dialog.current?.focus();
@@ -50,12 +60,11 @@ export function CrsDialog() {
     }
   };
 
-  const overlay =
-    current?.verdict === 'out_of_range'
-      ? { text: 'Coordinates out of range: no pins can be placed', error: true }
-      : !candidates.length
-        ? { text: loading ? 'Placing candidates…' : 'No CRS candidates for this document', error: !loading }
-        : null;
+  const overlay = outOfRange
+    ? { text: 'Coordinates out of range: no pins can be placed', error: true }
+    : !candidates.length
+      ? { text: loading ? 'Placing candidates…' : 'No CRS candidates for this document', error: !loading }
+      : null;
 
   return (
     <div
@@ -88,20 +97,33 @@ export function CrsDialog() {
           <div className={styles.left}>
             <div className={styles.intro}>{crsIntro(b, candidates)}</div>
             <div className={styles.cands} role="radiogroup" aria-label="CRS candidates">
-              {candidates.map((c, i) => (
-                <button
-                  key={c.code}
-                  type="button"
-                  role="radio"
-                  aria-checked={i === pick}
-                  className={`${styles.cand} ${i === pick ? styles.candPicked : ''}`}
-                  onClick={() => pickCrs(i)}
-                >
-                  <span className={styles.candName}>{c.name}</span>
-                  <span className={styles.candCode}>{c.code}</span>
-                  <span className={NOTE_CLASS[c.verdict]}>{c.note}</span>
-                </button>
-              ))}
+              {candidates.map((c, i) => {
+                const score = scoreText(c);
+                return (
+                  <button
+                    key={`${c.code}:${c.swapAxes}`}
+                    type="button"
+                    role="radio"
+                    aria-checked={i === pick}
+                    className={`${styles.cand} ${i === pick ? styles.candPicked : ''}`}
+                    onClick={() => pickCrs(i)}
+                  >
+                    <span className={styles.candName}>{c.name}</span>
+                    <span className={styles.candCode}>
+                      {c.code}
+                      {score && ` · ${score}`}
+                    </span>
+                    {c.swapAxes && (
+                      <span className={styles.swap} title="The printed X is the northing: X and Y are swapped for this candidate">
+                        ⇄ X / Y swapped
+                      </span>
+                    )}
+                    <span className={c.verdict ? NOTE_CLASS[c.verdict] : styles.noteNeutral}>
+                      {[c.verdict ? VERDICT_LABEL[c.verdict] : '', c.note ?? ''].filter(Boolean).join(' · ') || 'No verdict from the backend'}
+                    </span>
+                  </button>
+                );
+              })}
               {!candidates.length && (
                 <div className={styles.none}>
                   {loading ? 'Loading candidates…' : 'No candidates were found. Check the report text for a CRS or a site plan.'}
@@ -118,10 +140,19 @@ export function CrsDialog() {
         </div>
 
         <div className={styles.foot}>
-          <button type="button" className={styles.confirm} disabled={!canConfirm} onClick={() => void onConfirm()}>
+          <button
+            type="button"
+            className={styles.confirm}
+            disabled={!canConfirm}
+            title={confirmTitle}
+            onClick={() => void onConfirm()}
+          >
             CONFIRM FOR WHOLE DOCUMENT
           </button>
-          <span className={styles.footNote}>Stored with your name. Map pins turn from amber to grey or green.</span>
+          <span className={styles.footNote}>
+            {reviewerName ? `Stored with your name (${reviewerName}). ` : ''}
+            The map places every borehole of this document after the server converts the coordinates.
+          </span>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusChip } from '../../components/StatusChip';
-import { boreholeStatus } from '../../domain/review';
+import { displayStatus } from '../../domain/status';
 import { useAppStore, useIsReviewable, useSelectedBorehole } from '../../store/appStore';
 import { reviewedText } from './detailModel';
 import { ExportMenu } from './ExportMenu';
@@ -60,7 +60,7 @@ export function DetailScreen() {
           </nav>
           <div className={styles.titleRow}>
             <h1 className={styles.id}>{b.id}</h1>
-            <StatusChip status={boreholeStatus(b)} size="md" />
+            <StatusChip status={displayStatus(b)} size="md" />
             <span className={styles.reviewed}>{reviewedText(b)}</span>
           </div>
         </div>
@@ -80,7 +80,7 @@ export function DetailScreen() {
             <span className={styles.profileNote}>DIN 4023 · depth in m bgl</span>
           </div>
           <ProfileColumn borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
-          <ProfileLegend />
+          <ProfileLegend borehole={b} />
         </section>
 
         <div className={styles.right}>

@@ -1,9 +1,12 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { PAGE_TYPE_LEGEND, PAGE_TYPE_META } from '../../theme';
 import { DocumentCard } from './DocumentCard';
 import { DropZone } from './DropZone';
 import styles from './QueueScreen.module.css';
+
+/** How long a card stays highlighted after a "Same file as …" link pointed at it. */
+const HIGHLIGHT_MS = 2000;
 
 /** Page-type colour key for the page strips (log, lab table, text, drawing, photo). */
 function PageTypeLegend() {
@@ -42,10 +45,22 @@ function useRefuseStrayDrops() {
   }, []);
 }
 
-/** Upload & queue: drop zone plus one card per document with status, checks, counts and page map. */
+/** Upload & queue: drop zone plus one card per document with status, progress, checks, counts and page map. */
 export function QueueScreen() {
   const documents = useAppStore((s) => s.documents);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useRefuseStrayDrops();
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  /** Scrolls to a document's card and highlights it for a moment. */
+  const showDocument = useCallback((id: string) => {
+    document.querySelector(`[data-doc-id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlight(id);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setHighlight(null), HIGHLIGHT_MS);
+  }, []);
 
   return (
     <div className={styles.scroll} data-screen-label="Upload & queue">
@@ -62,7 +77,9 @@ export function QueueScreen() {
         </div>
         <section className={styles.list} aria-label="Document queue">
           {documents.length ? (
-            documents.map((d) => <DocumentCard key={d.id} doc={d} />)
+            documents.map((d) => (
+              <DocumentCard key={d.id} doc={d} highlighted={highlight === d.id} onShowDocument={showDocument} />
+            ))
           ) : (
             <div className={styles.empty}>No documents yet. Drop a report above to extract its boreholes.</div>
           )}

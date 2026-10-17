@@ -20,6 +20,14 @@ export function formatSpt(spt: Spt): string {
   return `refusal · ${spt.blows} blows / ${spt.penetrationCm} cm`;
 }
 
+/**
+ * Depth of a test as text: "10.50 m", or "depth not stated" when the source gives none. Outside the
+ * profile drawing a test never gets an invented depth (no layer midpoint).
+ */
+export function sptDepthText(spt: Pick<Spt, 'depth'>): string {
+  return spt.depth == null ? 'depth not stated' : `${spt.depth.toFixed(2)} m`;
+}
+
 /** Tooltip for the amber R badge: explains the raw refusal string. */
 export function refusalTitle(spt: Spt): string {
   if (spt.blows == null || spt.penetrationCm == null) return `Raw “${spt.raw}”: SPT refusal. Not an N value.`;
@@ -33,7 +41,12 @@ export function refusalTitle(spt: Spt): string {
  */
 export function parseSptText(text: string, prev: Spt): Spt | null {
   const t = text.trim().toLowerCase();
-  const keep = { raw: prev.raw, depth: prev.depth, ...(prev.increments ? { increments: prev.increments } : {}) };
+  const keep = {
+    raw: prev.raw,
+    depth: prev.depth,
+    ...(prev.increments ? { increments: prev.increments } : {}),
+    ...(prev.incrementMm != null ? { incrementMm: prev.incrementMm } : {}),
+  };
   const n = /^(?:n\s*=\s*)?(\d+)$/.exec(t);
   if (n) return { ...keep, refusal: false, n: Number(n[1]) };
   const r = /(\d+)\s*(?:blows)?\s*\/\s*(\d+)\s*(?:cm)?$/.exec(t);

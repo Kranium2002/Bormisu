@@ -2,12 +2,12 @@
  * Pure presentation logic of the Map screen: which boreholes are plotted, legend counts,
  * the CRS column text, the NOT ON MAP reasons and the RESULTS summary line. Unit-tested.
  */
-import { metres } from '../../domain/format';
-import { boreholeStatus } from '../../domain/review';
+import { metres, unplottedText } from '../../domain/format';
+import { displayStatus } from '../../domain/status';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
 import { pinColor } from '../../theme';
 
-/** Initial map view: Germany, as in the prototype. */
+/** Initial map view: Germany, as in the prototype (a world view with clustering follows in F9). */
 export const GERMANY_BOUNDS: [[number, number], [number, number]] = [
   [47.3, 5.9],
   [55.0, 15.0],
@@ -18,7 +18,7 @@ export const GERMANY_CENTER: [number, number] = [51.2, 10.45];
 /** Pin radius: the borehole open in Review is drawn larger, every other pin is 6 px. */
 export const PIN_RADIUS = { highlight: 8, normal: 6 } as const;
 
-/** A borehole the map can place: flagged as plottable and with both coordinates. */
+/** A borehole the map can place: the server says it is plotted and both coordinates are known. */
 export type PlottedBorehole = Borehole & { lat: number; lng: number };
 
 /** True if the borehole is drawn on the map. `onMap` alone isn't enough: a pin needs both coordinates. */
@@ -26,9 +26,9 @@ export function isPlotted(b: Borehole): b is PlottedBorehole {
   return b.onMap && b.lat != null && b.lng != null && Number.isFinite(b.lat) && Number.isFinite(b.lng);
 }
 
-/** Review status per borehole uid, computed once per data change. */
+/** Display status per borehole uid (displayStatus: attention wins over the server's review status). */
 export function statusByUid(boreholes: Borehole[]): Map<string, BoreholeStatus> {
-  return new Map(boreholes.map((b) => [b.uid, boreholeStatus(b)]));
+  return new Map(boreholes.map((b) => [b.uid, displayStatus(b)]));
 }
 
 export interface LegendEntry {
@@ -39,48 +39,37 @@ export interface LegendEntry {
 }
 
 const LEGEND_ORDER: { status: BoreholeStatus; label: string }[] = [
-  { status: 'reviewed', label: 'Reviewed' },
+  { status: 'approved', label: 'Approved' },
+  { status: 'in_review', label: 'In review' },
   { status: 'unreviewed', label: 'Unreviewed' },
-  { status: 'attention', label: 'Needs attention / CRS inferred' },
+  { status: 'attention', label: 'Needs attention' },
 ];
 
-/** REVIEW STATUS legend: one entry per pin colour, counting only the boreholes drawn on the map. */
+/** STATUS legend: one entry per status with its pin colour, counting only the boreholes drawn on the map. */
 export function legendEntries(boreholes: Borehole[], statuses: Map<string, BoreholeStatus>): LegendEntry[] {
-  const counts: Record<BoreholeStatus, number> = { reviewed: 0, unreviewed: 0, attention: 0 };
+  const counts: Record<BoreholeStatus, number> = { approved: 0, in_review: 0, unreviewed: 0, attention: 0 };
   for (const b of boreholes) {
-    if (isPlotted(b)) counts[statuses.get(b.uid) ?? boreholeStatus(b)] += 1;
+    if (isPlotted(b)) counts[statuses.get(b.uid) ?? displayStatus(b)] += 1;
   }
   return LEGEND_ORDER.map(({ status, label }) => ({ status, label, color: pinColor(status), count: counts[status] }));
-}
-
-/**
- * Short CRS name for the RESULTS table:
- * "DHDN / 3-degree Gauss-Krüger zone 3" and "DHDN / GK zone 3" → "DHDN / GK3",
- * "ETRS89 / UTM zone 32N" → "ETRS89 / UTM32N". Unknown patterns are returned unchanged.
- */
-export function shortCrsName(name: string): string {
-  return name
-    .replace(/(?:3-degree\s+)?(?:Gauss[-\s]?Kr(?:ü|ue|u)ger|GK)\s+zone\s+(\d+)/i, 'GK$1')
-    .replace(/UTM\s+zone\s+(\d+\s*[NS])/i, (_, z: string) => `UTM${z.replace(/\s+/g, '')}`);
 }
 
 export interface CrsCell {
   text: string;
   /** Amber text: the CRS is inferred or unknown, so the pin position is not confirmed. */
   warn: boolean;
-  /** Full name and EPSG code, shown on hover. */
+  /** Full label and EPSG code, shown on hover. */
   title: string;
 }
 
-/** CRS column of the RESULTS table: "inferred · DHDN / GK3", "confirmed · …", "stated" or "unknown". */
+/** CRS column of the RESULTS table with the backend's label: "inferred · <label>", "confirmed · …", "stated", "unknown". */
 export function crsCell(crs: Borehole['crs']): CrsCell {
   const full = crs.name ? `${crs.name}${crs.code ? ` (${crs.code})` : ''}` : 'No coordinate system';
-  const short = crs.name ? shortCrsName(crs.name) : null;
   switch (crs.status) {
     case 'inferred':
-      return { text: short ? `inferred · ${short}` : 'inferred', warn: true, title: `Inferred, not stated in the source: ${full}` };
+      return { text: crs.name ? `inferred · ${crs.name}` : 'inferred', warn: true, title: `Inferred, not stated in the source: ${full}` };
     case 'confirmed':
-      return { text: short ? `confirmed · ${short}` : 'confirmed', warn: false, title: `Confirmed by a reviewer: ${full}` };
+      return { text: crs.name ? `confirmed · ${crs.name}` : 'confirmed', warn: false, title: `Confirmed by a reviewer: ${full}` };
     case 'unknown':
       return { text: 'unknown', warn: true, title: 'Coordinate system unknown: the borehole is not placed on the map' };
     case 'stated':
@@ -97,16 +86,13 @@ export function popupCrsWarning(crs: Borehole['crs']): string | null {
 
 export interface NotOnMapReason {
   text: string;
-  /** Amber text for CRS problems, grey for missing coordinates. */
+  /** Amber text for CRS problems and implausible coordinates, grey for missing coordinates. */
   warn: boolean;
 }
 
-/** Why a borehole is listed under NOT ON MAP instead of plotted. */
+/** Why a borehole is listed under NOT ON MAP instead of plotted: the backend's reason code as a label. */
 export function notOnMapReason(b: Borehole): NotOnMapReason {
-  const text =
-    b.unplottedReason?.trim() ||
-    (b.crs.status === 'unknown' && b.lat != null ? 'CRS unknown' : 'No usable coordinates');
-  return { text, warn: /^crs\b/i.test(text) };
+  return { text: unplottedText(b), warn: !!b.unplottedReason && b.unplottedReason !== 'no_coordinates' };
 }
 
 /** Final depth as "18.00 m", or "–" when no depth was extracted (a blank never means 0). */

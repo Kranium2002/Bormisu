@@ -3,8 +3,10 @@ import type { Borehole, DocumentSummary } from '../domain/types';
 import { exportId, isExported, type Cell, type ExportOptions } from './standardXlsx';
 
 /**
- * One row per exported value. Values that aren't "ok" (not in source, illegible) have a blank value.
- * The borehole column is the same ID the xlsx export uses (a corrected BoreholeID once approved).
+ * One row per exported value (every field the source states, samples and test results included).
+ * Values that aren't "ok" (not in source, illegible) have a blank value. The borehole column is the
+ * same ID the xlsx export uses (a corrected BoreholeID once approved). The page column holds the
+ * spreadsheet cell ("Sheet!C5") for a spreadsheet value.
  */
 export function tidyRows(boreholes: Borehole[], o: ExportOptions): Cell[][] {
   const rows: Cell[][] = [['borehole', 'field', 'layer', 'raw', 'value', 'unit', 'page', 'method', 'status', 'state']];
@@ -12,7 +14,8 @@ export function tidyRows(boreholes: Borehole[], o: ExportOptions): Cell[][] {
     const id = exportId(b, o);
     for (const v of b.values) {
       if (!isExported(v, o)) continue;
-      rows.push([id, v.label, v.layer ?? '', v.raw, v.state === 'ok' ? v.value : '', v.unit, v.page, v.method, v.status, v.state]);
+      const source = v.page ?? v.cell ?? null;
+      rows.push([id, v.label, v.layer ?? '', v.raw, v.state === 'ok' ? v.value : '', v.unit, source, v.method, v.status, v.state]);
     }
   }
   return rows;
@@ -40,12 +43,13 @@ export function openQuestionRows(
   for (const b of boreholes) {
     const id = exportId(b, o);
     if (b.crs.status === 'unknown') {
-      rows.push([id, b.primaryPage, 'Coordinate system unknown (local grid). Please supply the transformation.']);
+      rows.push([id, b.primaryPage, 'Coordinate system unknown. Please supply it, or the transformation to a known one.']);
     }
     for (const v of b.values) {
-      if (v.lint) rows.push([id, v.page, v.lint.message]);
-      if (v.flag) rows.push([id, v.page, `${v.label}: ${v.flag}`]);
-      if (v.state === 'illegible') rows.push([id, v.page, `${v.label} is illegible in the scan.`]);
+      const where = v.page ?? v.cell ?? null;
+      if (v.lint) rows.push([id, where, v.lint.message]);
+      if (v.flag) rows.push([id, where, `${v.label}: ${v.flag}`]);
+      if (v.state === 'illegible') rows.push([id, where, `${v.label} is illegible in the source.`]);
     }
   }
   return rows;

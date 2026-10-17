@@ -13,9 +13,13 @@ interface Props {
   onOpenSource(key: string): void;
 }
 
-const HEADERS = ['#', 'FROM–TO M', 'LITHOLOGY', 'DIN', 'SPT', 'TCR %', 'RQD %', 'METHOD', ''];
+const HEADERS = ['#', 'FROM–TO M', 'LITHOLOGY', 'DIN 4023', 'STRAT.', 'SPT', 'TCR %', 'RQD %', 'METHOD', ''];
 
-/** LAYERS table: row click selects the layer (in sync with the profile); SPT and icon open the source. */
+/**
+ * LAYERS table: English lithology (the description as printed on hover), the DIN 4023 notation and
+ * the stratigraphic name as text. Row click selects the layer (in sync with the profile); SPT and
+ * the icon open the source.
+ */
 export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenSource }: Props) {
   const rows = layerRows(b);
   const lint = layerLint(b);
@@ -59,6 +63,7 @@ export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenS
                 {r.lithology.text}
               </div>
               <div role="gridcell" className={`${styles.cell} ${card.mono}`}>{r.din}</div>
+              <div role="gridcell" className={styles.cell}>{r.strat}</div>
               <div role="gridcell" className={`${styles.cell} ${styles.spt}`}>
                 {r.spt ? (
                   <>
@@ -83,7 +88,7 @@ export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenS
               <div role="gridcell" className={`${styles.cell} ${card.mono}`}>{r.tcr}</div>
               <div role="gridcell" className={`${styles.cell} ${card.mono}`}>{r.rqd}</div>
               <div role="gridcell" className={styles.cell}>
-                <MethodBadge method={r.method} confidence={r.confidence} />
+                {r.method && <MethodBadge method={r.method} confidence={r.confidence} />}
               </div>
               <div role="gridcell">
                 {src && <SourceIcon onClick={() => onOpenSource(src)} />}
