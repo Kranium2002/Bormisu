@@ -298,5 +298,19 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
       }
       source.follow(documentId);
     },
+
+    showDocumentOnMap(documentId) {
+      const pins = get().features.filter((f) => f.documentId === documentId);
+      if (!pins.length) {
+        get().showToast('No borehole of this report is on the map yet.');
+        return;
+      }
+      const lons = pins.map((f) => f.lng);
+      const lats = pins.map((f) => f.lat);
+      const bbox: [number, number, number, number] = [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+      // The map flies to mapOutline (no dashed outline: these are pins, not a searched area).
+      set({ mapOutline: { bbox, outline: false, nonce: nextNonce() } });
+      get().go('map');
+    },
   };
 };

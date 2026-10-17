@@ -118,6 +118,8 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
   const questions = questionsText(doc);
   // The badge opens this document's first unresolved question (or the inbox while none is loaded).
   const firstQuestion = useAppStore((s) => firstQuestionOf(s.clarifications, doc.id));
+  const showOnMap = useAppStore((s) => s.showDocumentOnMap);
+  const pinned = useAppStore((s) => s.features.reduce((n, f) => (f.documentId === doc.id ? n + 1 : n), 0));
 
   const open = () => {
     if (reviewable && doc.reviewBoreholeUid) openReview(doc.reviewBoreholeUid);
@@ -174,6 +176,18 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
         </div>
         <StatusSteps step={doc.step} failed={failed} />
         <div className={styles.checks}>
+          {pinned > 0 && (
+            <button
+              type="button"
+              className={styles.onMap}
+              onClick={(e) => {
+                e.stopPropagation();
+                showOnMap(doc.id);
+              }}
+            >
+              {pinned} on the map · SHOW
+            </button>
+          )}
           {questions && <QuestionsButton text={questions} questionId={firstQuestion} about="this document" />}
           <CompletenessChip doc={doc} />
         </div>

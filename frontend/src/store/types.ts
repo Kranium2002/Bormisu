@@ -191,6 +191,8 @@ export interface UploadSlice {
   documentUpdated(update: DocumentSummary): void;
   /** Re-queues a failed document and asks the source to follow it; refused with the reason in demo mode. */
   retryDocument(documentId: string): Promise<void>;
+  /** Opens the map on a document's pins (the queue card's "N on the map · SHOW"). */
+  showDocumentOnMap(documentId: string): void;
 }
 
 /** Live updates from the source (event stream or its polling fallback), contracts/realtime-and-chat.md section 1. */
