@@ -1,0 +1,352 @@
+/* PLANNED LINE: the panel over the map's top-left corner, under its button; a sheet below 768 px. */
+.panel {
+  position: absolute;
+  top: 44px;
+  left: -44px;
+  width: 480px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-popover);
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+
+.headTitle {
+  font-weight: 800;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-head);
+}
+
+.close {
+  composes: secondary from '../../../styles/buttons.module.css';
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.section:last-child {
+  border-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  color: var(--c-muted);
+}
+
+/* The drop zone: drop a file, or CHOOSE FILE / DRAW LINE. */
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 14px;
+  border: 1px dashed var(--c-border-strong);
+  border-radius: 2px;
+  background: var(--c-bg);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+.dropOver {
+  border-color: var(--c-dark);
+  background: var(--c-drop);
+  color: var(--c-text);
+}
+
+.dropActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.choose {
+  composes: primary from '../../../styles/buttons.module.css';
+}
+
+.draw {
+  composes: secondary from '../../../styles/buttons.module.css';
+}
+
+.fileInput {
+  display: none;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: 13px var(--font-sans);
+}
+
+.input:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--c-dark);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--c-red);
+  box-shadow: inset 0 0 0 1px var(--c-red);
+}
+
+.narrow {
+  width: 110px;
+}
+
+.toggleField {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--c-muted);
+}
+
+.error {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--c-red-bg);
+  color: var(--c-text);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  border-left: 3px solid var(--c-red);
+}
+
+.note {
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+
+.status {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+.lineName {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.lineMeta {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.secondary {
+  composes: secondary small from '../../../styles/buttons.module.css';
+}
+
+.quiet {
+  composes: quiet small from '../../../styles/buttons.module.css';
+}
+
+/* The results table: sorted by chainage; a row shows its borehole on the map. */
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--c-line);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  padding: 6px 8px;
+  background: var(--c-bg);
+  border-bottom: 1px solid var(--c-border);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-caps);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--c-line);
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th.num {
+  text-align: right;
+}
+
+.hitRow {
+  cursor: pointer;
+}
+
+.hitRow:hover {
+  background: var(--c-hover);
+}
+
+.hitRow:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.hitSelected {
+  background: var(--c-selected);
+}
+
+.hitId {
+  font-weight: 700;
+}
+
+.open {
+  composes: quiet link small from '../../../styles/buttons.module.css';
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: 10px;
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Earlier lines. */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--c-line);
+  font-size: var(--fs-sm);
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+.itemName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.itemActive {
+  font-weight: 700;
+}
+
+@media (max-width: 767px) {
+  .panel {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    z-index: var(--z-panel);
+  }
+}

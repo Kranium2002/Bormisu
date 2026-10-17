@@ -22,7 +22,10 @@
  *   instead (setChatArea: context.map_view of the next message): the map shows the chat's prompt
  *   as a hint and starts the rectangle tool, and shows the area drawn until the message is sent;
  * - the popup's REVIEW (openReview) and SOURCE (the final depth's Source panel, after ensureBorehole)
- *   with the reasons when they are off.
+ *   with the reasons when they are off;
+ * - the planned line (alignment, alignmentResult): the line and its search band (canvas/alignmentLayer);
+ *   while `alignmentDrawing` the draw tools run geoman's Line mode (one draw mode at a time) and the
+ *   finished line is uploaded as a GeoJSON file (alignment/alignmentModel.drawnLineFile).
  *
  * Views: the map starts at `view` (the URL's `at`); without one at the selected pin, else fitted to
  * the pins clear of the legend, else on the whole world (no country is built in); it fits the pins
@@ -30,7 +33,7 @@
  * deep link) shows the pin, zooming out of its cluster (zoomToShowLayer), and opens its popup.
  *
  * The root carries what the map shows as data attributes (`data-pins`, `data-pins-drawn`,
- * `data-pins-in-view`, `data-members`, `data-colour-by`, `data-ready`): pins are canvas drawings,
+ * `data-pins-in-view`, `data-members`, `data-colour-by`, `data-ready`, `data-alignment`): pins are canvas drawings,
  * not elements, so the e2e suites read these. The screen unmounts on navigation; nothing is reported
  * once the map is going away, and the map is removed with removeMap (after a chunked pin load).
  */
@@ -42,6 +45,8 @@ import { K } from '../../domain/keys';
 import { formatMapView, type MapView } from '../../routing/urlState';
 import { useAppStore, type AppState, type MapFocus } from '../../store/appStore';
 import styles from './BoreholeMap.module.css';
+import { drawnLineFile } from './alignment/alignmentModel';
+import { AlignmentLayer } from './canvas/alignmentLayer';
 import { MAP_MAX_ZOOM } from './canvas/clusterOptions';
 import { useColourMode } from './canvas/colourMode';
 import { DrawToolbar } from './canvas/DrawToolbar';
@@ -119,6 +124,7 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
   const pinsRef = useRef<PinLayer | null>(null);
   const shapesRef = useRef<MapShapes | null>(null);
   const drawRef = useRef<DrawTools | null>(null);
+  const lineRef = useRef<AlignmentLayer | null>(null);
   /** The borehole whose popup is open on the map. */
   const openUid = useRef<string | null>(null);
   /** The pin a reveal (flight, cluster zoom) is on its way to. */
@@ -145,6 +151,9 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
   const mapOutline = useAppStore((s) => s.mapOutline);
   const chatAreaRequest = useAppStore((s) => s.chatAreaRequest);
   const chatArea = useAppStore((s) => s.chatArea);
+  const alignment = useAppStore((s) => s.alignment);
+  const alignmentBand = useAppStore((s) => (s.alignment && s.alignmentResult?.alignmentId === s.alignment.id ? s.alignmentResult.band : null));
+  const alignmentDrawing = useAppStore((s) => s.alignmentDrawing);
   // The result set's members are drawn larger; while the header search filters the pins (only the
   // matches are passed in), the matches are, too (those of the result set when one is active).
   const members = useMemo(() => {
@@ -265,7 +274,15 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
       onChange: stats,
     });
     const shapes = new MapShapes(map);
+    const line = new AlignmentLayer(map);
+    /** The draw mode as last reported (onMode), to tell a line drawing that ended. */
+    let drawnMode: DrawShape | null = null;
     const draw = new DrawTools(map, {
+      onLine: (points) => {
+        const s = useAppStore.getState();
+        s.setAlignmentDrawing(false);
+        void s.uploadAlignment(drawnLineFile(points));
+      },
       onArea: (area) => {
         const s = useAppStore.getState();
         // request_area: the shape is the chat's (context.map_view of the next message), not a selection.
@@ -277,13 +294,19 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
         void s.selectArea(area);
       },
       onMode: (shape) => {
-        if (!disposed.current) setDrawMode(shape);
+        if (disposed.current) return;
+        const was = drawnMode;
+        drawnMode = shape;
+        setDrawMode(shape);
+        // Drawing a line ended (finished, Esc, another tool): the store's draw request ends with it.
+        if (was === 'line' && shape !== 'line') useAppStore.getState().setAlignmentDrawing(false);
       },
     });
     mapRef.current = map;
     pinsRef.current = layer;
     shapesRef.current = shapes;
     drawRef.current = draw;
+    lineRef.current = line;
 
     // Every pan and zoom goes into the URL; the first view too, so a reload finds it.
     const report = () => {
@@ -318,6 +341,7 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
       resize.disconnect();
       draw.destroy();
       shapes.destroy();
+      line.destroy();
       refreshPopup.current = () => undefined;
       openUid.current = null;
       revealing.current = null;
@@ -325,6 +349,7 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
       pinsRef.current = null;
       shapesRef.current = null;
       drawRef.current = null;
+      lineRef.current = null;
       el.remove();
       // After a chunked pin load still running (its next chunk would need the map).
       layer.dispose(() => removeMap(map));
@@ -363,6 +388,25 @@ export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, v
   useEffect(() => {
     shapesRef.current?.setArea(areaShown);
   }, [areaShown]);
+
+  // The planned line and its band (the band of the shown line's latest answer).
+  useEffect(() => {
+    lineRef.current?.setLine(alignment?.id ?? null, alignment?.parts ?? null);
+    const root = rootRef.current;
+    if (root) root.dataset.alignment = alignment ? alignment.id : '';
+  }, [alignment]);
+
+  useEffect(() => {
+    lineRef.current?.setBand(alignmentBand);
+  }, [alignmentBand]);
+
+  // DRAW LINE: geoman's Line mode; ending the request ends a line drawing (not another tool's).
+  useEffect(() => {
+    const draw = drawRef.current;
+    if (!draw) return;
+    if (alignmentDrawing) draw.start('line');
+    else if (draw.shape === 'line') draw.cancel();
+  }, [alignmentDrawing]);
 
   // request_area: the rectangle tool starts with the chat's hint; a cancelled request ends the drawing.
   useEffect(() => {

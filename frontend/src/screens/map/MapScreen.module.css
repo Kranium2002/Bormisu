@@ -10,12 +10,22 @@
   isolation: isolate;
 }
 
-/* FILTERS and its panel: right of Leaflet's zoom buttons (10 px in, 34 px wide). */
+/* FILTERS, PLANNED LINE and their panels: right of Leaflet's zoom buttons (10 px in, 34 px wide). */
 .controls {
   position: absolute;
   top: 10px;
   left: 54px;
   z-index: calc(var(--z-map-overlay) + 2);
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* A planned line is shown on the map. */
+.lineDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-red);
 }
 
 .toggle {

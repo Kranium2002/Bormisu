@@ -59,6 +59,7 @@ Which provider does what: every model call goes to Mistral directly by default (
 6. **Second reads.** Handwritten and low-confidence values are cropped and read again. When the two readings disagree, both are kept and a person chooses.
 7. **Review.** Every value carries its provenance: page, box (tightened to the printed words when the page has a text layer), raw text, method, confidence and review status. Edits, approvals and flags are revisions, and every change is streamed to the UI as an event.
 8. **Chat.** The assistant answers with SQL-backed tools (place search, borehole search, statistics, evidence) and drives the map through result sets. Every number comes from a tool, and every answer states its scope.
+9. **Planned lines.** Upload the path of a planned tunnel, pipeline or drilling line (GeoJSON, KML, GPX, or CSV with lon/lat or x/y plus an EPSG code) and see every borehole within a distance of it (100 m by default), with offset, chainage and side, sorted along the line. Distances are measured on the WGS84 ellipsoid in PostGIS; chainage and side come from the line's UTM zone. Samples are in [`docs/samples/planned-line/`](docs/samples/planned-line/).
 
 Spreadsheets (`.xlsx`, `.csv`) skip the page steps. The model proposes a column mapping from the headers and a few sample rows, and Python applies it to every row, citing the source cell.
 
@@ -128,4 +129,5 @@ The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-bac
 - **Sign-in:** the sign-in screen exists but the server-side login is not enabled in this version.
 - **Conflicting values:** a value printed differently in a summary table and in a log is only asked about once the extractor reports both readings; the question type and its answer handling are in place.
 - **Chat units:** the chat tools return metres; feet are converted in the answer text.
+- **Planned lines:** lines that cross the 180° meridian are refused, and boreholes without a confirmed position cannot be checked against a line (the result counts them).
 - **ARM machines:** `postgis/postgis` publishes amd64 images only, so on ARM the database runs under emulation.

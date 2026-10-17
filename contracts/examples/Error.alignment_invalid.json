@@ -1,0 +1,4 @@
+{
+  "detail": "The GeoJSON holds polygons but no line. Upload the planned line as a LineString.",
+  "code": "alignment_invalid"
+}

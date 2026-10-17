@@ -204,6 +204,20 @@ export function fakeSource(data: FakeData, over: Partial<DataSource> = {}): Fake
       return rs.uids.map((uid) => held.get(uid)).flatMap((b) => (b ? [featureOf(b)].filter((f): f is MapFeature => !!f) : []));
     },
     geocode: async () => [],
+    // Planned lines: none unless a test passes them through `over`.
+    uploadAlignment: async () => {
+      throw new ApiError(422, 'alignment_invalid', 'The fake source has no planned lines.');
+    },
+    listAlignments: async () => [],
+    getAlignment: async (id) => {
+      throw new ApiError(404, 'alignment_not_found', `Alignment ${id} not found.`);
+    },
+    deleteAlignment: async (id) => {
+      throw new ApiError(404, 'alignment_not_found', `Alignment ${id} not found.`);
+    },
+    queryAlignment: async (id) => {
+      throw new ApiError(404, 'alignment_not_found', `Alignment ${id} not found.`);
+    },
     clarifications: async (options) => {
       const status = options?.status ?? 'open';
       return [...questions.values()]

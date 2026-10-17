@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GeoMemory sample" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Fictional tunnel alignment T1 (sample)</name>
+  </metadata>
+  <rte>
+    <name>Fictional tunnel alignment T1 (sample)</name>
+      <rtept lat="50.208008" lon="9.413691"/>
+      <rtept lat="50.209518" lon="9.418889"/>
+      <rtept lat="50.210895" lon="9.423806"/>
+      <rtept lat="50.210114" lon="9.428284"/>
+      <rtept lat="50.209379" lon="9.432482"/>
+  </rte>
+</gpx>

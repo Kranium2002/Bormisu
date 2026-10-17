@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.api.v1 import (
+    alignments,
     boreholes,
     chat,
     clarifications,
@@ -72,7 +73,7 @@ def create_app(*, open_queue: bool = True) -> FastAPI:
         allow_headers=["Content-Type", "Last-Event-ID", "Accept"],
     )
     app.include_router(system.router)
-    for module in (documents, boreholes, map, result_sets, geocode, clarifications, events, chat):
+    for module in (documents, boreholes, map, result_sets, alignments, geocode, clarifications, events, chat):
         app.include_router(module.router, prefix=API_V1)
     return app
 

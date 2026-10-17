@@ -1,0 +1,70 @@
+{
+  "alignments": [
+    {
+      "alignment_id": "aln_01M55GWW60V51H08DRV1KN27CN",
+      "name": "Demo Ridge Tunnel - planned alignment",
+      "file_name": "demo-ridge-tunnel-alignment.geojson",
+      "format": "geojson",
+      "source_crs": "EPSG:4326",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -1.985,
+            53.6664
+          ],
+          [
+            -1.976,
+            53.6708
+          ],
+          [
+            -1.9655,
+            53.6756
+          ]
+        ]
+      },
+      "length_m": 1646.3,
+      "vertex_count": 3,
+      "part_count": 1,
+      "bbox": [
+        -1.985,
+        53.6664,
+        -1.9655,
+        53.6756
+      ],
+      "buffer_m": 100,
+      "created_at": "2026-10-17T18:10:00Z"
+    },
+    {
+      "alignment_id": "aln_01M55GE7E08NB70KYYHN3YD7AH",
+      "name": "Demo Ridge drainage line",
+      "file_name": "demo-ridge-drainage-bng.csv",
+      "format": "csv",
+      "source_crs": "EPSG:27700",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -1.979,
+            53.663
+          ],
+          [
+            -1.9702,
+            53.6681
+          ]
+        ]
+      },
+      "length_m": 812.7,
+      "vertex_count": 2,
+      "part_count": 1,
+      "bbox": [
+        -1.979,
+        53.663,
+        -1.9702,
+        53.6681
+      ],
+      "buffer_m": 50,
+      "created_at": "2026-10-17T18:02:00Z"
+    }
+  ]
+}

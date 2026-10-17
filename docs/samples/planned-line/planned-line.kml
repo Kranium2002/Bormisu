@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Fictional tunnel alignment T1 (sample)</name>
+    <Placemark>
+      <name>Fictional tunnel alignment T1 (sample)</name>
+      <description>Fictional sample line for the GeoMemory demo seed.</description>
+      <LineString>
+        <tessellate>1</tessellate>
+        <coordinates>
+          9.413691,50.208008,0
+          9.418889,50.209518,0
+          9.423806,50.210895,0
+          9.428284,50.210114,0
+          9.432482,50.209379,0
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>

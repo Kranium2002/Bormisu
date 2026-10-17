@@ -11,10 +11,12 @@
  * - clarificationsSlice: the questions (inbox, badge, dialog), answers and skips
  * - authSlice: sign-in, registration, sign-out, password change, ended sessions
  * - chatSlice: the chat drawer's state
+ * - alignmentSlice: planned lines (upload, the boreholes along a line, earlier lines)
  */
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import type { Borehole, DocumentSummary, ExtractedValue, Health } from '../domain/types';
+import { createAlignmentSlice } from './alignmentSlice';
 import { createAuthSlice } from './authSlice';
 import { createChatSlice } from './chatSlice';
 import { createClarificationsSlice } from './clarificationsSlice';
@@ -61,6 +63,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     ...createClarificationsSlice(ctx),
     ...createAuthSlice(ctx),
     ...createChatSlice(ctx),
+    ...createAlignmentSlice(ctx),
   };
 });
 

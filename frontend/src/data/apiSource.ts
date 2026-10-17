@@ -20,6 +20,9 @@ import type {
 } from '../domain/types';
 import { MULTI_FIELD_SEPARATOR } from '../schema/targetFormat';
 import {
+  adaptAlignment,
+  adaptAlignmentResult,
+  adaptAlignments,
   adaptBorehole,
   adaptClarification,
   adaptClarifications,
@@ -34,8 +37,12 @@ import {
   isTerminal,
   stepOf,
   toApiState,
+  toWireAlignmentQuery,
   toWireFilter,
   type AdaptedBorehole,
+  type WireAlignment,
+  type WireAlignmentList,
+  type WireAlignmentResult,
   type PatchTarget,
   type PatchValueType,
   type WireBorehole,
@@ -326,6 +333,24 @@ export function createApiSource(base: string): DataSource {
       json: () => res.json(),
     };
     return bodyOf<T>(base, method, path, answer).catch((e: unknown) => failed(path, e, sentIn));
+  }
+
+  /** A multipart POST (a planned-line upload): answers and errors as for `request`. */
+  async function postForm<T>(path: string, form: FormData): Promise<T> {
+    const sentIn = generation;
+    let res: Response;
+    try {
+      res = await fetch(base + path, { method: 'POST', headers: { Accept: 'application/json' }, body: form });
+    } catch {
+      throw new UnreachableError(unreachableMessage(base));
+    }
+    const answer: Answer = {
+      status: res.status,
+      contentType: res.headers.get('content-type'),
+      retryAfter: res.headers.get('retry-after'),
+      json: () => res.json(),
+    };
+    return bodyOf<T>(base, 'POST', path, answer).catch((e: unknown) => failed(path, e, sentIn));
   }
 
   /** Adapts a record and keeps it unless the source already holds a newer revision. */
@@ -641,6 +666,32 @@ export function createApiSource(base: string): DataSource {
 
     async resultSetFeatures(id) {
       return adaptFeatures(await request<WireFeatureCollection>('GET', `/result-sets/${enc(id)}/geojson`));
+    },
+
+    async uploadAlignment(file, options = {}) {
+      const form = new FormData();
+      form.append('file', file);
+      const name = options.name?.trim();
+      if (name) form.append('name', name);
+      if (options.bufferM != null) form.append('buffer_m', String(options.bufferM));
+      if (options.epsg != null) form.append('epsg', String(options.epsg));
+      return adaptAlignment(await postForm<WireAlignment>('/alignments', form));
+    },
+
+    async listAlignments() {
+      return adaptAlignments(await request<WireAlignmentList>('GET', '/alignments'));
+    },
+
+    async getAlignment(id) {
+      return adaptAlignment(await request<WireAlignment>('GET', `/alignments/${enc(id)}`));
+    },
+
+    async deleteAlignment(id) {
+      await request<void>('DELETE', `/alignments/${enc(id)}`);
+    },
+
+    async queryAlignment(id, options) {
+      return adaptAlignmentResult(await request<WireAlignmentResult>('POST', `/alignments/${enc(id)}/query`, toWireAlignmentQuery(options)));
     },
 
     async geocode(query) {

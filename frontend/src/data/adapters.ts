@@ -7,6 +7,9 @@ import { K } from '../domain/keys';
 import { placeholderPage } from '../domain/pages';
 import { formatSpt, sptLint } from '../domain/spt';
 import type {
+  Alignment,
+  AlignmentHit,
+  AlignmentResult,
   Area,
   Borehole,
   BoreholeFilter,
@@ -74,6 +77,11 @@ export type WireFilter = Schemas['BoreholeFilter'];
 export type WireArea = Schemas['AreaBbox'] | Schemas['AreaPolygon'] | Schemas['AreaCircle'];
 export type WireResultSet = Schemas['ResultSet'];
 export type WirePlace = Schemas['PlaceCandidate'];
+export type WireAlignment = Schemas['Alignment'];
+export type WireAlignmentList = Schemas['AlignmentList'];
+export type WireAlignmentQuery = Schemas['AlignmentQuery'];
+export type WireAlignmentHit = Schemas['AlignmentHit'];
+export type WireAlignmentResult = Schemas['AlignmentResult'];
 
 /**
  * The `data` of each server-sent event of GET /events. These shapes live in
@@ -1066,6 +1074,113 @@ export function adaptResultSet(rs: WireResultSet): ResultSet {
     definition,
     createdAt: rs.created_at,
   };
+}
+
+/* ---------- planned lines (contract 1.3.0 Alignment, AlignmentResult) ---------- */
+
+/** [lng, lat] of a GeoJSON position, or null when it isn't one. */
+const lngLat = (p: unknown): [number, number] | null => (isPosition(p) ? [p[0], p[1]] : null);
+
+/** A GeoJSON line's positions (positions that aren't one are left out). */
+function linePositions(x: unknown): [number, number][] {
+  return Array.isArray(x) ? x.map(lngLat).filter((p): p is [number, number] => p !== null) : [];
+}
+
+/** The parts of a GeoJSON LineString or MultiLineString, each with at least two positions. */
+export function lineParts(geometry: { type?: unknown; coordinates?: unknown } | null | undefined): [number, number][][] {
+  if (!geometry) return [];
+  const lines = geometry.type === 'MultiLineString' && Array.isArray(geometry.coordinates) ? geometry.coordinates : [geometry.coordinates];
+  return lines.map(linePositions).filter((part) => part.length >= 2);
+}
+
+/** The polygons of a GeoJSON Polygon or MultiPolygon, each a list of rings of [lng, lat]. */
+export function polygonsOf(geometry: { type?: unknown; coordinates?: unknown } | null | undefined): [number, number][][][] {
+  if (!geometry || !Array.isArray(geometry.coordinates)) return [];
+  const polygons = geometry.type === 'MultiPolygon' ? geometry.coordinates : geometry.type === 'Polygon' ? [geometry.coordinates] : [];
+  return polygons
+    .map((rings: unknown) => (Array.isArray(rings) ? rings.map(linePositions).filter((ring) => ring.length >= 3) : []))
+    .filter((rings) => rings.length > 0);
+}
+
+/** [min_lon, min_lat, max_lon, max_lat] of some positions; null without any. */
+export function positionsBbox(points: readonly [number, number][]): [number, number, number, number] | null {
+  if (!points.length) return null;
+  const lons = points.map((p) => p[0]);
+  const lats = points.map((p) => p[1]);
+  return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+}
+
+/** A stored planned line. */
+export function adaptAlignment(w: WireAlignment): Alignment {
+  const parts = lineParts(w.geometry);
+  return {
+    id: w.alignment_id,
+    name: w.name,
+    fileName: w.file_name,
+    format: w.format,
+    sourceCrs: w.source_crs,
+    parts,
+    lengthM: w.length_m,
+    vertexCount: w.vertex_count,
+    partCount: w.part_count,
+    bbox: toBbox(w.bbox) ?? positionsBbox(parts.flat()),
+    bufferM: w.buffer_m,
+    createdAt: w.created_at,
+  };
+}
+
+/** The planned lines of a list, newest first as the server sends them. */
+export function adaptAlignments(list: WireAlignmentList): Alignment[] {
+  return list.alignments.map(adaptAlignment);
+}
+
+function adaptHit(h: WireAlignmentHit): AlignmentHit | string {
+  const position = lngLat(h.position);
+  if (!position) return `${h.uid}: position`;
+  if (!isReviewStatus(h.review_status)) return `${h.uid}: review_status "${String(h.review_status)}"`;
+  return {
+    uid: h.uid,
+    id: h.borehole_id,
+    documentId: h.document_id,
+    project: h.project_name ?? null,
+    depth: isNumber(h.borehole_depth_m) ? h.borehole_depth_m : null,
+    reviewStatus: h.review_status,
+    crsStatus: h.crs_status,
+    lng: position[0],
+    lat: position[1],
+    offsetM: h.offset_m,
+    chainageM: h.chainage_m,
+    side: h.side,
+  };
+}
+
+/** The boreholes along a line, in the server's chainage order; a hit without a usable position is left out (and reported). */
+export function adaptAlignmentResult(w: WireAlignmentResult): AlignmentResult {
+  const hits: AlignmentHit[] = [];
+  const left: string[] = [];
+  for (const h of w.hits) {
+    const hit = adaptHit(h);
+    if (typeof hit === 'string') left.push(hit);
+    else hits.push(hit);
+  }
+  if (left.length) reportLeftOut('alignment hits', left);
+  return {
+    alignmentId: w.alignment_id,
+    bufferM: w.buffer_m,
+    includeUnreviewed: w.include_unreviewed,
+    lengthM: w.length_m,
+    metricCrs: w.metric_crs,
+    band: polygonsOf(w.buffer_polygon),
+    hits,
+    excludedUnreviewed: w.excluded_unreviewed,
+    notOnMap: w.not_on_map,
+    resultSet: adaptResultSet(w.result_set),
+  };
+}
+
+/** A query as the contract's AlignmentQuery. */
+export function toWireAlignmentQuery(q: { bufferM: number | null; includeUnreviewed: boolean }): WireAlignmentQuery {
+  return { ...(q.bufferM != null ? { buffer_m: q.bufferM } : {}), include_unreviewed: q.includeUnreviewed };
 }
 
 /* ---------- places (GET /geocode) ---------- */

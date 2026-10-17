@@ -35,6 +35,9 @@ import { genericPage, pageMap } from './helpers';
 import { bk07, bk07Sheet, BK07_PAGES, NB_DOC_ID, NB_FILE } from './neckarbogen';
 import { featuresOf, isLocated, runResultSet, searchPlaces, toFeature } from './query';
 
+/** Why planned lines don't work in sample mode (the server parses and measures them). */
+export const ALIGNMENTS_NEED_API = 'Planned lines need the API; not available in sample mode.';
+
 /** Simulated transfer of one upload (ms), reported in UPLOAD_TICKS progress steps. */
 export const SAMPLE_UPLOAD_MS = 1000;
 const UPLOAD_TICKS = 4;
@@ -351,6 +354,27 @@ export function createSampleSource(): DataSource {
       // The members as they are now; only placed ones are features (the set counts the others).
       const members = rs.uids.map((uid) => byUid.get(uid)).filter((b): b is Borehole => b != null && isLocated(b));
       return structuredClone(members.map(toFeature));
+    },
+
+    // Planned lines are parsed and measured on the server (PostGIS): none in sample mode.
+    async uploadAlignment() {
+      throw new Error(ALIGNMENTS_NEED_API);
+    },
+
+    async listAlignments() {
+      return [];
+    },
+
+    async getAlignment() {
+      throw new Error(ALIGNMENTS_NEED_API);
+    },
+
+    async deleteAlignment() {
+      throw new Error(ALIGNMENTS_NEED_API);
+    },
+
+    async queryAlignment() {
+      throw new Error(ALIGNMENTS_NEED_API);
     },
 
     async geocode(query) {

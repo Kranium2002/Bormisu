@@ -2,6 +2,17 @@
 
 Rules: inside 1.x only additive changes (new endpoints, new optional fields, new enum values the other side can ignore). Anything else needs a 2.0 and both sessions' agreement in `docs/handover/COORDINATION.md`. Every change gets a dated entry here in the same commit as the change.
 
+## 1.3.0 (2026-10-17)
+
+Additive only: planned lines (tunnel, pipeline or drilling line) and the boreholes along them. New endpoints, schemas and error codes; nothing existing changes. Clients built against 1.2.2 keep working.
+
+### Added
+- `POST /api/v1/alignments` (`uploadAlignment`, P1): multipart `file` (GeoJSON, KML, GPX or CSV, at most 10 MB) with optional `name`, `buffer_m` (default 100, at most 1000) and `epsg` (for CSV x/y columns; positions are never guessed). 201 `Alignment`. 413 `too_large`, 415 `unsupported_type`, 422 `alignment_invalid` (points or polygons only, fewer than two distinct vertices, coordinates out of range, unreadable file), `epsg_required` (CSV x/y without `epsg`), `crs_invalid` (unknown EPSG code, or coordinates outside its area of use).
+- `GET /api/v1/alignments` (`listAlignments`, newest first), `GET /api/v1/alignments/{alignment_id}` (`getAlignment`), `DELETE /api/v1/alignments/{alignment_id}` (`deleteAlignment`, 204). 404 `alignment_not_found`.
+- `POST /api/v1/alignments/{alignment_id}/query` (`queryAlignment`): body `AlignmentQuery` `{buffer_m?, include_unreviewed}` -> `AlignmentResult`: `hits` (`AlignmentHit`: borehole, `position`, `offset_m` on the ellipsoid, `chainage_m` along the line, `side` left/right/on) sorted by chainage, `buffer_polygon` for drawing, `length_m`, `metric_crs` (UTM zone of the line), `excluded_unreviewed`, `not_on_map` (boreholes without a confirmed position that cannot be checked), and `result_set`, a stored `ResultSet` of the hits for the map highlight and chat.
+- Schemas `Alignment`, `AlignmentList`, `AlignmentQuery`, `AlignmentHit`, `AlignmentResult`; error codes `alignment_not_found`, `alignment_invalid`, `epsg_required`; ids `aln_<ULID>`; tag `alignments`.
+- Examples `Alignment.json`, `AlignmentList.json`, `AlignmentQuery.json`, `AlignmentResult.json`, `Error.alignment_not_found.json`, `Error.alignment_invalid.json`, `Error.epsg_required.json`.
+
 ## 1.2.2 (2026-10-17)
 
 Additive only: two read-only endpoints and two schemas for evidence referencing (click a value, see its box on the original page; click a box, see the value). Clients built against 1.2.1 keep working.

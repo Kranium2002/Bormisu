@@ -34,6 +34,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 __all__ = [
+    "Alignment",
     "Base",
     "Borehole",
     "BoreholeGroundwater",
@@ -357,6 +358,27 @@ class ResultSet(Base):
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now() + interval '7 days'")
     )
+
+
+class Alignment(Base):
+    """A planned line (tunnel, pipeline, drilling line) uploaded as a file; parts in path order."""
+
+    __tablename__ = "alignments"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    file_name: Mapped[str] = mapped_column(Text, nullable=False)
+    format: Mapped[str] = mapped_column(String(10), nullable=False)
+    # The system the file's coordinates were in (stated by the file or the request, never guessed).
+    source_crs: Mapped[str] = mapped_column(String(40), nullable=False)
+    geom: Mapped[Any] = mapped_column(
+        Geometry("MULTILINESTRING", srid=4326, spatial_index=True), nullable=False
+    )
+    length_m: Mapped[float] = mapped_column(Float, nullable=False)
+    vertex_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    part_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    buffer_m: Mapped[float] = mapped_column(Float, nullable=False, server_default=text("100"))
+    created_at: Mapped[datetime] = _now_column()
 
 
 class Event(Base):
