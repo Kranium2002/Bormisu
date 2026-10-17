@@ -319,3 +319,38 @@ def test_spt_label_and_depth_text() -> None:
     ]
     assert bh3_adapter._printed_uscs("Sandy CLAY (CL), stiff", "CL") == "CL"
     assert bh3_adapter._printed_uscs("Sandy clay, stiff", "CL") is None  # the model's class, not printed
+
+
+async def test_in_bh3_mode_only_log_pages_get_paid_ocr(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any
+) -> None:
+    bh3(FakeBridge())
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    doc = await document(client, doc_id)
+    by_page = {p["n"]: p["ocr"] for p in doc["pages"] if p["used"]}
+    assert by_page == {2: "done", 3: "done", 4: "done", 5: "skipped"}  # page 5: the summary table
+    assert doc["warnings"] == [] and fakes.ocr.pages_seen == 3
+
+
+async def test_a_document_without_borehole_logs_is_done_and_says_so(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes
+) -> None:
+    from tests.pdf_factory import TextItem, make_pdf
+
+    pdf = make_pdf(
+        [
+            [TextItem(120, 700, "FICTIONAL SITE REPORT", 16), TextItem(120, 670, "COVER PAGE")],
+            [
+                TextItem(60, 780, "INTRODUCTION", 14),
+                TextItem(60, 750, "This fictional text describes a site."),
+            ],
+        ]
+    )
+    doc_id = await upload(client, pdf)
+    await work(queue, doc_id)
+
+    doc = await document(client, doc_id)
+    assert doc["status"] == "done" and doc["warnings"] == ["No borehole logs were found in this document."]
+    assert await records(client, doc_id) == {} and fakes.extractor.calls == 0

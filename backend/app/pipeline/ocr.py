@@ -163,11 +163,19 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
                 .order_by(Page.n)
             )
         ).all()
+        skipped: list[int] = []
+        if engine is None and _bh3_reads_logs(settings):
+            # bh3 reads the log pages itself and the classic fallback only needs log pages: a page that
+            # cannot carry a log (photos, lab results, a legend naming boreholes) is not sent to paid OCR.
+            skipped = [p.n for p in pages if p.role not in LOG_ROLES]
+            pages = [p for p in pages if p.role in LOG_ROLES]
         todo = [p.n for p in pages]
         sizes = {p.n: (p.width_px or 0) * (p.height_px or 0) // 6 for p in pages}  # rough bytes per page
         sha256 = doc.sha256
         source = _source_pdf(doc)
         render_keys = {p.n: p.render_key for p in pages}
+    if skipped:
+        await _mark_skipped(document_id, skipped)
     if not todo:
         await update_progress(document_id, emit=True)
         return
@@ -359,6 +367,24 @@ def renders_pdf(render_keys: Sequence[str | None]) -> bytes:
     out = io.BytesIO()
     images[0].save(out, format="PDF", save_all=True, append_images=images[1:], resolution=OCR_PDF_DPI)
     return out.getvalue()
+
+
+LOG_ROLES = frozenset({"log_sheet", "log_continuation"})
+
+
+def _bh3_reads_logs(settings: Settings) -> bool:
+    from app.pipeline import bh3_adapter
+
+    return bh3_adapter.active(settings)
+
+
+async def _mark_skipped(document_id: str, pages: Sequence[int]) -> None:
+    async with get_sessionmaker()() as session:
+        for n in pages:
+            page = await session.get(Page, (document_id, n))
+            if page is not None:
+                page.ocr_status = "skipped"
+        await session.commit()
 
 
 async def _mark_failed(document_id: str, run_id: str, chunk: Sequence[int], error: str) -> None:

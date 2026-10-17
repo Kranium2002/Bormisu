@@ -223,7 +223,9 @@ async def _extraction_state(document_id: str) -> tuple[set[str], set[int]]:
             (
                 await session.scalars(
                     select(Page.n).where(
-                        Page.document_id == document_id, Page.used.is_(True), Page.ocr_status != "done"
+                        Page.document_id == document_id,
+                        Page.used.is_(True),
+                        Page.ocr_status.in_(("pending", "failed")),
                     )
                 )
             ).all()

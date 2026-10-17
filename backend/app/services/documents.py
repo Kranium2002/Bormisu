@@ -79,14 +79,28 @@ def unread_pages(pages: Iterable[Page]) -> list[int]:
     return sorted(p.n for p in pages if p.used and p.ocr_status in UNREAD_OCR)
 
 
-def document_warnings(doc: Document, unread: Sequence[int]) -> list[str]:
+NO_LOGS_WARNING = "No borehole logs were found in this document."
+
+
+def document_warnings(doc: Document, unread: Sequence[int], boreholes: int | None = None) -> list[str]:
     """Readable notes on a document in review that is not complete (Document.warnings)."""
-    if doc.status not in ("needs_review", "done") or not unread:
+    if doc.status not in ("needs_review", "done"):
         return []
-    numbers = ", ".join(str(n) for n in unread)
-    if len(unread) == 1:
-        return [f"Page {numbers} was not read; boreholes on it are missing. Retry the document to read it."]
-    return [f"Pages {numbers} were not read; boreholes on them are missing. Retry the document to read them."]
+    warnings: list[str] = []
+    if unread:
+        numbers = ", ".join(str(n) for n in unread)
+        if len(unread) == 1:
+            warnings.append(
+                f"Page {numbers} was not read; boreholes on it are missing. Retry the document to read it."
+            )
+        else:
+            warnings.append(
+                f"Pages {numbers} were not read; boreholes on them are missing. "
+                "Retry the document to read them."
+            )
+    elif boreholes == 0:
+        warnings.append(NO_LOGS_WARNING)
+    return warnings
 
 
 async def documents_out(session: AsyncSession, docs: Sequence[Document]) -> list[DocumentOut]:
@@ -175,7 +189,9 @@ async def documents_out(session: AsyncSession, docs: Sequence[Document]) -> list
                     "progress": doc.progress,
                     "duplicate_of": doc.duplicate_of,
                     "open_clarifications": open_clar.get(doc.id, 0),
-                    "warnings": document_warnings(doc, unread_pages(pages_of.get(doc.id, []))),
+                    "warnings": document_warnings(
+                        doc, unread_pages(pages_of.get(doc.id, [])), bh_counts.get(doc.id, 0)
+                    ),
                     "created_at": doc.created_at,
                     "updated_at": doc.updated_at,
                 }
