@@ -23,6 +23,7 @@ import type {
   Layer,
   Lint,
   LintFinding,
+  LiveEvent,
   Method,
   Reading,
   ReviewStatus,
@@ -49,6 +50,21 @@ export type WireCrsConfirm = Schemas['CrsConfirmRequest'];
 export type WireValuePatch = Schemas['ValuePatch'];
 export type WireUploadAccepted = Schemas['UploadAccepted'];
 export type WireError = Schemas['Error'];
+export type WireClarification = Schemas['Clarification'];
+
+/**
+ * The `data` of each server-sent event of GET /events. These shapes live in
+ * contracts/realtime-and-chat.md section 1, not in the OpenAPI file, so they are written out here.
+ */
+export interface WireEventData {
+  'document.updated': WireDocument;
+  'document.deleted': { document_id: string };
+  'borehole.created': { uid: string; document_id: string; revision: number; plotted: boolean };
+  'borehole.updated': { uid: string; revision: number };
+  'clarification.created': WireClarification;
+  'clarification.resolved': { clarification_id: string; status: 'answered' | 'skipped' };
+  'job.failed': { document_id: string; stage: string; detail: string; retryable: boolean };
+}
 
 /* ---------- small mappers ---------- */
 
@@ -753,6 +769,67 @@ export function adaptCrsCandidates(list: WireCrsCandidate[]): CrsCandidate[] {
     swapAxes: c.swap_axes ?? false,
     points: c.points.map((p) => ({ uid: p.uid, lat: p.lat, lng: p.lon })),
   }));
+}
+
+/* ---------- live events ---------- */
+
+/** The named event types of GET /events (contracts/realtime-and-chat.md section 1), one listener each. */
+export const LIVE_EVENT_TYPES = [
+  'document.updated', 'document.deleted', 'borehole.created', 'borehole.updated',
+  'clarification.created', 'clarification.resolved', 'job.failed',
+] as const satisfies readonly (keyof WireEventData)[];
+
+export type LiveEventType = (typeof LIVE_EVENT_TYPES)[number];
+
+/** True for an event type of section 1. */
+export function isLiveEventType(type: string): type is LiveEventType {
+  return (LIVE_EVENT_TYPES as readonly string[]).includes(type);
+}
+
+const DOCUMENT_STATUSES = new Set<string>(Object.keys(STEP));
+
+type Fields = Record<string, unknown>;
+const isFields = (x: unknown): x is Fields => x != null && typeof x === 'object' && !Array.isArray(x);
+const isText = (x: unknown): x is string => typeof x === 'string' && x !== '';
+const isRevision = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x);
+
+/**
+ * Maps the parsed `data` of one event to a LiveEvent. `summarise` turns the full Document of
+ * `document.updated` into the summary the loads produce (the API source passes its own, which adds
+ * what the document's boreholes say); by default the plain adapted document. Null for an unknown
+ * type or data without the fields the contract requires: the caller logs and ignores it.
+ */
+export function adaptLiveEvent(
+  type: string,
+  data: unknown,
+  summarise: (d: WireDocument) => DocumentSummary = adaptDocument,
+): LiveEvent | null {
+  if (!isLiveEventType(type) || !isFields(data)) return null;
+  switch (type) {
+    case 'document.updated':
+      if (!isText(data.document_id) || typeof data.file_name !== 'string' || !DOCUMENT_STATUSES.has(String(data.status))) return null;
+      return { type, document: summarise(data as unknown as WireDocument) };
+    case 'document.deleted':
+      return isText(data.document_id) ? { type, documentId: data.document_id } : null;
+    case 'borehole.created':
+      if (!isText(data.uid) || !isText(data.document_id) || !isRevision(data.revision) || typeof data.plotted !== 'boolean') return null;
+      return { type, uid: data.uid, documentId: data.document_id, revision: data.revision, plotted: data.plotted };
+    case 'borehole.updated':
+      return isText(data.uid) && isRevision(data.revision) ? { type, uid: data.uid, revision: data.revision } : null;
+    case 'clarification.created': {
+      if (!isText(data.clarification_id) || !isText(data.document_id)) return null;
+      const uids = Array.isArray(data.borehole_uids) ? data.borehole_uids.filter(isText) : [];
+      return { type, clarificationId: data.clarification_id, documentId: data.document_id, boreholeUids: uids };
+    }
+    case 'clarification.resolved':
+      if (!isText(data.clarification_id) || (data.status !== 'answered' && data.status !== 'skipped')) return null;
+      return { type, clarificationId: data.clarification_id, status: data.status };
+    case 'job.failed':
+      if (!isText(data.document_id) || typeof data.stage !== 'string' || typeof data.detail !== 'string' || typeof data.retryable !== 'boolean') {
+        return null;
+      }
+      return { type, documentId: data.document_id, stage: data.stage, detail: data.detail, retryable: data.retryable };
+  }
 }
 
 /* ---------- health ---------- */

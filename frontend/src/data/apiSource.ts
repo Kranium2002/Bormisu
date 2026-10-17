@@ -1,18 +1,20 @@
 /**
  * DataSource over the FastAPI backend (contracts/openapi.yaml, base path /api/v1). Error answers
  * become ApiError (by `code`), an unreachable backend UnreachableError, failed saves SaveError.
- * This module never falls back to sample data.
+ * Uploads go through XMLHttpRequest for byte progress; live updates come from GET /events with a
+ * polling fallback (./events). This module never falls back to sample data.
  */
 import { APP_NAME } from '../config';
 import { parseNumber } from '../domain/format';
 import { pageUsageText } from '../domain/pages';
-import type { Borehole, DocumentStatus, DocumentSummary, ValuePatch } from '../domain/types';
+import type { Borehole, DocumentStatus, DocumentSummary, LiveEvent, UploadProgress, UploadResult, ValuePatch } from '../domain/types';
 import { MULTI_FIELD_SEPARATOR } from '../schema/targetFormat';
 import {
   adaptBorehole,
   adaptCrsCandidates,
   adaptDocument,
   adaptHealth,
+  adaptLiveEvent,
   documentLint,
   isTerminal,
   stepOf,
@@ -30,14 +32,17 @@ import {
   type WireUploadAccepted,
   type WireValuePatch,
 } from './adapters';
-import type { DataSource } from './DataSource';
-import { ApiError, errorCode, errorText, isApiError, SaveError, UnreachableError, type FieldError } from './errors';
+import type { DataSource, UploadHandle } from './DataSource';
+import {
+  ApiError, errorCode, errorText, isApiError, SaveError, UnreachableError, UploadCancelledError, type FieldError,
+} from './errors';
+import { FollowedDocuments, openLiveFeed } from './events';
 
-/** Polling interval while a document is being worked on (ms). */
-export const POLL_MS = 2000;
-/** Longest wait between polls after errors (ms); the wait doubles from POLL_MS up to this. */
-export const MAX_BACKOFF_MS = 30_000;
+export { MAX_BACKOFF_MS, POLL_MS } from './events';
+
 const PAGE_IMAGE_WIDTH = 1400;
+/** Width of the page strip thumbnails (FRONTEND.md F6). */
+const THUMBNAIL_WIDTH = 200;
 /** Page size of the borehole list (the contract's maximum). */
 const LIST_LIMIT = 5000;
 
@@ -126,36 +131,60 @@ export function patchActions(patch: ValuePatch, target: PatchTarget): PatchBody[
   return out;
 }
 
-/** The backend's Error body, when the answer is one. */
-async function readError(res: Response): Promise<{ code: string; detail: string; errors: FieldError[] } | null> {
-  try {
-    const body = (await res.json()) as { code?: unknown; detail?: unknown; errors?: unknown };
-    if (typeof body.code !== 'string') return null;
-    const errors = Array.isArray(body.errors)
-      ? (body.errors as { loc?: (string | number)[]; msg?: string }[]).map((e) => ({ loc: e?.loc ?? [], msg: e?.msg ?? '' }))
-      : [];
-    return { code: body.code, detail: typeof body.detail === 'string' ? body.detail : '', errors };
-  } catch {
-    return null;
-  }
+/** The backend's Error body, when the parsed answer is one. */
+function errorBody(parsed: unknown): { code: string; detail: string; errors: FieldError[] } | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const body = parsed as { code?: unknown; detail?: unknown; errors?: unknown };
+  if (typeof body.code !== 'string') return null;
+  const errors = Array.isArray(body.errors)
+    ? (body.errors as { loc?: (string | number)[]; msg?: string }[]).map((e) => ({ loc: e?.loc ?? [], msg: e?.msg ?? '' }))
+    : [];
+  return { code: body.code, detail: typeof body.detail === 'string' ? body.detail : '', errors };
 }
 
-/** A document the backend just accepted, before the first poll. */
+/** One HTTP answer, from fetch or XMLHttpRequest. */
+interface Answer {
+  status: number;
+  contentType: string | null;
+  /** The parsed JSON body; rejects when it is not JSON. */
+  json(): Promise<unknown>;
+}
+
+/**
+ * The body of a successful answer, or the error of any other: a JSON error body is an ApiError by
+ * its code (route_not_found names the endpoint); a non-JSON 5xx, or HTML where JSON was expected, is
+ * an unreachable backend; nginx's own HTML 413 page is too_large; any other answer is `http_<status>`.
+ */
+async function bodyOf<T>(base: string, method: string, path: string, res: Answer): Promise<T> {
+  const json = res.contentType?.includes('json') ?? false;
+  if (res.status >= 200 && res.status < 300) {
+    if (res.status === 204) return undefined as T;
+    // A dev server or static host answers unknown paths with index.html: there is no backend behind it.
+    if (!json) throw new UnreachableError(unreachableMessage(base));
+    try {
+      return (await res.json()) as T;
+    } catch {
+      throw new UnreachableError(unreachableMessage(base));
+    }
+  }
+  const err = json ? errorBody(await res.json().catch(() => null)) : null;
+  if (err?.code === 'route_not_found') {
+    throw new ApiError(res.status, err.code, err.detail, err.errors, `Backend endpoint not available: ${method} ${base}${path}`);
+  }
+  if (err) throw new ApiError(res.status, err.code, err.detail, err.errors);
+  if (!json && res.status >= 500) throw new UnreachableError(unreachableMessage(base));
+  // nginx answers an oversized upload with its own HTML page.
+  if (res.status === 413) throw new ApiError(413, 'too_large', 'The file is larger than the server accepts.');
+  throw new ApiError(res.status, `http_${res.status}`, `${method} ${base}${path} failed (HTTP ${res.status})`);
+}
+
+/** A document the backend just accepted, before its first update. */
 function pendingDocument(id: string, name: string, status: DocumentStatus): DocumentSummary {
   return {
     id, name, project: '', status, pages: [], step: stepOf(status), progress: null, counts: null, completeness: null,
     reviewBoreholeUid: null, openClarifications: 0, duplicateOf: null, error: null,
   };
 }
-
-/** One error for the files of an upload the server refused, naming each file; code and status of the first. */
-function uploadError(failures: { file: File; error: ApiError }[]): ApiError {
-  const first = failures[0].error;
-  const text = failures.map(({ file, error }) => `${file.name}: ${errorText(error)}`).join(' · ');
-  return new ApiError(first.status, first.code, first.detail, first.errors, text);
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Creates the API data source for a base path such as "/api/v1". */
 export function createApiSource(base: string): DataSource {
@@ -166,15 +195,14 @@ export function createApiSource(base: string): DataSource {
   const records = new Map<string, AdaptedBorehole>();
   /** One promise chain per uid, so saves of a borehole run one after the other. */
   const saving = new Map<string, Promise<unknown>>();
-  /** Documents being followed right now: one poll loop per document. */
-  const following = new Set<string>();
+  /** Documents still being processed: the polling fallback fetches them. */
+  const followed = new FollowedDocuments();
   /** Values without a provenance entry already reported (`<uid> <path>`). */
   const reported = new Set<string>();
 
-  async function request<T>(method: string, path: string, body?: FormData | object): Promise<T> {
+  async function request<T>(method: string, path: string, body?: object): Promise<T> {
     const init: RequestInit = { method, headers: { Accept: 'application/json' } };
-    if (body instanceof FormData) init.body = body;
-    else if (body) {
+    if (body) {
       init.body = JSON.stringify(body);
       init.headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     }
@@ -184,26 +212,7 @@ export function createApiSource(base: string): DataSource {
     } catch {
       throw new UnreachableError(unreachableMessage(base));
     }
-    const json = res.headers.get('content-type')?.includes('json') ?? false;
-    if (res.ok) {
-      if (res.status === 204) return undefined as T;
-      // A dev server or static host answers unknown paths with index.html: there is no backend behind it.
-      if (!json) throw new UnreachableError(unreachableMessage(base));
-      try {
-        return (await res.json()) as T;
-      } catch {
-        throw new UnreachableError(unreachableMessage(base));
-      }
-    }
-    const err = json ? await readError(res) : null;
-    if (err?.code === 'route_not_found') {
-      throw new ApiError(res.status, err.code, err.detail, err.errors, `Backend endpoint not available: ${method} ${base}${path}`);
-    }
-    if (err) throw new ApiError(res.status, err.code, err.detail, err.errors);
-    if (!json && res.status >= 500) throw new UnreachableError(unreachableMessage(base));
-    // nginx answers an oversized upload with its own HTML page.
-    if (res.status === 413) throw new ApiError(413, 'too_large', 'The file is larger than the server accepts.');
-    throw new ApiError(res.status, `http_${res.status}`, `${method} ${base}${path} failed (HTTP ${res.status})`);
+    return bodyOf<T>(base, method, path, { status: res.status, contentType: res.headers.get('content-type'), json: () => res.json() });
   }
 
   /** Adapts a record and keeps it unless the source already holds a newer revision. */
@@ -263,43 +272,113 @@ export function createApiSource(base: string): DataSource {
     return d;
   }
 
+  /** Forgets a document the backend no longer has, with its boreholes. */
+  function forgetDocument(id: string): void {
+    docs.delete(id);
+    for (const [uid, r] of records) if (r.borehole.documentId === id) records.delete(uid);
+  }
+
   /**
-   * Polls a document every POLL_MS until the backend is done with it. A failed poll is not a failed
-   * document: the card keeps its last state, the wait doubles up to MAX_BACKOFF_MS, and polling goes
-   * on. One console warning marks the start of each error streak. A document the backend no longer
-   * has (deleted meanwhile) is not followed any further.
+   * The current state of a followed document for the live feed: document.updated, or
+   * document.deleted when the backend no longer has it (deleted meanwhile). Other failures reject.
    */
-  async function poll(first: DocumentSummary, onUpdate: (doc: DocumentSummary) => void): Promise<void> {
-    let errors = 0;
-    for (;;) {
-      try {
-        const d = await fetchDocument(first.id);
-        const doc = summarise(d);
-        onUpdate({
-          ...doc,
-          ...(first.uploaded ? { uploaded: true } : {}),
-          ...(first.uploadedAgain ? { uploadedAgain: true } : {}),
-          duplicateOf: doc.duplicateOf ?? first.duplicateOf,
-        });
-        if (isTerminal(d.status)) return;
-        errors = 0;
-      } catch (e) {
-        if (isApiError(e, 'document_not_found')) {
-          console.warn(`Document ${first.id} no longer exists on the backend; stopped following it.`);
-          return;
-        }
-        if (errors === 0) console.warn(`Following document ${first.id} failed (${errorText(e)}); retrying with backoff.`);
-        errors += 1;
-      }
-      await sleep(errors ? Math.min(POLL_MS * 2 ** (errors - 1), MAX_BACKOFF_MS) : POLL_MS);
+  async function refetch(id: string): Promise<LiveEvent> {
+    try {
+      return { type: 'document.updated', document: summarise(await fetchDocument(id)) };
+    } catch (e) {
+      if (!isApiError(e, 'document_not_found')) throw e;
+      forgetDocument(id);
+      console.warn(`Document ${id} no longer exists on the backend; stopped following it.`);
+      return { type: 'document.deleted', documentId: id };
     }
   }
 
-  /** Follows a document until the backend is done with it; a second call for it is ignored. */
-  function follow(first: DocumentSummary, onUpdate: (doc: DocumentSummary) => void): void {
-    if (following.has(first.id)) return;
-    following.add(first.id);
-    void poll(first, onUpdate).finally(() => following.delete(first.id));
+  /** One event's data as a LiveEvent; a document.updated keeps the source's document cache current. */
+  function adaptEvent(type: string, data: unknown): LiveEvent | null {
+    const event = adaptLiveEvent(type, data, summarise);
+    if (event?.type === 'document.deleted') forgetDocument(event.documentId);
+    return event;
+  }
+
+  /**
+   * The server's answer to one upload. A new document (202) is a pending summary named after the
+   * file, with the typed project. Bytes uploaded before (200 with duplicate_of) give the earlier
+   * document, marked as uploaded again: as the source knows it, else fetched once (nothing is
+   * reprocessed, so no update would ever bring it), else a summary named after the file. Usually the
+   * answer's document_id is that earlier document itself: a document is never "a duplicate of itself".
+   */
+  async function uploadResult(file: File, project: string | null, status: number, res: WireUploadAccepted): Promise<UploadResult> {
+    const other = res.duplicate_of != null && res.duplicate_of !== res.document_id ? res.duplicate_of : null;
+    if (status !== 200 || res.duplicate_of == null) {
+      const pending = { ...pendingDocument(res.document_id, file.name, res.status), project: project ?? '' };
+      return { document: { ...pending, uploaded: true, duplicateOf: other }, duplicate: false };
+    }
+    const known = docs.get(res.document_id) ?? (await fetchDocument(res.document_id).catch(() => undefined));
+    const earlier = known ? summarise(known) : pendingDocument(res.document_id, file.name, res.status);
+    const own = earlier.duplicateOf === earlier.id ? null : earlier.duplicateOf;
+    return { document: { ...earlier, uploaded: true, uploadedAgain: true, duplicateOf: other ?? own }, duplicate: true };
+  }
+
+  /**
+   * Sends one file with XMLHttpRequest (fetch has no upload progress). The answer is mapped like
+   * every other request; cancel() aborts the transfer until the server has answered.
+   */
+  function sendFile(file: File, project: string | null, onProgress?: (p: UploadProgress) => void): UploadHandle {
+    let answered = false;
+    let settle!: { resolve: (r: UploadResult) => void; reject: (e: unknown) => void };
+    const done = new Promise<UploadResult>((resolve, reject) => {
+      settle = { resolve, reject };
+    });
+    const fail = (e: unknown) => {
+      if (answered) return;
+      answered = true;
+      settle.reject(e);
+    };
+    const xhr = new XMLHttpRequest();
+    const progress = (e: ProgressEvent) => {
+      if (answered || !onProgress) return;
+      const total = e.lengthComputable && e.total > 0 ? e.total : file.size;
+      onProgress({ loaded: Math.min(e.loaded, total), total });
+    };
+    xhr.upload.onprogress = progress;
+    xhr.upload.onload = progress;
+    xhr.onload = () => {
+      if (answered) return;
+      answered = true;
+      const res: Answer = {
+        status: xhr.status,
+        contentType: xhr.getResponseHeader('content-type'),
+        json: async () => JSON.parse(xhr.responseText) as unknown,
+      };
+      bodyOf<WireUploadAccepted>(base, 'POST', '/documents', res)
+        .then((accepted) => uploadResult(file, project, xhr.status, accepted))
+        .then((result) => {
+          // The source follows what it accepted while the backend works on it.
+          if (!isTerminal(result.document.status)) followed.add(result.document.id);
+          settle.resolve(result);
+        }, settle.reject);
+    };
+    xhr.onerror = () => fail(new UnreachableError(unreachableMessage(base)));
+    xhr.ontimeout = () => fail(new UnreachableError(unreachableMessage(base)));
+    xhr.onabort = () => fail(new UploadCancelledError(file.name));
+    const form = new FormData();
+    form.append('file', file);
+    if (project != null) form.append('project', project);
+    try {
+      xhr.open('POST', `${base}/documents`);
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.send(form);
+    } catch {
+      fail(new UnreachableError(unreachableMessage(base)));
+    }
+    return {
+      done,
+      cancel() {
+        if (answered) return;
+        xhr.abort();
+        fail(new UploadCancelledError(file.name));
+      },
+    };
   }
 
   /** Every borehole, following next_cursor until the list ends. */
@@ -366,6 +445,11 @@ export function createApiSource(base: string): DataSource {
       reportUnsourced(adapted);
       const boreholes = adapted.map((a) => a.borehole);
       const documents = docList.documents.map(summarise);
+      // Documents still being processed (e.g. after a reload during extraction) keep updating.
+      for (const d of docList.documents) {
+        if (isTerminal(d.status)) followed.delete(d.document_id);
+        else followed.add(d.document_id);
+      }
       return { boreholes, documents };
     },
 
@@ -403,41 +487,20 @@ export function createApiSource(base: string): DataSource {
       };
     },
 
-    async upload(files, onUpdate, options) {
-      const refused: { file: File; error: ApiError }[] = [];
-      for (const file of files) {
-        const form = new FormData();
-        form.append('file', file);
-        if (options?.project != null) form.append('project', options.project);
-        let res: WireUploadAccepted;
-        try {
-          res = await request<WireUploadAccepted>('POST', '/documents', form);
-        } catch (e) {
-          // Demo mode refuses every file and an unreachable backend takes none: stop. Otherwise the
-          // server refused this file only (type, size): send the others and name it at the end.
-          if (!isApiError(e) || e.code === 'demo_mode') throw e;
-          refused.push({ file, error: e });
-          continue;
-        }
-        // A 200 answer for bytes uploaded before names the earlier document, usually as its own id
-        // (document_id = duplicate_of): then this is that document, not a new one and not a duplicate
-        // of itself, and its card keeps what the source knows of it.
-        const earlier = res.duplicate_of != null ? docs.get(res.document_id) : undefined;
-        const base = earlier ? summarise(earlier) : { ...pendingDocument(res.document_id, file.name, res.status), project: options?.project ?? '' };
-        const other = res.duplicate_of != null && res.duplicate_of !== res.document_id ? res.duplicate_of : null;
-        const again = res.duplicate_of != null && res.duplicate_of === res.document_id;
-        const first: DocumentSummary = {
-          ...base, uploaded: true, ...(again ? { uploadedAgain: true } : {}), duplicateOf: other ?? base.duplicateOf,
-        };
-        onUpdate(first);
-        follow(first, onUpdate);
-      }
-      if (refused.length) throw uploadError(refused);
+    thumbnailUrl(documentId, page) {
+      return `${base}/documents/${enc(documentId)}/pages/${enc(String(page))}.png?w=${THUMBNAIL_WIDTH}`;
     },
 
-    watch(documentId, onUpdate) {
-      const d = docs.get(documentId);
-      follow(d ? summarise(d) : pendingDocument(documentId, documentId, 'queued'), onUpdate);
+    upload(file, { project, onProgress }) {
+      return sendFile(file, project, onProgress);
+    },
+
+    subscribe(onEvent, onStatus) {
+      return openLiveFeed({ url: `${base}/events`, followed, adapt: adaptEvent, refetch }, onEvent, onStatus);
+    },
+
+    follow(documentId) {
+      followed.add(documentId);
     },
 
     updateValue(uid, key, patch) {
@@ -459,6 +522,7 @@ export function createApiSource(base: string): DataSource {
 
     async retry(documentId) {
       await request<WireUploadAccepted>('POST', `/documents/${enc(documentId)}/retry`);
+      followed.add(documentId);
     },
 
     async crsCandidates(documentId) {

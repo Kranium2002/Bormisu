@@ -1,13 +1,13 @@
 // DEMO ONLY: fictional sample data. Used only when VITE_DATA_SOURCE=sample. Not part of the production data path.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import dinCodes from '@din/din_codes.json';
-import { ApiError, SaveError } from '../data/errors';
+import { ApiError, SaveError, UploadCancelledError } from '../data/errors';
 import { K } from '../domain/keys';
 import { pageUsageText } from '../domain/pages';
 import { cleanKeys, deriveReviewStatus, displayStatus } from '../domain/status';
-import type { Borehole, BoreholeStatus, DocumentSummary } from '../domain/types';
+import type { Borehole, BoreholeStatus, LiveEvent, LiveStatus, UploadProgress, UploadResult } from '../domain/types';
 import { fmtN, hashS, mulberry32, wrapT } from './generate';
-import { createSampleSource } from './sampleSource';
+import { createSampleSource, SAMPLE_UPLOAD_MS } from './sampleSource';
 
 const load = () => createSampleSource().load();
 const byId = (bs: Borehole[], id: string) => bs.find((b) => b.id === id) as Borehole;
@@ -236,17 +236,81 @@ describe('sample source mutations', () => {
     expect(reset.values.find((v) => v.key === K.finalDepth)?.flag).toBeUndefined();
   });
 
-  it('simulates upload progress 0 → 1 → 2 with the dropped project', async () => {
+  const pdf = (name = 'report.pdf') => new File(['%PDF-1.4 fictional sample upload'], name, { type: 'application/pdf' });
+
+  it('simulates byte progress over about a second, then the server accepts a simulated document with the dropped project', async () => {
     vi.useFakeTimers();
     const src = createSampleSource();
-    const seen: DocumentSummary[] = [];
-    await src.upload([new File(['x'], 'report.pdf')], (d) => seen.push(d), { project: 'Dropped folder (fictional)' });
-    vi.advanceTimersByTime(1800);
-    vi.advanceTimersByTime(3400);
-    expect(seen.map((d) => [d.step, d.status])).toEqual([[0, 'classifying'], [1, 'extracting'], [2, 'needs_review']]);
-    expect(seen.map((d) => d.pages.filter((p) => p.classified).length)).toEqual([2, 9, 18]);
+    const progress: UploadProgress[] = [];
+    const file = pdf();
+    const handle = src.upload(file, { project: 'Dropped folder (fictional)', onProgress: (p) => progress.push(p) });
+    let result: UploadResult | undefined;
+    void handle.done.then((r) => (result = r));
+    await vi.advanceTimersByTimeAsync(SAMPLE_UPLOAD_MS - 1);
+    expect(result).toBeUndefined();
+    expect(progress.length).toBeGreaterThanOrEqual(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(progress.length).toBeGreaterThanOrEqual(3);
+    expect(progress.every((p) => p.total === file.size)).toBe(true);
+    expect(progress.map((p) => p.loaded)).toEqual([...progress.map((p) => p.loaded)].sort((a, b) => a - b));
+    expect(progress.at(-1)).toEqual({ loaded: file.size, total: file.size });
+    expect(result).toMatchObject({
+      duplicate: false,
+      document: { name: 'report.pdf', status: 'classifying', step: 0, project: 'Dropped folder (fictional)', uploaded: true, simulated: true },
+    });
     const { documents } = await src.load();
-    expect(documents[0]).toMatchObject({ name: 'report.pdf', simulated: true, step: 2, project: 'Dropped folder (fictional)' });
+    expect(documents[0]).toMatchObject({ id: result?.document.id, name: 'report.pdf' });
+    expect(documents).toHaveLength(4);
+  });
+
+  it('subscribe is live at once and brings the simulated steps 1.8 s and 5.2 s after the upload was accepted', async () => {
+    vi.useFakeTimers();
+    const src = createSampleSource();
+    const events: LiveEvent[] = [];
+    const statuses: LiveStatus[] = [];
+    const unsubscribe = src.subscribe((e) => events.push(e), (s) => statuses.push(s));
+    expect(statuses).toEqual(['live']);
+    const handle = src.upload(pdf(), { project: null });
+    await vi.advanceTimersByTimeAsync(SAMPLE_UPLOAD_MS);
+    const { document } = await handle.done;
+    expect(document.pages.filter((p) => p.classified)).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1800 - 1);
+    expect(events).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(3400);
+    const docs = events.map((e) => (e.type === 'document.updated' ? e.document : null));
+    expect(docs.map((d) => [d?.id, d?.step, d?.status])).toEqual([[document.id, 1, 'extracting'], [document.id, 2, 'needs_review']]);
+    expect(docs.map((d) => d?.pages.filter((p) => p.classified).length)).toEqual([9, 18]);
+    expect(docs[1]).toMatchObject({ simulated: true, uploaded: true, project: '' });
+    expect((await src.getDocument(document.id)).status).toBe('needs_review');
+    unsubscribe();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(events).toHaveLength(2);
+  });
+
+  it('cancel() before the end rejects with UploadCancelledError and adds no document; after the end it does nothing', async () => {
+    vi.useFakeTimers();
+    const src = createSampleSource();
+    const onProgress = vi.fn();
+    const handle = src.upload(pdf(), { project: null, onProgress });
+    await vi.advanceTimersByTimeAsync(SAMPLE_UPLOAD_MS / 2);
+    const ticks = onProgress.mock.calls.length;
+    handle.cancel();
+    await expect(handle.done).rejects.toBeInstanceOf(UploadCancelledError);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(onProgress).toHaveBeenCalledTimes(ticks);
+    expect((await src.load()).documents).toHaveLength(3);
+    const finished = src.upload(pdf('second.pdf'), { project: null });
+    await vi.advanceTimersByTimeAsync(SAMPLE_UPLOAD_MS);
+    finished.cancel();
+    await expect(finished.done).resolves.toMatchObject({ document: { name: 'second.pdf' } });
+    expect(vi.getTimerCount()).toBe(2); // the two simulated steps of second.pdf
+  });
+
+  it('has no page images and nothing to follow', () => {
+    const src = createSampleSource();
+    expect(src.thumbnailUrl('nb', 1)).toBeNull();
+    expect(() => src.follow('nb')).not.toThrow();
   });
 });
 

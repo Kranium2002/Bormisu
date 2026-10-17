@@ -57,16 +57,58 @@ export function hasSchema(name: string): boolean {
 }
 
 /**
+ * The `data` of each server-sent event (contracts/realtime-and-chat.md section 1): `document.updated`
+ * carries a full Document, `clarification.created` a full Clarification, the others the small objects
+ * of the table. Extra fields are allowed (additive changes inside 1.x); a renamed or missing field is not.
+ */
+export const EVENT_SCHEMAS: Readonly<Record<string, object>> = {
+  'document.updated': { $ref: '#/components/schemas/Document' },
+  'document.deleted': {
+    type: 'object', required: ['document_id'], properties: { document_id: { type: 'string', minLength: 1 } },
+  },
+  'borehole.created': {
+    type: 'object',
+    required: ['uid', 'document_id', 'revision', 'plotted'],
+    properties: {
+      uid: { type: 'string', minLength: 1 }, document_id: { type: 'string', minLength: 1 },
+      revision: { type: 'integer', minimum: 1 }, plotted: { type: 'boolean' },
+    },
+  },
+  'borehole.updated': {
+    type: 'object',
+    required: ['uid', 'revision'],
+    properties: { uid: { type: 'string', minLength: 1 }, revision: { type: 'integer', minimum: 1 } },
+  },
+  'clarification.created': { $ref: '#/components/schemas/Clarification' },
+  'clarification.resolved': {
+    type: 'object',
+    required: ['clarification_id', 'status'],
+    properties: { clarification_id: { type: 'string', minLength: 1 }, status: { enum: ['answered', 'skipped'] } },
+  },
+  'job.failed': {
+    type: 'object',
+    required: ['document_id', 'stage', 'detail', 'retryable'],
+    properties: {
+      document_id: { type: 'string', minLength: 1 }, stage: { type: 'string' }, detail: { type: 'string' }, retryable: { type: 'boolean' },
+    },
+  },
+};
+
+/**
  * A validator for a schema reference: a components.schemas name ("BoreholeRecord"), an array of one
- * ("array:BoreholeRecord"), or an operation's response ("response:approveClean:200").
+ * ("array:BoreholeRecord"), an operation's response ("response:approveClean:200"), or the data of a
+ * server-sent event ("event:borehole.created", see EVENT_SCHEMAS).
  */
 export function validatorFor(ref: string): ValidateFunction {
   const known = compiled.get(ref);
   if (known) return known;
   let fn: ValidateFunction | undefined;
   const [kind, a, b] = ref.split(':');
+  const eventType = ref.slice('event:'.length);
   if (kind === 'array' && hasSchema(a)) {
     fn = ajv.compile({ type: 'array', items: { $ref: `${DOC_ID}#/components/schemas/${a}` } });
+  } else if (kind === 'event' && Object.prototype.hasOwnProperty.call(EVENT_SCHEMAS, eventType)) {
+    fn = ajv.compile(rebase(EVENT_SCHEMAS[eventType]) as object);
   } else if (kind === 'response' && a && b) {
     fn = ajv.compile(rebase(responseSchema(a, b)) as object);
   } else if (hasSchema(ref)) {

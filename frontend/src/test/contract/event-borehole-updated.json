@@ -1,0 +1,8 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "event:borehole.updated",
+  "example": {
+    "uid": "bh_01JFICT00000000000000HL01",
+    "revision": 5
+  }
+}

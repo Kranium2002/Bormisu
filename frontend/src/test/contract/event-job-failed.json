@@ -1,0 +1,10 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "event:job.failed",
+  "example": {
+    "document_id": "doc_01JFICT0000000000000000D3",
+    "stage": "classify",
+    "detail": "The file could not be read as an image.",
+    "retryable": true
+  }
+}

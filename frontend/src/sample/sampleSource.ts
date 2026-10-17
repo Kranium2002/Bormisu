@@ -1,7 +1,10 @@
 // DEMO ONLY: fictional sample data. Used only when VITE_DATA_SOURCE=sample. Not part of the production data path.
-/** DataSource over the fictional sample: in-memory, mutations persist for the session, simulated uploads. */
+/**
+ * DataSource over the fictional sample: in-memory, mutations persist for the session, simulated
+ * uploads (byte progress, then document.updated events to the subscribers).
+ */
 import type { DataSource } from '../data/DataSource';
-import { ApiError, SaveError } from '../data/errors';
+import { ApiError, SaveError, UploadCancelledError } from '../data/errors';
 import { K } from '../domain/keys';
 import { pageUsageText, placeholderPage } from '../domain/pages';
 import { applyValuePatch } from '../domain/review';
@@ -13,16 +16,21 @@ import type {
   DocumentSummary,
   ExtractedValue,
   Health,
+  LiveEvent,
   PageContent,
   PageItem,
   PageType,
+  UploadResult,
 } from '../domain/types';
 import { crsCandidatesFor, EQ_DOC_ID, EQ_FILE, FIRST_GENERATED_PAGE, REPORT_TITLES, sampleDocuments, type PrintedIds } from './documents';
 import { generateBorehole, makeSeeds, type Placement, type Seed } from './generate';
 import { genericPage, pageMap } from './helpers';
 import { bk07, bk07Sheet, BK07_PAGES, NB_DOC_ID, NB_FILE } from './neckarbogen';
 
-/** Simulated upload timings, as in the prototype (ms after the drop). */
+/** Simulated transfer of one upload (ms), reported in UPLOAD_TICKS progress steps. */
+export const SAMPLE_UPLOAD_MS = 1000;
+const UPLOAD_TICKS = 4;
+/** Simulated processing timings, as in the prototype (ms after the upload was accepted). */
 const STEP1_MS = 1800;
 const STEP2_MS = 5200;
 
@@ -119,6 +127,56 @@ export function createSampleSource(): DataSource {
     return candidates.get(documentId) as CrsCandidate[];
   };
   const ofDocument = (documentId: string) => [...byUid.values()].filter((b) => b.documentId === documentId);
+  /** The subscribers' event handlers. */
+  const listeners = new Set<(event: LiveEvent) => void>();
+  let uploads = 0;
+
+  /**
+   * The simulated server accepts an uploaded file: a new document in classification, which reaches
+   * extraction after STEP1_MS and review after STEP2_MS, each step announced as document.updated.
+   */
+  const accept = (file: File, project: string | null): DocumentSummary => {
+    uploads += 1;
+    const id = `u${Date.now()}${uploads}`;
+    const n = 8 + (file.name.length % 14);
+    const set = (patch: Partial<DocumentSummary>) => {
+      docs = docs.map((d) => (d.id === id ? { ...d, ...patch } : d));
+      const doc = docs.find((d) => d.id === id);
+      if (!doc) return;
+      for (const listener of [...listeners]) listener({ type: 'document.updated', document: structuredClone(doc) });
+    };
+    const opts = { language: 'de', handwriting: 'none' as const };
+    const first: DocumentSummary = {
+      id, name: file.name, project: project ?? '', status: 'classifying',
+      pages: pageMap('CT' + '?'.repeat(n - 2), opts),
+      step: 0, progress: { pagesTotal: n, pagesClassified: 2, pagesOcrTotal: 0, pagesOcrDone: 0, boreholesExtracted: 0 },
+      counts: null, completeness: null, reviewBoreholeUid: null, openClarifications: 0, duplicateOf: null, error: null,
+      uploaded: true, simulated: true,
+    };
+    docs = [first, ...docs];
+    const half = Math.ceil(n / 2);
+    setTimeout(
+      () =>
+        set({
+          status: 'extracting', step: 1,
+          pages: pageMap('CT' + 'L'.repeat(half - 2) + '?'.repeat(n - half), opts),
+          progress: { pagesTotal: n, pagesClassified: half, pagesOcrTotal: half - 2, pagesOcrDone: 0, boreholesExtracted: 0 },
+        }),
+      STEP1_MS,
+    );
+    setTimeout(
+      () =>
+        set({
+          status: 'needs_review', step: 2,
+          pages: pageMap('CT' + 'L'.repeat(n - 6) + 'BBBP', opts),
+          progress: { pagesTotal: n, pagesClassified: n, pagesOcrTotal: n - 3, pagesOcrDone: n - 3, boreholesExtracted: Math.max(1, n - 9) },
+          counts: { boreholes: Math.max(1, n - 9), layers: (n - 6) * 4, spt: n - 4, groundwater: Math.max(0, n - 10) },
+          completeness: { listed: Math.max(1, n - 9), idPrefix: 'NEW-', missing: [], unexpected: [], lint: [] },
+        }),
+      STEP2_MS,
+    );
+    return structuredClone(first);
+  };
 
   return {
     kind: 'sample',
@@ -163,47 +221,47 @@ export function createSampleSource(): DataSource {
       };
     },
 
-    async upload(files, onUpdate, options) {
-      files.forEach((f, k) => {
-        const id = `u${Date.now()}${k}`;
-        const n = 8 + (f.name.length % 14);
-        const set = (patch: Partial<DocumentSummary>) => {
-          docs = docs.map((d) => (d.id === id ? { ...d, ...patch } : d));
-          const doc = docs.find((d) => d.id === id);
-          if (doc) onUpdate(structuredClone(doc));
-        };
-        const opts = { language: 'de', handwriting: 'none' as const };
-        const first: DocumentSummary = {
-          id, name: f.name, project: options?.project ?? 'New upload', status: 'classifying',
-          pages: pageMap('CT' + '?'.repeat(n - 2), opts),
-          step: 0, progress: { pagesTotal: n, pagesClassified: 2, pagesOcrTotal: 0, pagesOcrDone: 0, boreholesExtracted: 0 },
-          counts: null, completeness: null, reviewBoreholeUid: null, openClarifications: 0, duplicateOf: null, error: null,
-          uploaded: true, simulated: true,
-        };
-        docs = [first, ...docs];
-        onUpdate(structuredClone(first));
-        const half = Math.ceil(n / 2);
-        setTimeout(
-          () =>
-            set({
-              status: 'extracting', step: 1,
-              pages: pageMap('CT' + 'L'.repeat(half - 2) + '?'.repeat(n - half), opts),
-              progress: { pagesTotal: n, pagesClassified: half, pagesOcrTotal: half - 2, pagesOcrDone: 0, boreholesExtracted: 0 },
-            }),
-          STEP1_MS,
-        );
-        setTimeout(
-          () =>
-            set({
-              status: 'needs_review', step: 2,
-              pages: pageMap('CT' + 'L'.repeat(n - 6) + 'BBBP', opts),
-              progress: { pagesTotal: n, pagesClassified: n, pagesOcrTotal: n - 3, pagesOcrDone: n - 3, boreholesExtracted: Math.max(1, n - 9) },
-              counts: { boreholes: Math.max(1, n - 9), layers: (n - 6) * 4, spt: n - 4, groundwater: Math.max(0, n - 10) },
-              completeness: { listed: Math.max(1, n - 9), idPrefix: 'NEW-', missing: [], unexpected: [], lint: [] },
-            }),
-          STEP2_MS,
-        );
+    thumbnailUrl() {
+      // Sample pages are drawn, not served as images.
+      return null;
+    },
+
+    upload(file, { project, onProgress }) {
+      let answered = false;
+      let settle!: { resolve: (r: UploadResult) => void; reject: (e: unknown) => void };
+      const done = new Promise<UploadResult>((resolve, reject) => {
+        settle = { resolve, reject };
       });
+      const total = file.size;
+      const ticks = Array.from({ length: UPLOAD_TICKS }, (_, i) =>
+        setTimeout(() => {
+          onProgress?.({ loaded: Math.round((total * (i + 1)) / UPLOAD_TICKS), total });
+          if (i < UPLOAD_TICKS - 1) return;
+          answered = true;
+          settle.resolve({ document: accept(file, project), duplicate: false });
+        }, ((i + 1) * SAMPLE_UPLOAD_MS) / UPLOAD_TICKS),
+      );
+      return {
+        done,
+        cancel() {
+          if (answered) return;
+          answered = true;
+          for (const t of ticks) clearTimeout(t);
+          settle.reject(new UploadCancelledError(file.name));
+        },
+      };
+    },
+
+    subscribe(onEvent, onStatus) {
+      listeners.add(onEvent);
+      onStatus('live');
+      return () => {
+        listeners.delete(onEvent);
+      };
+    },
+
+    follow() {
+      // The simulated documents announce every step themselves.
     },
 
     async updateValue(uid, key, patch) {
