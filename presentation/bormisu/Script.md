@@ -18,14 +18,14 @@
 *(borehole map of Offenburg; every bubble is a cluster of boreholes)*
 
 > And you don't drill just one. In Offenburg alone, there are about 2,700 documented soil samples.
-> This data is all kept on one website. 
-> But even here, it doesn't follow one standard, and pieces are missing.
+> This data is all kept on one website.
+> However here comes the problem, doesn't follow one standard, and pieces are missing.
 
 ## 04 · World (~25 s)
 
 *(the map zooms out from Offenburg to the world; countries with Herrenknecht projects light up, one dot per machine)*
 
-> But Herrenknecht, one of Europe's hidden champions, doesn't only work in Offenburg. It works all over the world.
+> For Herrenknecht, the problem becomes way bigger because they not only work in offenb
 > They build the machines for the Paris Metro. The airport link in Hong Kong. And in South America, the new metro in Lima.
 
 ## 05 · Stuttgart 21 🤫 (~5 s)
