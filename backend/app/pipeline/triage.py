@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pypdfium2 as pdfium
-from PIL import Image, ImageOps, ImageSequence
+from PIL import Image, ImageChops, ImageFilter, ImageOps, ImageSequence
 
 RENDER_LONG_EDGE = 1600
 SOFT_HYPHEN_MARK = "￾"  # PDFium: hyphen at a line end
@@ -85,6 +85,27 @@ def dhash(img: Image.Image) -> str:
 
 def hamming(a: str, b: str) -> int:
     return (int(a, 16) ^ int(b, 16)).bit_count()
+
+
+def changed_share(a: Image.Image, b: Image.Image, *, long_edge: int, min_step: int) -> float:
+    """Share of pixels that differ clearly between two renders of a page, compared whole at `long_edge`.
+
+    A pixel counts when no pixel in its 3x3 neighbourhood in the other render comes within `min_step` grey
+    levels, both ways. A copy of one scan (re-encoded, rescaled, re-rendered) changes almost no pixel; the
+    same printed form filled in by another hand changes every pixel of the strokes that differ, which the
+    256-bit hash, made for the layout, cannot see.
+    """
+    scale = long_edge / max(a.width, a.height)
+    size = (max(1, round(a.width * scale)), max(1, round(a.height * scale)))
+    left = a.convert("L").resize(size, Image.Resampling.BOX)
+    right = b.convert("L").resize(size, Image.Resampling.BOX)
+
+    def one_way(x: Image.Image, y: Image.Image) -> int:
+        darker = ImageChops.subtract(y.filter(ImageFilter.MinFilter(3)), x)
+        lighter = ImageChops.subtract(x, y.filter(ImageFilter.MaxFilter(3)))
+        return sum(darker.histogram()[min_step:]) + sum(lighter.histogram()[min_step:])
+
+    return max(one_way(left, right), one_way(right, left)) / (size[0] * size[1])
 
 
 def text_quality(text: str) -> float | None:

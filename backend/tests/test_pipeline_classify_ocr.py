@@ -16,6 +16,7 @@ from app.pipeline.schemas import PageLabel
 from app.providers import ocr_mistral
 from app.providers.fakes import FakeClassifier, FakeOcrEngine, label
 from app.storage import get_storage, original_key
+from tests.form_factory import encoded, filled_form
 from tests.pdf_factory import TextItem, make_pdf
 
 pytestmark = pytest.mark.db
@@ -63,17 +64,17 @@ def rule(text: str) -> PageLabel:
     return label("narrative", confidence=0.4)  # low confidence: escalated
 
 
-async def _upload(data: bytes, doc_id: str) -> str:
+async def _upload(data: bytes, doc_id: str, *, suffix: str = ".pdf", mime: str = "application/pdf") -> str:
     digest = hashlib.sha256(data).hexdigest()
-    key = original_key(digest, ".pdf")
+    key = original_key(digest, suffix)
     get_storage().put_bytes(key, data)
     async with get_sessionmaker()() as session:
         session.add(
             Document(
                 id=doc_id,
-                file_name="fictional.pdf",
+                file_name=f"fictional{suffix}",
                 sha256=digest,
-                mime_type="application/pdf",
+                mime_type=mime,
                 size_bytes=len(data),
                 storage_key=key,
                 status="queued",
@@ -169,3 +170,33 @@ async def test_duplicate_pages_skip_the_classifier(db: None, fakes: Any) -> None
         # Every borehole page copies the first upload: the copy is marked once its pages are labelled.
         assert copy is not None and copy.duplicate_of == first
         assert original is not None and original.duplicate_of is None
+
+
+async def test_a_scanned_form_filled_in_by_another_hand_is_not_a_duplicate(db: None, fakes: Any) -> None:
+    """Scans have no text layer: a hash match alone never drops a page, the renders must be one scan."""
+    classifier, _engine = fakes
+    first = await _upload(
+        encoded(filled_form(1), "PNG"), "doc_01JFAKE0000000000000CLAS4", suffix=".png", mime="image/png"
+    )
+    await run_pipeline(first)
+    # The same form pad, other entries: the hash is as close as a copy's, the strokes are not.
+    other = await _upload(
+        encoded(filled_form(2), "PNG"), "doc_01JFAKE0000000000000CLAS5", suffix=".png", mime="image/png"
+    )
+    calls = classifier.calls
+    await run_pipeline(other)
+    page = (await _pages(other))[1]
+    assert page.role != "duplicate" and page.duplicate_of_doc is None
+    assert classifier.calls > calls
+    # The first scan again, re-encoded as a JPEG: a copy.
+    copy = await _upload(
+        encoded(filled_form(1), "JPEG", quality=60),
+        "doc_01JFAKE0000000000000CLAS6",
+        suffix=".jpg",
+        mime="image/jpeg",
+    )
+    calls = classifier.calls
+    await run_pipeline(copy)
+    page = (await _pages(copy))[1]
+    assert page.role == "duplicate" and (page.duplicate_of_doc, page.duplicate_of_n) == (first, 1)
+    assert classifier.calls == calls

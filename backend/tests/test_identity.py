@@ -220,3 +220,19 @@ def test_a_unique_depth_row_names_a_sheet_but_never_a_taken_or_shared_id() -> No
     taken = pair("704", (5,), [block(5, 1, "Hull nr 704")])
     items = reconcile([taken, sheet], Tables(LISTED, frozenset({1})))
     assert sorted(i.group.label_raw or "" for i in items) == ["704", "Driller AS"]
+
+
+def test_without_coordinates_logs_of_one_label_that_each_start_at_the_top_stay_apart() -> None:
+    """A form numbered per site ("HA-1" beside every main hole): logs over the same depths are other holes;
+    a further sheet read on its own goes on below and still merges."""
+    top = [("0.00", "0.80", "Topsoil"), ("0.80", "3.00", "Silty clay")]
+    deeper = [("3.00", "6.50", "Sandy silt")]
+    parts = [
+        pair("HA-1", (3,), [block(3, 1, "HA-1")], top),
+        pair("HA-1", (4,), [block(4, 1, "HA-1")], deeper),  # its further sheet
+        pair("HA-1", (9,), [block(9, 1, "HA-1")], [("0.00", "1.20", "Fill"), ("1.20", "2.50", "Clay")]),
+        pair("HA-1", (14,), [block(14, 1, "HA-1")], top),
+    ]
+    items = reconcile(parts, {})
+    assert [i.group.key for i in items] == ["HA-1:p3-p4", "HA-1:p9", "HA-1:p14"]
+    assert [layer.from_raw.raw for layer in items[0].outcome.result.layers] == ["0.00", "0.80", "3.00"]
