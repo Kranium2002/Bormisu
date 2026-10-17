@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { adaptBorehole, type WireBorehole } from '../../data/adapters';
 import { K } from '../../domain/keys';
-import type { Box, CrsCandidate } from '../../domain/types';
+import { initialFocusKey } from '../../domain/review';
+import type { Borehole, Box, CrsCandidate } from '../../domain/types';
+import { fixture } from '../../test/contract/wire';
 import { makeBorehole, makeMeta, makeValue } from '../../test/fixtures';
 import {
   boxVariant,
+  crsActionKey,
   crsIntro,
   fieldNote,
   normalisedText,
@@ -204,5 +208,47 @@ describe('siblings', () => {
     const mk = (id: string, documentId: string | null = 'doc') => makeBorehole({ uid: `bh_${id}`, id, documentId });
     const all = [mk('BK-10'), mk('BK-2'), mk('X-1', 'other'), mk('BK-1')];
     expect(siblings(all, all[0]).map((b) => b.id)).toEqual(['BK-1', 'BK-2', 'BK-10']);
+  });
+});
+
+describe('uiv-14: a coordinate system that was not printed can still be chosen in Review', () => {
+  /** The fictional fixture shaped like a seeded log without a printed system: inferred, no CRS value. */
+  function unprinted(): Borehole {
+    const w = fixture<WireBorehole>('borehole');
+    w.crs_status = 'inferred';
+    w.plotted = false;
+    w.unplotted_reason = 'crs_unconfirmed';
+    w.metadata.coordinates = { ...w.metadata.coordinates, coordinate_system: null, crs_code: null, latitude: null, longitude: null };
+    delete w.provenance['metadata.coordinates.coordinate_system'];
+    return adaptBorehole(w).borehole;
+  }
+
+  it('offers CHOOSE CRS… on the X / Y row when the record has no CRS value', () => {
+    const b = unprinted();
+    expect(b.values.some((v) => v.kind === 'crs')).toBe(false);
+    expect(crsActionKey(b)).toBe(K.xy);
+    expect(initialFocusKey(b)).toBe(K.xy);
+  });
+
+  it('keeps it on the CRS row when there is one', () => {
+    const b = makeBorehole({ crs: { name: 'X', code: null, status: 'inferred' } });
+    b.values = [...b.values, makeValue({ key: K.xy }), makeValue({ key: K.crs, kind: 'crs' })];
+    expect(crsActionKey(b)).toBe(K.crs);
+  });
+
+  it('offers nothing without coordinates', () => {
+    const b = makeBorehole();
+    expect(crsActionKey(b)).toBeNull();
+  });
+});
+
+describe('uiv-6: a value with a source entry but no page', () => {
+  it('the caption says it is on no page instead of "box not found, page shown"', () => {
+    const guessed = makeValue({ key: 'c', label: 'Country', page: null, box: null, method: 'Guessed' });
+    expect(scanCaption(2, [2], guessed)).toEqual({ text: 'Country: guessed, not printed on a page', tone: 'warn' });
+    const derived = makeValue({ key: 'lat', label: 'Latitude', page: null, box: null, method: 'Derived' });
+    expect(scanCaption(2, [2], derived)).toEqual({ text: 'Latitude: derived, not printed on a page', tone: 'warn' });
+    const read = makeValue({ key: 'x', label: 'Casing', page: null, box: null, method: 'Read' });
+    expect(scanCaption(2, [2], read)).toEqual({ text: 'Casing: no page reference from the backend', tone: 'warn' });
   });
 });

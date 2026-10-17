@@ -7,6 +7,7 @@
  * - Clicking a pin opens a popup with OPEN DETAIL ›.
  * - A new `focus` signal (header search) flies to the borehole and opens its popup.
  * - App unmounts the screen on navigation, so the view is kept in a module variable and restored.
+ * - The first view fits the pins, or shows the whole world while nothing is plotted.
  */
 import * as L from 'leaflet';
 import { useEffect, useRef } from 'react';
@@ -15,7 +16,16 @@ import type { Borehole, BoreholeStatus } from '../../domain/types';
 import type { MapFocus } from '../../store/appStore';
 import { pinColor } from '../../theme';
 import styles from './BoreholeMap.module.css';
-import { depthText, GERMANY_BOUNDS, GERMANY_CENTER, initialBounds, isPlotted, PIN_RADIUS, popupCrsWarning } from './mapModel';
+import {
+  depthText,
+  initialBounds,
+  isPlotted,
+  PIN_RADIUS,
+  popupCrsWarning,
+  WORLD_BOUNDS,
+  WORLD_CENTER,
+  WORLD_ZOOM,
+} from './mapModel';
 import { buildPopup } from './mapPopup';
 
 /** Prototype timings: fly 60 ms after the request, open the popup once the 0.8 s flight is over. */
@@ -62,12 +72,12 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, onOpen }
     const el = containerRef.current;
     if (!el) return;
     const map = L.map(el, { scrollWheelZoom: true, zoomSnap: 0.25 });
-    // Germany as in the prototype, or the pins' bounds when some lie outside it.
+    // The pins' bounds, or the whole world while nothing is plotted: no country is built in.
     const bounds = initialBounds(latest.current.boreholes);
-    const germany = bounds === GERMANY_BOUNDS;
+    const world = bounds === WORLD_BOUNDS;
     if (savedView) map.setView(savedView.center, savedView.zoom);
-    else if (el.clientWidth > 0 && el.clientHeight > 0) map.fitBounds(bounds, germany ? {} : { padding: [24, 24], maxZoom: 13 });
-    else map.setView(germany ? GERMANY_CENTER : L.latLngBounds(bounds).getCenter(), 6);
+    else if (el.clientWidth > 0 && el.clientHeight > 0) map.fitBounds(bounds, world ? {} : { padding: [24, 24], maxZoom: 13 });
+    else map.setView(world ? WORLD_CENTER : L.latLngBounds(bounds).getCenter(), world ? WORLD_ZOOM : 6);
     osmTileLayer().addTo(map);
     mapRef.current = map;
 

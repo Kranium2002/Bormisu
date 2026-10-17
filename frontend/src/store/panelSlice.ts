@@ -52,7 +52,9 @@ export const createPanelSlice: SliceCreator<PanelSlice> = ({ set, get, find }) =
       set({ panel: { kind: 'source', uid, key, documentId: b.documentId, page: null, box: null, cell: v.cell } });
       return;
     }
-    set({ panel: { kind: 'source', uid, key, documentId: b.documentId, page: v?.page ?? b.primaryPage, box: v?.box ?? null } });
+    // A value whose source entry names no page (guessed, derived) is on no page: none is made up for it.
+    const page = v ? v.page : b.primaryPage;
+    set({ panel: { kind: 'source', uid, key, documentId: b.documentId, page, box: v?.box ?? null } });
   },
 
   openPage(documentId, page) {

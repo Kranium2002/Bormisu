@@ -72,7 +72,7 @@ docker build -f frontend/Dockerfile --build-arg VITE_APP_NAME="Borehole Desk" \
 
 - **Stage 1** (`node:22-alpine`): `npm ci`, then `npm run build` in API mode (`VITE_DATA_SOURCE=api`, `VITE_API_BASE=/api/v1`) and `npm run check:dist`, which fails the build if sample data got in. `Dockerfile.dockerignore` sends only `frontend/` and `assets/din4023_patterns/` and never any `.env` file.
 - **Stage 2** (`nginx:1.30.6-alpine`): serves `dist/` with `nginx.conf`. No keys or secrets are in the image.
-- **nginx:** client-side routes fall back to `index.html` (deep links work); hashed `/assets/` are cached for a year, `index.html` is revalidated; text, JSON, SVG and GeoJSON are gzipped. `/api/` goes to the API with a 200 MB upload limit (a larger upload gets the API's JSON 413, `code: too_large`). `/api/v1/events` and `/api/v1/chat` stream unbuffered with an hour's read timeout.
+- **nginx:** client-side routes fall back to `index.html` (deep links work); hashed `/assets/` are cached for a year, `index.html` is revalidated; text, JSON, SVG and GeoJSON are gzipped. `/api/` goes to the API with a 200 MB upload limit (the request body may be 201 MB, for the multipart framing around a file just under the limit; a larger upload gets the API's JSON 413, `code: too_large`). `/api/v1/events` and `/api/v1/chat` stream unbuffered with an hour's read timeout.
 - **API upstream:** `API_UPSTREAM` (default `http://api:8000`, scheme, host and port only) and `API_RESOLVER` (default `127.0.0.11`, Docker's DNS) are read at container start. The host is resolved per request, so the web container starts and serves the app while the API is down; `/api` then answers 502 and the app shows "backend unreachable".
 - **Health check:** `GET /healthz` inside the container.
 

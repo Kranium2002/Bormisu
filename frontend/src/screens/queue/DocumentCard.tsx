@@ -4,7 +4,7 @@ import type { DocumentProgress, DocumentSummary } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import styles from './DocumentCard.module.css';
 import { PageStrip } from './PageStrip';
-import { canOpenReview, countChips, docHint, docMeta, duplicateText, progressView, questionsText } from './queueView';
+import { canOpenReview, countChips, docHint, docMeta, duplicateText, isSelfDuplicate, progressView, questionsText } from './queueView';
 import { StatusSteps } from './StatusSteps';
 
 /** Completeness chip ("Report lists 14 · extracted 13 · ⚠ 1 missing") that opens the Completeness panel. */
@@ -91,7 +91,8 @@ export function DocumentCard({ doc, highlighted, onShowDocument }: Props) {
   const reviewable = canOpenReview(doc);
   const hint = docHint(doc);
   const duplicate = duplicateText(doc, documents);
-  const duplicateListed = !!doc.duplicateOf && documents.some((d) => d.id === doc.duplicateOf);
+  // A link only to another card: a duplicate of itself (an upload of the same bytes again) says so as text.
+  const duplicateListed = !!doc.duplicateOf && !isSelfDuplicate(doc) && documents.some((d) => d.id === doc.duplicateOf);
   const questions = questionsText(doc);
 
   const open = () => {

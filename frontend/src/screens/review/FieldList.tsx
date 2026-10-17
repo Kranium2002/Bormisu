@@ -3,7 +3,7 @@ import type { Borehole } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import { FieldRow } from './FieldRow';
 import styles from './ReviewScreen.module.css';
-import { fieldNote, normalisedText, reviewRows } from './reviewView';
+import { crsActionKey, fieldNote, normalisedText, reviewRows } from './reviewView';
 
 /** Space kept above a row scrolled into view (prototype: offsetTop - 60), clears the sticky column header. */
 const ROW_OFFSET = 60;
@@ -35,6 +35,8 @@ export function FieldList({ b }: { b: Borehole }) {
       ),
     [b],
   );
+  // CHOOSE CRS… sits on the CRS value, or on X / Y when the log printed no system.
+  const crsKey = useMemo(() => crsActionKey(b), [b]);
 
   // A new borehole starts at the top with its focused row in view; a list-scroll signal reveals its row.
   useEffect(() => {
@@ -72,7 +74,7 @@ export function FieldList({ b }: { b: Borehole }) {
             editing={editing?.key === r.value.key ? editing : null}
             normText={r.normText}
             note={r.note}
-            canChooseCrs={r.value.kind === 'crs'}
+            canChooseCrs={r.value.key === crsKey}
           />
         ),
       )}

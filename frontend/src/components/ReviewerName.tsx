@@ -13,7 +13,14 @@ export function ReviewerName() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const wrap = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const inputId = useId();
+
+  /** Closes the form from inside it (SAVE, Clear, Escape) and gives the focus back to the button. */
+  const closeToButton = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -31,18 +38,19 @@ export function ReviewerName() {
   const save = (e: FormEvent) => {
     e.preventDefault();
     setName(draft);
-    setOpen(false);
+    closeToButton();
   };
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return;
     // Closes only this form, not the overlays behind it.
     e.stopPropagation();
-    setOpen(false);
+    closeToButton();
   };
 
   return (
     <div ref={wrap} className={styles.nameWrap}>
       <button
+        ref={button}
         type="button"
         className={`${styles.nameButton} ${name ? '' : styles.nameUnset}`}
         aria-haspopup="dialog"
@@ -80,7 +88,7 @@ export function ReviewerName() {
                   className={styles.nameClear}
                   onClick={() => {
                     setName('');
-                    setOpen(false);
+                    closeToButton();
                   }}
                 >
                   Clear name

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { pageUsageText } from '../domain/pages';
-import { PAGE_H } from '../domain/types';
-import { useAppStore, useDocument, useIsReviewable, usePage, useValue, type SourcePanel as SourcePanelState } from '../store/appStore';
+import { PAGE_H, type DocumentSummary, type ExtractedValue } from '../domain/types';
+import { useAppStore, useDocument, useIsReviewable, usePage, useValue, type PageLoad, type SourcePanel as SourcePanelState } from '../store/appStore';
 import { PAGE_TYPE_META } from '../theme';
 import { MethodBadge } from './MethodBadge';
 import { ScanPage } from './ScanPage';
@@ -11,10 +11,19 @@ import styles from './SidePanel.module.css';
 /** The page is shown at 92 % so a 560 px page fits the 600 px panel. */
 const SCALE = 0.92;
 
+/** Why a value with a source entry has no page to show (guessed and derived values are not printed). */
+export function noPageNote(value: Pick<ExtractedValue, 'method'> | undefined): string {
+  if (value?.method === 'Guessed' || value?.method === 'Derived') {
+    return `Not printed on a page: this value was ${value.method.toLowerCase()}, so there is no page to show.`;
+  }
+  return 'No page reference from the backend for this value.';
+}
+
 /**
  * Source panel: the value's page with its box highlighted, the raw text and the method.
  * "Box not found: page shown" when the value has no box. A spreadsheet value shows its cell
- * reference ("Sheet!C5") instead of a page. OPEN IN REVIEW for reviewable values.
+ * reference ("Sheet!C5") instead of a page; a value on no page (guessed, derived) says so and shows
+ * none. OPEN IN REVIEW for reviewable values.
  */
 export function SourcePanel({ panel }: { panel: SourcePanelState }) {
   const value = useValue(panel.uid, panel.key);
@@ -24,8 +33,32 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
   const openReview = useAppStore((s) => s.openReview);
   const focusValue = useAppStore((s) => s.focusValue);
   const closePanel = useAppStore((s) => s.closePanel);
+
+  const openInReview = () => {
+    if (!panel.uid || !panel.key) return;
+    openReview(panel.uid);
+    focusValue(panel.key, true);
+    closePanel();
+  };
+
+  return <SourcePanelView panel={panel} value={value} doc={doc} page={page} onOpenInReview={reviewable ? openInReview : undefined} />;
+}
+
+interface ViewProps {
+  panel: SourcePanelState;
+  value: ExtractedValue | undefined;
+  doc: DocumentSummary | undefined;
+  page: PageLoad;
+  /** Shown as OPEN IN REVIEW when the value can be reviewed. */
+  onOpenInReview?: () => void;
+}
+
+/** What the Source panel shows, from the store's data (pure; rendered in tests without a store). */
+export function SourcePanelView({ panel, value, doc, page, onOpenInReview }: ViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const content = page.status === 'ready' ? page.content : null;
+  /** A value whose source entry names neither a page nor a cell. */
+  const onNoPage = !!value && panel.page == null && !panel.cell;
+  const content = page.status === 'ready' && !onNoPage ? page.content : null;
   const box = panel.box ?? null;
 
   // Show the page from the top (sheet header in view) unless the box would be below the fold.
@@ -41,35 +74,34 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
   const title = value ? value.label.toUpperCase() : `PAGE ${panel.page ?? ''}`.trim();
   const label = panel.cell
     ? `${doc?.name ?? 'spreadsheet'} · cell ${panel.cell}`
-    : (content?.label ?? `page ${panel.page}`);
+    : onNoPage
+      ? (doc?.name ?? '')
+      : (content?.label ?? `page ${panel.page}`);
   const pageInfo = panel.page != null ? doc?.pages.find((p) => p.n === panel.page) : undefined;
   const detail = value
     ? value.raw && `as printed: “${value.raw}”`
     : content && `${PAGE_TYPE_META[content.type].name} · ${pageInfo ? pageUsageText(pageInfo) : content.usage}`;
 
-  const openInReview = () => {
-    if (!panel.uid || !panel.key) return;
-    openReview(panel.uid);
-    focusValue(panel.key, true);
-    closePanel();
-  };
-
   return (
     <>
       <PanelHeader>
         <div className={styles.heading}>SOURCE · {title}</div>
-        <div className={styles.sub}>{label}</div>
+        {label && <div className={styles.sub}>{label}</div>}
         <div className={styles.meta}>
           {value?.method && <MethodBadge method={value.method} confidence={value.confidence} formula={value.formula} />}
           {detail && <span className={styles.raw}>{detail}</span>}
         </div>
-        {value && !box && !panel.cell && <div className={styles.noBox}>Box not found: page shown</div>}
+        {value && !box && !panel.cell && !onNoPage && <div className={styles.noBox}>Box not found: page shown</div>}
       </PanelHeader>
       <div ref={scrollRef} className={styles.scroll}>
         {panel.cell ? (
           <div className={styles.cellSource}>
             <div className={styles.cellRef}>{panel.cell}</div>
             <div className={styles.status}>Spreadsheet value: the source is this cell, so there is no page image.</div>
+          </div>
+        ) : onNoPage ? (
+          <div className={styles.cellSource}>
+            <div className={styles.status}>{noPageNote(value)}</div>
           </div>
         ) : (
           <>
@@ -85,9 +117,9 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
           </>
         )}
       </div>
-      {value && reviewable && (
+      {value && onOpenInReview && (
         <div className={styles.foot}>
-          <button type="button" className={styles.primary} onClick={openInReview}>
+          <button type="button" className={styles.primary} onClick={onOpenInReview}>
             OPEN IN REVIEW
           </button>
           <span className={styles.sub}>Esc to close</span>

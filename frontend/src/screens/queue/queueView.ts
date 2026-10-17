@@ -94,11 +94,21 @@ export function progressView(p: DocumentProgress): ProgressView {
   return { bars, boreholes: `${n} borehole${n === 1 ? '' : 's'} extracted` };
 }
 
-/** "Same file as <name>" for a duplicate upload, or a neutral text when the earlier document isn't listed. */
+/**
+ * "Same file as <name>" for a duplicate upload, or a neutral text when the earlier document isn't
+ * listed. The backend answers a duplicate upload with the existing document itself (document_id ==
+ * duplicate_of): that card says it was uploaded again instead of pointing at itself.
+ */
 export function duplicateText(d: DocumentSummary, all: DocumentSummary[]): string | null {
   if (!d.duplicateOf) return null;
+  if (isSelfDuplicate(d)) return 'Already uploaded: same bytes as this document';
   const original = all.find((x) => x.id === d.duplicateOf);
   return original ? `Same file as ${original.name}` : 'Same file as an earlier upload';
+}
+
+/** True when a duplicate answer names the document itself (the bytes were uploaded before as this document). */
+export function isSelfDuplicate(d: Pick<DocumentSummary, 'id' | 'duplicateOf'>): boolean {
+  return d.duplicateOf === d.id;
 }
 
 /** "3 open questions" badge text, or null when none are open. */

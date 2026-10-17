@@ -53,6 +53,17 @@ export function reviewRows(b: Borehole): ReviewRow[] {
   return rows;
 }
 
+/**
+ * The row that offers CHOOSE CRS…: the CRS value, else the X / Y value. A log that prints no
+ * coordinate system has no CRS value at all, and that is exactly the borehole whose system must be
+ * chosen. Null without coordinates.
+ */
+export function crsActionKey(b: Borehole): string | null {
+  const crs = b.values.find((v) => v.kind === 'crs');
+  if (crs) return crs.key;
+  return b.values.some((v) => v.key === K.xy) ? K.xy : null;
+}
+
 /** Keys of the field rows in list order (keyboard J / K). */
 export function rowKeys(rows: ReviewRow[]): string[] {
   return rows.flatMap((r) => (r.kind === 'field' ? [r.value.key] : []));
@@ -117,6 +128,12 @@ export function scanBoxes(
 
 export interface Caption { text: string; tone: 'normal' | 'warn' }
 
+/** Why a value with a source entry has no page: guessed or derived values are not printed. */
+export function noPageText(v: Pick<ExtractedValue, 'method'>): string {
+  if (v.method === 'Guessed' || v.method === 'Derived') return `${v.method.toLowerCase()}, not printed on a page`;
+  return 'no page reference from the backend';
+}
+
 /**
  * Caption under the scan: page and sheet; "box not found, page shown" for a focused value without a
  * box; the cell for a spreadsheet value; "no source reference" for a value without provenance.
@@ -126,6 +143,8 @@ export function scanCaption(page: number, sheets: number[], focused: ExtractedVa
     return { text: `${focused.label}: no source reference from the backend`, tone: 'warn' };
   }
   if (focused?.cell) return { text: `${focused.label}: spreadsheet cell ${focused.cell}, no page image`, tone: 'normal' };
+  // A value whose source entry names no page: the page shown is not its source.
+  if (focused && focused.page == null && focused.state === 'ok') return { text: `${focused.label}: ${noPageText(focused)}`, tone: 'warn' };
   if (focused && !focused.box && focused.state === 'ok') {
     return { text: `${focused.label}: box not found, page shown`, tone: 'warn' };
   }

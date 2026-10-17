@@ -24,7 +24,10 @@ export function ResultsTable({ boreholes, statuses, onOpen }: Props) {
         <h2 id="results-title" className={styles.title}>
           RESULTS
         </h2>
-        <div className={styles.summary}>{resultsSummary(boreholes)}</div>
+        {/* The count changes as documents finish extraction: screen readers hear it (FRONTEND.md section 6). */}
+        <div className={styles.summary} aria-live="polite">
+          {resultsSummary(boreholes)}
+        </div>
       </div>
       <div className={styles.scroll} role="table" aria-labelledby="results-title">
         <div className={`${styles.row} ${styles.header}`} role="row">
