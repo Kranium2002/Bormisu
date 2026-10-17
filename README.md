@@ -263,7 +263,7 @@ Bormisu is fully dockerized and runs on your own hardware:
 | `ollama` *(profile `ollama`)* | Local model server on the OpenAI-compatible API, internal only |
 
 - **Your data stays on the machine.** Originals, page renders, OCR output and the database live in named Docker volumes (`pgdata`, `storage`). Document content leaves the machine only in model calls, and with local models it doesn't leave at all.
-- **Local models with Ollama.** `docker compose --profile ollama up --build` adds the bundled Ollama service. Point the OpenAI-compatible route at it in `.env` (`OPENAI_API_KEY=ollama`, `OPENAI_BASE_URL=http://ollama:11434/v1`, `LLM_PROVIDER=openai`, `OCR_PROVIDER=openai`, `CHAT_MODEL=<pulled vision model>`; the full block is in the "Local models" section of [`.env.example`](.env.example)). The classifier, extractor, page reader and OCR then run on local models (pages with a text layer keep their word-level boxes). Pulled models persist in the `ollama` volume.
+- **Local models with Ollama.** `docker compose --profile ollama up --build` adds the bundled Ollama service. Point the OpenAI-compatible routes at it in `.env` (`OPENAI_API_KEY=ollama`, `OPENAI_BASE_URL=http://ollama:11434/v1`, `LLM_PROVIDER=openai`, `OCR_PROVIDER=openai_vision`, `CHAT_MODEL=<pulled vision model>`; the full block is in the "Local models" section of [`.env.example`](.env.example)). The classifier, extractor, page reader and OCR then run on local models, and OCR still returns text with boxes, so evidence boxes work on scans too. OpenRouter's own request fields are sent only to OpenRouter, so any other OpenAI-compatible server gets plain requests. Pulled models persist in the `ollama` volume.
 - **Air-gap friendly.**
   - `GEOCODER=none` turns off the place-search geocoder (only the typed query is ever sent to it).
   - `docker compose build --build-arg VITE_TILE_URL=…` points the basemap at an internal tile server.
@@ -383,7 +383,7 @@ No challenge or customer data is committed: no sample files, no values copied fr
 
 ## Credits
 
-The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-backend`, compared in [`MAIN_VS_BH3.md`](MAIN_VS_BH3.md)). It was ported to pypdfium2 and generalised to work without per-file rules. The backend calls it through `app/bh3/bridge.py` and falls back to the cited-text extractor page by page.
+The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-backend`, compared in [`MAIN_VS_BH3.md`](MAIN_VS_BH3.md)). It was ported to pypdfium2 and generalised to work without per-file rules. The backend calls it through `app/bh3/bridge.py` and falls back to the cited-text extractor for any borehole it cannot read.
 
 ## License
 
