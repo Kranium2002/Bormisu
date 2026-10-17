@@ -4,8 +4,6 @@
 
 ## 02 · Profile (~25 s)
 
-*(the DIN 4023 profile of one borehole, straight out of Bormisu)*
-
 > This glas of dirt and stones the key to building tunnels.
 > Its a soil sample.
 > This is what it looks like on a plan.
@@ -15,31 +13,27 @@
 
 ## 03 · Offenburg (~20 s)
 
-*(borehole map of Offenburg; every bubble is a cluster of boreholes)*
-
 > And you don't drill just one. In Offenburg alone, there are about 2,700 documented soil samples.
 > This data is all kept on one website.
 > However here comes the problem, doesn't follow one standard, and pieces are missing.
 
 ## 04 · World (~25 s)
 
-*(the map zooms out from Offenburg to the world; countries with Herrenknecht projects light up, one dot per machine)*
-
-> For Herrenknecht, the problem becomes way bigger because they not only work in offenb
-> They build the machines for the Paris Metro. The airport link in Hong Kong. And in South America, the new metro in Lima.
+> For Herrenknecht, the problem becomes way bigger because they not only work in offenburg they work on the whole Worl.
+> They build the machines for the Paris Metro. 
+> The airport link in Hong Kong and in South America, the new metro line in Lima.
 
 ## 05 · Stuttgart 21 🤫 (~5 s)
 
-> And they also built for Stuttgart 21. But we don't talk about that.
-
-*(let the laugh happen, then move on)*
+> They also built the machine for Stuttgart 21. But we don't talk about that.
 
 ## 06 · Reports from around the world (~25 s)
 
 > When you work internationally, the data looks even worse.
 > This is what the reports really look like.
 > Handwritten, in Norwegian. A Spanish soil probe sheet. A Korean drill log.
-> Every country does it differently. Often every company does.
+> Every country does it differently. 
+> Often every company does.
 > So we built the thing that standardises all of it.
 
 ## 07 · Demo (~2:30)
@@ -47,40 +41,25 @@
 
 ## 08 · Key features (~15 s)
 
-*(three cards: Reads any report · Every value has a source · One standard out)*
-
 > So what you just saw, in three points:
 > It reads any report: scans, handwriting, any language.
 > Every value has a source. One click and you see it on the original page. And where it's unsure, it asks a person to verify.
 > And one standard comes out: the DIN 4023 profile, the map and the Herrenknecht xlsx.
 
-## 09 · Under the hood (~25 s)
-
-*(one line, left to right: Browser → API → Pipeline → Database → Export; helpers below: Maps under the browser, Mistral models under the pipeline)*
-
-> In the browser: React and Leaflet for the map.
-> Behind it a FastAPI server, and a job pipeline: Word files become PDFs, pages are rendered, Mistral OCR reads them, Mistral Large pulls out every value with its source box.
-> Then plain Python checks coordinates and DIN 4023, and everything lands in PostgreSQL with PostGIS.
-> Out comes the Herrenknecht xlsx. All of it runs with one Docker Compose command.
-
-## 10 · Sovereignty (~25 s)
-
-*(three cards: Cloud today · One GPU, 32 GB · Mac mini, 32 GB, with the Le Chonk cat as an easter egg)*
+## 09 · Sovereignty (~25 s)
 
 > Today it runs in the cloud on Mistral: Mistral Large, also known as Le Chonk.
 > But borehole reports are confidential. So the same pipeline runs on open models: PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
 > That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
 
-## 11 · In a nutshell (~15 s)
-
-*(three checkmarks on the left, the tiramisu logo on the right)*
+## 10 · In a nutshell (~15 s)
 
 > So, in a nutshell:
 > It's multilingual: any language, any format, even handwriting.
 > It's a sovereign stack: cloud today, your own server or a Mac mini tomorrow.
 > And it's ready to use. Now.
 
-## 12 · Questions
+## 11 · Questions
 
 > Questions?
 
@@ -108,7 +87,7 @@
 - Offenburg: screenshot of the LGRB borehole map around Offenburg (`img/offenburg-map.jpg`, supplied by Mateo). The bubbles on the screenshot add up to about 2,680 boreholes (115 clusters = 2,668, plus 13 single points); a few clusters cut off at the edges are not fully counted.
 - Reports, front: `ToughOne1` p2 (Norway, handwritten), `AF02` p1 (Spanish soil probe sheet), `SEA01` p1 (Korean). Background: 27 more pages from the challenge dataset (`img/bg/`).
 
-### Slide 10 (sovereignty)
+### Slide 09 (sovereignty)
 
 The figures are public estimates, not measured on our data.
 
