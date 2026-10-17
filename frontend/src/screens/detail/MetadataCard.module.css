@@ -1,6 +1,7 @@
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  /* The map grows with wide screens, up to a size where it still reads as a locator. */
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 36%, 560px);
 }
 
 .meta {
@@ -9,31 +10,38 @@
 
 .row {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 72px 28px;
+  grid-template-columns: 150px minmax(0, 1fr);
   align-items: center;
   border-bottom: 1px solid var(--c-line);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .label {
-  padding: 7px 14px;
+  padding: var(--space-2) var(--space-4);
   color: var(--c-muted);
 }
 
 .value {
-  padding: 7px 8px;
+  padding: var(--space-2);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
+/* The value takes its own width, so the chips sit right after it. */
+.valueCell {
+  width: auto;
+  min-width: 0;
+}
+
 /* Second line of a value, e.g. the coordinates as printed. */
 .sub {
   flex-basis: 100%;
-  font: 11px var(--font-mono);
+  padding-left: var(--space-4);
+  font: var(--fs-xs) var(--font-mono);
   color: var(--c-muted);
 }
 
@@ -42,7 +50,14 @@
   flex-direction: column;
 }
 
+/*
+ * Leaflet's panes and controls carry z-indexes up to 1000. Their own stacking context keeps them
+ * under the sticky header and the EXPORT menu.
+ */
 .map {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
   flex: 1;
   min-height: 240px;
   background: var(--c-line);
@@ -52,14 +67,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-faint);
   font-style: italic;
 }
 
 .locText {
-  padding: 7px 12px;
-  font-size: 11px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-xs);
 }
 
 .locMuted {
@@ -86,11 +101,11 @@
   }
 
   .row {
-    grid-template-columns: 112px minmax(0, 1fr) 72px 28px;
+    grid-template-columns: 112px minmax(0, 1fr);
   }
 
   .label {
-    padding: 7px 10px;
+    padding: var(--space-2) var(--space-3);
     overflow-wrap: anywhere;
   }
 }

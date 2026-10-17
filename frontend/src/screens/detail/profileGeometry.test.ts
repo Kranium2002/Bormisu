@@ -5,7 +5,6 @@ import {
   depthTicks,
   firstRefusal,
   fitText,
-  gwTriangle,
   layerLabel,
   notLogged,
   PROFILE_DEPTH_PX,
@@ -106,10 +105,6 @@ describe('notLogged', () => {
 });
 
 describe('markers', () => {
-  it('draws the groundwater triangle tip just above the level line', () => {
-    expect(gwTriangle(100)).toBe('M90 89 L102 89 L96 99 Z');
-  });
-
   it('finds the first SPT refusal from the top', () => {
     const layers = [
       makeLayer({ n: 1, from: 0, to: 2, spt: { raw: '3,4,5 = 9', depth: 1, refusal: false, increments: [3, 4, 5], n: 9 } }),

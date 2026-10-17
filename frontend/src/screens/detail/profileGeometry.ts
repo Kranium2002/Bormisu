@@ -1,12 +1,14 @@
 /**
  * Geometry of the DIN 4023 profile column (prototype detail section of renderVals):
- * a 378 x 660 SVG whose depth axis runs from y = 28 (0 m) over 576 px down to the final depth.
+ * a 414 x 660 SVG whose depth axis runs from y = 28 (0 m) over 576 px down to the final depth.
+ * Left of the lithology column (DIN 4023 §5.6, Table 5): the groundwater, sample and cored lane;
+ * right of it the Table 6 strip, the layer bottoms and the labels.
  * DIN patterns repeat at their native tile size (scale 1 for the whole profile), never stretched.
  */
 import { decimal } from '../../domain/format';
-import type { Borehole, Layer } from '../../domain/types';
+import type { Borehole, Layer, Sample } from '../../domain/types';
 
-export const PROFILE_W = 378;
+export const PROFILE_W = 414;
 export const PROFILE_H = 660;
 /** y of 0 m. */
 export const PROFILE_TOP = 28;
@@ -20,16 +22,23 @@ export const X = {
   stratX: 52,
   stratW: 36,
   stratMid: 70,
+  /** Lane between Strat. and the lithology (Table 5): groundwater symbols, sample symbols, the cored line. */
   gwFrom: 88,
-  layerX: 104,
+  gwX: 89,
+  sampleX: 103,
+  sampleW: 8,
+  layerX: 120,
   layerW: 100,
-  layerMid: 154,
-  bottomTickTo: 212,
-  bottomLabel: 215,
-  code: 250,
-  rockFrom: 100,
-  rockTo: 300,
-  refusalX: 288,
+  layerMid: 170,
+  /** Table 6 strip right of the column (wet, consistency / density, weathering), clear of the selection outline. */
+  propX: 230,
+  propW: 44,
+  bottomTickTo: 279,
+  bottomLabel: 282,
+  code: 317,
+  rockFrom: 116,
+  rockTo: 367,
+  refusalX: 388,
 } as const;
 
 /** Font size of the layer label (DIN code or notation), px. */
@@ -111,9 +120,6 @@ export function notLogged(b: Pick<Borehole, 'finalDepth' | 'logBottom' | 'layers
   };
 }
 
-/** Path of a groundwater triangle (point down) whose tip sits just above the level line at y. */
-export const gwTriangle = (y: number) => `M90 ${y - 11} L102 ${y - 11} L96 ${y - 1} Z`;
-
 /**
  * True unless the reviewer marked the value "not in source" or "illegible": the profile draws only
  * measurements the source states (groundwater, rock head, SPT refusal), as the tables show them.
@@ -140,4 +146,9 @@ export function firstRefusal(layers: Layer[]): Refusal | null {
  */
 export function refusalMarkerDepth(r: Refusal): { at: number; stated: boolean } {
   return r.depth != null ? { at: r.depth, stated: true } : { at: (r.layer.from + r.layer.to) / 2, stated: false };
+}
+
+/** Depth a sample marker sits at: the bottom of its stated range, else its top; null when the source states neither. */
+export function sampleDepth(s: Pick<Sample, 'from' | 'to'>): number | null {
+  return s.to ?? s.from;
 }

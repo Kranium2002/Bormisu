@@ -68,7 +68,7 @@ test('the legend lists the codes used with their English names and says "nach DI
   await expect(page.getByText('nach DIN 4023', { exact: true })).toBeVisible();
 });
 
-test('unknown or missing DIN codes are plain #E0E0E0, named in the legend, never a guessed pattern', async ({ page, request }) => {
+test('a missing DIN code is plain #E0E0E0, an unknown one solid red "no pattern assigned", never a guessed pattern', async ({ page, request }) => {
   const [target] = (await records(request)).filter((x) => x.stratigraphy.length >= 3);
   const id = target.metadata.borehole_id;
   // The seed has none: blank the first layer's code and give the second a code that is not a DIN key
@@ -82,11 +82,12 @@ test('unknown or missing DIN codes are plain #E0E0E0, named in the legend, never
   await openDetail(page, id);
   const rects = profile(page, id).locator('rect[data-din]');
   await expect(rects.nth(0)).toHaveAttribute('fill', COLOR.unknownDin);
-  await expect(rects.nth(1)).toHaveAttribute('fill', COLOR.unknownDin);
+  await expect(rects.nth(1)).toHaveAttribute('fill', '#C8102E');
   await expect(rects.nth(1)).toHaveAttribute('data-din', 'Qx');
-  await expect(profile(page, id).locator('text', { hasText: /^Qx$/ })).toHaveCount(1);
+  await expect(profile(page, id).locator('text', { hasText: 'no pattern assigned' })).toHaveCount(1);
   const legend = page.getByRole('list', { name: 'DIN 4023 codes in this profile' });
-  await expect(legend.locator('li[data-din="Qx"]')).toContainText('not a DIN 4023 code');
+  await expect(legend.locator('li[data-din="Qx"]')).toContainText('no pattern assigned');
+  await expect(legend.locator('li[data-din="Qx"]')).toHaveAttribute('title', 'Qx is not a DIN 4023 code');
   await expect(legend).toContainText('no DIN code in source');
 });
 

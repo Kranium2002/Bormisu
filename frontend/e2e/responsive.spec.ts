@@ -228,7 +228,7 @@ for (const size of SIZES) {
         expect(box?.width ?? 0).toBeLessThan(size.width);
       }
       await expectOnScreen(panel.getByRole('button', { name: 'Close panel' }));
-      await expectOnScreen(panel.getByRole('button', { name: 'OPEN IN REVIEW' }));
+      await expectOnScreen(panel.getByRole('button', { name: 'OPEN FULL REVIEW ›' }));
       await expectNoSidewaysScroll(page);
       await shot(page, `source-${size.width}`);
       await panel.getByRole('button', { name: 'Close panel' }).click();

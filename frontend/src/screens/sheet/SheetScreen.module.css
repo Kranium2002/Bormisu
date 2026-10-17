@@ -1,0 +1,326 @@
+/* The sheet screen: a toolbar over a grey desk with an A4-like page on it. */
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--c-scan-bg);
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.back {
+  composes: quiet link from '../../styles/buttons.module.css';
+  text-decoration: none;
+}
+
+.toolbarTitle {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+}
+
+.spacer {
+  margin-left: auto;
+}
+
+/* EN | DE: two joined buttons; the pressed one is black. */
+.langs {
+  display: flex;
+  border: 1px solid var(--c-text);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lang {
+  cursor: pointer;
+  border: 0;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: 700 var(--fs-sm) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  padding: 8px 12px;
+}
+
+.lang + .lang {
+  border-left: 1px solid var(--c-text);
+}
+
+.lang[aria-pressed='true'] {
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+}
+
+.lang:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -4px;
+}
+
+.print {
+  composes: primary from '../../styles/buttons.module.css';
+}
+
+/* A4 is 210 mm wide; on a narrow screen the page takes the width it has. */
+.page {
+  box-sizing: border-box;
+  width: 210mm;
+  max-width: calc(100% - 2 * var(--space-4));
+  margin: var(--space-5) auto var(--space-6);
+  padding: 14mm 12mm;
+  background: #fff;
+  color: var(--c-text);
+  box-shadow: var(--shadow-panel);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6mm;
+}
+
+.pageHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-bottom: 2px solid var(--c-text);
+  padding-bottom: var(--space-2);
+}
+
+.logo {
+  display: block;
+}
+
+.kicker {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  color: var(--c-muted);
+}
+
+.id {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: var(--ls-title);
+}
+
+.reviewState {
+  margin-left: auto;
+  text-align: right;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.reviewNote {
+  font-weight: 400;
+  color: var(--c-muted);
+}
+
+.block {
+  break-inside: avoid;
+}
+
+.blockHead {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  border-bottom: 1px solid var(--c-text);
+  padding-bottom: 2px;
+  margin-bottom: var(--space-2);
+}
+
+.note {
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--c-muted);
+}
+
+/* Header block: label over value, three to a row. */
+.fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--c-border);
+  border-left: 1px solid var(--c-border);
+}
+
+.field {
+  padding: 4px 6px;
+  border-right: 1px solid var(--c-border);
+  border-bottom: 1px solid var(--c-border);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fieldLabel {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+.fieldValue {
+  font-size: 11px;
+}
+
+/* The profile, scaled to a third of the page (its viewBox keeps the proportions), next to the layer table. */
+.profileRow {
+  display: grid;
+  grid-template-columns: 62mm minmax(0, 1fr);
+  gap: 4mm;
+  align-items: start;
+}
+
+.profile {
+  min-width: 0;
+}
+
+.profile svg {
+  width: 100%;
+  height: auto;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.layers {
+  min-width: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.table th {
+  text-align: left;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-muted);
+  border-bottom: 1px solid var(--c-text);
+  padding: 3px 4px;
+  vertical-align: bottom;
+}
+
+.table td {
+  border-bottom: 1px solid var(--c-border);
+  padding: 3px 4px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table tr {
+  break-inside: avoid;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.missing {
+  color: var(--c-faint);
+  font-style: italic;
+}
+
+.unreviewed {
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+.footer {
+  border-top: 1px solid var(--c-border);
+  padding-top: var(--space-2);
+  font-size: 9px;
+  color: var(--c-muted);
+}
+
+/* Narrow screens: the profile goes above the layer table, the header block in two columns. */
+@media (max-width: 900px) {
+  .profileRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile svg {
+    max-width: 414px;
+  }
+}
+
+@media (max-width: 767px) {
+  .toolbar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .page {
+    padding: var(--space-4) var(--space-3);
+    margin: var(--space-4) auto;
+    max-width: calc(100% - 2 * var(--space-4));
+  }
+
+  .fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .layers {
+    overflow-x: auto;
+  }
+}
+
+/*
+ * Print: only the page, on A4. Every element that holds the page becomes a plain block (no scroll
+ * box, no fixed height), its other children are hidden. The DIN pattern definitions stay rendered
+ * ([data-din-defs]): patterns inside display:none don't paint in every browser.
+ */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  *:has(.page) {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  *:has(.page) > :not(:has(.page)):not(.page):not([data-din-defs]) {
+    display: none !important;
+  }
+
+  .page {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .profileRow {
+    grid-template-columns: 62mm minmax(0, 1fr);
+  }
+
+  /* A block that doesn't fit on the page goes to the next one whole. */
+  .block {
+    break-inside: avoid;
+  }
+}
