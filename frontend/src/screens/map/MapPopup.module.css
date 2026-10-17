@@ -36,7 +36,7 @@
 
 .actions {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   margin-top: 10px;
 }
@@ -56,15 +56,18 @@
   background: var(--c-hover);
 }
 
+/* OPEN DETAIL ›: black, across the popup (frontend_din). */
 .primary {
-  background: var(--c-green);
-  color: var(--c-on-green);
-  border-color: var(--c-green);
+  grid-column: 1 / -1;
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  border-color: var(--c-accent);
+  padding: 9px 4px;
+  font-size: 12px;
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--c-green);
-  filter: brightness(0.92);
+  background: var(--c-accent-hover);
 }
 
 .action:disabled {

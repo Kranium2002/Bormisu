@@ -375,14 +375,14 @@ export async function nav(page: Page, name: NavName | 'REVIEW'): Promise<void> {
 export const resultRow = (page: Page, id: string) =>
   page.locator('[role="table"] [role="row"][data-uid]').filter({ has: page.getByText(id, { exact: true }) });
 
-/** From the map screen: opens the Detail screen of a borehole through its RESULTS row. */
+/** Opens the Detail screen of a borehole through its row in LIST. */
 export async function openDetail(page: Page, id: string): Promise<void> {
-  await nav(page, 'MAP');
+  await nav(page, 'LIST');
   await resultRow(page, id).click();
   await expect(page.getByRole('heading', { level: 1, name: id, exact: true })).toBeVisible();
 }
 
-/** Opens the Review screen of a borehole: RESULTS row → Detail → › OPEN IN REVIEW. */
+/** Opens the Review screen of a borehole: LIST row → Detail → › OPEN IN REVIEW. */
 export async function openReview(page: Page, id: string): Promise<void> {
   await openDetail(page, id);
   await page.getByRole('button', { name: '› OPEN IN REVIEW' }).click();

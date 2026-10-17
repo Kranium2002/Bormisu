@@ -132,3 +132,29 @@ export function areaText(area: Area): string {
   if (area.type === 'polygon') return 'Polygon drawn on the map';
   return `Circle drawn on the map (radius ${Math.round(area.radiusM).toLocaleString('en')} m)`;
 }
+
+/* ---------- FILTERS button ---------- */
+
+/**
+ * How many filters are set, for the FILTERS button: each field that narrows the set counts once (both
+ * depth bounds count as two, any number of DIN codes or review statuses as one). The area drawn on
+ * the map is not a filter of the panel and is not counted; neither is the text search of the panel's
+ * set when it is empty.
+ */
+export function activeFilterCount(f: BoreholeFilter): number {
+  const set = [
+    f.search?.trim(),
+    f.country,
+    f.project,
+    f.documentId,
+    f.minDepth != null,
+    f.maxDepth != null,
+    f.dinCodes.length > 0,
+    f.lithologyMinDepth != null,
+    f.hasSpt != null,
+    f.hasGroundwater != null,
+    f.reviewStatus.length > 0,
+    !f.includeUnreviewed,
+  ];
+  return set.filter(Boolean).length;
+}

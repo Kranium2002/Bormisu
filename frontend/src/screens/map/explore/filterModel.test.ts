@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BoreholeFilter } from '../../../domain/types';
 import { emptyFilter, EMPTY_FILTER } from '../../../store/mapDataSlice';
 import {
+  activeFilterCount,
   areaText,
   depthTextOf,
   dinGroups,
@@ -141,5 +142,27 @@ describe('APPLY', () => {
     const { store } = fakeStore({ ...emptyFilter(), lithologyMinDepth: 4 });
     await submitFilter(texts({ lithologyMinDepth: '4' }), store.filter(), store);
     expect(store.filter().lithologyMinDepth).toBeNull();
+  });
+});
+
+describe('activeFilterCount (the FILTERS button)', () => {
+  it('counts nothing for the empty filter, nor for an area alone', () => {
+    expect(activeFilterCount(emptyFilter())).toBe(0);
+    expect(activeFilterCount({ ...emptyFilter(), area: { type: 'bbox', bbox: [0, 0, 1, 1] } })).toBe(0);
+  });
+
+  it('counts each field that narrows the set once; both depth bounds count as two', () => {
+    const f: BoreholeFilter = {
+      ...emptyFilter(),
+      project: 'Fictional Tunnel',
+      minDepth: 5,
+      maxDepth: 20,
+      dinCodes: ['T', 'U'],
+      hasGroundwater: true,
+      reviewStatus: ['approved'],
+    };
+    expect(activeFilterCount(f)).toBe(6);
+    expect(activeFilterCount({ ...emptyFilter(), search: '  ' })).toBe(0);
+    expect(activeFilterCount({ ...emptyFilter(), includeUnreviewed: false })).toBe(1);
   });
 });

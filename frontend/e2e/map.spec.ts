@@ -228,7 +228,7 @@ test.describe('map canvas', () => {
     const detail = p.getByRole('button', { name: 'Open detail of BK-11' });
     const review = p.getByRole('button', { name: 'Review BK-11' });
     const source = p.getByRole('button', { name: 'Source of the final depth of BK-11' });
-    await expect(detail).toHaveText('DETAIL');
+    await expect(detail).toHaveText('OPEN DETAIL ›');
     await expect(review).toBeEnabled();
     await expect(source).toBeEnabled();
 

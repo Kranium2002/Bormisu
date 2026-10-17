@@ -95,7 +95,7 @@
 }
 
 .sort:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: -2px;
 }
 
@@ -130,7 +130,7 @@
 }
 
 .clickable:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: -2px;
   background: var(--c-hover);
 }
@@ -196,7 +196,7 @@
 }
 
 .map:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -258,7 +258,7 @@
 }
 
 .pageButton:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 

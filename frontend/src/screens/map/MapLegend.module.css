@@ -11,6 +11,7 @@
   padding: 8px 12px 10px;
   font-size: 12px;
   line-height: 1.7;
+  border: 1px solid var(--c-border);
   box-shadow: var(--shadow-card);
 }
 
@@ -55,7 +56,7 @@
 
 .checked {
   background: var(--c-dark);
-  color: #FFFFFF;
+  color: var(--c-on-accent);
 }
 
 /* The native radio stays focusable and announced; the label is its visible face. */
@@ -68,14 +69,14 @@
 }
 
 .option:focus-within {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 1px;
 }
 
 .title {
   font-weight: 800;
-  font-size: 11px;
-  letter-spacing: 0.07em;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-head);
   margin-bottom: 2px;
 }
 
@@ -96,7 +97,7 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--c-surface);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 

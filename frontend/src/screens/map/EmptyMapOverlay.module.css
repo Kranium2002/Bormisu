@@ -32,8 +32,8 @@
 
 .action {
   cursor: pointer;
-  background: var(--c-green);
-  color: var(--c-on-green);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
   border: 0;
   font-size: 12px;
   font-weight: 700;

@@ -79,9 +79,18 @@ export async function nav(page: Page, name: NavName | 'REVIEW'): Promise<void> {
   });
 }
 
-/** The opaque uid of a borehole, read from its RESULTS row on the map screen. */
+/**
+ * The opaque uid of a borehole, read from its row in LIST. From another screen it opens LIST in the
+ * page and goes Back afterwards, so the screen (and what the sample holds) stays as it was.
+ */
 export async function uidOf(page: Page, id: string): Promise<string> {
+  const away = !new URL(page.url()).pathname.startsWith('/list');
+  if (away) await nav(page, 'LIST');
   const uid = await resultRow(page, id).getAttribute('data-uid');
+  if (away) {
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/list/);
+  }
   expect(uid, `uid of ${id}`).toBeTruthy();
   return uid as string;
 }
@@ -110,6 +119,6 @@ export async function legendNumber(page: Page, status: LegendStatus): Promise<nu
   return Number(await legendCount(page, status).textContent());
 }
 
-/** A RESULTS row by its borehole ID as printed (uids are opaque). */
+/** A row of LIST by its borehole ID as printed (uids are opaque). */
 export const resultRow = (page: Page, id: string) =>
   page.locator('[role="table"] [role="row"][data-uid]').filter({ has: page.getByText(id, { exact: true }) }).first();

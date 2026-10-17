@@ -1,74 +1,81 @@
 /**
- * The left explore panel of the map screen (FRONTEND.md section 6, LGRB's accordion above its map):
- * PLACE SEARCH and FILTERS as collapsible sections whose open state each viewer keeps.
+ * The map's FILTERS panel (frontend_din: the map stays full-bleed): PLACE SEARCH and FILTERS as
+ * collapsible sections whose open state each viewer keeps, in a panel over the map's top-left corner
+ * that the FILTERS button opens. Closed by default; below 768 px it is a full-screen sheet.
  *
- * - At 1280 px and wider it is a column left of the map.
- * - From 768 to 1279 px it is closed behind a SEARCH & FILTERS toggle and opens over the map.
- * - Below 768 px it opens as a full-screen sheet.
- * When it lies over the map (`overlay`), the focus moves into it on opening, Escape and CLOSE close it
- * and give the focus back to the toggle, and it gets out of the way once the map flies to a place or
- * a filter ran.
+ * It stays mounted while closed (hidden), so what was typed survives closing it. On opening the focus
+ * moves into it; Escape and CLOSE close it and give the focus back to the FILTERS button. On a phone
+ * it gets out of the way once the map flies to a place or a filter ran.
  */
 import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useT } from '../../../i18n';
 import { AccordionSection, useSections } from './Accordion';
 import styles from './ExplorePanel.module.css';
 import { FilterPanel } from './FilterPanel';
 import { PlaceSearch } from './PlaceSearch';
 
-/** True while the panel lies over the map (narrower than 1280 px), see ExplorePanel.module.css. */
-export function overlayLayout(): boolean {
+/** True while the panel is a full-screen sheet (narrower than 768 px), see ExplorePanel.module.css. */
+export function sheetLayout(): boolean {
   try {
-    return globalThis.matchMedia?.('(max-width: 1279px)').matches ?? false;
+    return globalThis.matchMedia?.('(max-width: 767px)').matches ?? false;
   } catch {
     return false;
   }
 }
 
+/** @deprecated The panel always lies over the map now; kept for existing imports. */
+export const overlayLayout = () => true;
+
 interface Props {
-  /** Open over the map (narrow screens); a wide screen always shows the panel. */
   open: boolean;
-  /** Closes the overlay (CLOSE, Escape). */
+  /** Closes the panel (CLOSE, Escape). */
   onClose(): void;
-  /** The map flew to a place or a filter ran: an overlay gets out of the way. */
-  onDone(): void;
 }
 
-export function ExplorePanel({ open, onClose, onDone }: Props) {
+export function ExplorePanel({ open, onClose }: Props) {
+  const t = useT();
   const [sections, toggle] = useSections();
   const ref = useRef<HTMLDivElement>(null);
 
-  // Opened over the map: the focus goes to its first section.
+  // Opened: the focus goes to its first section.
   useEffect(() => {
-    if (open && overlayLayout()) ref.current?.querySelector<HTMLElement>('[aria-controls^="explore-"]')?.focus();
+    if (open) ref.current?.querySelector<HTMLElement>('[aria-controls^="explore-"]')?.focus();
   }, [open]);
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape' || !open || !overlayLayout()) return;
+    if (e.key !== 'Escape' || !open) return;
     // The panel closes first; the app's Escape (side panel, dialogs) waits for the next press.
     e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation();
     onClose();
+  };
+
+  // A phone's sheet covers the map: it closes once the map flew somewhere or a filter ran.
+  const done = () => {
+    if (open && sheetLayout()) onClose();
   };
 
   return (
     <div
       ref={ref}
       id="explore-panel"
-      className={`${styles.panel} ${open ? styles.open : ''}`}
+      className={styles.panel}
       role="region"
       aria-label="Search and filters"
+      hidden={!open}
       onKeyDown={onKeyDown}
     >
       <div className={styles.head}>
-        <span className={styles.headTitle}>SEARCH &amp; FILTERS</span>
+        <span className={styles.headTitle}>{t('FILTERS')}</span>
         <button type="button" className={styles.close} onClick={onClose}>
-          CLOSE
+          {t('CLOSE')}
         </button>
       </div>
-      <AccordionSection id="place" title="PLACE SEARCH" open={sections.place} onToggle={toggle}>
-        <PlaceSearch onFlown={onDone} />
+      <AccordionSection id="place" title={t('PLACE SEARCH')} open={sections.place} onToggle={toggle}>
+        <PlaceSearch onFlown={done} />
       </AccordionSection>
-      <AccordionSection id="filters" title="FILTERS" open={sections.filters} onToggle={toggle}>
-        <FilterPanel onApplied={onDone} />
+      <AccordionSection id="filters" title={t('FILTERS')} open={sections.filters} onToggle={toggle}>
+        <FilterPanel onApplied={done} />
       </AccordionSection>
     </div>
   );
