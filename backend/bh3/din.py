@@ -66,7 +66,7 @@ _MAIN_NOUNS: dict[str, list[str]] = {
     "Dst": ["dolomite", "dolomit"], "Krst": ["chalk", "kreide", "kridt"], "Ko": ["conglomerate", "konglomerat", "conglomerado"],
     "Br": ["breccia", "brekzie", "brecha"], "Pl": ["granite", "granit", "granito", "diorite", "gabbro"],
     "Vu": ["basalt", "basalto", "andesite", "rhyolite", "tuff", "lava"], "Mem": ["gneiss", "gneis"], "Meb": ["schist", "schiefer", "phyllite", "slate", "esquisto"],
-    "F": ["gyttja", "mudde"], "Kl": ["mud", "klei", "schlick"], "Lg": ["till", "moræneler", "moraeneler"],
+    "F": ["gyttja", "gytje", "mudde", "faulschlamm"], "Kl": ["mud", "klei", "schlick"], "Lg": ["till", "moræneler", "moraeneler"],
 }
 _WEAK = r"(?:slightly|weakly|trace(?:s)?\s+of|trace|a\s+little|little|some|occasional|few|schwach|leicht|svagt|svakt|lidt|poco|pocos|ligeramente|pouco|poucos|lleugerament|légèrement|un\s+peu)"
 _WITH = r"(?:with|and|som|med|mit|con|com|amb|avec|of)"
@@ -179,6 +179,57 @@ def _symbol_code(symbol: Optional[str], legend: Optional[dict]) -> Optional[str]
     return None
 
 
+# --- refinements on a derived main code (not applied to a printed DIN notation) --------------------------
+# Made ground wins over the soil that describes it (DIN 4023 4.2.8: A on the left, the soil on the right):
+# "FYLD: SAND, fint" -> "A, s"; "Fill: clayey gravel" -> "A, g, t".
+FILL_RE = re.compile(r"(?<![a-zà-ÿ])(?:fill(?:ing|ed)?(?:\s+material)?|made[\s-]+ground|auff[üu]llung|aufschüttung|anschüttung|fyld|fyldjord|"
+                     r"fylling|fyllning|relleno|rellenos|aterro|remblai|remblais|rebliment|riporto|ophoogzand|opvulling)(?![a-zà-ÿ])", re.I)
+# Organic muds are F (Mudde), not peat.
+MUD_RE = re.compile(r"(?<![a-zà-ÿ])(?:gyttja|gytje|mudde|faulschlamm|dy)(?![a-zà-ÿ])", re.I)
+# Grain-size fraction words next to the main noun narrow S / G to fS mS gS / fG mG gG; a range ("fine to coarse",
+# "fin-grov", "fina a gruesa") keeps the plain code.
+_FRACTION = {"f": ["fine", "fein", "feiner", "fint", "fin", "fine-grained", "fino", "fina", "finos", "finas", "fijn"],
+             "m": ["medium", "mittel", "mellem", "mellemkornet", "middel", "medio", "media", "médio", "média", "moyen", "moyenne", "mitjà", "mitjana", "midden"],
+             "g": ["coarse", "grob", "grober", "grov", "groft", "grovkornet", "grueso", "gruesa", "grosso", "grossa", "grossier", "grossière", "grof"]}
+_RANGE_RE = re.compile(r"(?<![a-zà-ÿ])(fine|fein|fint|fin|fino|fina|medium|mittel|mellem|medio|media|coarse|grob|grov|grueso|gruesa)"
+                       r"\s*(?:to|-|–|/|bis|til|a|à|og|and)\s*(fine|fein|fint|fin|fino|fina|medium|mittel|mellem|medio|media|coarse|grob|grov|grueso|gruesa|"
+                       r"medium-coarse|fine-medium)", re.I)
+_SAND_NOUN = re.compile(r"(?<![a-zà-ÿ])(sand|sands|arena|areia|sorra|sable|zand)(?![a-zà-ÿ])", re.I)
+_GRAVEL_NOUN = re.compile(r"(?<![a-zà-ÿ])(gravel|gravels|kies|grus|grava|pedregulho|cascalho|gravier|grind)(?![a-zà-ÿ])", re.I)
+
+
+def fraction_of(desc: str, main: str) -> str:
+    """fS / mS / gS (or fG / mG / gG) when exactly one grain-size word sits next to the main noun."""
+    if main not in ("S", "G"):
+        return main
+    noun = _SAND_NOUN if main == "S" else _GRAVEL_NOUN
+    m = noun.search(desc)
+    if not m:
+        return main
+    # the words just before the noun and the first word(s) after it ("SAND, fint", "fine SAND", "Sand, fein")
+    before = desc[max(0, m.start() - 28):m.start()]
+    after = desc[m.end():m.end() + 22]
+    window = before + " " + after
+    if _RANGE_RE.search(window):
+        return main
+    found = {k for k, words in _FRACTION.items() if re.search(r"(?<![a-zà-ÿ])(?:" + "|".join(map(re.escape, words)) + r")(?![a-zà-ÿ])", window, re.I)}
+    if len(found) != 1:
+        return main
+    return next(iter(found)) + main
+
+
+def refine(main: Optional[str], secs: list[str], desc: str) -> tuple[Optional[str], list[str]]:
+    if not main:
+        return main, secs
+    if MUD_RE.search(desc) and main in ("H", "U", "T", "F"):
+        return "F", [x for x in secs if x.rstrip("'") != "h"]
+    if FILL_RE.search(desc[:60]) and main != "A" and CODES[main][3] != "rock":
+        soil = SECONDARY.get(main)
+        secs = ([soil] if soil else []) + [x for x in secs if x.rstrip("'") != soil]
+        return "A", secs
+    return fraction_of(desc, main), secs
+
+
 def _compose(main: Optional[str], secs: list[str]) -> Optional[str]:
     if not main:
         return None
@@ -221,14 +272,14 @@ def classify_layer(layer: dict, document: str = "", prev: Optional[dict] = None,
     # 3. lithology enum + adjectives
     main = LITHOLOGY_MAIN.get(litho) if litho else None
     if main:
-        return finish(main, secondaries(desc, main), "lithology")
+        return finish(*refine(main, secondaries(desc, main), desc), "lithology")
     # 4. per-document legend phrase
     if leg and leg in CODES:
-        return finish(leg, secondaries(desc, leg), "legend")
+        return finish(*refine(leg, secondaries(desc, leg), desc), "legend")
     # 5. constituent nouns in the text
     main = main_from_words(desc)
     if main:
-        return finish(main, secondaries(desc, main), "words")
+        return finish(*refine(main, secondaries(desc, main), desc), "words")
     # 6. USCS
     u = USCS_MAIN.get(str(layer.get("soil_unit") or "").upper())
     if u:
