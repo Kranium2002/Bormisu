@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     extractor_model: str = "mistralai/mistral-large-4-0"
     mistral_ocr_model: str = "mistral-ocr-latest"
     ocr_fallback: Literal["openrouter", "none"] = "openrouter"
+    # Which OCR route the pipeline uses: mistral (direct API, needs MISTRAL_API_KEY; boxes and confidence),
+    # openrouter (Mistral OCR via the OpenRouter file-parser plugin, text only), or auto (mistral when its key
+    # is set, else openrouter; a Mistral 401/403 falls back to openrouter when OpenRouter is configured).
+    ocr_provider: Literal["auto", "openrouter", "mistral"] = "auto"
+    # Recorded and budgeted per page for the OpenRouter route (parser price: 2 USD per 1,000 pages).
+    openrouter_ocr_usd_per_page: float = 0.002
     chat_model: str = "gpt-6.1-sol"
     embedding_model: str = "qwen/qwen3-embedding-8b"
     # Reasoning ("thinking") for the classifier and extractor on OpenRouter. Copying printed values needs
@@ -145,9 +151,20 @@ class Settings(BaseSettings):
 
     @property
     def ocr_configured(self) -> bool:
-        if self.mistral_api_key is not None:
-            return True
-        return self.ocr_fallback == "openrouter" and self.openrouter_api_key is not None
+        return self.ocr_route is not None
+
+    @property
+    def ocr_route(self) -> Literal["mistral", "openrouter"] | None:
+        """The OCR route OCR_PROVIDER selects with the keys at hand (None: no OCR provider)."""
+        has_mistral = self.mistral_api_key is not None
+        has_openrouter = self.openrouter_api_key is not None
+        if self.ocr_provider == "mistral":
+            return "mistral" if has_mistral else None
+        if self.ocr_provider == "openrouter":
+            return "openrouter" if has_openrouter else None
+        if has_mistral:
+            return "mistral"
+        return "openrouter" if has_openrouter and self.ocr_fallback == "openrouter" else None
 
     @property
     def classifier_configured(self) -> bool:
