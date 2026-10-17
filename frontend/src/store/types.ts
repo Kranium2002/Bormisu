@@ -71,6 +71,16 @@ export interface DataSlice {
    * (StrictMode, RETRY after an error) ends the earlier subscription first.
    */
   init(): Promise<void>;
+  /**
+   * Loads the documents, the map layer and the unplotted records, then starts live updates and loads
+   * the questions (init does once it knows a user may read; a sign-in does it again).
+   */
+  loadData(): Promise<void>;
+  /**
+   * Forgets every loaded record and the state built on it (sign-out, ended session): stops live
+   * updates, cancels uploads, ends loads in flight. The URL is left alone.
+   */
+  resetData(): void;
   /** Loads a page into the cache (used by usePage). */
   loadPage(documentId: string, page: number): Promise<void>;
 }
@@ -369,6 +379,8 @@ export interface AuthSlice {
   changePassword(currentPassword: string, newPassword: string): Promise<boolean>;
   /** The session ended (any 401 not_authenticated): stop live updates, keep the route, show the sign-in. */
   sessionEnded(): void;
+  /** Clears authError and authFieldErrors (a form opens or changes mode). */
+  clearAuthErrors(): void;
 }
 
 /** The chat drawer's state; the conversation itself lives in useChat (FRONTEND.md F14, F15). */

@@ -4,7 +4,7 @@ import { CrsPreviewMap } from '../../components/clarify/CrsPreviewMap';
 import { SWAP_TEXT, SWAP_TITLE, verdictColor, verdictText } from '../../components/clarify/crsView';
 import { useFocusTrap } from '../../components/useFocusTrap';
 import type { CrsVerdict } from '../../domain/types';
-import { useAppStore, useReviewBorehole } from '../../store/appStore';
+import { useAppStore, useReviewBorehole, useSignedName } from '../../store/appStore';
 import styles from './CrsDialog.module.css';
 import { CrsMap } from './CrsMap';
 import { crsIntro, scoreText } from './reviewView';
@@ -34,7 +34,7 @@ export function CrsDialog() {
   const close = useAppStore((s) => s.closeCrsDialog);
   const boreholes = useAppStore((s) => s.boreholes);
   const loading = useAppStore((s) => s.crsLoading);
-  const reviewerName = useAppStore((s) => s.reviewerName);
+  const reviewerName = useSignedName();
   const clarifications = useAppStore((s) => s.clarifications);
   const openClarification = useAppStore((s) => s.openClarification);
   const b = useReviewBorehole();

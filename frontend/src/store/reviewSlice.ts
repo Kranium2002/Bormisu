@@ -11,6 +11,7 @@ import { applyValuePatch, editPatch, flagPatch, initialFocusKey, statePatch, UNF
 import type { Borehole, ValuePatch } from '../domain/types';
 import { reviewTarget } from '../routing/navLinks';
 import { nextNonce, pageFor, type SliceCreator } from './context';
+import { signatureOf } from './authSlice';
 import type { ReviewSlice } from './types';
 
 /** The focused value goes into the URL once the focus has rested this long (holding J / K writes it once). */
@@ -284,7 +285,8 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
     },
 
     async confirmCrs() {
-      const { source, crsCandidates, crsPick, reviewerName } = get();
+      const { source, crsCandidates, crsPick } = get();
+      const reviewerName = signatureOf(get());
       const c = crsCandidates[crsPick];
       const documentId = find(get().reviewUid)?.documentId;
       if (!source || !c || !documentId || c.verdict === 'out_of_range') return;

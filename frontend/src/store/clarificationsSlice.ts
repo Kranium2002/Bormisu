@@ -11,6 +11,7 @@
 import { ApiError, errorText, isApiError, type FieldError } from '../data/errors';
 import type { Clarification, FormField } from '../domain/types';
 import type { SliceCreator } from './context';
+import { signatureOf } from './authSlice';
 import type { AnswerResult, ClarificationsSlice } from './types';
 
 /** Note when a question was answered elsewhere before this answer arrived. */
@@ -148,7 +149,8 @@ export const createClarificationsSlice: SliceCreator<ClarificationsSlice> = (ctx
     },
 
     async answerClarification(id, values): Promise<AnswerResult> {
-      const { source, reviewerName } = get();
+      const { source } = get();
+      const reviewerName = signatureOf(get());
       const asked = question(id);
       if (!source) return { ok: false, message: 'Not connected to a data source.', fieldErrors: {} };
       try {

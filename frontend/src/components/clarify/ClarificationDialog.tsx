@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { errorText } from '../../data/errors';
 import type { Clarification } from '../../domain/types';
-import { useAppStore } from '../../store/appStore';
+import { useAppStore, useSignedName } from '../../store/appStore';
 import { useFocusTrap } from '../useFocusTrap';
 import styles from './Clarify.module.css';
 import {
@@ -309,7 +309,7 @@ export function ClarificationDialog() {
   const documents = useAppStore((s) => s.documents);
   const boreholes = useAppStore((s) => s.boreholes);
   const features = useAppStore((s) => s.features);
-  const reviewerName = useAppStore((s) => s.reviewerName);
+  const reviewerName = useSignedName();
   const answerClarification = useAppStore((s) => s.answerClarification);
   const skipClarification = useAppStore((s) => s.skipClarification);
   const closeClarification = useAppStore((s) => s.closeClarification);

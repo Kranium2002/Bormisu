@@ -43,6 +43,7 @@ import type {
   Sample,
   Spt,
   TestResult,
+  User,
 } from '../domain/types';
 import { EXTRA_FIELDS, multiField, section } from '../schema/targetFormat';
 import type { components } from './api-types.gen';
@@ -1173,5 +1174,46 @@ export function adaptHealth(h: WireHealth): Health {
     upload: { maxMb: h.upload.max_mb, extensions: [...h.upload.extensions] },
     // Contract 1.3.0 adds `auth`; a server that doesn't send it has no sign-in.
     auth: authOf((h as { auth?: { enabled?: unknown; registration?: unknown } }).auth),
+  };
+}
+
+/* ---------- sign-in (contract 1.3.0) ---------- */
+
+/*
+ * Local wire types until contracts/openapi.yaml carries the 1.3.0 sign-in endpoints; then they move
+ * to the generated Schemas like the rest.
+ */
+/** User as the server sends it (GET /auth/me, POST /auth/login, POST /auth/register). */
+export interface WireUser {
+  user_id: string;
+  email: string;
+  display_name: string | null;
+  role: 'reviewer' | 'admin';
+  created_at: string;
+}
+/** The answer of /auth/me, /auth/login and /auth/register. */
+export interface WireUserAnswer { user: WireUser }
+export interface WireLogin { email: string; password: string }
+export interface WireRegister { email: string; password: string; display_name?: string }
+export interface WirePasswordChange { current_password: string; new_password: string }
+
+/**
+ * Maps the server's user. A user this client can't show (no id or email, a role it doesn't know)
+ * is an error, never a guessed one.
+ */
+export function adaptUser(w: WireUser): User {
+  const u = w as Partial<Record<keyof WireUser, unknown>> | null;
+  if (!u || typeof u.user_id !== 'string' || typeof u.email !== 'string') {
+    throw new Error("The server answered with a user this client can't show.");
+  }
+  if (u.role !== 'reviewer' && u.role !== 'admin') {
+    throw new Error(`The server answered with a user role this client doesn't know (${String(u.role)}).`);
+  }
+  return {
+    userId: u.user_id,
+    email: u.email,
+    displayName: typeof u.display_name === 'string' && u.display_name.trim() ? u.display_name : null,
+    role: u.role,
+    createdAt: typeof u.created_at === 'string' ? u.created_at : '',
   };
 }

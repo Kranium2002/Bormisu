@@ -9,6 +9,8 @@
  * - settingsSlice: the reviewer's name
  * - eventsSlice: live updates (transport status, event handlers, job failures)
  * - clarificationsSlice: the questions (inbox, badge, dialog), answers and skips
+ * - authSlice: sign-in, registration, sign-out, password change, ended sessions
+ * - chatSlice: the chat drawer's state
  */
 import { useEffect } from 'react';
 import { create } from 'zustand';
@@ -96,6 +98,14 @@ export function useIsReviewable(uid: string | null | undefined): boolean {
 /** Server mode, providers (e.g. `chat` for the coming chat drawer) and upload limits; null while unknown. */
 export function useHealth(): Health | null {
   return useAppStore((s) => s.health);
+}
+
+/**
+ * The name stored with confirmations and answers: the signed-in user's (the server records it from
+ * the session), else the optional "Your name" of this browser; null when there is none.
+ */
+export function useSignedName(): string | null {
+  return useAppStore((s) => (s.authState === 'signedIn' ? (s.user?.displayName ?? s.user?.email ?? null) : s.reviewerName));
 }
 
 const LOADING: PageLoad = { status: 'loading' };
