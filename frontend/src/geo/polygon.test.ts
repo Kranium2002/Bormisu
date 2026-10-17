@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { GERMANY_BBOX, GERMANY_POLYGONS } from './germany';
+import { country } from '../test/countries';
 import {
+  boxOf,
   distanceToRingsKm,
   inBox,
+  nearBox,
   padBox,
   pointInMultiPolygon,
   pointInPolygon,
   pointInRing,
+  unionBox,
   type PolygonRings,
   type Ring,
 } from './polygon';
@@ -95,7 +98,8 @@ describe('pointInPolygon', () => {
   });
 });
 
-describe('pointInMultiPolygon on the Germany outline', () => {
+describe('pointInMultiPolygon on the Germany outline (Natural Earth asset)', () => {
+  const { polygons: GERMANY_POLYGONS, bounds: GERMANY_BBOX } = country('DE');
   const inGermany = (p: readonly [number, number]) => pointInMultiPolygon(p[0], p[1], GERMANY_POLYGONS);
 
   it('Stuttgart, Hamburg and Berlin are inside', () => {
@@ -127,7 +131,29 @@ describe('pointInMultiPolygon on the Germany outline', () => {
   });
 });
 
-describe('inBox / padBox', () => {
+describe('inBox / padBox / nearBox / unionBox / boxOf', () => {
+  it('nearBox grows the box by km, more degrees of longitude far north', () => {
+    const box = [[0, 0], [1, 1]] as const;
+    expect(nearBox(1.015, 0.5, box, 2)).toBe(true); // 1.7 km north of the box
+    expect(nearBox(1.03, 0.5, box, 2)).toBe(false); // 3.3 km
+    const north = [[70, 10], [71, 11]] as const;
+    // At 70° N 2 km are about 0.053° of longitude.
+    expect(nearBox(70.5, 11.05, north, 2)).toBe(true);
+    expect(nearBox(70.5, 11.06, north, 2)).toBe(false);
+  });
+
+  it('unionBox and boxOf', () => {
+    expect(unionBox([[0, 0], [1, 1]], [[-1, 0.5], [0.5, 2]])).toEqual([
+      [-1, 0],
+      [1, 2],
+    ]);
+    expect(boxOf([])).toBeNull();
+    expect(boxOf([{ lat: 2, lng: 5 }, { lat: 1, lng: 7 }])).toEqual([
+      [1, 5],
+      [2, 7],
+    ]);
+  });
+
   it('includes the edges and grows on every side', () => {
     expect(inBox(0, 0, [[0, 0], [1, 1]])).toBe(true);
     expect(inBox(1.2, 0.5, [[0, 0], [1, 1]])).toBe(false);

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataSource } from '../data/DataSource';
 import { K } from '../domain/keys';
 import type { Borehole, DocumentSummary } from '../domain/types';
@@ -114,7 +114,7 @@ describe('search', () => {
     useAppStore.setState({ screen: 'queue', query: 'tb-01' });
     st().search();
     expect(st().screen).toBe('map');
-    expect(st().mapFocus).toMatchObject({ uid: 'doc:TB-01', zoom: 13 });
+    expect(st().flyTarget).toMatchObject({ uid: 'doc:TB-01', zoom: 13 });
   });
 
   it('explains boreholes that are not on the map', () => {
@@ -129,9 +129,87 @@ describe('search', () => {
     expect(st().searchMessage).toBe('No results for “zzz”');
   });
 
-  it('showNotOnMap explains a search target the map did not place (e.g. outside the map focus)', () => {
-    st().showNotOnMap('TB-09', 'Outside map focus (Germany)');
-    expect(st().searchMessage).toBe('TB-09: Outside map focus (Germany). Listed under Not on map.');
+  it('showNotOnMap explains a search target the map could not place after all', () => {
+    st().showNotOnMap('TB-09', 'No usable coordinates');
+    expect(st().searchMessage).toBe('TB-09: No usable coordinates. Listed under Not on map.');
+  });
+});
+
+describe('my location', () => {
+  beforeEach(() => ready());
+  afterEach(() => vi.unstubAllGlobals());
+
+  const stubGeo = (getCurrentPosition: Geolocation['getCurrentPosition'], isSecureContext = true) => {
+    vi.stubGlobal('window', { isSecureContext });
+    vi.stubGlobal('navigator', { geolocation: { getCurrentPosition } });
+  };
+
+  it('locateMe: locating, then the fix (in memory only) and NEAR YOU open', async () => {
+    let answer: PositionCallback | undefined;
+    stubGeo((ok) => {
+      answer = ok;
+    });
+    useAppStore.setState({ myLocation: { status: 'idle' }, nearYouOpen: false });
+    const done = st().locateMe();
+    expect(st().myLocation).toEqual({ status: 'locating' });
+    answer?.({ coords: { latitude: 48.79, longitude: 9.18, accuracy: 14 } } as GeolocationPosition);
+    await done;
+    expect(st().myLocation).toMatchObject({ status: 'located', lat: 48.79, lng: 9.18, accuracyM: 14, simulated: false });
+    expect(st().nearYouOpen).toBe(true);
+  });
+
+  it('locateMe: a denied permission and an insecure page show their messages', async () => {
+    stubGeo((_, err) => err?.({ code: 1 } as GeolocationPositionError));
+    await st().locateMe();
+    expect(st().myLocation).toEqual({
+      status: 'error',
+      message: 'Location permission denied. Allow it in the browser to see boreholes near you.',
+    });
+    stubGeo(() => undefined, false);
+    await st().locateMe();
+    expect(st().myLocation).toEqual({ status: 'error', message: 'Location needs HTTPS (or localhost).' });
+  });
+
+  it('simulateLocation works with the sample source only', async () => {
+    useAppStore.setState({ myLocation: { status: 'idle' }, nearYouOpen: false });
+    st().simulateLocation(48.7912, 9.1846);
+    expect(st().myLocation).toMatchObject({ status: 'located', lat: 48.7912, lng: 9.1846, accuracyM: 25, simulated: true });
+
+    await ready(fakeSource({ kind: 'api' }));
+    useAppStore.setState({ myLocation: { status: 'idle' }, nearYouOpen: false });
+    st().simulateLocation(48.7912, 9.1846);
+    expect(st().myLocation).toEqual({ status: 'idle' });
+    expect(st().nearYouOpen).toBe(false);
+  });
+
+  it('Escape closes NEAR YOU, then the location message', () => {
+    useAppStore.setState({ nearYouOpen: true, myLocation: { status: 'error', message: 'x' } });
+    st().escape();
+    expect(st().nearYouOpen).toBe(false);
+    st().escape();
+    expect(st().myLocation).toEqual({ status: 'idle' });
+  });
+});
+
+describe('map focus', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('starts on world when neither ?focus= nor VITE_MAP_FOCUS is set', () => {
+    expect(st().mapFocus).toBe('world');
+  });
+
+  it('setMapFocus normalises the value and keeps ?focus= in sync without a reload', () => {
+    const replaceState = vi.fn();
+    vi.stubGlobal('window', {
+      location: { href: 'http://localhost:5173/?other=1#x', search: '?other=1' },
+      history: { state: { keep: true }, replaceState },
+    });
+    st().setMapFocus('de');
+    expect(st().mapFocus).toBe('DE');
+    expect(replaceState).toHaveBeenLastCalledWith({ keep: true }, '', '/?other=1&focus=DE#x');
+    st().setMapFocus('nonsense');
+    expect(st().mapFocus).toBe('world');
+    expect(replaceState).toHaveBeenLastCalledWith({ keep: true }, '', '/?other=1&focus=world#x');
   });
 });
 

@@ -1,0 +1,50 @@
+/* Over the map's top-left corner, right of Leaflet's zoom buttons (left 10px, 34px wide). */
+.box {
+  position: absolute;
+  top: 10px;
+  left: 54px;
+  z-index: var(--z-map-overlay);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-card);
+  padding: 7px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.label {
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  color: var(--c-text);
+}
+
+/* A native select restyled: square, thin border, dark-green chevron. */
+.select {
+  appearance: none;
+  font: 600 13px var(--font-sans);
+  color: var(--c-text);
+  background-color: var(--c-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23003E25' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  border: 1px solid var(--c-border);
+  border-radius: 0;
+  padding: 5px 28px 5px 8px;
+  cursor: pointer;
+}
+
+.select:hover {
+  border-color: var(--c-green);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 1px;
+}
+
+.note {
+  font-size: 11px;
+  color: var(--c-muted);
+}

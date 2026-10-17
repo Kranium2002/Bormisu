@@ -1,30 +1,37 @@
-import type { NotOnMapItem } from './mapModel';
+import type { NotOnMapItem, OutsideSummary } from './mapModel';
 import styles from './NotOnMapList.module.css';
 
 interface Props {
+  /** Boreholes without usable coordinates (in every focus). */
   items: NotOnMapItem[];
-  /** Name of the map focus region when some items lie outside it (mentioned in the intro), else null. */
-  outsideRegion: string | null;
+  /** The boreholes outside the focus country, as one line, or null (World, or none outside). */
+  outside: OutsideSummary | null;
+  /** "World" or the focus country's name. */
+  focusLabel: string;
   onOpen(uid: string): void;
+  onShowWorld(): void;
+}
+
+function intro(items: number, outside: boolean, focusLabel: string): string {
+  if (!items && !outside) return 'Every borehole has usable coordinates and is placed on the map.';
+  if (items && outside) return `No usable coordinates, or outside ${focusLabel}, so these are listed instead of placed on the map.`;
+  if (items) return 'No usable coordinates, so these are listed instead of placed on the map.';
+  return `Outside ${focusLabel}, so these are listed instead of placed on the map.`;
 }
 
 /**
- * NOT ON MAP aside: boreholes without usable coordinates, or outside the map focus, are listed, not
- * plotted. A plausible wrong pin is worse than no pin. Each item opens the borehole's detail.
+ * NOT ON MAP aside: boreholes without usable coordinates are listed, not plotted. A plausible wrong
+ * pin is worse than no pin. Each item opens the borehole's detail. In a country view, the boreholes
+ * in other countries are one summary line with SHOW WORLD.
  */
-export function NotOnMapList({ items, outsideRegion, onOpen }: Props) {
+export function NotOnMapList({ items, outside, focusLabel, onOpen, onShowWorld }: Props) {
+  const count = items.length + (outside?.count ?? 0);
   return (
     <aside className={styles.aside} aria-labelledby="not-on-map-title">
       <h2 id="not-on-map-title" className={styles.title}>
-        NOT ON MAP ({items.length})
+        NOT ON MAP ({count})
       </h2>
-      <p className={styles.intro}>
-        {!items.length
-          ? 'Every borehole has usable coordinates and is placed on the map.'
-          : outsideRegion
-            ? `No usable coordinates, or outside ${outsideRegion}, so these are listed instead of placed on the map.`
-            : 'No usable coordinates, so these are listed instead of placed on the map.'}
-      </p>
+      <p className={styles.intro}>{intro(items.length, !!outside, focusLabel)}</p>
       {items.map(({ borehole: b, reason }) => (
         <button
           key={b.uid}
@@ -39,6 +46,15 @@ export function NotOnMapList({ items, outsideRegion, onOpen }: Props) {
           <span className={`${styles.reason} ${reason.warn ? styles.warn : ''}`}>{reason.text}</span>
         </button>
       ))}
+      {outside && (
+        <div className={styles.outside} data-testid="outside-focus">
+          <span className={styles.outsideText}>{outside.text}</span>
+          <span className={styles.project}>{outside.detail}</span>
+          <button type="button" className={styles.showWorld} onClick={onShowWorld}>
+            SHOW WORLD ›
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

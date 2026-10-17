@@ -7,7 +7,7 @@ import { pageUsage } from '../theme';
 import { crsCandidatesFor, EQ_DOC_ID, EQ_FILE, FIRST_GENERATED_PAGE, REPORT_TITLES, sampleDocuments } from './documents';
 import { generateBorehole, makeSeeds, type Placement, type Seed } from './generate';
 import { genericPage } from './helpers';
-import { bk07, bk07Sheet, BK07_PAGES, NB_DOC_ID, NB_FILE } from './neckarbogen';
+import { bk07, bk07Sheet, BK07_PAGES, NB_DOC_ID, NB_FILE, NB_SITE } from './neckarbogen';
 
 /** Simulated upload timings, as in the prototype (ms after the drop). */
 const STEP1_MS = 1800;
@@ -56,6 +56,7 @@ export function createSampleSource(): DataSource {
 
   return {
     kind: 'sample',
+    simulatedSite: { ...NB_SITE },
 
     async load() {
       return structuredClone({ boreholes: [...byUid.values()], documents: docs });

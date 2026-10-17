@@ -39,7 +39,7 @@ async function ready(source: DataSource = fakeSource(), reviewUid = 'doc:TB-01')
   useAppStore.setState({
     source, boreholes: [], documents: [], pages: {}, panel: null, editing: null, toast: null,
     crsDialogOpen: false, crsLoading: false, crsCandidates: [], crsPick: 0, confirmCleanOpen: false,
-    mapFocus: null, searchMessage: '', includeUnreviewed: false, exportOpen: false,
+    flyTarget: null, searchMessage: '', includeUnreviewed: false, exportOpen: false,
   });
   // Bypass init(), which would create the configured data source instead of the fake one.
   const { boreholes, documents } = await source.load();
@@ -226,19 +226,19 @@ describe('search ranking', () => {
   it('matches IDs without the dash and zooms out for a partial match in a multi-borehole project', () => {
     useAppStore.setState({ query: 'tb1' });
     st().search();
-    expect(st().mapFocus).toMatchObject({ uid: 'doc:TB-11', zoom: 11 });
+    expect(st().flyTarget).toMatchObject({ uid: 'doc:TB-11', zoom: 11 });
   });
 
   it('falls back to the project name', () => {
     useAppStore.setState({ query: 'test project' });
     st().search();
-    expect(st().mapFocus?.uid).toBe('doc:TB-01');
+    expect(st().flyTarget?.uid).toBe('doc:TB-01');
   });
 
   it('ignores an empty query', () => {
     useAppStore.setState({ query: '   ' });
     st().search();
-    expect(st().mapFocus).toBeNull();
+    expect(st().flyTarget).toBeNull();
     expect(st().searchMessage).toBe('');
   });
 });

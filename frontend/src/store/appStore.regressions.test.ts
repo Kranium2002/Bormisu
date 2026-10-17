@@ -53,7 +53,7 @@ async function ready(source: DataSource = fakeSource()) {
   useAppStore.setState({
     source, boreholes: [], documents: [], pages: {}, panel: null, editing: null, toast: null, screen: 'map',
     crsDialogOpen: false, crsLoading: false, crsCandidates: [], crsPick: 0, confirmCleanOpen: false, exportOpen: false,
-    searchMessage: '', mapFocus: null, query: '',
+    searchMessage: '', flyTarget: null, query: '',
   });
   const { boreholes, documents } = await source.load();
   useAppStore.setState({ loadState: 'ready', boreholes, documents, reviewUid: 'doc:TB-01', selectedUid: 'doc:TB-01', focusKey: null });
@@ -214,14 +214,14 @@ describe('navigation', () => {
 
   it('c24: a query of only dashes finds nothing', () => {
     for (const q of ['-', '--', ' - ']) {
-      useAppStore.setState({ query: q, mapFocus: null });
+      useAppStore.setState({ query: q, flyTarget: null });
       st().search();
-      expect(st().mapFocus).toBeNull();
+      expect(st().flyTarget).toBeNull();
       expect(st().searchMessage).toBe(`No results for “${q}”`);
     }
     useAppStore.setState({ query: 'tb 01' });
     st().search();
-    expect(st().mapFocus?.uid).toBe('doc:TB-01');
+    expect(st().flyTarget?.uid).toBe('doc:TB-01');
   });
 });
 

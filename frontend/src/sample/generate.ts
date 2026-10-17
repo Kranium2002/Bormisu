@@ -14,11 +14,53 @@ import { NB_CRS, NB_PROJECT } from './neckarbogen';
 /* ---------- projects and seeds (prototype PROJ, BHS) ---------- */
 
 /**
+ * The coordinate system a project's reports print their coordinates in (stated in the source).
+ * `toXY` is a simple approximation, good to a few metres near the site: the numbers only need to look
+ * like what the report would print.
+ */
+export interface Grid { name: string; code: string; printed: string; toXY(lat: number, lng: number): [x: number, y: number] }
+
+const rad = (deg: number) => (deg * Math.PI) / 180;
+
+export const GRIDS = {
+  /** Germany and Norway: ETRS89 / UTM zone 32N (central meridian 9° E). */
+  utm32n: {
+    name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', printed: '(ETRS89 / UTM 32N)',
+    toXY: (lat, lng) => [Math.round(500000 + (lng - 9) * 111320 * Math.cos(rad(lat))), Math.round(lat * 110950)],
+  },
+  /** Switzerland: CH1903+ / LV95, swisstopo's approximate formulas. */
+  lv95: {
+    name: 'CH1903+ / LV95', code: 'EPSG:2056', printed: '(CH1903+ / LV95)',
+    toXY: (lat, lng) => {
+      const p = (lat * 3600 - 169028.66) / 10000;
+      const l = (lng * 3600 - 26782.5) / 10000;
+      const e = 2600072.37 + 211455.93 * l - 10938.51 * l * p - 0.36 * l * p * p - 44.54 * l ** 3;
+      const n = 1200147.07 + 308807.95 * p + 3745.25 * l * l + 76.63 * p * p - 194.56 * l * l * p + 119.79 * p ** 3;
+      return [Math.round(e), Math.round(n)];
+    },
+  },
+  /** Singapore: SVY21 / Singapore TM (origin 1°22'N 103°50'E, false easting 28001.642, northing 38744.572). */
+  svy21: {
+    name: 'SVY21 / Singapore TM', code: 'EPSG:3414', printed: '(SVY21)',
+    toXY: (lat, lng) => [
+      Math.round(28001.642 + (lng - 103.8333333) * 111320 * Math.cos(rad(lat))),
+      Math.round(38744.572 + (lat - 1.3666667) * 110574),
+    ],
+  },
+} satisfies Record<string, Grid>;
+export type GridId = keyof typeof GRIDS;
+
+/**
  * Per-borehole base code: r = reviewed, a = attention (one lint warning), u / x = unreviewed,
  * N = no coordinates in source, C = CRS unknown (local site grid), M = named but missing (skipped).
+ * `grid` is the stated CRS of the project's reports (default ETRS89 / UTM 32N); Neckarbogen states none.
  */
-export interface Project { name: string; pre: string; lat: number; lng: number; list: string; nb?: boolean }
+export interface Project { name: string; pre: string; lat: number; lng: number; list: string; nb?: boolean; grid?: GridId }
 
+/**
+ * Seven projects in Germany (the prototype's archive) and three abroad, so the map's country focus
+ * has something to switch between. All fictional.
+ */
 export const PROJECTS: Project[] = [
   { name: NB_PROJECT, pre: 'BK-', lat: 48.795, lng: 9.2, list: 'rrruuuxuuuuMNN', nb: true },
   { name: 'Elbquerung Ost', pre: 'EQ-', lat: 53.535, lng: 10.02, list: 'rrrrrrrrr' },
@@ -27,11 +69,14 @@ export const PROJECTS: Project[] = [
   { name: 'Spree-Kabeltunnel', pre: 'SK-', lat: 52.505, lng: 13.43, list: 'uuuuC' },
   { name: 'Rheinbogen-Fernwärme', pre: 'RB-', lat: 50.94, lng: 6.98, list: 'rrrr' },
   { name: 'City-Ring Leipzig', pre: 'CL-', lat: 51.34, lng: 12.38, list: 'ruua' },
+  { name: 'Limmattal-Abwasserstollen', pre: 'LA-', lat: 47.395, lng: 8.47, list: 'rrua', grid: 'lv95' },
+  { name: 'Alna-Overvannstunnel', pre: 'AO-', lat: 59.925, lng: 10.83, list: 'rrrau' },
+  { name: 'Kallang Cable Tunnel', pre: 'KC-', lat: 1.335, lng: 103.865, list: 'ruua', grid: 'svy21' },
 ];
 
 export interface Seed {
   id: string; project: string; nb: boolean; lat: number; lng: number; depth: number;
-  base: string; onMap: boolean; reason: string;
+  base: string; onMap: boolean; reason: string; grid: GridId;
 }
 
 /** All borehole seeds in prototype order, with the BK-07 override. */
@@ -52,6 +97,7 @@ export function makeSeeds(): Seed[] {
         base: t,
         onMap: !(t === 'N' || t === 'C'),
         reason: t === 'N' ? 'No coordinates in source' : t === 'C' ? 'CRS unknown (local site grid)' : '',
+        grid: p.grid ?? 'utm32n',
       });
     }),
   );
@@ -82,6 +128,9 @@ const GEO: Record<string, Unit[]> = {
   'Spree-Kabeltunnel': [FILL, SAND, TILL, { ...SAND, th: [0] }],
   'Rheinbogen-Fernwärme': [FILL, SAND, { ...GRAV, en: 'Gravel, sandy, cobbly (Rhine terrace)', de: 'Kies, sandig, steinig (Rheinterrasse)' }, { ...SAND, th: [0] }],
   'City-Ring Leipzig': [FILL, LOESS, GRAV, { ...CLAY, st: 'tm', th: [0] }],
+  'Limmattal-Abwasserstollen': [FILL, { ...GRAV, en: 'Gravel, sandy (Limmat valley gravel)', de: 'Kies, sandig (Limmattalschotter)' }, { ...TILL, en: 'Moraine, silty, with stones, stiff', de: 'Moräne, schluffig, steinig, steif' }, U('Sandstone, marly (Upper Freshwater Molasse)', 'Sandstein, mergelig (Obere Süsswassermolasse)', 'Sst', 'sst', '#FFD08A', 'tm', [0], true)],
+  'Alna-Overvannstunnel': [FILL, U('Clay, marine, soft to firm', 'Ton, marin, weich bis steif', 'T', 'clay', '#C9C1E0', 'qh', [3, 6]), { ...TILL, en: 'Moraine, sandy, dense', de: 'Moräne, sandig, dicht' }, U('Shale and limestone, interbedded', 'Tonschiefer und Kalkstein, wechsellagernd', 'Kst', 'lst', '#B7D7F0', 'S', [0], true)],
+  'Kallang Cable Tunnel': [FILL, U('Clay, marine, very soft (Kallang Formation)', 'Ton, marin, sehr weich (Kallang-Formation)', 'T', 'clay', '#C9C1E0', 'qh', [3, 6]), U('Sand, clayey, very dense (Old Alluvium)', 'Sand, tonig, sehr dicht (Old Alluvium)', 'S, t', 'sand', '#FFF5B0', 'qp', [3, 5]), U('Sandstone, weathered (Jurong Formation)', 'Sandstein, verwittert (Jurong-Formation)', 'Sst', 'sst', '#FFD08A', 'T', [0], true)],
 };
 
 /* ---------- deterministic helpers ---------- */
@@ -201,8 +250,7 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
     B = 5405870 + Math.round((seed.lat - 48.7905) * 111200);
     xLab = ['Rechts:', 'Hoch:'];
   } else {
-    A = Math.round(500000 + (seed.lng - 9) * 111320 * Math.cos((seed.lat * Math.PI) / 180));
-    B = Math.round(seed.lat * 110950);
+    [A, B] = GRIDS[seed.grid].toXY(seed.lat, seed.lng);
     xLab = ['Ost:', 'Nord:'];
   }
   const hasCoords = seed.base !== 'N';
@@ -214,7 +262,7 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
   const fdRaw = `${cm(fd)} m`;
   const elevRaw = `${cm(Number(elev))} m NN`;
   const xyBox: Box4 = [96, 160, 243, 20];
-  const crsRaw = crs.status === 'stated' ? '(ETRS89 / UTM 32N)' : crs.status === 'unknown' ? '(Baustellennetz)' : '';
+  const crsRaw = crs.status === 'stated' ? GRIDS[seed.grid].printed : crs.status === 'unknown' ? '(Baustellennetz)' : '';
   const head: ValueDraft[] = [
     { key: K.boreholeId, field: 'BoreholeID', label: 'Borehole ID', raw: idRaw, value: seed.id, box: [126, 94, textWidth(idRaw), 20], method: 'Read', confidence: 0.97 },
     { key: K.project, field: 'ProjectName', label: 'Project', raw: seed.project, value: seed.project, box: [126, 72, textWidth(seed.project), 20], method: 'Read', confidence: 0.97 },
@@ -295,11 +343,12 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
   return { borehole, items: genPage(page, printed, layers) };
 }
 
-/** CRS of a seed: Neckarbogen inferred, local-grid boreholes unknown, all others stated. */
+/** CRS of a seed: Neckarbogen inferred, local-grid boreholes unknown, all others stated (their project's grid). */
 function crsOf(seed: Seed): Borehole['crs'] {
   if (seed.nb) return { ...NB_CRS, status: 'inferred' };
   if (seed.base === 'C') return { name: null, code: null, status: 'unknown' };
-  return { name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', status: 'stated' };
+  const { name, code } = GRIDS[seed.grid];
+  return { name, code, status: 'stated' };
 }
 
 /** Review state per base code: r = all approved, a = one open lint warning, others unreviewed. */

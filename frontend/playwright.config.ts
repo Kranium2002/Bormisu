@@ -17,5 +17,7 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: false,
     timeout: 60_000,
+    // The tests expect the default first focus (World), whatever the shell has set.
+    env: { VITE_MAP_FOCUS: 'world' },
   },
 });

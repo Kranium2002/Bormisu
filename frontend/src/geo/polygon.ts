@@ -62,6 +62,40 @@ export function padBox([[south, west], [north, east]]: LatLngBox, deg: number): 
 const KM_PER_DEG = 111.32;
 
 /**
+ * True if the point lies in the box or within `km` of it. The margin in degrees of longitude grows
+ * with the latitude (a degree of longitude is 111 km at the equator, 38 km at 70° N).
+ */
+export function nearBox(lat: number, lng: number, [[south, west], [north, east]]: LatLngBox, km: number): boolean {
+  const dLat = km / KM_PER_DEG;
+  const dLng = km / (KM_PER_DEG * Math.max(Math.cos((lat * Math.PI) / 180), 0.01));
+  return lat >= south - dLat && lat <= north + dLat && lng >= west - dLng && lng <= east + dLng;
+}
+
+/** The smallest box containing both boxes. */
+export function unionBox([[s1, w1], [n1, e1]]: LatLngBox, [[s2, w2], [n2, e2]]: LatLngBox): LatLngBox {
+  return [
+    [Math.min(s1, s2), Math.min(w1, w2)],
+    [Math.max(n1, n2), Math.max(e1, e2)],
+  ];
+}
+
+/** The bounding box of the points, or null for none. */
+export function boxOf(points: readonly { lat: number; lng: number }[]): LatLngBox | null {
+  if (!points.length) return null;
+  let [s, w, n, e] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const { lat, lng } of points) {
+    s = Math.min(s, lat);
+    n = Math.max(n, lat);
+    w = Math.min(w, lng);
+    e = Math.max(e, lng);
+  }
+  return [
+    [s, w],
+    [n, e],
+  ];
+}
+
+/**
  * Shortest distance in km from the point to any ring edge of the polygons (outlines and holes).
  * Uses a local equirectangular projection around the point, which is accurate to well under 1 %
  * for the few kilometres this is used for.

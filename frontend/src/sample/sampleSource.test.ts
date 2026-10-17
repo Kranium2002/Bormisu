@@ -3,20 +3,56 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { K } from '../domain/keys';
 import { boreholeStatus, cleanKeys } from '../domain/review';
 import type { Borehole } from '../domain/types';
-import { fmtN, hashS, mulberry32, wrapT } from './generate';
+import { createCountryLocator } from '../geo/countryAssign';
+import { COUNTRIES } from '../test/countries';
+import { fmtN, GRIDS, hashS, mulberry32, wrapT } from './generate';
 import { createSampleSource } from './sampleSource';
 
 const load = () => createSampleSource().load();
 const byId = (bs: Borehole[], id: string) => bs.find((b) => b.id === id) as Borehole;
 
 describe('sample data', () => {
-  it('has the prototype archive: 48 boreholes in 7 projects, 3 not on the map', async () => {
+  it('has the prototype archive plus three projects abroad: 61 boreholes in 10 projects, 3 not on the map', async () => {
     const { boreholes, documents } = await load();
-    expect(boreholes).toHaveLength(48);
-    expect(new Set(boreholes.map((b) => b.project)).size).toBe(7);
+    expect(boreholes).toHaveLength(61);
+    expect(new Set(boreholes.map((b) => b.project)).size).toBe(10);
     expect(boreholes.filter((b) => !b.onMap).map((b) => b.id)).toEqual(['BK-13', 'BK-14', 'SK-05']);
-    expect(new Set(boreholes.map((b) => b.uid)).size).toBe(48);
+    expect(new Set(boreholes.map((b) => b.uid)).size).toBe(61);
     expect(documents.map((d) => d.id)).toEqual(['nb', 'eq', 'is']);
+  });
+
+  it('places every project in its country: 45 pins in Germany, 4 in Switzerland, 5 in Norway, 4 in Singapore', async () => {
+    const { boreholes } = await load();
+    const hits = createCountryLocator(COUNTRIES).assign(boreholes.filter((b) => b.onMap) as { uid: string; lat: number; lng: number }[]);
+    const byCountry = new Map<string, string[]>();
+    for (const b of boreholes.filter((x) => x.onMap)) {
+      const hit = hits.get(b.uid);
+      expect(hit?.countries, b.id).toHaveLength(1); // no sample borehole sits on a border
+      const code = hit?.country ?? 'none';
+      byCountry.set(code, [...(byCountry.get(code) ?? []), b.id.slice(0, 3)]);
+    }
+    expect(Object.fromEntries([...byCountry].map(([c, ids]) => [c, ids.length]))).toEqual({ DE: 45, CH: 4, NO: 5, SG: 4 });
+    expect(new Set(byCountry.get('CH'))).toEqual(new Set(['LA-']));
+    expect(new Set(byCountry.get('NO'))).toEqual(new Set(['AO-']));
+    expect(new Set(byCountry.get('SG'))).toEqual(new Set(['KC-']));
+  });
+
+  it('the projects abroad state their national CRS and live in archive files', async () => {
+    const { boreholes } = await load();
+    expect(byId(boreholes, 'LA-01').crs).toEqual({ name: 'CH1903+ / LV95', code: 'EPSG:2056', status: 'stated' });
+    expect(byId(boreholes, 'AO-01').crs).toEqual({ name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', status: 'stated' });
+    expect(byId(boreholes, 'KC-01').crs).toEqual({ name: 'SVY21 / Singapore TM', code: 'EPSG:3414', status: 'stated' });
+    expect(byId(boreholes, 'KC-01').sourceFile).toBe('kallang_cable_tunnel_bohrprofile.pdf');
+    // Printed coordinates look like the grid's: LV95 eastings start with 2, SVY21 ones are 5 digits.
+    expect(byId(boreholes, 'LA-01').values.find((v) => v.key === K.xy)?.value).toMatch(/^26\d{5} \/ 12\d{5}$/);
+    expect(byId(boreholes, 'KC-01').values.find((v) => v.key === K.xy)?.value).toMatch(/^3\d{4} \/ 3\d{4}$/);
+  });
+
+  it('LV95 approximation reproduces swisstopo\'s worked example', () => {
+    // WGS84 46°02'38.87" N, 8°43'49.79" E is E 2 699 999.76, N 1 099 999.97 (swisstopo, approximate formulas).
+    const [e, n] = GRIDS.lv95.toXY(46 + 2 / 60 + 38.87 / 3600, 8 + 43 / 60 + 49.79 / 3600);
+    expect(Math.abs(e - 2700000)).toBeLessThanOrEqual(1);
+    expect(Math.abs(n - 1100000)).toBeLessThanOrEqual(1);
   });
 
   it('BK-07 is the review borehole of document nb, with the prototype lints', async () => {
@@ -50,6 +86,7 @@ describe('sample data', () => {
     expect(boreholeStatus(byId(boreholes, 'MS-05'))).toBe('attention');
     expect(boreholeStatus(byId(boreholes, 'MS-03'))).toBe('unreviewed');
     expect(boreholeStatus(byId(boreholes, 'BK-01'))).toBe('attention');
+    expect(['LA-01', 'LA-03', 'LA-04'].map((id) => boreholeStatus(byId(boreholes, id)))).toEqual(['reviewed', 'unreviewed', 'attention']);
   });
 
   it('is deterministic', async () => {
@@ -70,6 +107,10 @@ describe('sample data', () => {
         }
       }
     }
+  });
+
+  it('offers the Neckarbogen site, about 110 m from BK-07, as the simulated MY LOCATION', () => {
+    expect(createSampleSource().simulatedSite).toEqual({ label: 'Neckarbogen site', lat: 48.7912, lng: 9.1846 });
   });
 
   it('labels the two BK-07 sheets', async () => {

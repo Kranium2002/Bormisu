@@ -77,9 +77,10 @@ test.describe('review', () => {
   });
 
   test('confirming the CRS turns the Neckarbogen pins from amber', async ({ page }) => {
+    // World view: 11 Neckarbogen pins with an inferred CRS plus 6 boreholes with a lint warning.
     await nav(page, 'MAP');
-    await expect(legendCount(page, 'attention')).toHaveText('14');
-    expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(14);
+    await expect(legendCount(page, 'attention')).toHaveText('17');
+    expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(17);
 
     await nav(page, 'REVIEW');
     await row(page, 'CoordinateSystem').click();
@@ -97,8 +98,9 @@ test.describe('review', () => {
     await expect(page.getByText('confirmed for whole document by you')).toBeVisible();
 
     await nav(page, 'MAP');
-    await expect(legendCount(page, 'attention')).toHaveText('4');
-    expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(4);
+    // BK-07 keeps its open lints.
+    await expect(legendCount(page, 'attention')).toHaveText('7');
+    expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(7);
     await expect(page.locator('[data-uid="nb:BK-01"]')).toContainText('confirmed · DHDN / GK3');
   });
 });

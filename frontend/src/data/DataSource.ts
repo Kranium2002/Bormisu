@@ -23,6 +23,11 @@ export interface DataSource {
   crsCandidates(documentId: string): Promise<CrsCandidate[]>;
   /** Confirms one CRS for every borehole of a document. */
   confirmCrs(documentId: string, code: string): Promise<void>;
+  /**
+   * Sample mode only: a fictional site the map's MY LOCATION can pretend to be at ("Simulate:
+   * Neckarbogen site"). The API source has none, so the option doesn't exist there.
+   */
+  readonly simulatedSite?: { label: string; lat: number; lng: number };
 }
 
 /** A review action the source saved only partly: `applied` is the part it holds now. */

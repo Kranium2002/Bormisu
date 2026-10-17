@@ -1,20 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { GERMANY } from '../../geo/mapFocus';
+import { createCountryLocator } from '../../geo/countryAssign';
+import { COUNTRIES, country } from '../../test/countries';
 import { makeBorehole, makeValue } from '../../test/fixtures';
 import { COL } from '../../theme';
 import {
+  countryCounts,
   crsCell,
   depthText,
-  GERMANY_BOUNDS,
-  initialBounds,
+  focusName,
+  focusOptions,
   isPlotted,
   legendEntries,
+  nearYouModel,
   notOnMapReason,
+  outsideSummary,
   placeBoreholes,
   popupCrsWarning,
   resultsSummary,
+  searchStep,
   shortCrsName,
   statusByUid,
+  type PlottedBorehole,
 } from './mapModel';
 
 const approved = (uid: string, project = 'Test Project (fictional)') => {
@@ -133,47 +139,149 @@ describe('resultsSummary', () => {
   });
 });
 
-describe('initialBounds', () => {
-  it('shows Germany, as in the prototype, while every pin is inside it', () => {
-    expect(initialBounds([makeBorehole({ lat: 48.8, lng: 9.2 })])).toBe(GERMANY_BOUNDS);
-    expect(initialBounds([])).toBe(GERMANY_BOUNDS);
+/** Fictional boreholes in several countries, one offshore and one without coordinates. */
+const bh = (uid: string, lat: number | null, lng: number | null, project = 'Test Project (fictional)') =>
+  makeBorehole({ uid, id: uid.toUpperCase(), project, lat, lng, onMap: lat != null });
+const ALL = [
+  bh('s1', 48.78, 9.18), // Stuttgart
+  bh('s2', 48.79, 9.2), // Stuttgart
+  bh('z1', 47.39, 8.48, 'Other Project (fictional)'), // Zürich
+  bh('o1', 59.93, 10.8, 'Third Project (fictional)'), // Oslo
+  bh('k1', 48.5735, 7.815), // Kehl: Germany, within 2 km of France
+  bh('sea', 55.0, 4.0), // North Sea: no country
+  bh('n1', null, null), // no coordinates, its project is in Germany (and France, via Kehl)
+  bh('n2', null, null, 'Lost Project (fictional)'), // no coordinates, its project has no pin at all
+];
+const pinsOf = (bs: typeof ALL) => bs.filter(isPlotted) as PlottedBorehole[];
+const HITS = createCountryLocator(COUNTRIES).assign(pinsOf(ALL));
+const ids = (bs: { uid: string }[]) => bs.map((b) => b.uid);
+
+describe('placeBoreholes', () => {
+  it('World: every borehole with coordinates is a pin; RESULTS lists everything', () => {
+    const p = placeBoreholes(ALL, 'world', HITS);
+    expect(ids(p.plotted)).toEqual(['s1', 's2', 'z1', 'o1', 'k1', 'sea']);
+    expect(p.outside).toEqual([]);
+    expect(p.unplaced.map((i) => [i.borehole.uid, i.reason.text])).toEqual([
+      ['n1', 'No usable coordinates'],
+      ['n2', 'No usable coordinates'],
+    ]);
+    expect(ids(p.results)).toEqual(ids(ALL));
   });
 
-  it('covers pins outside Germany, so none starts off-screen', () => {
-    const bs = [makeBorehole({ uid: 'a', lat: 48.8, lng: 9.2 }), makeBorehole({ uid: 'b', lat: 59.9, lng: 10.7 })];
-    expect(initialBounds(bs)).toEqual([
-      [48.8, 9.2],
-      [59.9, 10.7],
-    ]);
+  it('a country: only its boreholes are pins; the others are outside; NOT ON MAP keeps every unplaced one', () => {
+    const p = placeBoreholes(ALL, 'DE', HITS);
+    expect(ids(p.plotted)).toEqual(['s1', 's2', 'k1']);
+    expect(ids(p.outside)).toEqual(['z1', 'o1', 'sea']);
+    expect(ids(p.unplaced.map((i) => i.borehole))).toEqual(['n1', 'n2']);
+  });
+
+  it('RESULTS of a country: its pins, plus unplaced boreholes of its projects or of projects without any pin', () => {
+    expect(ids(placeBoreholes(ALL, 'DE', HITS).results)).toEqual(['s1', 's2', 'k1', 'n1', 'n2']);
+    expect(ids(placeBoreholes(ALL, 'CH', HITS).results)).toEqual(['z1', 'n2']);
+    expect(ids(placeBoreholes(ALL, 'NO', HITS).results)).toEqual(['o1', 'n2']);
+  });
+
+  it('a borehole within 2 km of a border is a pin in both country views', () => {
+    expect(ids(placeBoreholes(ALL, 'FR', HITS).plotted)).toEqual(['k1']);
+  });
+
+  it('legend counts and NOT ON MAP (unplaced + outside) add up to every borehole', () => {
+    for (const focus of ['world', 'DE', 'CH', 'NO']) {
+      const p = placeBoreholes(ALL, focus, HITS);
+      const counted = legendEntries(p.plotted, statusByUid(ALL)).reduce((n, e) => n + e.count, 0);
+      expect(counted + p.unplaced.length + p.outside.length, focus).toBe(ALL.length);
+    }
+  });
+
+  it('a country focus without outlines (still loading) has no pins', () => {
+    const p = placeBoreholes(ALL, 'DE', null);
+    expect(p.plotted).toEqual([]);
+    expect(p.outside).toHaveLength(6);
   });
 });
 
-describe('placeBoreholes', () => {
-  const stuttgart = makeBorehole({ uid: 's', id: 'S-1', lat: 48.78, lng: 9.18 });
-  const paris = makeBorehole({ uid: 'p', id: 'P-1', lat: 48.8566, lng: 2.3522 });
-  const noCoords = makeBorehole({ uid: 'n', id: 'N-1', onMap: false, lat: null, lng: null, unplottedReason: 'No coordinates in source' });
-  const all = [paris, stuttgart, noCoords];
+describe('countryCounts / focusOptions', () => {
+  it('counts pins per country view', () => {
+    expect(Object.fromEntries(countryCounts(HITS))).toEqual({ DE: 3, CH: 1, NO: 1, FR: 1 });
+  });
 
-  it('with the Germany focus, lists boreholes outside it under NOT ON MAP with the reason', () => {
-    const p = placeBoreholes(all, GERMANY);
-    expect(p.plotted.map((b) => b.uid)).toEqual(['s']);
-    expect(p.notOnMap.map((i) => [i.borehole.uid, i.reason])).toEqual([
-      ['p', { text: 'Outside map focus (Germany)', warn: true }],
-      ['n', { text: 'No coordinates in source', warn: false }],
+  it('World first, then countries with pins by count and name, labelled "name · count"', () => {
+    expect(focusOptions('world', 6, COUNTRIES, HITS)).toEqual([
+      { value: 'world', label: 'World · 6' },
+      { value: 'DE', label: 'Germany · 3' },
+      { value: 'FR', label: 'France · 1' },
+      { value: 'NO', label: 'Norway · 1' },
+      { value: 'CH', label: 'Switzerland · 1' },
     ]);
-    expect(p.outsideFocus).toBe(1);
   });
 
-  it('legend counts and NOT ON MAP add up to every borehole', () => {
-    const p = placeBoreholes(all, GERMANY);
-    const counted = legendEntries(p.plotted, statusByUid(all)).reduce((n, e) => n + e.count, 0);
-    expect(counted + p.notOnMap.length).toBe(all.length);
+  it('always offers the current focus, also without pins or before the outlines are loaded', () => {
+    expect(focusOptions('AT', 6, COUNTRIES, HITS).at(-1)).toEqual({ value: 'AT', label: 'Austria · 0' });
+    expect(focusOptions('DE', 6, null, null)).toEqual([
+      { value: 'world', label: 'World · 6' },
+      { value: 'DE', label: 'DE' },
+    ]);
   });
 
-  it('without a focus region (world) plots every borehole with coordinates, as before', () => {
-    const p = placeBoreholes(all, null);
-    expect(p.plotted.map((b) => b.uid)).toEqual(['p', 's']);
-    expect(p.notOnMap.map((i) => i.borehole.uid)).toEqual(['n']);
-    expect(p.outsideFocus).toBe(0);
+  it('focusName', () => {
+    expect(focusName('world', null)).toBe('World');
+    expect(focusName('DE', country('DE'))).toBe('Germany');
+    expect(focusName('DE', null)).toBe('DE');
+  });
+});
+
+describe('outsideSummary', () => {
+  it('one line with the count and where they are, "no country" last', () => {
+    const p = placeBoreholes(ALL, 'DE', HITS);
+    expect(outsideSummary(p.outside, HITS, 'Germany', COUNTRIES)).toEqual({
+      count: 3,
+      text: '3 boreholes outside Germany',
+      detail: 'Norway 1 · Switzerland 1 · no country 1',
+    });
+    expect(outsideSummary([], HITS, 'Germany', COUNTRIES)).toBeNull();
+    expect(outsideSummary(p.outside.slice(0, 1), HITS, 'Germany', COUNTRIES)?.text).toBe('1 borehole outside Germany');
+  });
+});
+
+describe('searchStep', () => {
+  const de = placeBoreholes(ALL, 'DE', HITS);
+  const find = (uid: string) => ALL.find((b) => b.uid === uid)!;
+
+  it('flies to a pin of the current focus', () => {
+    expect(searchStep(find('s1'), de, HITS)).toEqual({ kind: 'fly' });
+  });
+
+  it('switches to the borehole\'s country, or to World when it lies in none', () => {
+    expect(searchStep(find('o1'), de, HITS)).toEqual({ kind: 'switch', focus: 'NO' });
+    expect(searchStep(find('sea'), de, HITS)).toEqual({ kind: 'switch', focus: 'world' });
+  });
+
+  it('explains a borehole without usable coordinates and waits for the outlines', () => {
+    const odd = makeBorehole({ uid: 'x', onMap: true, lat: null, lng: null });
+    expect(searchStep(odd, de, HITS)).toEqual({ kind: 'missing', reason: 'No usable coordinates' });
+    expect(searchStep(find('o1'), placeBoreholes(ALL, 'DE', null), null)).toEqual({ kind: 'wait' });
+  });
+});
+
+describe('nearYouModel', () => {
+  const pins = pinsOf(ALL);
+
+  it('lists the five nearest pins with distance and direction, and the accuracy', () => {
+    const m = nearYouModel({ lat: 48.781, lng: 9.181, accuracyM: 18 }, pins);
+    expect(m.accuracy).toBe('Accuracy ±18 m');
+    expect(m.rows.map((r) => r.item.uid)).toEqual(['s1', 's2', 'k1', 'z1', 'sea']);
+    expect(m.rows[0]).toMatchObject({ distance: '133 m', direction: 'SW' }); // 111 m south, 73 m west
+    expect(m.rows[3].distance).toMatch(/^\d+\.\d km$/);
+    expect(m.farMessage).toBeNull();
+  });
+
+  it('says so when even the nearest borehole is more than 2 km away', () => {
+    const m = nearYouModel({ lat: 48.137, lng: 11.575, accuracyM: 1500 }, pins); // Munich
+    expect(m.accuracy).toBe('Accuracy ±1.5 km');
+    expect(m.farMessage).toMatch(/^No borehole within 2 km of you\. Nearest: S2 at \d+\.\d km\.$/);
+  });
+
+  it('has no rows without pins', () => {
+    expect(nearYouModel({ lat: 0, lng: 0, accuracyM: 5 }, [])).toEqual({ accuracy: 'Accuracy ±5 m', rows: [], farMessage: null });
   });
 });

@@ -1,0 +1,133 @@
+/* Over the map's top-right corner. Narrower on small screens (tablets), never wider than the map. */
+.panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: var(--z-map-overlay);
+  width: min(320px, calc(100% - 20px));
+  max-height: calc(100% - 20px);
+  overflow: auto;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-popover);
+  padding: 12px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.07em;
+}
+
+.simulated {
+  font: 800 10px var(--font-sans);
+  letter-spacing: 0.06em;
+  color: var(--c-gw);
+  border: 1px solid var(--c-gw);
+  padding: 1px 5px;
+}
+
+.close {
+  appearance: none;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--c-text);
+}
+
+.close:focus-visible,
+.row:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: -2px;
+}
+
+.accuracy {
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.far {
+  margin: 2px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-amber-text);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Two lines per borehole: ID + distance, project + status. Big enough to tap. */
+.row {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 8px 2px;
+  border: 0;
+  border-top: 1px solid var(--c-line);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--c-hover);
+}
+
+.id {
+  font: 600 13px var(--font-mono);
+}
+
+.distance {
+  font: 600 12px var(--font-mono);
+  text-align: right;
+}
+
+.direction {
+  color: var(--c-muted);
+}
+
+.project {
+  font-size: 12px;
+  color: var(--c-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip {
+  justify-self: end;
+}
+
+.privacy {
+  margin: 4px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-line);
+  font-size: 11px;
+  color: var(--c-muted);
+}

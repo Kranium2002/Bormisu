@@ -1,71 +1,42 @@
 /**
- * The map focus setting: the region the Map screen's map is restricted to. It is read once, from
- * VITE_MAP_FOCUS:
- * - `DE` (default): the map shows Germany only. Everything outside it is masked, the view can't
- *   leave it, and boreholes outside it are listed under NOT ON MAP instead of plotted.
- * - `world`: no restriction (the map as it was before the setting existed).
- * Any other value falls back to `DE`. The CRS dialog and the detail mini-map are never restricted.
+ * The map focus: what the Map screen's map shows. `world` (every borehole with coordinates, no
+ * restriction) or one country by ISO 3166-1 alpha-2 code, e.g. `DE`: only that country's boreholes,
+ * everything outside it masked, the view kept on it.
  *
- * Not to be confused with the store's `mapFocus`, which is the header search's fly-to signal.
+ * It is a runtime choice (the dropdown on the map, store `mapFocus` / `setMapFocus`). The first value
+ * comes from the URL (`?focus=DE` or `?focus=world`), else from `VITE_MAP_FOCUS` (a build-time preset,
+ * e.g. `DE`), else `world`. The URL parameter is kept in sync with every change, so a view can be
+ * shared as a link. The CRS dialog and the detail mini-map are never restricted.
  */
-import { GERMANY_BBOX, GERMANY_POLYGONS } from './germany';
-import { distanceToRingsKm, inBox, padBox, pointInMultiPolygon, type LatLngBox, type MultiPolygonRings } from './polygon';
 
-export type MapFocusSetting = 'DE' | 'world';
+/** `world`, or an ISO 3166-1 alpha-2 country code in upper case. */
+export type MapFocus = string;
 
-/** Parses a VITE_MAP_FOCUS value: `world` (any case) or else `DE`, the default. */
-export function parseMapFocus(raw: string | undefined): MapFocusSetting {
-  return raw?.trim().toLowerCase() === 'world' ? 'world' : 'DE';
+export const WORLD: MapFocus = 'world';
+
+/** The URL query parameter that carries the focus. */
+export const FOCUS_PARAM = 'focus';
+
+/**
+ * Parses a focus value from the URL or the env: `world` (any case) or a two-letter code (any case,
+ * returned in upper case). Anything else is null. Whether the code is a known country is checked once
+ * the outlines are loaded (an unknown one falls back to world).
+ */
+export function parseMapFocus(raw: string | null | undefined): MapFocus | null {
+  const v = raw?.trim();
+  if (!v) return null;
+  if (v.toLowerCase() === WORLD) return WORLD;
+  return /^[a-z]{2}$/i.test(v) ? v.toUpperCase() : null;
 }
 
-/** The configured map focus, read once. */
-export const MAP_FOCUS: MapFocusSetting = parseMapFocus(import.meta.env.VITE_MAP_FOCUS);
-
-/** A region the map can be restricted to. */
-export interface FocusRegion {
-  code: 'DE';
-  /** Used in UI text, e.g. "Outside map focus (Germany)". */
-  name: string;
-  polygons: MultiPolygonRings;
-  bounds: LatLngBox;
-  /**
-   * Points this close (km) outside the outline still count as inside. The 1:50m outline is
-   * generalised by up to about a kilometre, which matters along rivers that form the border
-   * (e.g. the Upper Rhine): a borehole on the German bank must not drop off the map.
-   */
-  toleranceKm: number;
+/** The first focus: `?focus=` from the URL, else VITE_MAP_FOCUS, else world. */
+export function initialMapFocus(search: string, envValue: string | undefined): MapFocus {
+  return parseMapFocus(new URLSearchParams(search).get(FOCUS_PARAM)) ?? parseMapFocus(envValue) ?? WORLD;
 }
 
-export const GERMANY: FocusRegion = {
-  code: 'DE',
-  name: 'Germany',
-  polygons: GERMANY_POLYGONS,
-  bounds: GERMANY_BBOX,
-  toleranceKm: 2,
-};
-
-/** The region for a setting; null means no restriction. */
-export function focusRegion(setting: MapFocusSetting): FocusRegion | null {
-  return setting === 'DE' ? GERMANY : null;
-}
-
-/** The configured focus region, or null when the map shows the whole world. */
-export const FOCUS_REGION: FocusRegion | null = focusRegion(MAP_FOCUS);
-
-/** Degrees that cover `km` in both directions up to 60° latitude (1° of longitude is ≥ 55 km there). */
-const kmToDeg = (km: number) => km / 55;
-
-/** True if the point lies in the region, or within its border tolerance. */
-export function inFocusRegion(region: FocusRegion, lat: number, lng: number): boolean {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-  // Cheap rejection first: most points far away never reach the polygon tests.
-  if (!inBox(lat, lng, padBox(region.bounds, kmToDeg(region.toleranceKm)))) return false;
-  return (
-    pointInMultiPolygon(lat, lng, region.polygons) || distanceToRingsKm(lat, lng, region.polygons) <= region.toleranceKm
-  );
-}
-
-/** NOT ON MAP reason for a borehole whose coordinates lie outside the region. */
-export function outsideFocusReason(region: FocusRegion): string {
-  return `Outside map focus (${region.name})`;
+/** The same URL with `?focus=` set, as a path + query + hash for history.replaceState. Other parameters stay. */
+export function withFocusParam(href: string, focus: MapFocus): string {
+  const url = new URL(href);
+  url.searchParams.set(FOCUS_PARAM, focus);
+  return `${url.pathname}${url.search}${url.hash}`;
 }

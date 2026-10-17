@@ -24,9 +24,9 @@ Legend: ✅ built · 🔨 in progress · ⏭️ next (approved, not started) · 
 | 8 | Show source | Click any value or the R marker to see the scan page with the cell boxed |
 | 9 | Export | **Herrenknecht standard xlsx**: Metadata / Logdata / Test Results / Provenance, approved values only unless stamped DRAFT. Also a tidy CSV and an open-questions CSV for the client |
 | 10 | Sample / API mode | `VITE_DATA_SOURCE`. Sample data is fictional and isolated in `src/sample/`. API mode shows a clear error and never falls back to sample data |
-| 11 | Germany map focus | Mask, border, locked view. Being replaced by #12 |
+| 11 | ~~Germany map focus~~ | Replaced by #12: Germany is now one entry in the dropdown |
 
-## 🔨 In progress (agent running)
+## ✅ Built since (World / Country + My location)
 
 | # | Feature | What it does |
 |---|---|---|

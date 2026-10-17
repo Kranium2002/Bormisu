@@ -1,58 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { FOCUS_REGION, focusRegion, GERMANY, inFocusRegion, MAP_FOCUS, outsideFocusReason, parseMapFocus } from './mapFocus';
-import { distanceToRingsKm, pointInMultiPolygon } from './polygon';
+import { initialMapFocus, parseMapFocus, withFocusParam } from './mapFocus';
 
 describe('parseMapFocus', () => {
-  it('defaults to DE; only "world" lifts the restriction', () => {
-    expect(parseMapFocus(undefined)).toBe('DE');
-    expect(parseMapFocus('')).toBe('DE');
-    expect(parseMapFocus('DE')).toBe('DE');
-    expect(parseMapFocus('de')).toBe('DE');
+  it('accepts world (any case) and two-letter codes (upper-cased); anything else is null', () => {
     expect(parseMapFocus('world')).toBe('world');
     expect(parseMapFocus(' World ')).toBe('world');
-    expect(parseMapFocus('FR')).toBe('DE');
-  });
-
-  it('is DE in the unit tests (VITE_MAP_FOCUS unset)', () => {
-    expect(MAP_FOCUS).toBe('DE');
-    expect(FOCUS_REGION).toBe(GERMANY);
-  });
-});
-
-describe('focusRegion', () => {
-  it('DE is Germany, world is no region', () => {
-    expect(focusRegion('DE')).toBe(GERMANY);
-    expect(focusRegion('world')).toBeNull();
+    expect(parseMapFocus('DE')).toBe('DE');
+    expect(parseMapFocus('de')).toBe('DE');
+    expect(parseMapFocus('sg')).toBe('SG');
+    expect(parseMapFocus(undefined)).toBeNull();
+    expect(parseMapFocus(null)).toBeNull();
+    expect(parseMapFocus('')).toBeNull();
+    expect(parseMapFocus('DEU')).toBeNull();
+    expect(parseMapFocus('Germany')).toBeNull();
+    expect(parseMapFocus('1A')).toBeNull();
   });
 });
 
-describe('inFocusRegion (Germany)', () => {
-  const inDe = (lat: number, lng: number) => inFocusRegion(GERMANY, lat, lng);
-
-  it('cities inside and outside', () => {
-    expect(inDe(48.7758, 9.1829)).toBe(true); // Stuttgart
-    expect(inDe(53.5511, 9.9937)).toBe(true); // Hamburg
-    expect(inDe(52.52, 13.405)).toBe(true); // Berlin
-    expect(inDe(48.8566, 2.3522)).toBe(false); // Paris
-    expect(inDe(48.2082, 16.3738)).toBe(false); // Vienna
-    expect(inDe(47.3769, 8.5417)).toBe(false); // Zürich
-    expect(inDe(52.3676, 4.9041)).toBe(false); // Amsterdam
-    expect(inDe(48.5819, 7.7505)).toBe(false); // Strasbourg cathedral, ~4 km across the Rhine
+describe('initialMapFocus', () => {
+  it('the URL parameter wins, then VITE_MAP_FOCUS, then world', () => {
+    expect(initialMapFocus('?focus=de', 'NO')).toBe('DE');
+    expect(initialMapFocus('?focus=world', 'DE')).toBe('world');
+    expect(initialMapFocus('', 'DE')).toBe('DE');
+    expect(initialMapFocus('?other=1', undefined)).toBe('world');
+    expect(initialMapFocus('', '')).toBe('world');
+    // An invalid parameter is ignored, not an error.
+    expect(initialMapFocus('?focus=Germany', 'CH')).toBe('CH');
+    expect(initialMapFocus('?focus=xyz', 'nonsense')).toBe('world');
   });
+});
 
-  it('a point just outside the generalised outline, within the border tolerance, still counts', () => {
-    // About 0.5 km west of the outline's Upper Rhine segment at Kehl: outside the polygon itself.
-    expect(pointInMultiPolygon(48.5807, 7.8044, GERMANY.polygons)).toBe(false);
-    expect(distanceToRingsKm(48.5807, 7.8044, GERMANY.polygons)).toBeLessThan(1);
-    expect(inDe(48.5807, 7.8044)).toBe(true);
-  });
-
-  it('rejects missing or non-finite coordinates', () => {
-    expect(inDe(Number.NaN, 9)).toBe(false);
-    expect(inDe(50, Number.POSITIVE_INFINITY)).toBe(false);
-  });
-
-  it('names the region in the NOT ON MAP reason', () => {
-    expect(outsideFocusReason(GERMANY)).toBe('Outside map focus (Germany)');
+describe('withFocusParam', () => {
+  it('sets or replaces the parameter and keeps the rest of the URL', () => {
+    expect(withFocusParam('http://localhost:5173/', 'DE')).toBe('/?focus=DE');
+    expect(withFocusParam('http://localhost:5173/app/?focus=DE&x=1#top', 'world')).toBe('/app/?focus=world&x=1#top');
   });
 });

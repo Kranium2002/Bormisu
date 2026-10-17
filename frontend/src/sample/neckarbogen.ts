@@ -17,6 +17,8 @@ export const NB_PROJECT = 'Stadtbahn Neckarbogen';
 export const NB_CRS = { name: 'DHDN / GK zone 3', code: 'EPSG:31467' } as const;
 /** The two log sheets of BK-07. */
 export const BK07_PAGES = [7, 8] as const;
+/** Fictional site office, about 110 m north-east of BK-07: where MY LOCATION's simulation puts you. */
+export const NB_SITE = { label: 'Neckarbogen site', lat: 48.7912, lng: 9.1846 } as const;
 
 interface LayRow {
   n: number; from: number; to: number; dr: string; raw: string[]; en: string; din: string;

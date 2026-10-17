@@ -1,28 +1,43 @@
 import type { KeyboardEvent } from 'react';
 import { StatusChip } from '../../components/StatusChip';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
-import { crsCell, depthText, resultsSummary } from './mapModel';
+import { crsCell, depthText, resultsSummary, type OutsideSummary } from './mapModel';
 import styles from './ResultsTable.module.css';
 
 interface Props {
+  /** The rows: the focus' boreholes plus those without coordinates. */
   boreholes: Borehole[];
   statuses: Map<string, BoreholeStatus>;
+  /** "World" or the focus country's name, shown in the title. */
+  focusLabel: string;
+  /** False when there is no borehole at all (then the empty row points to the upload). */
+  anyBoreholes: boolean;
+  /** The country outlines are still loading. */
+  loading: boolean;
+  /** Boreholes outside the focus country, shown as a footer with SHOW WORLD. */
+  outside: OutsideSummary | null;
   onOpen(uid: string): void;
+  onShowWorld(): void;
 }
 
 const COLUMNS = ['BOREHOLE', 'PROJECT', 'FINAL DEPTH', 'STATUS', 'CRS'] as const;
 
 /**
- * RESULTS table under the map: every borehole with project, final depth, review status and CRS status.
- * Every row opens the borehole's detail (click, Enter or Space), also for boreholes not on the map:
- * those are the ones whose coordinates need a look.
+ * RESULTS table under the map: the boreholes of the map focus with project, final depth, review status
+ * and CRS status. Every row opens the borehole's detail (click, Enter or Space), also for boreholes not
+ * on the map: those are the ones whose coordinates need a look.
  */
-export function ResultsTable({ boreholes, statuses, onOpen }: Props) {
+export function ResultsTable({ boreholes, statuses, focusLabel, anyBoreholes, loading, outside, onOpen, onShowWorld }: Props) {
+  const empty = loading
+    ? 'Loading country outlines…'
+    : anyBoreholes
+      ? `No boreholes in ${focusLabel}.`
+      : 'No boreholes yet. Upload a report under UPLOAD & QUEUE.';
   return (
     <section className={styles.results} aria-labelledby="results-title">
       <div className={styles.head}>
         <h2 id="results-title" className={styles.title}>
-          RESULTS
+          RESULTS <span className={styles.focus}>· {focusLabel.toUpperCase()}</span>
         </h2>
         <div className={styles.summary}>{resultsSummary(boreholes)}</div>
       </div>
@@ -37,13 +52,22 @@ export function ResultsTable({ boreholes, statuses, onOpen }: Props) {
         </div>
         {boreholes.length === 0 && (
           <div className={styles.empty} role="row">
-            <div role="cell">No boreholes yet. Upload a report under UPLOAD &amp; QUEUE.</div>
+            <div role="cell">{empty}</div>
           </div>
         )}
         {boreholes.map((b) => (
           <ResultRow key={b.uid} borehole={b} status={statuses.get(b.uid) ?? 'unreviewed'} onOpen={onOpen} />
         ))}
       </div>
+      {outside && (
+        <div className={styles.footer} data-testid="results-outside">
+          <span>{outside.text}</span>
+          <span className={styles.footerDetail}>{outside.detail}</span>
+          <button type="button" className={styles.showWorld} onClick={onShowWorld}>
+            SHOW WORLD ›
+          </button>
+        </div>
+      )}
     </section>
   );
 }

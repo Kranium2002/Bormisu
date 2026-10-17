@@ -41,14 +41,19 @@ frontend/
       documents.ts           prototype DOCS0 + CRS candidates
       sampleSource.ts        DataSource implementation over the sample data (in-memory, simulated upload)
     geo/
-      mapFocus.ts            VITE_MAP_FOCUS (DE | world), read once; focus region, inFocusRegion, reason text
-      germany.ts             generated: Germany outline (Natural Earth 1:50m, public domain) + bounding box
+      mapFocus.ts            map focus value (world | ISO code): parse, first value (?focus= / VITE_MAP_FOCUS), URL sync
+      countries.ts           country outlines: decode + lazy loadCountries() (fetches countries-50m.json)
+      countries-50m.json     generated: Natural Earth admin-0 outlines (public domain), not in the JS bundle
+      countryAssign.ts       which country a point lies in (bbox, point-in-polygon, 2 km tolerance), cached locator
       polygon.ts             pure geometry: point-in-(multi)polygon (ray casting), distance to outline, boxes
+      nearest.ts             haversine distance, bearing → 8-point compass, k nearest, distance text
+      geolocate.ts           browser position for MY LOCATION (options, error texts), "lat,lng" parsing
     store/appStore.ts        zustand store: all UI + data state and actions (API below)
     components/              shared: Header, Banner, Toast, MethodBadge, StatusChip, SourceIcon, ScanPage,
                              SidePanel (SourcePanel + CompletenessPanel), Popover, Toggle
     screens/
-      map/MapScreen.tsx (+ .module.css), map/focusLayers.ts (Leaflet mask, border, view limits of the map focus)
+      map/MapScreen.tsx (+ .module.css), map/FocusSelect.tsx (MAP FOCUS dropdown), map/focusLayers.ts (Leaflet mask, border, view limits of a country focus), map/useCountries.ts,
+      map/MyLocationControl.tsx + map/NearYouPanel.tsx (MY LOCATION)
       queue/QueueScreen.tsx
       review/ReviewScreen.tsx, review/FieldRow.tsx, review/CrsDialog.tsx
       detail/DetailScreen.tsx, detail/ProfileColumn.tsx, detail/ExportMenu.tsx
@@ -207,6 +212,7 @@ export interface DataSource {
   updateValue(uid: string, key: string, patch: ValuePatch): Promise<void>;      // may throw PartialSaveError {applied}
   crsCandidates(documentId: string): Promise<CrsCandidate[]>;
   confirmCrs(documentId: string, code: string): Promise<void>;
+  readonly simulatedSite?: { label: string; lat: number; lng: number };         // sample only: MY LOCATION's demo position
 }
 ```
 
@@ -231,7 +237,9 @@ reviewUid, focusKey, reviewPage, editing: {key, mode: 'edit'|'flag', text} | nul
 panel: {kind:'source', uid?, key?, documentId, page, box?: Box|null, pageOnly?: boolean} | {kind:'completeness', documentId} | null
 crsDialogOpen, crsLoading, crsCandidates, crsPick
 exportOpen, includeUnreviewed
-query, searchMessage, dropError, dragActive
+query, searchMessage, flyTarget, mapFocus, dropError, dragActive
+myLocation: {status:'idle'} | {status:'locating'} | {status:'error', message} | {status:'located', lat, lng, accuracyM, simulated, nonce}
+nearYouOpen
 ```
 
 Actions:
@@ -246,8 +254,10 @@ askClean()  approveClean()  cancelClean()
 openSource(uid, key)  openPage(documentId, page)  openCompleteness(documentId)  closePanel()
 openCrsDialog()  pickCrs(i)  confirmCrs()  closeCrsDialog()
 toggleExport()  toggleIncludeUnreviewed()  exportFile(kind: 'xlsx' | 'csv' | 'questions')
-setQuery(q)  search()   // flyTo is signalled via a mapFocus: {uid, zoom, nonce} state field the MapScreen subscribes to
-showNotOnMap(id, reason)   // the search's "Listed under Not on map" message, for a target the map didn't place
+setQuery(q)  search()   // flyTo is signalled via a flyTarget: {uid, zoom, nonce} state field the MapScreen subscribes to
+setMapFocus(focus)   // 'world' | ISO country code; also writes ?focus= (history.replaceState)
+locateMe()  simulateLocation(lat, lng)  closeNearYou()   // MY LOCATION; simulateLocation is ignored unless source.kind === 'sample'
+showNotOnMap(id, reason)   // the search's "Listed under Not on map" message, for a target the map couldn't place
 addFiles(files)  setDragActive(b)
 ```
 
@@ -255,7 +265,7 @@ Selectors: `useBorehole(uid)`, `useValue(uid, key)`, `useDocument(id)`, `usePage
 
 Review edits are **optimistic**: update the store, then call `source.updateValue`. On failure, roll back and show a toast. Saves of one value are queued, so the source applies them in order; a failure rolls the value back to what the source holds, never over a newer successful save (see "As built: logic review fixes").
 
-Escape closes, in order: editing → confirmClean → exportOpen → crsDialog → panel.
+Escape closes, in order: editing → confirmClean → exportOpen → crsDialog → panel → NEAR YOU → the MY LOCATION error message.
 
 ## Screens: behaviour reference
 
@@ -299,7 +309,7 @@ Additive to the spec above. Shared files (store, domain, data, sample, export, c
 
 - **Store extras** (`src/store/appStore.ts`):
   - `escape()` (App installs the Escape listener), `loadPage(docId, page)` (used by `usePage`).
-  - `listScroll: {key, nonce} | null`: set by `focusValue(key, true)`; the Review list scrolls `key` into view when `nonce` changes. `mapFocus: {uid, zoom, nonce}`: set by `search()`; the map flies there and opens the popup.
+  - `listScroll: {key, nonce} | null`: set by `focusValue(key, true)`; the Review list scrolls `key` into view when `nonce` changes. `flyTarget: {uid, zoom, nonce}`: set by `search()`; the map flies there and opens the popup (called `mapFocus` before the map focus existed).
   - `pages` values are `PageLoad = {status:'loading'} | {status:'ready', content} | {status:'error', error}`; `usePage()` returns a `PageLoad`.
   - Extra selectors: `useReviewBorehole()`, `useSelectedBorehole()`, `useIsReviewable(uid)` (a borehole with a document and located values; every sample borehole qualifies, so "› OPEN IN REVIEW" can show for all of them).
   - `openBorehole(uid)` selects the first SPT-refusal layer (BK-07 → layer 5, as in the prototype), else layer 1. `openReview(uid?)` focuses the CRS when inferred, else the first open lint (`initialFocusKey`).
@@ -308,7 +318,7 @@ Additive to the spec above. Shared files (store, domain, data, sample, export, c
 - **Schema extras**: `section(id)`, `multiField('X-Coordinate','Y-Coordinate')` (one value holding two fields, split on `' / '` by the export), `EXTRA_FIELDS` (`DepthFrom`, `DepthTo`, `DrillingMethod`, `RockHead`), `FieldDef.layerProp` (log fields filled from a layer property: StratigraphicName ← `strat`, Soil/Rockprofile ← `din`).
 - **Theme extras**: `PATTERN_FILLS`, `STRAT_FALLBACK`, `PAGE_TYPE_LEGEND`, `pageUsage(type, page)`, and text tones in `COL` (`greenText`, `amberText`, `greenBg`, `amberBg`, …).
 - **Components**: `ScanPage({content, boxes?, scale?})` with `ScanBox {id, box, variant: 'focus'|'flagged'|'lint'|'approved'|'idle'|'highlight', title?, onClick?}`; `MethodBadge({method, confidence?, formula?})` + `methodTitle()`; `StatusChip({status, size?: 'sm'|'md'})`; `SourceIcon({onClick, dim?})` (stops propagation); `Popover({width, top?, label, children})` (anchor to a `position: relative` parent); `Toggle({on, onToggle, label?, id?})`; `EmptyState({title, message?, tone?, action?})`; `SidePanel` / `SourcePanel` / `CompletenessPanel` / `PanelHeader` (done, rendered by App).
-- **Sample data**: 48 boreholes in 7 projects (3 not on the map: BK-13 and BK-14 have no coordinates, SK-05 has an unknown CRS). Neckarbogen (`nb`) boreholes all have an inferred CRS; BK-07 is `nb:BK-07` on pages 7–8, the other Neckarbogen logs are on pages 9–20 (the document has 28 pages, 14 of them logs). Elbquerung (`eq`) logs are on pages 5–13. Other projects live in archive files (`documentId` = project slug, not in the queue). CRS candidates exist only for `nb`.
+- **Sample data**: 61 boreholes in 10 projects (3 not on the map: BK-13 and BK-14 have no coordinates, SK-05 has an unknown CRS). Seven projects are in Germany (45 pins); three are abroad so the map focus has something to switch between: Limmattal-Abwasserstollen (`LA-`, Zürich, CH1903+ / LV95), Alna-Overvannstunnel (`AO-`, Oslo, ETRS89 / UTM 32N) and Kallang Cable Tunnel (`KC-`, Singapore, SVY21), each with a stated CRS (`GRIDS` in `generate.ts`) and a reviewed / unreviewed / attention mix. Neckarbogen (`nb`) boreholes all have an inferred CRS; BK-07 is `nb:BK-07` on pages 7–8, the other Neckarbogen logs are on pages 9–20 (the document has 28 pages, 14 of them logs). Elbquerung (`eq`) logs are on pages 5–13. Other projects live in archive files (`documentId` = project slug, not in the queue). CRS candidates exist only for `nb`.
 - **Not in sample data on purpose** (screens derive it): the CRS dialog's "site per report text" circle (use the centroid of the `match` candidate's points) and its intro sentence (use the X / Y value's `raw`, e.g. "R 3 513 420 · H 5 405 870", and the point count).
 
 ## As built: integration notes
@@ -339,17 +349,31 @@ Additive to the sections above. Each fix has a regression test that names the re
 - **Export:** `exportId(b, o)` is the one BoreholeID on every sheet and CSV row: the reviewed value once exported, else the ID as printed. `DepthFrom` is the layer's own start depth. A layer that continues the one above takes that layer's reviewed bottom. An edited SPT exports its new N, or `blows/penetration` for a refusal.
 - **API adapter:** `targets[key] = {paths, type}` replaces `paths[key]`. `type` decides how an edit is sent: numbers as numbers, IDs and dates as typed (leading zeros kept), SPT as N. X / Y has two paths (`local_x`/`local_y`, else `longitude`/`latitude`, easting first). Its provenance is combined from both, and an edit is split into one update per coordinate. Every groundwater reading is kept as `GW[i]`, and the legacy `water_table_m` keeps its own path. A missing final depth is `null`. Every backend lint finding lands on a review row: its own value, else the layer's bottom depth, the reading, X / Y, or the BoreholeID. `documentLint` fills the Completeness panel's LINT list.
 - **Profile:** groundwater, rock head and the SPT refusal marker are drawn only while their value isn't "not in source" / "illegible" (`isStated`).
-- **Map:** every RESULTS row and every NOT ON MAP item opens Detail, so a borehole without coordinates is never a dead end. The summary no longer says "in Germany". With `VITE_MAP_FOCUS=world` the first view is Germany unless a pin lies outside it; in that case it is the pins' bounds. With the default `DE`, see "As built: map focus".
+- **Map:** every RESULTS row and every NOT ON MAP item opens Detail, so a borehole without coordinates is never a dead end. The summary line names no country; the RESULTS title names the map focus. See "As built: map focus".
 - Vitest also runs `*.test.tsx` (component tests render with `react-dom/server`).
 
 ## As built: map focus
 
-Additive to the sections above. Only the Map screen's map is restricted; the CRS dialog and the detail mini-map are not.
+Additive to the sections above. Only the Map screen's map has a focus; the CRS dialog and the detail mini-map are never restricted.
 
-- **Setting:** `src/geo/mapFocus.ts` reads `VITE_MAP_FOCUS` once: `DE` (default, also for unknown values) or `world`. `FOCUS_REGION` is the Germany region or `null`. With `null`, the map behaves exactly as before the setting existed. (The name clash is historical: the store's `mapFocus` is the search's fly-to signal.)
-- **Outline:** `src/geo/germany.ts` is generated from Natural Earth 1:50m admin-0 countries (`ADM0_A3 = DEU`, public domain): 6 polygons (mainland, Rügen, Usedom, Sylt, Fehmarn, Föhr), no holes, 556 points, `[lat, lng]`, 4 decimals, plus its bounding box. The raw download is not in the repo.
-- **Which boreholes are pins:** `placeBoreholes(boreholes, region)` in `mapModel.ts` splits them into `plotted` and `notOnMap` (with a reason). A borehole with coordinates outside the region (`inFocusRegion`: point-in-polygon, or within 2 km of the outline to absorb the 1:50m generalisation) is listed as "Outside map focus (Germany)" in amber. The legend counts `plotted`; the RESULTS table lists every borehole, and every row and list item still opens Detail. No sample, store or domain code knows about the focus.
-- **Search:** the store flies as before. When the target isn't among the map's pins, `BoreholeMap` calls `onFocusMissed(uid)` once per search, and MapScreen calls `showNotOnMap(id, reason)`, so the popover says "RB-02: Outside map focus (Germany). Listed under Not on map." instead of flying.
-- **Leaflet (`screens/map/focusLayers.ts`):** `maxBounds` = Germany's box + 0.5°, `maxBoundsViscosity: 1`; the first view is `fitBounds(Germany)` (12 px padding); `minZoom` = `getBoundsZoom(Germany)` with the same padding, recomputed whenever the container resizes, so the zoom-out button is disabled at the first view. The mask is one polygon (world rectangle with Germany's rings as holes, even-odd fill) in the pane `bormisuFocus` at z-index 350 (tiles 200, pins 400), filled with `COL.line` (= `--c-line`, the map background), no stroke, non-interactive; the border (`#003E25`, 1.5 px) is in the same pane. Their SVG renderer has `padding: 1`, so a pan never reveals unmasked tiles before the redraw.
+- **Focus value:** store `mapFocus` is `'world'` or an ISO 3166-1 alpha-2 code (`src/geo/mapFocus.ts`). The first value is `?focus=` from the URL, else `VITE_MAP_FOCUS` (a build-time preset such as `DE`), else `'world'`; invalid values are ignored. `setMapFocus(focus)` normalises it (unknown text → world) and writes `?focus=` with `history.replaceState`, no reload. MapScreen falls back to World for a code that isn't in the outlines (e.g. `?focus=ZZ`), and shows World without touching the store when the outlines fail to load.
+- **Outlines:** `src/geo/countries-50m.json` is generated from Natural Earth admin-0 countries (public domain) by a script kept outside the repo (as is the raw download): 1:50m, merged by ISO code (`ISO_A2`, else `ISO_A2_EH` for France, Norway, Kosovo; Somaliland, N. Cyprus and Siachen Glacier have none and are left out), 1:10m for 35 small island countries (no shared border, under 1°), topology-preserving Douglas-Peucker (0.01°; 0.002° for the 1:10m ones: every vertex where the set of rings sharing it changes is kept, the arcs between are simplified in a canonical direction, so shared borders stay identical and outlines don't overlap; a unit test checks Central Europe), 3 decimals, rings as integer deltas (`encoding` field). Per country: `code`, `name`, `bbox` (all polygons) and `view` (largest polygon plus polygons within 2° of it: no French Guiana, Alaska or Svalbard), polygons largest first. About 590 kB raw, 235 kB gzipped. `countries.ts` imports it with `?url`, so Vite emits it as a hashed asset outside the bundle; `loadCountries()` fetches and validates it once (a failure isn't cached). Unit tests read it with `?raw` (`src/test/countries.ts`).
+- **Country assignment (`countryAssign.ts`, pure, unit-tested):** `locatePoint` rejects countries by padded bounding box, then tests point-in-polygon (per-polygon boxes first), then the 2 km border tolerance (`BORDER_TOLERANCE_KM`, distance to the outline, latitude-aware box padding). Result `{country, countries}`: `country` is the containing country, else the nearest within 2 km, else null (offshore); `countries` adds every other country within 2 km, so a borehole on the Rhine bank shows in Germany and France. `countryLocator(countries)` caches per coordinate (one locator per loaded list), so re-assigning after a review edit is a map lookup per borehole; MapScreen memoises `assign(pins)` per borehole list.
+- **Placement (`mapModel.ts`):** `placeBoreholes(boreholes, focus, hits)` → `plotted` (World: every pin; country: `hits.countries` includes it), `unplaced` (no usable coordinates, NOT ON MAP in every focus), `outside` (pins of other countries or of none), `results` (pins plus unplaced boreholes whose project has a pin here, or no pin anywhere). The legend counts `plotted`; legend + NOT ON MAP add up to every borehole. `focusOptions` builds the dropdown (World first, then countries with pins by count and name, `"Germany · 45"`; the current focus is always an option). `outsideSummary` is the one line "13 boreholes outside Germany" with "Norway 5 · Singapore 4 · Switzerland 4", shown under NOT ON MAP and as the RESULTS footer, each with SHOW WORLD.
+- **Search:** the store sets `flyTarget` as before. `searchStep(target, placement, hits)` in MapScreen decides: `fly` (a pin of this focus), `switch` (call `setMapFocus` with the target's country, or World when it has none; once per search, so a later manual switch doesn't bounce back), `missing` (on the map without usable coordinates: `showNotOnMap`), or `wait` (outlines still loading). `BoreholeMap` only gets `fly` once the target is one of its pins, i.e. after the switch.
+- **Leaflet (`BoreholeMap.tsx`, `focusLayers.ts`):** the map is created once; a `view` prop (`world` with the pins' box, `country` with the country and its box = `view` ∪ its pins, or `pending`) is applied by an effect keyed on kind + key. A new focus clears the focus layer group, lifts the old limits (`setMaxBounds(empty)`, `setMinZoom(0)`), fits (World: all pins, 24 px padding, max zoom 12, or the world without pins; country: its box, 12 px padding) and sets the country limits: `maxBounds` = box + 0.5°, `maxBoundsViscosity: 1`, `minZoom` = `getBoundsZoom(box)` with the same padding, recomputed on every container resize. The same focus with a grown box only updates the limits. Mask (world rectangle with the country's rings as holes, even-odd fill, `COL.line`, no stroke) and border (`#003E25`, 1.5 px) are non-interactive, in the pane `bormisuFocus` (z-index 350: tiles 200, pins 400), one SVG renderer with `padding: 1`. The saved view is restored on remount only for the same focus.
+- **removeMap:** also drops the max bounds before stopping and detaches the pan animation's listeners after `remove()`: with max bounds, stopping a pan fires moveend, whose handler can start another pan whose frame loop then ends after the map is gone.
 - **Tile seams:** Leaflet's `mix-blend-mode: plus-lighter` fix for fractional zoom drew white hairlines between tiles. `BoreholeMap.module.css` switches the main map's tiles to normal blending with half a pixel of overlap.
+
+## As built: my location
+
+Additive to the sections above.
+
+- **Control:** `BoreholeMap` adds an empty Leaflet control (top left, so it stacks under the zoom buttons; clicks and wheel don't reach the map) and renders `MyLocationControl` into it through a portal: the MY LOCATION button (crosshair icon), in sample mode the *Simulate: Neckarbogen site* option, and a status line (*Locating…* or the error, amber).
+- **Locating:** store `locateMe()` calls `currentPosition()` (`src/geo/geolocate.ts`) with `{enableHighAccuracy: true, timeout: 10000, maximumAge: 30000}`; it refuses outside a secure context and maps the browser's error codes to the texts in `LOCATE_MESSAGES`. An older answer is ignored when the button was pressed again. Success sets `myLocation` (`located`, with a new nonce) and opens NEAR YOU.
+- **Privacy:** the position lives only in the store's memory. It is never sent (no data-source call takes it), never saved, never written to the URL; the panel footer says "Your location stays in this browser."
+- **Map:** for a new fix MapScreen switches the focus once to the country the position lies in (`countryLocator(...).locate`, World if none or without outlines), then `BoreholeMap` flies to zoom 15, keeping the position left of centre by half the panel's width while NEAR YOU is open. The dot (`bormisu-me-dot`, `COL.gw`, pane z-index 450, above the pins) and the accuracy circle (`bormisu-me-accuracy`, radius = accuracy, 12 % fill, pane z-index 390, under the pins) are non-interactive. A simulated position gets a permanent "SIMULATED LOCATION" tooltip.
+- **NEAR YOU:** `nearYouModel(position, pins)` in `mapModel.ts`: the five nearest boreholes with coordinates in any country (`nearest()`: haversine, ties in data order), distance text (`formatDistance`: m below 1 km, else km with one decimal), eight-point compass direction, and *No borehole within 2 km of you. Nearest: … at … km.* when the nearest is farther. Rows open Detail; × or Escape closes the panel (the dot stays); it reopens with the next fix and survives a trip to Detail and back.
+- **Simulation (sample mode only):** the sample source's `simulatedSite` (the fictional Neckarbogen site office, about 110 m north-east of BK-07) backs the *Simulate* option; `?simLocation=lat,lng` is read once per page load. Both go through `simulateLocation`, which does nothing unless `source.kind === 'sample'`. The API source has no `simulatedSite`, so neither shows in API mode. Accuracy of a simulated fix: 25 m.
+- **Layout:** the panel is `min(320px, 100% - 20px)` wide over the map's top-right corner. The app has a minimum width of 1280 px, so phones need a responsive pass; on a tablet the page scrolls sideways and the button and panel stay usable.
 

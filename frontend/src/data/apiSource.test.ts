@@ -72,6 +72,12 @@ function backend(o: { status?: ApiDocument['status']; patch?: (body: Record<stri
   return { calls };
 }
 
+describe('apiSource and MY LOCATION', () => {
+  it('has no simulated site, so the map offers no simulation in API mode', () => {
+    expect(createApiSource('/api/v1').simulatedSite).toBeUndefined();
+  });
+});
+
 describe('apiSource review saves', () => {
   // Regression (c3): edit saved, approve failed → the store rolled everything back.
   it('reports a partly saved patch with the part the backend holds', async () => {

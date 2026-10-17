@@ -5,7 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_DATA_SOURCE?: string;
   /** Backend API base path, default `/api/v1`. */
   readonly VITE_API_BASE?: string;
-  /** Region the Map screen is restricted to: `DE` (default) or `world`. See src/geo/mapFocus.ts. */
+  /** First map focus: `world` (default) or an ISO country code such as `DE`. `?focus=` wins. See src/geo/mapFocus.ts. */
   readonly VITE_MAP_FOCUS?: string;
 }
 

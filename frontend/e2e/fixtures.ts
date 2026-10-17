@@ -31,9 +31,9 @@ export const test = base.extend<{ errors: string[] }>({
 
 export { expect };
 
-/** Opens the app and waits for the sample data to load (map screen). */
-export async function openApp(page: Page): Promise<void> {
-  await page.goto('/');
+/** Opens the app (optionally with a query, e.g. '?focus=DE') and waits for the sample data to load (map screen). */
+export async function openApp(page: Page, query = ''): Promise<void> {
+  await page.goto(`/${query}`);
   await expect(page.getByText('Demo mode: fictional sample loaded. Live extraction needs an API key.')).toBeVisible();
   await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
 }
@@ -51,17 +51,19 @@ export const pinFills = (page: Page) => pins(page).evaluateAll((ps) => ps.map((p
 
 export const AMBER = '#E39B00';
 
-/**
- * True when the e2e server runs with VITE_MAP_FOCUS=world (the server inherits this process's env).
- * The default is DE: the map is restricted to Germany.
- */
-export const MAP_FOCUS_WORLD = (process.env.VITE_MAP_FOCUS ?? '').trim().toLowerCase() === 'world';
+/** The map focus dropdown (MAP FOCUS). */
+export const focusSelect = (page: Page) => page.getByLabel('MAP FOCUS');
+
+/** Picks a focus in the dropdown, e.g. 'DE' or 'world', and waits until the map shows it. */
+export async function chooseFocus(page: Page, value: string): Promise<void> {
+  await focusSelect(page).selectOption(value);
+  await expect(page).toHaveURL(new RegExp(`[?&]focus=${value}(&|#|$)`));
+}
 
 /**
  * Test-only: moves one fictional sample project (by ID prefix, e.g. "RB-") to another position by
  * patching the sample generator module as the dev server serves it; src/sample/ stays untouched.
- * The sample data never leaves Germany, so this is how the tests put boreholes outside the map focus.
- * Call before openApp().
+ * The tests use it to put boreholes where no country is (offshore). Call before openApp().
  */
 export async function moveSampleProject(page: Page, prefix: string, lat: number, lng: number): Promise<void> {
   await page.route(/\/src\/sample\/generate\.ts(\?.*)?$/, async (route) => {

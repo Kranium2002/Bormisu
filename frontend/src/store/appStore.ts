@@ -32,6 +32,8 @@ import { csvBlob, openQuestionRows, tidyRows } from '../export/csv';
 import { downloadBlob, exportPrefix } from '../export/download';
 import { exportScope } from '../export/scope';
 import { exportStandardXlsx } from '../export/standardXlsx';
+import { currentPosition } from '../geo/geolocate';
+import { initialMapFocus, parseMapFocus, WORLD, withFocusParam, type MapFocus } from '../geo/mapFocus';
 
 /* ---------- state types ---------- */
 
@@ -59,8 +61,17 @@ export type PageLoad =
   | { status: 'ready'; content: PageContent }
   | { status: 'error'; error: string };
 
-/** Signal for the map to fly to a borehole; `nonce` changes on every request. */
-export interface MapFocus { uid: string; zoom: number; nonce: number }
+/** Signal for the map to fly to a borehole (header search); `nonce` changes on every request. */
+export interface FlyTarget { uid: string; zoom: number; nonce: number }
+/**
+ * The user's position for the map's NEAR YOU panel (MY LOCATION). In memory only: it is never sent to
+ * the backend, saved, or put in the URL. `simulated` is the sample-mode demo position.
+ */
+export type MyLocation =
+  | { status: 'idle' }
+  | { status: 'locating' }
+  | { status: 'error'; message: string }
+  | { status: 'located'; lat: number; lng: number; accuracyM: number; simulated: boolean; nonce: number };
 /** Signal for the review list to scroll a value into view. */
 export interface ListScroll { key: string; nonce: number }
 export interface Toast { text: string; id: number }
@@ -107,7 +118,11 @@ export interface AppState {
   // header + queue
   query: string;
   searchMessage: string;
-  mapFocus: MapFocus | null;
+  flyTarget: FlyTarget | null;
+  /** What the Map screen's map shows: `world` or an ISO country code (src/geo/mapFocus.ts). In sync with `?focus=`. */
+  mapFocus: MapFocus;
+  myLocation: MyLocation;
+  nearYouOpen: boolean;
   dropError: string;
   dragActive: boolean;
 
@@ -144,14 +159,21 @@ export interface AppState {
   exportFile(kind: ExportKind): Promise<void>;
   setQuery(q: string): void;
   search(): void;
+  /** Switches the map focus (`world` or an ISO country code) and updates `?focus=` in the URL, without a reload. */
+  setMapFocus(focus: MapFocus): void;
+  /** MY LOCATION: asks the browser for the position; opens NEAR YOU on success, else shows why not. */
+  locateMe(): Promise<void>;
+  /** Sample mode only: pretends to be at (lat, lng) and opens NEAR YOU. Ignored with the API source. */
+  simulateLocation(lat: number, lng: number): void;
+  closeNearYou(): void;
   /**
    * Shows the search popover's "Listed under Not on map" message for a borehole the map didn't
-   * place after all (MapScreen calls it when a search target lies outside the map focus).
+   * place after all (MapScreen calls it for a target flagged as on the map but without usable coordinates).
    */
   showNotOnMap(id: string, reason: string): void;
   addFiles(files: FileList | File[]): Promise<void>;
   setDragActive(active: boolean): void;
-  /** Escape closes, in order: editing → confirm clean → export menu → CRS dialog → side panel. */
+  /** Escape closes, in order: editing → confirm clean → export menu → CRS dialog → side panel → NEAR YOU → location message. */
   escape(): void;
   /** Loads a page into the cache (used by usePage). */
   loadPage(documentId: string, page: number): Promise<void>;
@@ -166,6 +188,10 @@ const SUPPORTED_UPLOAD = /\.(pdf|docx|jpe?g|png)$/i;
 
 let nonce = 0;
 let initRun = 0;
+/** The latest locateMe / simulateLocation call; an older answer is ignored. */
+let locateRun = 0;
+/** The accuracy shown for a simulated position. */
+const SIMULATED_ACCURACY_M = 25;
 /** The nonce of the latest openCrsDialog call; -1 once the dialog is closed. */
 let lastCrsRun = -1;
 /** Created once per app; init() may run twice (React StrictMode) or again after an error. */
@@ -329,7 +355,10 @@ export const useAppStore = create<AppState>()((set, get) => {
     includeUnreviewed: false,
     query: '',
     searchMessage: '',
-    mapFocus: null,
+    flyTarget: null,
+    myLocation: { status: 'idle' },
+    nearYouOpen: false,
+    mapFocus: initialMapFocus(typeof window === 'undefined' ? '' : window.location.search, import.meta.env.VITE_MAP_FOCUS),
     dropError: '',
     dragActive: false,
 
@@ -624,8 +653,44 @@ export const useAppStore = create<AppState>()((set, get) => {
         ...LEAVE_REVIEW,
         screen: 'map',
         searchMessage: '',
-        mapFocus: { uid: b.uid, zoom: projectSize > 1 && !exact ? 11 : 13, nonce: ++nonce },
+        flyTarget: { uid: b.uid, zoom: projectSize > 1 && !exact ? 11 : 13, nonce: ++nonce },
       });
+    },
+
+    setMapFocus(focus) {
+      const next = parseMapFocus(focus) ?? WORLD;
+      if (get().mapFocus !== next) set({ mapFocus: next });
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(window.history.state, '', withFocusParam(window.location.href, next));
+      }
+    },
+
+    async locateMe() {
+      const run = ++locateRun;
+      set({ myLocation: { status: 'locating' } });
+      try {
+        const fix = await currentPosition({
+          isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
+          geolocation: typeof navigator !== 'undefined' ? navigator.geolocation : undefined,
+        });
+        if (run !== locateRun) return;
+        set({ myLocation: { status: 'located', ...fix, simulated: false, nonce: ++nonce }, nearYouOpen: true });
+      } catch (e) {
+        if (run === locateRun) set({ myLocation: { status: 'error', message: errorText(e) } });
+      }
+    },
+
+    simulateLocation(lat, lng) {
+      if (get().source?.kind !== 'sample') return;
+      locateRun++;
+      set({
+        myLocation: { status: 'located', lat, lng, accuracyM: SIMULATED_ACCURACY_M, simulated: true, nonce: ++nonce },
+        nearYouOpen: true,
+      });
+    },
+
+    closeNearYou() {
+      set({ nearYouOpen: false });
     },
 
     showNotOnMap(id, reason) {
@@ -657,6 +722,8 @@ export const useAppStore = create<AppState>()((set, get) => {
       else if (s.exportOpen) set({ exportOpen: false });
       else if (s.crsDialogOpen) s.closeCrsDialog();
       else if (s.panel) set({ panel: null });
+      else if (s.nearYouOpen) set({ nearYouOpen: false });
+      else if (s.myLocation.status === 'error') set({ myLocation: { status: 'idle' } });
     },
 
     async loadPage(documentId, page) {

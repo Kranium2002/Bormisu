@@ -7,7 +7,7 @@
 
 | | ID | Feature | Decision | Effort |
 |---|---|---|---|---|
-| ✅ | R14 | My location on site | **Making** (in progress) | 3–4 h |
+| ✅ | R14 | My location on site | **Built** | 3–4 h |
 | ✅ | R8 | Scan peek on hover | **Making** | 2–4 h |
 | ✅ | R13 | Evidence near this point | **Making** (lite) | 6–9 h |
 | ✅ | R4 | Draw your tunnel → section | **Making** (lite) | 6–8 h after R13 |
@@ -43,7 +43,7 @@ flowchart TD
 
 | Step | What | Effort | Why this order |
 |---|---|---|---|
-| 0 | R14 My location (with the World / Country dropdown) | in progress | Already running; it also delivers the distance helpers |
+| 0 | R14 My location (with the World / Country dropdown) | ✅ done | Built; it also delivered the distance helpers (`src/geo/nearest.ts`) |
 | 1 | Consistent fictional demo project | 1–2 h | The current sample boreholes are generated independently, so neighbours look random and every section would look broken |
 | 2 | R8 Scan peek on hover | 2–4 h | Cheapest, high demo value, no dependencies |
 | 3 | `nearby.ts` engine + R13 | 6–9 h | Everything after this reuses the engine |
@@ -52,7 +52,7 @@ flowchart TD
 
 ## ✅ Making
 
-### R14 · My location on site *(in progress; replaces R12 AR)*
+### R14 · My location on site *(built; replaces R12 AR)*
 - **What the engineer sees:** tap **MY LOCATION**. The map switches to their country and zooms to them, with a blue dot and an accuracy circle ("±6 m"). A **NEAR YOU** panel lists the 5 nearest boreholes with distance and direction ("BK-07 · 140 m · NE"). If nothing is within 2 km, it says so.
 - **Why it's in:** on site, the question is "which borehole am I standing next to?". That needs metres, not AR-grade anchoring, and phone GPS gives about ±5 m.
 - **Guardrails:**

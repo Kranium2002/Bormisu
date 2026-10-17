@@ -60,3 +60,39 @@
 .reason.warn {
   color: var(--c-amber-text);
 }
+
+/* One line for the boreholes outside the focus country, with the way back to World. */
+.outside {
+  border-top: 1px solid var(--c-line);
+  padding-top: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.outsideText {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.showWorld {
+  appearance: none;
+  background: none;
+  border: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  font: 700 11px var(--font-sans);
+  letter-spacing: 0.05em;
+  color: var(--c-green-text);
+  cursor: pointer;
+}
+
+.showWorld:hover {
+  text-decoration: underline;
+}
+
+.showWorld:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}

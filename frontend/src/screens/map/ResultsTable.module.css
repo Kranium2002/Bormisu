@@ -110,3 +110,45 @@
   font-size: 13px;
   color: var(--c-muted);
 }
+
+.focus {
+  color: var(--c-dark);
+}
+
+/* Boreholes outside the focus country: one line under the table, always visible, with SHOW WORLD. */
+.footer {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 24px;
+  border-top: 1px solid var(--c-border);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--c-surface);
+}
+
+.footerDetail {
+  font-weight: 400;
+  color: var(--c-muted);
+}
+
+.showWorld {
+  appearance: none;
+  background: none;
+  border: 0;
+  margin: 0 0 0 auto;
+  padding: 0;
+  font: 700 11px var(--font-sans);
+  letter-spacing: 0.05em;
+  color: var(--c-green-text);
+  cursor: pointer;
+}
+
+.showWorld:hover {
+  text-decoration: underline;
+}
+
+.showWorld:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
