@@ -2,7 +2,7 @@
 // The callbacks of evaluate run in the browser, so they use the DOM types.
 /**
  * Responsive layout in sample mode (FRONTEND.md section 6; fictional sample data only):
- * - 1440 × 900: the three-pane desktop (explore panel, map with RESULTS under it, drawers on the right);
+ * - 1440 × 900: the full-bleed map (FILTERS over it), LIST, drawers on the right;
  * - 820 × 1180: panels and drawers lie over the map instead of squeezing it, the header wraps;
  * - 390 × 844: drawers, the explore panel and dialogs are full-screen sheets, tables scroll inside
  *   their own box, the map keeps a usable height.
@@ -74,7 +74,7 @@ async function expectInsideViewport(locator: Locator, size: Size) {
 /** The header's controls, on every screen. */
 async function expectHeader(page: Page) {
   const nav = mainNav(page);
-  for (const name of [/^MAP/, /^UPLOAD & QUEUE/, /^REVIEW/, /^INBOX/]) await expectOnScreen(nav.getByRole('link', { name }));
+  for (const name of [/^MAP/, /^LIST/, /^UPLOAD & QUEUE/, /^INBOX/]) await expectOnScreen(nav.getByRole('link', { name }));
   await expectOnScreen(page.getByLabel('Search project or borehole ID'));
   await expectOnScreen(page.getByRole('banner').getByRole('button', { name: 'YOUR NAME' }));
 }
@@ -103,30 +103,27 @@ for (const size of SIZES) {
 
     test('map', async ({ page }) => {
       await openRoute(page, () => '/map');
-      await expect(page.getByRole('heading', { name: /^RESULTS/ })).toBeVisible();
       await expectHeader(page);
       await expectOnScreen(page.getByRole('button', { name: 'Zoom in' }));
+      await expectOnScreen(page.getByRole('button', { name: /^FILTERS/ }).first());
       await expectOnScreen(page.getByRole('button', { name: 'Select by rectangle' }));
       await expectOnScreen(page.getByRole('group', { name: 'Review status legend' }));
-      const toggle = page.getByRole('button', { name: 'SEARCH & FILTERS' });
-      if (size.width >= 1280) {
-        // Three panes: the explore panel is a column left of the map, no toggle.
-        await expect(toggle).toBeHidden();
-        await expectOnScreen(page.getByRole('button', { name: 'PLACE SEARCH' }));
-        const panel = await page.getByRole('region', { name: 'Search and filters' }).boundingBox();
-        const map = await mapCanvas(page).boundingBox();
-        expect(panel && map && panel.x + panel.width <= map.x + 1, 'panel left of the map').toBe(true);
-      } else {
-        await expectOnScreen(toggle);
-      }
-      // RESULTS under the map.
+      // Full-bleed: the map fills the screen under the header and the banner.
       const map = await mapCanvas(page).boundingBox();
-      const results = await page.getByRole('heading', { name: /^RESULTS/ }).boundingBox();
-      expect(map && results && results.y >= map.y + map.height - 1, 'RESULTS under the map').toBe(true);
-      // The map keeps a usable height on every size.
+      expect(map?.width ?? 0, 'map width').toBeGreaterThanOrEqual(size.width - 1);
       expect(map?.height ?? 0, 'map height').toBeGreaterThanOrEqual(260);
       await expectNoSidewaysScroll(page);
       await shot(page, `map-${size.width}`);
+    });
+
+    test('list', async ({ page }) => {
+      await openRoute(page, () => '/list');
+      await expectHeader(page);
+      await expectOnScreen(page.getByRole('columnheader', { name: 'BOREHOLE' }));
+      await expectOnScreen(page.getByRole('button', { name: /^Open detail of / }).first());
+      // A table wider than the screen scrolls in its own box, never the page.
+      await expectNoSidewaysScroll(page);
+      await shot(page, `list-${size.width}`);
     });
 
     test('queue', async ({ page }) => {
@@ -186,32 +183,25 @@ for (const size of SIZES) {
       await shot(page, `inbox-${size.width}`);
     });
 
-    test('explore panel: column, overlay over the map, or full-screen sheet', async ({ page }) => {
+    test('FILTERS panel: over the map, or a full-screen sheet', async ({ page }) => {
       await openRoute(page, () => '/map');
       const panel = page.getByRole('region', { name: 'Search and filters' });
+      const toggle = page.getByRole('button', { name: /^FILTERS/ }).first();
       const before = await mapCanvas(page).boundingBox();
-      if (size.width >= 1280) {
-        await expect(panel).toBeVisible();
-        await expect(panel.getByRole('button', { name: 'CLOSE' })).toBeHidden();
-      } else {
-        await expect(panel).toBeHidden();
-        await page.getByRole('button', { name: 'SEARCH & FILTERS' }).click();
-        await expect(panel).toBeVisible();
-        await expectOnScreen(panel.getByRole('button', { name: 'CLOSE' }));
-        if (size.width < 768) await expectFullScreen(panel, size);
-        else await expectInsideViewport(panel, size);
-      }
+      await expect(panel).toBeHidden();
+      await toggle.click();
+      await expect(panel).toBeVisible();
+      await expectOnScreen(panel.getByRole('button', { name: 'CLOSE' }));
+      if (size.width < 768) await expectFullScreen(panel, size);
+      else await expectInsideViewport(panel, size);
       await expectOnScreen(panel.getByRole('button', { name: 'SEARCH', exact: true }));
-      await expectOnScreen(panel.getByRole('button', { name: 'APPLY' }));
-      // The panel never squeezes the map: it lies over it or beside it as before.
+      // The panel never squeezes the map: it lies over it.
       expect(await mapCanvas(page).boundingBox()).toEqual(before);
       await expectNoSidewaysScroll(page);
       await shot(page, `explore-${size.width}`);
-      if (size.width < 1280) {
-        await panel.getByRole('button', { name: 'CLOSE' }).click();
-        await expect(panel).toBeHidden();
-        await expect(page.getByRole('button', { name: 'SEARCH & FILTERS' })).toBeFocused();
-      }
+      await page.keyboard.press('Escape');
+      await expect(panel).toBeHidden();
+      await expect(toggle).toBeFocused();
     });
 
     test('source drawer: on the right, or a full-screen sheet', async ({ page }) => {

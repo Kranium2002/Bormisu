@@ -337,8 +337,8 @@
 }
 
 /*
- * Phones: row 1 the brand (logo and name) with chat and the user, row 2 the search, row 3 the nav with
- * EN | DE at its end. Nothing is wider than the screen; the nav row scrolls on its own when it must.
+ * Phones: row 1 the brand (logo and name) with chat and the user, row 2 the search with EN | DE, row 3
+ * the nav. Nothing is wider than the screen; the nav row scrolls on its own when it must.
  */
 @media (max-width: 767px) {
   .header {
@@ -362,25 +362,27 @@
 
   .search {
     order: 1;
-    flex: 1 0 100%;
+    flex: 1 1 200px;
     margin-left: 0;
-    padding-bottom: var(--space-2);
+    padding: var(--space-1) 0;
+  }
+
+  .lang {
+    order: 1;
   }
 
   .nav {
     order: 2;
-    flex: 1 1 0;
+    flex: 1 0 100%;
     min-width: 0;
     gap: 0;
+    justify-content: space-between;
   }
 
   .navItem {
-    padding: 0 6px;
-    letter-spacing: 0.04em;
-  }
-
-  .lang {
-    order: 3;
+    padding: 0 4px;
+    gap: var(--space-1);
+    letter-spacing: 0.02em;
   }
 
   .nameButton {

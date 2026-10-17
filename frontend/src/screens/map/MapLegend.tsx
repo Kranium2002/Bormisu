@@ -1,5 +1,7 @@
 import { useId, useMemo, type Ref } from 'react';
+import { Link } from 'react-router';
 import { useT } from '../../i18n';
+import { ROUTE } from '../../routing/urlState';
 import { useAppStore } from '../../store/appStore';
 import { useColourMode } from './canvas/colourMode';
 import styles from './MapLegend.module.css';
@@ -37,7 +39,7 @@ export function MapLegend({ ref }: Props) {
   const titleId = useId();
   const switchId = useId();
 
-  const pins = useMemo(() => mapRows(features, boreholes, unplottedUids).pins, [features, boreholes, unplottedUids]);
+  const { pins, notOnMap } = useMemo(() => mapRows(features, boreholes, unplottedUids), [features, boreholes, unplottedUids]);
   const members = useMemo(() => (resultSet ? new Set(resultSet.uids) : null), [resultSet]);
   const rows = useMemo(() => legendRows(pins, colourBy, members), [pins, colourBy, members]);
 
@@ -84,6 +86,17 @@ export function MapLegend({ ref }: Props) {
           </li>
         ))}
       </ul>
+      {/* The boreholes without usable coordinates are never placed: LIST shows them with the reason. */}
+      <div className={styles.offMap}>
+        <h2 className={styles.offTitle}>
+          {t('NOT ON MAP')} ({notOnMap.length})
+        </h2>
+        {notOnMap.length > 0 && (
+          <Link className={styles.offLink} to={`/${ROUTE.list}`}>
+            {t('LIST ›')}
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
