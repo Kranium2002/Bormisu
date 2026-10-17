@@ -387,3 +387,14 @@ positive_down_patterns:
   - 'positi(f|ve)s?\s+vers\s+le\s+bas'
   - 'positiv[oa]s?\s+hacia\s+abajo'
   - 'positiv[oa]s?\s+para\s+baixo'
+
+# Depths printed without any unit (none in the header, none glued to a value) are stored as metres. Where
+# boreholes are logged in metres (the document's language is not listed under ask_languages, and no country
+# in feet_countries is printed in its location, project or client) that is the reading: method derived and a
+# note on the record, no question. Documents in the listed languages (also written where depths are in feet),
+# those printing a country that logs in feet, and any depth above max_metres still get a unit_ambiguous
+# question.
+unitless_depths:
+  ask_languages: [en]
+  feet_countries: [United States, United States of America, USA, U.S.A., U.S., Liberia, Myanmar]
+  max_metres: 1500

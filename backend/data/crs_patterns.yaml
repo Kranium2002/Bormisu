@@ -120,6 +120,23 @@ local_grid_terms: [local grid, site grid, local coordinates, local system, arbit
                    repère local, sistema local, coordenadas locales, coordenadas locais, lokaal stelsel,
                    lokalt system, sistema locale]
 
+# Map-sheet references printed where a coordinate system is expected ("TK25 7513", "Blatt Offenburg",
+# "map sheet 12"): they name a sheet of a topographic map series, not a coordinate system, so such a text
+# counts as no system printed. A text that also names a system (a datum, grid, zone or EPSG code) still
+# states that system.
+map_sheet_terms: [TK, TK10, TK 10, TK25, TK 25, TK50, TK 50, TK100, TK 100, TK200, TK 200, DTK, DTK10,
+                  DTK 10, DTK25, DTK 25, DTK50, DTK 50, DTK100, DTK 100, Blatt, Kartenblatt, Messtischblatt,
+                  Blatt Nr, Blattnummer, Blattname, Topographische Karte, Topografische Karte, map sheet,
+                  sheet, sheet no, OS sheet, quadrangle, quad, feuille, carte topographique, hoja, mapa
+                  topográfico, foglio, kaartblad, kartblad, kortblad]
+
+# Gauss-Krüger values printed with their kilometre prefixes apart from the rest: the system field holds
+# the two 2-digit prefixes ("34 53") and the values the last 5 digits ("22 925", "70 335"), i.e. Rechtswert
+# 3422925 and Hochwert 5370335. Joined only when both values are below 100 000 and the joined point lies
+# inside the area of use of the Gauss-Krüger zone its easting names (grid `gk` above); the system stays
+# unprinted (a project's confirmed system or a crs_confirm question decides it).
+km_prefix_grid: gk
+
 # Terms that say printed values are geographic degrees.
 geographic_terms: [geographic, geographical, lat long, lat lon, latitude, longitude, decimal degrees,
                    degrees, geografisch, geographisch, géographique, géographiques, geográficas,

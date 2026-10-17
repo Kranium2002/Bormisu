@@ -18,6 +18,7 @@ from app.clarify.service import resolve_clarification
 from app.db.models import Borehole, Clarification
 from app.errors import ApiError
 from app.geo.crs_service import VIA_CLARIFICATION, confirm_crs
+from app.geo.project_crs import apply_project_crs
 from app.review.service import apply_patch, set_manual_location
 from app.schemas.boreholes import ValuePatch
 from app.schemas.common import review_actor
@@ -146,6 +147,9 @@ async def answer_clarification(
     who = review_actor(actor)
     await _apply(session, row, accepted, who)
     await resolve_clarification(session, row, status="answered", answer=accepted, answered_by=who)
+    if row.kind == "crs_confirm":
+        # once answered, it also places the project's other boreholes that print no system and fit it
+        await apply_project_crs(session, project=row.project, document_id=row.document_id, actor=who)
     return row
 
 

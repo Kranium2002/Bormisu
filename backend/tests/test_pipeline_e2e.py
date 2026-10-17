@@ -480,11 +480,13 @@ async def test_crash_after_first_group_resumes_without_repeating_calls(
     real_finalize = finalize_module.finalize_group
     crashes: list[str] = []
 
-    async def crash_once(document_id: str, group: PageGroup, outcome: ExtractionOutcome) -> str | None:
+    async def crash_once(
+        document_id: str, group: PageGroup, outcome: ExtractionOutcome, **options: Any
+    ) -> str | None:
         if group.key == FX2_KEY and not crashes:
             crashes.append(group.key)
             raise RuntimeError("simulated worker crash")
-        return await real_finalize(document_id, group, outcome)
+        return await real_finalize(document_id, group, outcome, **options)
 
     monkeypatch.setattr(finalize_module, "finalize_group", crash_once)
     doc_id = await upload(client, fictional_report())

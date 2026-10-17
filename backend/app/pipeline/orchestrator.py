@@ -328,10 +328,12 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     # Stored only when every group was read: a part stored alone would become a second borehole once the
     # rest is merged on the retry (which reuses the stored extraction runs and bh3's cache, so it is free).
     tables = await identity.document_tables(document_id) if not errors else identity.Tables({})
-    for item in identity.reconcile(ready, tables) if not errors else []:
+    boreholes = identity.reconcile(ready, tables) if not errors else []
+    alone = len(boreholes) == 1 and not finished  # the document's only borehole (boundary questions)
+    for item in boreholes:
         if item.group.key in finished:
             continue
-        uid = await finalize_module.finalize_group(document_id, item.group, item.outcome)
+        uid = await finalize_module.finalize_group(document_id, item.group, item.outcome, alone=alone)
         if uid is None:
             logger.warning("document %s group %s produced no borehole", document_id, item.group.key)
         elif item.aliases:

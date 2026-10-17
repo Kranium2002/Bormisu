@@ -35,7 +35,7 @@ async def test_a_part_read_on_the_retry_is_not_a_second_borehole(monkeypatch: py
     async def extract(_: str, group: PageGroup, **__: Any) -> ExtractionOutcome:
         return outcomes[group.key]
 
-    async def finalize(_: str, group: PageGroup, __: ExtractionOutcome) -> str:
+    async def finalize(_: str, group: PageGroup, __: ExtractionOutcome, **___: Any) -> str:
         stored[group.key] = group
         return group.key
 
