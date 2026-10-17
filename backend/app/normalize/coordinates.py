@@ -267,7 +267,7 @@ def _axis_from_match(match: re.Match[str], form_hint: str) -> _Axis | str:
     )
 
 
-_GROUPED = re.compile(r"^\d{1,4}(?:\s+\d{1,4})+$")
+_GROUPED = re.compile(r"^\d{1,6}(?:\s+\d{1,6})+(?:[.,]\d+)?$")
 
 
 def _parse_axis(raw: str, style: NumberStyle | None) -> _Axis | str:
@@ -305,7 +305,10 @@ def _parse_axis(raw: str, style: NumberStyle | None) -> _Axis | str:
         # one number when they cannot be degrees, minutes and seconds
         groups = rest.split()
         joined = "".join(groups)
-        if len(joined) >= 6 and (marker.role is not None or any(int(g) >= 60 for g in groups[1:])):
+        whole = re.split(r"[.,]", joined)[0]
+        if len(whole) >= 6 and (
+            marker.role is not None or any(int(re.split(r"[.,]", g)[0]) >= 60 for g in groups[1:])
+        ):
             number = parse_number(joined, style=style)
     if number.value is None:
         return number.reason or "not a number"
