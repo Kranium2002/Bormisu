@@ -52,7 +52,7 @@
 
 ## 09 · Under the hood (~25 s)
 
-*(the whole stack: Browser · API · Pipeline · Models on top, Maps · Database · Export below)*
+*(one line, left to right: Browser → API → Pipeline → Database → Export; helpers below: Maps under the browser, Mistral models under the pipeline)*
 
 > In the browser: React and Leaflet for the map.
 > Behind it a FastAPI server, and a job pipeline: Word files become PDFs, pages are rendered, Mistral OCR reads them, Mistral Large pulls out every value with its source box.

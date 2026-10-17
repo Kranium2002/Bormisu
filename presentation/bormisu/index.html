@@ -138,7 +138,7 @@
   .feat .b { font-size: 28px; line-height: 1.4; color: var(--muted); }
 
   /* 08 Tech: the whole stack as boxes, names only */
-  .stack2 { display: grid; grid-template-columns: 300px 48px 280px 48px 1fr 48px 300px; grid-template-rows: auto 52px auto; }
+  .stack2 { display: grid; grid-template-columns: repeat(4, 1fr 44px) 1fr; grid-template-rows: auto 56px auto; align-items: stretch; }
   .box { background: rgba(255,248,236,0.06); border: 1px solid rgba(255,248,236,0.18); border-radius: 20px; padding: 28px 26px; display: flex; flex-direction: column; gap: 16px; }
   .box.core { border-color: var(--ladyfinger); }
   .box .bi { width: 46px; height: 46px; color: var(--ladyfinger); }
@@ -148,8 +148,7 @@
   .box .chips i { font-style: normal; color: var(--ladyfinger); font-size: 22px; align-self: center; }
   .stack2 .ar { display: flex; align-items: center; justify-content: center; font-size: 30px; color: var(--ladyfinger); }
   .stack2 .ar.v { grid-row: 2; }
-  .stack-foot { display: flex; gap: 40px; margin-top: 40px; font-size: 20px; color: var(--on-dark-muted); }
-  .stack-foot b { color: var(--ladyfinger); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 17px; margin-right: 12px; }
+  .box.helper { background: transparent; border-style: dashed; }
 
   /* 10 Deployment */
   .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 64px; }
@@ -296,45 +295,39 @@
     <div class="stack2">
       <div class="box" data-anim style="--d: 150ms; grid-column: 1; grid-row: 1;">
         <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="Browser" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><path d="M2.5 8.5h19"/><circle cx="5.5" cy="6.3" r=".6" fill="currentColor"/><circle cx="7.7" cy="6.3" r=".6" fill="currentColor"/></svg>
-        <div class="chips"><span>React</span><span>Vite</span><span>Leaflet</span><span>Zustand</span><span>AI SDK</span><span>ExcelJS</span></div>
+        <div class="chips"><span>React</span><span>Vite</span><span>Leaflet</span><span>Zustand</span><span>AI SDK</span></div>
       </div>
-      <div class="ar" data-anim style="--d: 250ms; grid-column: 2; grid-row: 1;">⇄</div>
-      <div class="box" data-anim style="--d: 300ms; grid-column: 3; grid-row: 1;">
+      <div class="ar" data-anim style="--d: 220ms; grid-column: 2; grid-row: 1;">⇄</div>
+      <div class="box" data-anim style="--d: 290ms; grid-column: 3; grid-row: 1;">
         <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="API server" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="18" height="7" rx="1.8"/><rect x="3" y="13.5" width="18" height="7" rx="1.8"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></svg>
         <div class="chips"><span>nginx</span><span>FastAPI</span><span>Pydantic</span><span>SSE</span></div>
       </div>
-      <div class="ar" data-anim style="--d: 400ms; grid-column: 4; grid-row: 1;">→</div>
-      <div class="box core" data-anim style="--d: 450ms; grid-column: 5; grid-row: 1;">
+      <div class="ar" data-anim style="--d: 360ms; grid-column: 4; grid-row: 1;">→</div>
+      <div class="box core" data-anim style="--d: 430ms; grid-column: 5; grid-row: 1;">
         <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="Processing pipeline" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="2.6"/><path d="M9 3.5v1.7M9 12.8v1.7M3.5 9h1.7M12.8 9h1.7M5.1 5.1l1.2 1.2M11.7 11.7l1.2 1.2M5.1 12.9l1.2-1.2M11.7 6.3l1.2-1.2"/><circle cx="17" cy="17" r="2"/><path d="M17 13.2v1.3M17 19.5v1.3M13.2 17h1.3M19.5 17h1.3"/></svg>
-        <div class="chips"><span>Procrastinate</span><i>·</i><span>Gotenberg</span><i>→</i><span>pypdfium2</span><i>→</i><span>Mistral OCR</span><i>→</i><span>Mistral Large</span><i>→</i><span>pyproj</span><i>→</i><span>DIN 4023 checks</span></div>
+        <div class="chips"><span>Procrastinate</span><span>Gotenberg</span><span>pypdfium2</span><span>pyproj</span><span>DIN 4023 checks</span></div>
       </div>
-      <div class="ar" data-anim style="--d: 550ms; grid-column: 6; grid-row: 1;">⇄</div>
-      <div class="box" data-anim style="--d: 600ms; grid-column: 7; grid-row: 1;">
-        <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="AI models" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18.5 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
-        <div class="chips"><span>Mistral OCR</span><span>Mistral Large</span></div>
-      </div>
-
-      <div class="ar v" data-anim style="--d: 700ms; grid-column: 1;">↕</div>
-      <div class="ar v" data-anim style="--d: 700ms; grid-column: 3;">↕</div>
-      <div class="ar v" data-anim style="--d: 700ms; grid-column: 5;">↓</div>
-
-      <div class="box" data-anim style="--d: 800ms; grid-column: 1; grid-row: 3;">
-        <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="Maps" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/></svg>
-        <div class="chips"><span>OpenStreetMap</span><span>Nominatim</span></div>
-      </div>
-      <div class="box" data-anim style="--d: 850ms; grid-column: 3 / 6; grid-row: 3;">
+      <div class="ar" data-anim style="--d: 500ms; grid-column: 6; grid-row: 1;">→</div>
+      <div class="box" data-anim style="--d: 570ms; grid-column: 7; grid-row: 1;">
         <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="Database" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13"/><path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg>
         <div class="chips"><span>PostgreSQL 16</span><span>PostGIS</span><span>pgvector</span><span>SQLAlchemy</span><span>Alembic</span></div>
       </div>
-      <div class="box" data-anim style="--d: 900ms; grid-column: 7; grid-row: 3;">
+      <div class="ar" data-anim style="--d: 640ms; grid-column: 8; grid-row: 1;">→</div>
+      <div class="box" data-anim style="--d: 710ms; grid-column: 9; grid-row: 1;">
         <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="Export" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6.5A2 2 0 0 0 4.5 5v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8.5z"/><path d="M14 3v5.5h5.5"/><path d="M12 11.5v6M9.5 15l2.5 2.5 2.5-2.5"/></svg>
-        <div class="chips"><span>Herrenknecht xlsx</span><span>openpyxl</span><span>CSV</span></div>
+        <div class="chips"><span>Herrenknecht xlsx</span><span>ExcelJS</span><span>CSV</span></div>
       </div>
-    </div>
-    <div class="stack-foot" data-anim style="--d: 1050ms;">
-      <span><b>Runs on</b>Docker Compose</span>
-      <span><b>Tested with</b>pytest · Vitest · Playwright</span>
-      <span><b>Licence</b>Apache 2.0</span>
+
+      <div class="ar v" data-anim style="--d: 800ms; grid-column: 1; grid-row: 2;">↕</div>
+      <div class="ar v" data-anim style="--d: 800ms; grid-column: 5; grid-row: 2;">↕</div>
+      <div class="box helper" data-anim style="--d: 880ms; grid-column: 1; grid-row: 3;">
+        <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="Maps" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/></svg>
+        <div class="chips"><span>OpenStreetMap</span><span>Nominatim</span></div>
+      </div>
+      <div class="box helper" data-anim style="--d: 880ms; grid-column: 5; grid-row: 3;">
+        <svg class="bi" viewBox="0 0 24 24" role="img" aria-label="AI models" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18.5 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+        <div class="chips"><span>Mistral OCR</span><span>Mistral Large</span></div>
+      </div>
     </div>
   </section>
 
