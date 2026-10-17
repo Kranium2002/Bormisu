@@ -112,7 +112,9 @@ class Settings(BaseSettings):
     # Rate limits (429): a provider call waits (honouring Retry-After, else backing off) until this many
     # seconds of waiting are used. OCR pages still refused then are tried again later in the same job, after
     # a cooldown, up to OCR_RATE_LIMIT_ROUNDS more times; only then is a page left unread (retry reads it).
-    rate_limit_wait_s: float = 150.0
+    rate_limit_wait_s: float = 600.0
+    # Every provider request ends after this many seconds (then retried), so no call can hang a job.
+    request_timeout_s: float = 120.0
     ocr_rate_limit_rounds: int = 2
     ocr_rate_limit_cooldown_s: float = 30.0
     # OCR requests in flight at once on the OpenRouter route, per worker process.

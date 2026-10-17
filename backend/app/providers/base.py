@@ -104,8 +104,10 @@ async def post_with_retries(
         last: ProviderError
         wait: float | None = None
         try:
-            response = await client.post(url, json=json, headers=headers)
-        except httpx.TimeoutException:
+            response = await asyncio.wait_for(
+                client.post(url, json=json, headers=headers), timeout=get_settings().request_timeout_s
+            )
+        except (httpx.TimeoutException, TimeoutError):
             last = ProviderError(f"{provider} did not answer in time.", retryable=True)
         except httpx.HTTPError:
             last = ProviderError(f"{provider} is not reachable.", retryable=True)
