@@ -20,53 +20,33 @@
 
 ## 04 · Stuttgart 21 🤫 (~5 s)
 
-*(construction photo of Stuttgart main station, the 🤫 is already on screen)*
-
 >And they also built for Stuttgart 21 but we don't talk about that.
 
 *(let the laugh happen, then move on)*
 
 ## 05 · Drilling (~25 s)
 
-*(photo of a drilling rig on site)*
-
 > But to build tunnels like these, you have to understand the ground. And that means drilling.
 > A drill core tells you what the ground is made of — soil or rock, how hard, where the water sits.
-> That decides which machine you build. Get it wrong, and the machine is wrong.
+> That decides which machine you build. 
+> Get it wrong, and the machine is wrong.
 
 ## 06 · Offenburg (~25 s)
 
-*(borehole map of Offenburg — every bubble is a cluster of boreholes)*
-
 > And there are a lot of them. This is how much has been drilled in Offenburg alone.
-> This data is well kept and classified. But not even here is it all in the same standard.
-> Even here, someone has to pull the data out and standardise it by hand.
+> This data is all kept on one website. But even here, it doesn’t follow one standard — and pieces are missing.
 
 ## 07 · Reports from around the world (~25 s)
 
-*(a crowd of real reports drops in, then three land in front: a handwritten Norwegian sheet, a Spanish soil probe sheet, a Korean drill log)*
 
-> Now think internationally. Herrenknecht works in China, the Middle East, South America.
+> Now think internationally. Herrenknecht works in Hong Kong, skandinavia, South America.
 > This is what the reports really look like.
 > Handwritten, in Norwegian. A Spanish soil probe sheet. A Korean drill log.
-> Every country does it differently — often every company does.
+> Every country does it differently  often every company does.
 > So we built the thing that standardises all of it.
 
-## 08 · Demo (~1:30)
+## 08 · Demo (~2:30)
 
-> Let me show you.
-
-*(switch to the app)*
-
-1. Upload a prepared report (pre-processed, so we don't wait on extraction).
-2. The boreholes appear on the map, coloured by review status.
-3. Open one: the profile drawn to DIN 4023 — layers, groundwater, samples.
-4. Click a value → the scan opens with the exact box. Correct one value live.
-5. Export → the Herrenknecht standard xlsx, approved values only.
-
-*(back to the deck)*
-
-**Backup:** if the network or the app fails, play the recorded run (TODO: record `demo.mp4`).
 
 ## 09 · Under the hood (~20 s)
 
@@ -84,11 +64,7 @@
 > But borehole reports are confidential. So the same pipeline runs on open models — PaddleOCR-VL to read, Qwen 3.8 27B for the rest.
 > That fits on one 32-gigabyte GPU in your server room. Or on a Mac mini with 32 gigabytes in a site office. Nothing leaves the building.
 
-## 11 · Team — skipped for now
-
-> That's us — Team Tiramisu, built in Breisgau.
-
-## 12 · In a nutshell (~15 s)
+## 11 · In a nutshell (~15 s)
 
 *(three checkmarks on the left, the tiramisu logo on the right)*
 
@@ -97,10 +73,9 @@
 > It's a sovereign stack — cloud today, your own server or a Mac mini tomorrow.
 > And it's ready to use — now.
 
-## 13 · Questions
+## 132 · Questions
 
 > Questions?
-> *(beat)* Questions about Stuttgart 21 go to Deutsche Bahn.
 
 ---
 
