@@ -137,7 +137,8 @@ test('edit a value, reload: the edit and the struck-through AI value persist; ed
     const after = fieldRow(page, 'SurfaceElevation');
     await expect(after).toContainText(`${edited.toFixed(2)} m`);
     await expect(after.locator('s')).toHaveText(ai.toFixed(2));
-    await expect(after).toContainText('Edited');
+    // The certainty dot says how the value came about (the method badge's "Edited" before).
+    await expect(after.getByRole('img', { name: /edited by a reviewer/ })).toBeVisible();
     await expect(approveBtn(page, 'Surface elevation')).toHaveAttribute('aria-pressed', 'true');
     const p = (await record(request, r.uid)).provenance[PATHS.elevation];
     expect({ method: p.method, status: p.status, ai: p.ai_value }).toEqual({ method: 'edited', status: 'approved', ai });
