@@ -91,8 +91,8 @@ docker run --rm -p 8080:80 -e API_UPSTREAM=http://host.docker.internal:8000 borm
 | `npm run check:dist` | Fails if `dist/` (or the folder given) contains sample data or a sample chunk |
 | `npm run preview` | Serves the production build |
 | `npm test` | Vitest unit tests |
-| `npm run e2e` | Playwright smoke tests in sample mode: system Chrome locally, bundled Chromium when `CI` is set |
-| `npm run gen:api` | Regenerates `src/data/api-types.gen.ts` from `../contracts/openapi.yaml` |
+| `npm run e2e` | Playwright: the `sample` project (sample mode, the config starts the dev server); with `E2E_BASE_URL` set, the `api` project against a running stack instead. System Chrome locally, bundled Chromium when `CI` is set |
+| `npm run gen:api` | Regenerates `src/data/api-types.gen.ts` from `../contracts/openapi.yaml` (openapi-typescript 7.13.0); CI fails when the committed file differs |
 
 ## Folder overview
 
@@ -108,7 +108,7 @@ src/
   screens/             map/, queue/, review/, detail/: one folder per screen
   export/              standard xlsx, tidy CSV, open-questions CSV
   styles/tokens.css    design tokens (colours, fonts) and global styles
-e2e/                   Playwright smoke tests
+e2e/                   Playwright: sample-mode specs; e2e/api/ against a running stack (E2E_BASE_URL)
 ```
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is the binding spec: domain types, value keys, the DataSource interface, the store API and the hard rules. Read it before changing code.
@@ -147,13 +147,34 @@ Exports run in the browser from the reviewed data, so API and sample mode share 
 npm test         # unit tests: domain rules, schema, API adapters + error handling, sample data,
                  # store flows (approve all clean, edit vs flag, states, CRS confirmation, search,
                  # uploads, export scope), xlsx/CSV builders, screen view models
-npm run e2e      # Playwright, sample mode, system Chrome (channel: 'chrome'); PORT sets the port (default 5174)
-E2E_BASE_URL=http://localhost:8080 npm run e2e   # against a running app instead (no dev server is started)
+npm run e2e      # Playwright project "sample": sample mode, system Chrome; PORT sets the dev server port (default 5174)
+E2E_BASE_URL=http://localhost:8081 npm run e2e -- --project=api   # Playwright project "api" against a seeded compose stack
+npm run gen:api && git diff --exit-code src/data/api-types.gen.ts   # generated wire types match the contract
 ```
 
-The e2e suite starts `npm run dev:sample` itself and stops it afterwards, unless `E2E_BASE_URL` is set. In CI (`CI` set) it uses Playwright's bundled Chromium (`npx playwright install --with-deps chromium`). `.github/workflows/frontend.yml` runs the unit tests, `gen:api` with a diff check, the build, `check:dist`, the e2e suite and the Docker build. Map tiles are stubbed, so it runs offline, and every test fails on any console error. It covers:
+`playwright.config.ts` defines two projects; which one exists depends on `E2E_BASE_URL`. Both stub the map tiles (they run offline) and fail a test on any console error. In CI (`CI` set) they use Playwright's bundled Chromium (`npx playwright install --with-deps chromium`), locally the installed Chrome.
 
-- **Map:** pins, legend counts, the *Not on map* list, a results row and a pin popup opening the detail, and search ("EQ-03" flies to the pin; "BK-13" explains why it isn't on the map).
+**`sample`** (`e2e/*.spec.ts`; `E2E_BASE_URL` unset): the config starts `npm run dev:sample` on 127.0.0.1:`$PORT` and stops it afterwards. `npm run e2e` and `npx playwright test --project=sample` run it. It covers:
+
+- **Map:** pins, legend counts, no pin under the legend in the first view, the *Not on map* list, a results row and a pin popup opening the detail, and search ("EQ-03" flies to the pin; "BK-13" explains why it isn't on the map).
 - **Detail:** the profile; the R marker opens the source panel with the highlighted box; the tidy CSV downloads; the standard xlsx downloads, and its sheets and row-1 field names are checked with exceljs.
 - **Queue:** three documents; the completeness panel lists BK-12 as missing; a `.txt` upload shows the red error; a `.pdf` upload adds a simulated document that goes through the steps.
 - **Review:** approve all clean updates the progress; an edit keeps the AI value struck through; flag and un-flag; state buttons toggle; confirming the CRS turns the Neckarbogen pins from amber.
+- **Accessibility:** focus trap and focus return of the dialogs, live regions, DIN 4023 pattern fills.
+
+**`api`** (`e2e/api/**/*.spec.ts`; only when `E2E_BASE_URL` is set): runs against an app that is already running in API mode; no dev server is started. Start the compose stack from the repository root with the fictional seed, then point `E2E_BASE_URL` at the stack's web port (the `web` service; `WEB_PORT` in the stack's `.env`, e.g. 8081):
+
+```bash
+docker compose up --build -d                     # repository root: db, api, worker, web
+docker compose exec api python -m app.seed       # fictional documents and boreholes
+E2E_BASE_URL=http://localhost:8081 npm run e2e -- --project=api
+E2E_BASE_URL=http://localhost:8081 npx playwright test --project=api e2e/api/review.spec.ts   # one spec
+```
+
+- The specs share the seeded database: one worker, in file order. They read the seed state from the backend (no hard-coded ids), change review data and put it back afterwards (through the API where the UI can't). Each spec names the seed state it needs at its top.
+- Some changes can't be undone: a confirmed CRS stays confirmed, an edited value keeps the method `edited`, and each run uses up one seeded CRS document. Reseed for a pristine stack: `docker compose exec api python -m app.seed --remove && docker compose exec api python -m app.seed`.
+- `knownBug(id)` marks a test that fails because of a reported finding (it counts as an expected failure); `E2E_SHOW_KNOWN=1` runs it as a normal test to show the real failure. A failing test writes every `/api/` response next to its results as `api-log.json`.
+
+**Generated types:** `npm run gen:api` regenerates `src/data/api-types.gen.ts` from `../contracts/openapi.yaml`. After a contract change, run it and commit the result; with no contract change, `git diff --exit-code src/data/api-types.gen.ts` stays empty (CI runs exactly this).
+
+`.github/workflows/frontend.yml` runs the unit tests, `gen:api` with the diff check, the build, `check:dist`, the `sample` e2e project and the Docker build. The `api` project needs the compose stack and runs locally.

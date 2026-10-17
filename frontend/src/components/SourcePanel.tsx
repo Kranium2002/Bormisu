@@ -1,8 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { pageUsageText } from '../domain/pages';
 import { PAGE_H, type DocumentSummary, type ExtractedValue } from '../domain/types';
-import { useAppStore, useDocument, useIsReviewable, usePage, useValue, type PageLoad, type SourcePanel as SourcePanelState } from '../store/appStore';
-import { PAGE_TYPE_META } from '../theme';
+import {
+  useAppStore,
+  useBorehole,
+  useDocument,
+  useIsReviewable,
+  usePage,
+  useValue,
+  type PageLoad,
+  type SourcePanel as SourcePanelState,
+} from '../store/appStore';
+import { PAGE_TYPE_META, pageMeta } from '../theme';
 import { MethodBadge } from './MethodBadge';
 import { ScanPage } from './ScanPage';
 import { PanelHeader } from './PanelHeader';
@@ -20,19 +29,24 @@ export function noPageNote(value: Pick<ExtractedValue, 'method'> | undefined): s
 }
 
 /**
- * Source panel: the value's page with its box highlighted, the raw text and the method.
- * "Box not found: page shown" when the value has no box. A spreadsheet value shows its cell
- * reference ("Sheet!C5") instead of a page; a value on no page (guessed, derived) says so and shows
- * none. OPEN IN REVIEW for reviewable values.
+ * Source panel: the value's page with its box highlighted, the raw text and the method, in the
+ * document the source is in (a value can come from another document than its borehole's, e.g. a lab
+ * spreadsheet; the panel names that file). "Box not found: page shown" when the value has no box. A
+ * spreadsheet value shows its cell reference ("Sheet!C5") instead of a page; a value on no page
+ * (guessed, derived) says so and shows none, as does a borehole without pages. OPEN IN REVIEW for
+ * reviewable values.
  */
 export function SourcePanel({ panel }: { panel: SourcePanelState }) {
   const value = useValue(panel.uid, panel.key);
+  const borehole = useBorehole(panel.uid);
   const doc = useDocument(panel.documentId);
   const page = usePage(panel.cell ? null : panel.documentId, panel.page);
   const reviewable = useIsReviewable(panel.uid);
   const openReview = useAppStore((s) => s.openReview);
   const focusValue = useAppStore((s) => s.focusValue);
   const closePanel = useAppStore((s) => s.closePanel);
+  // The borehole's own file names its document while that isn't loaded; another document has no name here.
+  const ownFile = borehole && borehole.documentId === panel.documentId ? borehole.sourceFile : undefined;
 
   const openInReview = () => {
     if (!panel.uid || !panel.key) return;
@@ -41,25 +55,40 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
     closePanel();
   };
 
-  return <SourcePanelView panel={panel} value={value} doc={doc} page={page} onOpenInReview={reviewable ? openInReview : undefined} />;
+  return (
+    <SourcePanelView
+      panel={panel}
+      value={value}
+      doc={doc}
+      ownFile={ownFile}
+      page={page}
+      onOpenInReview={reviewable ? openInReview : undefined}
+    />
+  );
 }
 
 interface ViewProps {
   panel: SourcePanelState;
   value: ExtractedValue | undefined;
+  /** The document the panel shows, when the store has it. */
   doc: DocumentSummary | undefined;
+  /** File name of the borehole's own document, when the panel shows that document. */
+  ownFile?: string;
   page: PageLoad;
   /** Shown as OPEN IN REVIEW when the value can be reviewed. */
   onOpenInReview?: () => void;
 }
 
 /** What the Source panel shows, from the store's data (pure; rendered in tests without a store). */
-export function SourcePanelView({ panel, value, doc, page, onOpenInReview }: ViewProps) {
+export function SourcePanelView({ panel, value, doc, ownFile, page, onOpenInReview }: ViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** Neither a page nor a cell to show: a value on no page, or a borehole without pages. */
+  const noPage = panel.page == null && !panel.cell;
   /** A value whose source entry names neither a page nor a cell. */
-  const onNoPage = !!value && panel.page == null && !panel.cell;
-  const content = page.status === 'ready' && !onNoPage ? page.content : null;
+  const onNoPage = !!value && noPage;
+  const content = page.status === 'ready' && !noPage ? page.content : null;
   const box = panel.box ?? null;
+  const fileName = doc?.name || ownFile || 'another document';
 
   // Show the page from the top (sheet header in view) unless the box would be below the fold.
   useEffect(() => {
@@ -71,16 +100,19 @@ export function SourcePanelView({ panel, value, doc, page, onOpenInReview }: Vie
     el.scrollTop = box && boxBottom + 40 > el.clientHeight ? Math.max(0, pageTop + box.y * PAGE_H * SCALE - 160) : 0;
   }, [content, box]);
 
-  const title = value ? value.label.toUpperCase() : `PAGE ${panel.page ?? ''}`.trim();
+  const title = value ? value.label.toUpperCase() : panel.page != null ? `PAGE ${panel.page}` : 'NO PAGE';
   const label = panel.cell
-    ? `${doc?.name ?? 'spreadsheet'} · cell ${panel.cell}`
-    : onNoPage
-      ? (doc?.name ?? '')
-      : (content?.label ?? `page ${panel.page}`);
+    ? `${fileName} · cell ${panel.cell}`
+    : noPage
+      ? fileName
+      : (content?.label ?? `page ${panel.page} · ${fileName}`);
   const pageInfo = panel.page != null ? doc?.pages.find((p) => p.n === panel.page) : undefined;
+  // Name and usage of the page as the document lists it; a page of type unknown is named only when
+  // the document says whether it was classified.
+  const kind = pageInfo ? pageMeta(pageInfo).name : content && content.type !== 'unknown' ? PAGE_TYPE_META[content.type].name : '';
   const detail = value
     ? value.raw && `as printed: “${value.raw}”`
-    : content && `${PAGE_TYPE_META[content.type].name} · ${pageInfo ? pageUsageText(pageInfo) : content.usage}`;
+    : content && [kind, pageInfo ? pageUsageText(pageInfo) : content.usage].filter(Boolean).join(' · ');
 
   return (
     <>
@@ -99,9 +131,9 @@ export function SourcePanelView({ panel, value, doc, page, onOpenInReview }: Vie
             <div className={styles.cellRef}>{panel.cell}</div>
             <div className={styles.status}>Spreadsheet value: the source is this cell, so there is no page image.</div>
           </div>
-        ) : onNoPage ? (
+        ) : noPage ? (
           <div className={styles.cellSource}>
-            <div className={styles.status}>{noPageNote(value)}</div>
+            <div className={styles.status}>{onNoPage ? noPageNote(value) : 'No source page for this borehole.'}</div>
           </div>
         ) : (
           <>

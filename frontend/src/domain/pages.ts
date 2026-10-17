@@ -39,11 +39,12 @@ export function placeholderPage(n: number): DocumentPage {
 
 /**
  * Usage note of a page, e.g. "used: log sheet" or "unused: cover or contents". It says only what the
- * backend reported; a page without a classification is "not classified yet".
+ * backend reported; a page without a classification is "not classified yet". A classified page is
+ * never called that, also when its type is unknown (blank, duplicate …).
  */
 export function pageUsageText(p: DocumentPage | undefined): string {
   if (!p || !p.classified) return 'not classified yet';
-  const what = p.role ? PAGE_ROLE_LABELS[p.role] : p.type.replace('_', ' ');
+  const what = p.role ? PAGE_ROLE_LABELS[p.role] : p.type === 'unknown' ? 'type unknown' : p.type.replace('_', ' ');
   if (p.used) return `used: ${what}`;
   if (p.duplicateOf) return `unused: duplicate of page ${p.duplicateOf.n}`;
   return `unused: ${p.unusedReason ?? what}`;

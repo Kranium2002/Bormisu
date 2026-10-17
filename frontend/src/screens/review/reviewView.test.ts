@@ -252,3 +252,57 @@ describe('uiv-6: a value with a source entry but no page', () => {
     expect(scanCaption(2, [2], read)).toEqual({ text: 'Casing: no page reference from the backend', tone: 'warn' });
   });
 });
+
+describe('PRIMARY-PAGE-NULL: a borehole without pages', () => {
+  const pageless = () =>
+    makeBorehole({ pages: [], primaryPage: null, values: [makeValue({ key: K.boreholeId, page: null, method: 'Guessed' })] });
+
+  it('has no sheet tabs: no page is made up for it', () => {
+    expect(sheetPages(pageless())).toEqual([]);
+  });
+
+  it('the caption says there is no source page instead of "page null" or page 1', () => {
+    expect(scanCaption(null, [], undefined)).toEqual({ text: 'no source page for this borehole', tone: 'normal' });
+    expect(scanBoxes(pageless(), null, null, noop)).toEqual([]);
+  });
+});
+
+describe('DV-11-UI: values whose source is in another document', () => {
+  const LAB = 'doc_FICTIONAL_LAB_0000000000001';
+  const lab = (o: Parameters<typeof makeValue>[0]) => makeValue({ documentId: LAB, ...o });
+
+  it('are never drawn on the borehole’s own pages, nor add sheet tabs', () => {
+    const b = makeBorehole({
+      values: [
+        makeValue({ key: 'own', page: 7, box: box(0.1, 0.1) }),
+        lab({ key: 'ucs', page: 3, box: box(0.2, 0.2) }),
+        lab({ key: 'own-doc-id', page: 7, box: box(0.3, 0.3), documentId: makeBorehole().documentId! }),
+      ],
+    });
+    expect(sheetPages(b)).toEqual([7]);
+    expect(scanBoxes(b, 3, null, noop)).toEqual([]);
+    expect(scanBoxes(b, 7, 'ucs', noop).map((x) => x.id)).toEqual(['own', 'own-doc-id']);
+  });
+
+  it('name the other document next to the label and in the caption', () => {
+    expect(pageText(lab({ key: 'a', page: 3, box: box(0, 0) }), true)).toBe('p.3 · other document');
+    expect(pageText(lab({ key: 'a', page: null, cell: 'Lab!D7' }), true)).toBe('Lab!D7 · other document');
+    const cell = lab({ key: 'c', label: 'UCS', page: null, cell: 'Lab!D7' });
+    expect(scanCaption(7, [7], cell, true)).toEqual({
+      text: 'UCS: spreadsheet cell Lab!D7 in another document · Larger source view shows it',
+      tone: 'normal',
+    });
+    const paged = lab({ key: 'p', label: 'UCS', page: 3, box: box(0, 0) });
+    expect(scanCaption(7, [7], paged, true)).toEqual({
+      text: 'UCS: page 3 of another document · Larger source view shows it',
+      tone: 'normal',
+    });
+  });
+
+  it('a layer heading names a page of the borehole’s own document only', () => {
+    const b = makeBorehole({
+      values: [lab({ key: 'l1', group: 'layer', layer: 1, page: 3 }), makeValue({ key: 'l1b', group: 'layer', layer: 1, page: 8 })],
+    });
+    expect(reviewRows(b)[0]).toMatchObject({ kind: 'head', title: 'LAYER 1 · 0.00–2.50 M · P.8' });
+  });
+});

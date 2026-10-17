@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { fromOtherDocument } from '../../domain/review';
 import type { Borehole } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import { FieldRow } from './FieldRow';
@@ -31,7 +32,9 @@ export function FieldList({ b }: { b: Borehole }) {
   const rows = useMemo(
     () =>
       reviewRows(b).map((r) =>
-        r.kind === 'head' ? r : { ...r, normText: normalisedText(b, r.value), note: fieldNote(b, r.value) },
+        r.kind === 'head'
+          ? r
+          : { ...r, normText: normalisedText(b, r.value), note: fieldNote(b, r.value), elsewhere: fromOtherDocument(b, r.value) },
       ),
     [b],
   );
@@ -75,6 +78,7 @@ export function FieldList({ b }: { b: Borehole }) {
             normText={r.normText}
             note={r.note}
             canChooseCrs={r.value.key === crsKey}
+            elsewhere={r.elsewhere}
           />
         ),
       )}

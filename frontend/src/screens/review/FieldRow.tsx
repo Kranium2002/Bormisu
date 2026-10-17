@@ -1,5 +1,6 @@
 import { memo, type KeyboardEvent, type MouseEvent } from 'react';
 import { MethodBadge } from '../../components/MethodBadge';
+import { lintText } from '../../domain/format';
 import { refusalTitle } from '../../domain/spt';
 import type { ExtractedValue, FieldState } from '../../domain/types';
 import { useAppStore, type EditingState } from '../../store/appStore';
@@ -18,6 +19,8 @@ interface Props {
   note: Note | null;
   /** True for a CRS row: shows CHOOSE CRS… in the more-actions bar. */
   canChooseCrs: boolean;
+  /** The value's source is in another document than the borehole's (e.g. a lab spreadsheet). */
+  elsewhere?: boolean;
 }
 
 const stop = (e: MouseEvent) => e.stopPropagation();
@@ -29,9 +32,10 @@ const NOTE_CLASS: Record<Note['tone'], string> = { faint: styles.noteFaint, ok: 
  * normalised (or the 3-line lithology, or the state), readings side by side when readers disagreed,
  * AI value struck through after an edit, note, lint, flag, inline edit / flag input, more actions
  * while focused, method badge and ✓ ✎ ⚑. A value without a provenance entry can't be reviewed:
- * its actions are disabled with the reason.
+ * its actions are disabled with the reason. A read-only value (`readOnlyReason`) can't be edited, but
+ * can be approved, flagged and set to a state.
  */
-function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChooseCrs }: Props) {
+function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChooseCrs, elsewhere = false }: Props) {
   const focusValue = useAppStore((s) => s.focusValue);
   const toggleApprove = useAppStore((s) => s.toggleApprove);
   const toggleFlag = useAppStore((s) => s.toggleFlag);
@@ -51,6 +55,8 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
   const showAi = v.method === 'Edited' && v.aiValue !== v.value;
   const locked = !v.hasProvenance;
   const lockedTitle = locked ? NO_SOURCE_REFERENCE : undefined;
+  // Why ✎ is off for a value with provenance (e.g. a CRS set only through the CRS dialog).
+  const editBlocked = !locked && v.readOnlyReason ? v.readOnlyReason : undefined;
 
   const onEditKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -84,7 +90,7 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
     >
       <div className={styles.labelCell}>
         <span className={styles.label}>{v.label}</span>
-        <span className={`${styles.page} ${locked ? styles.pageMissing : ''}`}>{pageText(v)}</span>
+        <span className={`${styles.page} ${locked ? styles.pageMissing : ''}`}>{pageText(v, elsewhere)}</span>
       </div>
 
       <div className={styles.valueCell}>
@@ -132,7 +138,7 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
         {v.lint && (
           <span className={v.lint.severity === 'error' ? styles.lintError : styles.lintWarn}>
             {v.lint.severity === 'error' ? '✕ ' : '⚠ '}
-            {v.lint.message}
+            {lintText(v.lint)}
           </span>
         )}
         {v.flag && <span className={styles.flagText}>⚑ Flagged: {v.flag}</span>}
@@ -204,9 +210,10 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
         <button
           type="button"
           className={styles.act}
-          title={lockedTitle ?? 'Edit'}
+          title={lockedTitle ?? editBlocked ?? 'Edit'}
           aria-label={`Edit ${v.label}`}
-          disabled={locked}
+          aria-description={editBlocked}
+          disabled={locked || !!editBlocked}
           onClick={() => startEdit(v.key, 'edit')}
         >
           ✎

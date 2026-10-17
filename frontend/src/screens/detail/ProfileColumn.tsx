@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from 'react';
 import { dinEntry, dinFill, dinLegendItems, dinNeedsUnderlay } from '../../domain/din';
-import { decimalComma } from '../../domain/format';
+import { decimal } from '../../domain/format';
 import { K } from '../../domain/keys';
 import type { Borehole, GroundwaterReading, Layer } from '../../domain/types';
 import { COL } from '../../theme';
@@ -105,7 +105,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       // A group, not an img: an img's children are presentational, and the layers, GW triangles
       // and the R marker inside are buttons.
       role="group"
-      aria-label={`DIN 4023 profile of ${b.id}, ${b.layers.length} layers, final depth ${b.finalDepth != null ? `${decimalComma(b.finalDepth)} m` : 'not stated'}`}
+      aria-label={`DIN 4023 profile of ${b.id}, ${b.layers.length} layers, final depth ${b.finalDepth != null ? `${decimal(b.finalDepth)} m` : 'not stated'}`}
     >
       <defs>
         <pattern id={NOT_LOGGED_ID} width="8" height="8" patternUnits="userSpaceOnUse">
@@ -134,7 +134,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
         const along = blk.name && !fitsAcross && h > 24 ? fitText(blk.name, h - 6, 10) : '';
         return (
           <g key={`${blk.name ?? ''}-${blk.from}`}>
-            <title>{`Stratigraphy: ${blk.name ?? 'not stated'}, ${decimalComma(blk.from)}–${decimalComma(blk.to)} m`}</title>
+            <title>{`Stratigraphy: ${blk.name ?? 'not stated'}, ${decimal(blk.from)}–${decimal(blk.to)} m`}</title>
             <rect x={X.stratX} y={y(blk.from)} width={X.stratW} height={h} fill={STRAT_FILL} stroke={INK} />
             {fitsAcross && (
               <text x={X.stratMid} y={cy + 4} fontSize="10" textAnchor="middle" fill={INK}>{blk.name}</text>
@@ -161,7 +161,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             className={styles.hit}
             role="button"
             tabIndex={0}
-            aria-label={`Layer ${l.n}: ${l.lithology || 'no description'}, ${decimalComma(l.from)}–${decimalComma(l.to)} m`}
+            aria-label={`Layer ${l.n}: ${l.lithology || 'no description'}, ${decimal(l.from)}–${decimal(l.to)} m`}
             aria-pressed={l.n === selectedLayer}
             onClick={select}
             onKeyDown={onKeyActivate(select)}
@@ -176,7 +176,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             )}
             <line x1={X.layerX + X.layerW} y1={y(l.to)} x2={X.bottomTickTo} y2={y(l.to)} stroke={INK} />
             {!onRockHead(l.to) && (
-              <text x={X.bottomLabel} y={y(l.to) + 4} fontSize="10" fill={INK}>{decimalComma(l.to)}</text>
+              <text x={X.bottomLabel} y={y(l.to) + 4} fontSize="10" fill={INK}>{decimal(l.to)}</text>
             )}
             {h > 12 && label && (
               <text x={X.code} y={labelY(l)} fontSize={LABEL_FONT} fontWeight="700" fill={INK}>{label}</text>
@@ -210,16 +210,16 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       )}
 
       <text x={X.layerMid} y={etY} fontSize="10" textAnchor="middle" fill={INK}>
-        {b.finalDepth != null && b.finalDepth > 0 ? `ET ${decimalComma(b.finalDepth)} m` : 'ET not stated'}
+        {b.finalDepth != null && b.finalDepth > 0 ? `ET ${decimal(b.finalDepth)} m` : 'ET not stated'}
       </text>
 
       {/* rock head */}
       {rockHead != null && (
         <g>
-          <title>{`Rock head ${decimalComma(rockHead)} m`}</title>
+          <title>{`Rock head ${decimal(rockHead)} m`}</title>
           <line x1={X.rockFrom} y1={y(rockHead)} x2={X.rockTo} y2={y(rockHead)} stroke={COL.dark} strokeWidth="1.5" strokeDasharray="6 3" />
           <text x={X.code} y={y(rockHead) + 14} fontSize="10" fill={COL.dark} fontWeight="700">
-            {`rock head ${decimalComma(rockHead)}`}
+            {`rock head ${decimal(rockHead)}`}
           </text>
         </g>
       )}
@@ -295,7 +295,7 @@ function RefusalMarker({ raw, layer, depth, markerY, layerTop, layerBottom, onOp
   const where =
     depth != null
       ? `at ${depth.toFixed(2)} m`
-      : `depth not stated (layer ${layer.n}, ${decimalComma(layer.from)}–${decimalComma(layer.to)} m)`;
+      : `depth not stated (layer ${layer.n}, ${decimal(layer.from)}–${decimal(layer.to)} m)`;
   const ariaWhere = depth != null ? `at ${depth.toFixed(2)} m` : 'depth not stated';
   const cx = X.refusalX + 11;
   return (

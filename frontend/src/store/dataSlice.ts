@@ -47,7 +47,7 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
         documents,
         reviewUid,
         focusKey,
-        reviewPage: rb ? pageFor(rb.values.find((v) => v.key === focusKey), rb.primaryPage) : 1,
+        reviewPage: rb ? pageFor(rb, rb.values.find((v) => v.key === focusKey), rb.primaryPage) : null,
         selectedUid: selected?.uid ?? null,
         selectedLayer: defaultLayer(selected),
       });

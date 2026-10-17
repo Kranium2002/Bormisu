@@ -115,6 +115,42 @@ export function resultsSummary(boreholes: Borehole[]): string {
   return `${plural(boreholes.length, 'borehole', 'boreholes')} · ${plural(projects, 'project', 'projects')}`;
 }
 
+/** Margin (px) kept between the pins and the map's edges, and between the pins and the legend, when fitting. */
+export const FIT_MARGIN = 24;
+
+/**
+ * Space the REVIEW STATUS legend takes in the map's bottom-left corner, from the map's left and
+ * bottom edges, when it can't be measured: its CSS offsets (left 12 px, bottom 24 px) plus the box
+ * those styles give it (about 156 × 122 px: title and four 12 px rows at line height 1.7, 10 / 12 px
+ * padding), rounded up. See MapLegend.module.css.
+ */
+export const LEGEND_EXTENT = { width: 12 + 160, height: 24 + 126 } as const;
+
+export interface Size { width: number; height: number }
+/** A box in page pixels, as getBoundingClientRect gives it. */
+export interface Rect { left: number; top: number; right: number; bottom: number }
+
+/** Space the legend takes from the map's bottom-left corner; LEGEND_EXTENT when it can't be measured. */
+export function legendExtent(map: Rect, legend: Rect | null): Size {
+  if (!legend || legend.right <= legend.left || legend.bottom <= legend.top) return LEGEND_EXTENT;
+  return { width: Math.ceil(legend.right - map.left), height: Math.ceil(map.bottom - legend.top) };
+}
+
+export interface FitPadding { paddingTopLeft: [number, number]; paddingBottomRight: [number, number] }
+
+/**
+ * Padding for fitting the map to the pins, so no pin ends up under the legend in the bottom-left
+ * corner: the margin on every side, plus the legend's width on the left or its height at the bottom,
+ * whichever takes the smaller share of the map.
+ */
+export function fitPadding(map: Size, legend: Size): FitPadding {
+  const m = FIT_MARGIN;
+  if (legend.width / map.width <= legend.height / map.height) {
+    return { paddingTopLeft: [legend.width + m, m], paddingBottomRight: [m, m] };
+  }
+  return { paddingTopLeft: [m, m], paddingBottomRight: [m, legend.height + m] };
+}
+
 /**
  * First view of the map: the bounds of all pins, wherever they are, so none starts off-screen; the
  * whole world while nothing is plotted (the empty start). No country is built in.

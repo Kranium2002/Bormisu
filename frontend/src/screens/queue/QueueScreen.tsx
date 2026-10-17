@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store/appStore';
-import { PAGE_TYPE_LEGEND, PAGE_TYPE_META } from '../../theme';
+import { retryBlockedReason } from '../../store/uploads';
+import { PAGE_LEGEND } from '../../theme';
 import { DocumentCard } from './DocumentCard';
 import { DropZone } from './DropZone';
 import styles from './QueueScreen.module.css';
@@ -8,19 +9,19 @@ import styles from './QueueScreen.module.css';
 /** How long a card stays highlighted after a "Same file as …" link pointed at it. */
 const HIGHLIGHT_MS = 2000;
 
-/** Page-type colour key for the page strips (log, lab table, text, drawing, photo). */
+/**
+ * Page-type colour key for the page strips: log, lab table, text, drawing, photo, a classified page
+ * without a type, and a page not classified yet.
+ */
 function PageTypeLegend() {
   return (
     <ul className={styles.legend} aria-label="Page types">
-      {PAGE_TYPE_LEGEND.map((t) => {
-        const m = PAGE_TYPE_META[t];
-        return (
-          <li key={t} className={styles.legendItem}>
-            <span className={styles.swatch} style={{ background: m.color, borderColor: m.border }} aria-hidden="true" />
-            {m.name}
-          </li>
-        );
-      })}
+      {PAGE_LEGEND.map((m) => (
+        <li key={m.name} className={styles.legendItem}>
+          <span className={styles.swatch} style={{ background: m.color, borderColor: m.border }} aria-hidden="true" />
+          {m.name}
+        </li>
+      ))}
     </ul>
   );
 }
@@ -48,6 +49,8 @@ function useRefuseStrayDrops() {
 /** Upload & queue: drop zone plus one card per document with status, progress, checks, counts and page map. */
 export function QueueScreen() {
   const documents = useAppStore((s) => s.documents);
+  // RETRY needs a working extraction: off in demo mode, with the reason.
+  const retryBlocked = useAppStore((s) => retryBlockedReason(s.health));
   const [highlight, setHighlight] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useRefuseStrayDrops();
@@ -78,7 +81,13 @@ export function QueueScreen() {
         <section className={styles.list} aria-label="Document queue">
           {documents.length ? (
             documents.map((d) => (
-              <DocumentCard key={d.id} doc={d} highlighted={highlight === d.id} onShowDocument={showDocument} />
+              <DocumentCard
+                key={d.id}
+                doc={d}
+                highlighted={highlight === d.id}
+                retryBlocked={retryBlocked}
+                onShowDocument={showDocument}
+              />
             ))
           ) : (
             <div className={styles.empty}>No documents yet. Drop a report above to extract its boreholes.</div>

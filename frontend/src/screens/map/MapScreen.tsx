@@ -1,10 +1,12 @@
 /**
  * Map screen (prototype template lines 48–79): Leaflet map with status-coloured pins and the
- * REVIEW STATUS legend, the NOT ON MAP aside, and the RESULTS table underneath.
+ * REVIEW STATUS legend, the NOT ON MAP aside, and the RESULTS table underneath. Before anything is
+ * uploaded the map keeps its world view and says how to get boreholes onto it.
  */
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useAppStore } from '../../store/appStore';
 import { BoreholeMap } from './BoreholeMap';
+import { EmptyMapOverlay } from './EmptyMapOverlay';
 import { MapLegend } from './MapLegend';
 import { isPlotted, legendEntries, statusByUid } from './mapModel';
 import styles from './MapScreen.module.css';
@@ -16,6 +18,8 @@ export function MapScreen() {
   const reviewUid = useAppStore((s) => s.reviewUid);
   const mapFocus = useAppStore((s) => s.mapFocus);
   const openBorehole = useAppStore((s) => s.openBorehole);
+  const go = useAppStore((s) => s.go);
+  const legendRef = useRef<HTMLDivElement>(null);
 
   const statuses = useMemo(() => statusByUid(boreholes), [boreholes]);
   const legend = useMemo(() => legendEntries(boreholes, statuses), [boreholes, statuses]);
@@ -29,11 +33,13 @@ export function MapScreen() {
           statuses={statuses}
           highlightUid={reviewUid}
           focus={mapFocus}
+          legendRef={legendRef}
           onOpen={openBorehole}
         />
-        <MapLegend entries={legend} />
+        <MapLegend ref={legendRef} entries={legend} />
+        {boreholes.length === 0 && <EmptyMapOverlay onOpenQueue={() => go('queue')} />}
       </div>
-      <NotOnMapList boreholes={notOnMap} onOpen={openBorehole} />
+      <NotOnMapList boreholes={notOnMap} total={boreholes.length} onOpen={openBorehole} />
       <ResultsTable boreholes={boreholes} statuses={statuses} onOpen={openBorehole} />
     </div>
   );

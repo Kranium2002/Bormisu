@@ -22,6 +22,24 @@ test.describe('map', () => {
     await expect(resultRow(page, 'BK-07')).toContainText('18.00 m');
   });
 
+  test('FE-MAP-1: the first view shows every pin inside the map, none under the legend', async ({ page }) => {
+    await expect(pins(page)).toHaveCount(45);
+    const map = (await page.getByRole('region', { name: 'Borehole map' }).boundingBox())!;
+    const legend = (await page.getByRole('group', { name: 'Review status legend' }).boundingBox())!;
+    const centres = await pins(page).evaluateAll((ps) =>
+      ps.map((p) => {
+        const r = p.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }),
+    );
+    const hidden = centres.filter(
+      (c) =>
+        c.x < map.x || c.x > map.x + map.width || c.y < map.y || c.y > map.y + map.height ||
+        (c.x >= legend.x && c.x <= legend.x + legend.width && c.y >= legend.y && c.y <= legend.y + legend.height),
+    );
+    expect(hidden, 'pins outside the map or under the legend').toEqual([]);
+  });
+
   test('leaving the map in the middle of a wheel zoom raises no error', async ({ page }) => {
     const map = page.getByRole('region', { name: 'Borehole map' });
     for (let i = 0; i < 3; i++) {

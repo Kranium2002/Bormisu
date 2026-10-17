@@ -19,6 +19,14 @@ export function uploadBlockedReason(health: Health | null): string | null {
   return health?.mode === 'demo' ? DEMO_UPLOAD_REASON : null;
 }
 
+/**
+ * Why RETRY of a failed document is not possible, or null. In demo mode the backend accepts a retry
+ * but has no provider to run it with, so the document would stall; sample and live modes retry.
+ */
+export function retryBlockedReason(health: Health | null): string | null {
+  return health?.mode === 'demo' ? DEMO_UPLOAD_REASON : null;
+}
+
 export interface UploadCheck {
   accepted: File[];
   /** Explains the refused files; '' when every file is accepted. */
