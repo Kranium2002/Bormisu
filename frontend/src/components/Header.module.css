@@ -235,3 +235,102 @@
   font-size: 12px;
   padding: 8px 4px;
 }
+
+/*
+ * Narrower than 1280 px (FRONTEND.md section 6): the bar wraps instead of pushing the page wider.
+ * Row 1 keeps the brand, the search and the controls on the right (chat, your name); the nav moves
+ * to a compact row of its own under it.
+ */
+@media (max-width: 1279px) {
+  .header {
+    height: auto;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0 16px;
+    column-gap: 16px;
+    row-gap: 0;
+  }
+
+  .brand {
+    min-height: 52px;
+  }
+
+  .tagline {
+    display: none;
+  }
+
+  .search {
+    flex: 0 1 290px;
+    min-width: 0;
+  }
+
+  .input {
+    width: 100%;
+  }
+
+  .message {
+    top: calc(100% + 6px);
+    max-width: calc(100vw - 32px);
+    white-space: normal;
+  }
+
+  .nav {
+    order: 1;
+    flex: 1 0 100%;
+    height: 38px;
+    gap: 22px;
+    /* A long badge never pushes the page wider: the row scrolls on its own. */
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+  }
+
+  .navItem {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /* The row clips what sticks out of it, so the outline goes inside. */
+  .navItem:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
+/* Phones: the search gets a row of its own under the brand and the controls. */
+@media (max-width: 767px) {
+  .header {
+    column-gap: 10px;
+  }
+
+  .brand {
+    min-height: 48px;
+    margin-right: auto;
+  }
+
+  .search {
+    order: 1;
+    flex: 1 0 100%;
+    margin-left: 0;
+    padding-bottom: 8px;
+  }
+
+  .nav {
+    order: 2;
+    gap: 18px;
+  }
+
+  .nameButton {
+    max-width: 140px;
+  }
+}
+
+/* Small phones (360 px): the four nav links still fit their row without scrolling. */
+@media (max-width: 389px) {
+  .nav {
+    gap: 12px;
+  }
+
+  .navItem {
+    letter-spacing: 0.05em;
+  }
+}

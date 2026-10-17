@@ -312,3 +312,106 @@
   font-size: 13px;
   color: var(--c-muted);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill {
+    transition: none;
+  }
+}
+
+/*
+ * Narrower than 1280 px (FRONTEND.md section 6): the header wraps, and the scan page sits above the
+ * field list instead of beside it; each keeps its own scroll box (a 560 px page scrolls inside its pane).
+ */
+@media (max-width: 1279px) {
+  .header {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    gap: 10px 18px;
+  }
+
+  .subtitle {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  /* APPROVE ALL CLEAN stays at the right end of its row, so its confirmation opens inside the screen. */
+  .cleanWrap {
+    margin-left: auto;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .scan {
+    padding: 16px 16px 24px;
+    border-bottom: 1px solid var(--c-border);
+  }
+}
+
+/* Phones: the screen scrolls when the header and the two panes need more than the height. */
+@media (max-width: 767px) {
+  .screen {
+    overflow-y: auto;
+  }
+
+  .titleBlock {
+    flex: 1 1 100%;
+  }
+
+  .title {
+    font-size: 16px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .tabs {
+    max-width: 100%;
+    min-height: 32px;
+    overflow-x: auto;
+  }
+
+  /* The tab row clips what sticks out of it, so the focus outline goes inside the tab. */
+  .tab:focus-visible {
+    outline: 2px solid var(--c-green);
+    outline-offset: -2px;
+  }
+
+  .progress {
+    margin-left: 0;
+    flex: 1 1 140px;
+    width: auto;
+  }
+
+  .body {
+    flex: 1 0 0;
+    min-height: 520px;
+    grid-template-rows: minmax(0, 45fr) minmax(0, 55fr);
+  }
+
+  .scan {
+    padding: 12px;
+  }
+
+  .pagePlaceholder {
+    width: 100%;
+    height: 320px;
+  }
+
+  /* FIELD and ACTIONS only: each row puts its value and method under the label (FieldRow). */
+  .colHead {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 8px 12px;
+  }
+
+  .colHead > :nth-child(2),
+  .colHead > :nth-child(3) {
+    display: none;
+  }
+
+  .groupHead {
+    padding: 12px 12px 6px;
+  }
+}

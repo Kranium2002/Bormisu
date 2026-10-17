@@ -15,3 +15,20 @@
   font: 12px var(--font-mono);
   color: var(--c-faint);
 }
+
+/* Phones: the text columns share the width and wrap; the chip and the source icon keep theirs. */
+@media (max-width: 767px) {
+  .cols {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto 30px;
+  }
+
+  .type {
+    padding: 8px 10px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cell {
+    overflow-wrap: anywhere;
+  }
+}

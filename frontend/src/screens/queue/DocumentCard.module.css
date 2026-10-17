@@ -283,3 +283,49 @@
 .onMap:focus-visible {
   background: var(--c-green-bg);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill {
+    transition: none;
+  }
+}
+
+/* Phones: the columns (from QueueScreen's --queue-cols) stack; checks and the hint start on the left. */
+@media (max-width: 767px) {
+  .card {
+    padding: 14px;
+  }
+
+  .top {
+    gap: 12px;
+  }
+
+  .checks {
+    justify-content: flex-start;
+  }
+
+  .comp {
+    text-align: left;
+  }
+
+  .bottom {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .hint {
+    white-space: normal;
+  }
+
+  .errorBlock {
+    flex-wrap: wrap;
+  }
+
+  .hintError {
+    text-align: left;
+  }
+
+  .questions {
+    white-space: normal;
+  }
+}

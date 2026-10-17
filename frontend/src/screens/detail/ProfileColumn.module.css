@@ -3,6 +3,21 @@
   font-family: var(--font-sans);
 }
 
+/* Narrower than 1280 px the profile card spans the screen: the drawing stays centred in it. */
+@media (max-width: 1279px) {
+  .svg {
+    margin: 0 auto;
+  }
+}
+
+/* Phones: the whole drawing scales down to the card (its viewBox keeps the proportions). */
+@media (max-width: 767px) {
+  .svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
 .hit {
   cursor: pointer;
 }

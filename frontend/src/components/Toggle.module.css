@@ -28,3 +28,10 @@
 .on .knob {
   left: 18px;
 }
+
+/* Reduced motion: the knob jumps to its place. */
+@media (prefers-reduced-motion: reduce) {
+  .knob {
+    transition: none;
+  }
+}
