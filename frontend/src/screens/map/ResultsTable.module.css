@@ -1,17 +1,24 @@
+/* RESULTS under the map: title and count, the active result set, the table (sticky header), the pager. */
 .results {
-  grid-column: 1 / span 2;
-  border-top: 1px solid var(--c-border);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   background: var(--c-surface);
 }
 
 .head {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 18px 8px;
+}
+
+.titleRow {
+  display: flex;
   align-items: baseline;
-  gap: 12px;
-  padding: 12px 24px 10px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 
 .title {
@@ -29,24 +36,33 @@
 /* The column header sits inside the scroll box (sticky), so it lines up with the rows even when a
    scrollbar takes width. Its negative margin stretches the grey band over the box padding. */
 .scroll {
+  position: relative;
   overflow: auto;
   flex: 1;
-  padding: 0 14px;
+  min-height: 0;
+  padding: 0 8px;
+}
+
+.table {
+  min-width: 0;
+}
+
+.headGroup {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -8px;
+  padding: 0 8px;
+  background: var(--c-line);
 }
 
 .row {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1.3fr) 110px 150px minmax(0, 1fr) 130px;
+  grid-template-columns: minmax(80px, 0.8fr) minmax(0, 1.3fr) 112px 138px minmax(0, 1fr) minmax(0, 1fr) 150px;
   align-items: center;
 }
 
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  margin: 0 -14px;
-  padding: 0 14px;
-  background: var(--c-line);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -54,17 +70,55 @@
 }
 
 .header .cell {
+  padding: 0;
+}
+
+.sort {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   padding: 8px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sort:hover {
+  color: var(--c-text);
+}
+
+.sort:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: -2px;
+}
+
+[aria-sort] > .sort {
+  color: var(--c-text);
+}
+
+.arrow {
+  font-size: 9px;
 }
 
 .body {
   font-size: 13px;
   border-bottom: 1px solid var(--c-line);
+  /* Clear of the sticky header when a row is scrolled into view. */
+  scroll-margin-top: 34px;
 }
 
 .cell {
   padding: 7px 10px;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .clickable {
@@ -81,13 +135,26 @@
   background: var(--c-hover);
 }
 
+/* The borehole selected on the map. */
+.selected,
+.selected:hover {
+  background: var(--c-selected);
+  box-shadow: inset 4px 0 0 var(--c-green);
+}
+
 .id {
   font-family: var(--font-mono);
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .mono {
   font-family: var(--font-mono);
+}
+
+.notStated {
+  color: var(--c-muted);
+  font-style: italic;
 }
 
 .muted {
@@ -98,15 +165,197 @@
   color: var(--c-amber-text);
 }
 
-.action {
+.document {
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  overflow: visible;
+}
+
+.map {
+  appearance: none;
+  border: 1px solid var(--c-dark);
+  border-radius: 2px;
+  padding: 2px 8px;
+  background: var(--c-surface);
+  color: var(--c-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.map:hover {
+  background: var(--c-dark);
+  color: #fff;
+}
+
+.map:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.offMap {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--c-amber-text);
+}
+
+.open {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: var(--c-green-text);
+  white-space: nowrap;
 }
 
 .empty {
   padding: 18px 10px;
   font-size: 13px;
   color: var(--c-muted);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 18px;
+  border-top: 1px solid var(--c-line);
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.range {
+  margin-right: auto;
+}
+
+.pageButton {
+  appearance: none;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  padding: 3px 10px;
+  background: var(--c-surface);
+  color: var(--c-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.pageButton:hover {
+  background: var(--c-hover);
+}
+
+.pageButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.pageButton:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.pageNo {
+  font-family: var(--font-mono);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Narrow screens: each row is a small card (ID and status, project and depth, CRS and document,
+   then the actions); the header keeps its sort buttons and wraps. No horizontal scroll. */
+@media (max-width: 767px) {
+  .head {
+    padding: 10px 12px 8px;
+  }
+
+  .scroll {
+    padding: 0 4px;
+  }
+
+  .headGroup {
+    position: static;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+
+  .header {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .header .cell {
+    flex: none;
+  }
+
+  .header .actions {
+    display: none;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id status'
+      'project depth'
+      'crs document'
+      'actions actions';
+    padding: 4px 0;
+  }
+
+  .body .id {
+    grid-area: id;
+  }
+
+  .body .project {
+    grid-area: project;
+  }
+
+  .body .depth {
+    grid-area: depth;
+    text-align: right;
+  }
+
+  .body .status {
+    grid-area: status;
+    text-align: right;
+  }
+
+  .body .crs {
+    grid-area: crs;
+  }
+
+  .body .document {
+    grid-area: document;
+    text-align: right;
+    max-width: 45vw;
+  }
+
+  .body .actions {
+    grid-area: actions;
+    justify-content: flex-start;
+  }
+
+  .body .cell {
+    padding: 3px 8px;
+  }
+
+  .pager {
+    padding: 6px 12px;
+  }
 }

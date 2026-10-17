@@ -178,7 +178,13 @@ test('FE-CRS-2: a confirmed CRS is named by its code in Detail, Review and RESUL
   expect(code, 'the backend stores the confirmed code').toMatch(/^EPSG:/);
   await openApp(page);
   // Soft: report every place that drops the code, not only the first.
-  await expect.soft(page.locator(`[role="table"] [role="row"][data-uid="${b!.uid}"]`).getByRole('cell').nth(4), 'RESULTS CRS cell').toContainText(code);
+  // RESULTS: a pin from the map layer carries only the CRS status, so the row names the code once the
+  // record is cached (Detail, Review; checked at the end) and the status before. Its title never says
+  // there is no coordinate system.
+  const resultsCrs = page.locator(`[role="table"] [role="row"][data-uid="${b!.uid}"]`).getByRole('cell').nth(4);
+  const codePattern = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await expect.soft(resultsCrs, 'RESULTS CRS cell').toHaveText(new RegExp(`^confirmed( · ${codePattern})?$`));
+  await expect.soft(resultsCrs, 'RESULTS CRS title').not.toHaveAttribute('title', /no coordinate system/i);
   await openDetail(page, b!.metadata.borehole_id);
   const meta = page.getByLabel('Metadata');
   await expect.soft(meta, 'Detail location').not.toContainText('CRS unknown');
@@ -186,6 +192,11 @@ test('FE-CRS-2: a confirmed CRS is named by its code in Detail, Review and RESUL
   await page.getByRole('button', { name: '› OPEN IN REVIEW' }).click();
   await expect(page.getByRole('heading', { level: 1, name: `REVIEW · ${b!.metadata.borehole_id}` })).toBeVisible();
   await expect.soft(await crsActionRow(page), 'Review CRS row (else the X / Y row that offers CHOOSE CRS…)').toContainText(code);
+  // Back on the map the record is cached: RESULTS names the system after the status (the printed
+  // name, else the code), and its title carries the code.
+  await nav(page, 'MAP');
+  await expect.soft(resultsCrs, 'RESULTS CRS cell of a cached record').toHaveText(/^confirmed · \S/);
+  await expect.soft(resultsCrs, 'RESULTS CRS title of a cached record').toHaveAttribute('title', new RegExp(codePattern));
 });
 
 test('BE-CRS-1: confirming the CRS of a document resolves its open crs_confirm question', async ({ request }) => {

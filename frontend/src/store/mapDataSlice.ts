@@ -37,6 +37,9 @@ export const EMPTY_FILTER: BoreholeFilter = Object.freeze({
 /** A fresh copy of EMPTY_FILTER (its lists are never shared). */
 export const emptyFilter = (): BoreholeFilter => ({ ...EMPTY_FILTER, dinCodes: [], reviewStatus: [] });
 
+/** A copy of a filter whose lists and area are its own (a result set's definition stays as stored). */
+const copyFilter = (f: BoreholeFilter): BoreholeFilter => structuredClone(f);
+
 export const NO_PLACE_FOUND = 'No place found';
 export const PLACE_SEARCH_UNAVAILABLE = 'Place search unavailable';
 
@@ -114,13 +117,16 @@ export const createMapDataSlice: SliceCreator<MapDataSlice> = (ctx) => {
   /**
    * Shows `rs` with its plotted members once both are known; with a navigator the id goes into the
    * map URL (history replace on the map, a new entry from another screen). `fit` flies to its bbox.
+   * `toPanel` puts the set's definition into the filter panel (a set shown from a link or the chat),
+   * so APPLY and an area drawn next go on from it; APPLY's own answer leaves the panel as it is now.
    */
-  function present(rs: ResultSet, features: MapFeature[], fit: boolean): void {
+  function present(rs: ResultSet, features: MapFeature[], fit: boolean, toPanel: boolean): void {
     set({
       resultSet: rs,
       resultSetFeatures: features,
       resultSetBusy: false,
       resultSetError: null,
+      ...(toPanel ? { filter: copyFilter(rs.definition) } : {}),
       ...(fit && rs.bbox ? { mapOutline: { bbox: rs.bbox, outline: false, nonce: nextNonce() } } : {}),
     });
     showInUrl(rs.id);
@@ -273,7 +279,7 @@ export const createMapDataSlice: SliceCreator<MapDataSlice> = (ctx) => {
         if (run !== resultRun) return;
         const features = await source.resultSetFeatures(rs.id);
         if (run !== resultRun || get().source !== source) return;
-        present(rs, features, true);
+        present(rs, features, true, false);
       } catch (e) {
         if (run === resultRun) set({ resultSetBusy: false, resultSetError: resultFailure(e) });
       }
@@ -310,7 +316,7 @@ export const createMapDataSlice: SliceCreator<MapDataSlice> = (ctx) => {
             if (run === resultRun) set({ resultSetBusy: false });
             return;
           }
-          present(rs, features, options?.fit === true);
+          present(rs, features, options?.fit === true, true);
         } catch (e) {
           if (run === resultRun) set({ resultSetBusy: false, resultSetError: resultFailure(e) });
         } finally {
