@@ -25,13 +25,16 @@ function borehole(): Borehole {
   };
 }
 
-const render = (b: Borehole) =>
-  renderToStaticMarkup(<ProfileColumn borehole={b} selectedLayer={1} onSelectLayer={() => undefined} onOpenSource={() => undefined} />);
+const render = (b: Borehole, pick: { gw?: string; test?: number } = {}) =>
+  renderToStaticMarkup(
+    <ProfileColumn borehole={b} selectedLayer={1} onSelectLayer={() => undefined} onOpenSource={() => undefined}
+      selectedGw={pick.gw ?? null} onSelectGw={() => undefined} selectedTest={pick.test ?? null} onSelectTest={() => undefined} />,
+  );
 
 describe('ProfileColumn', () => {
   it('draws groundwater, rock head and the SPT refusal marker the source states', () => {
     const html = render(borehole());
-    expect(html).toContain('GW strike 1.80 m: show source');
+    expect(html).toContain('aria-label="GW strike 1.80 m"');
     expect(html).toContain('rock head 2.50');
     expect(html).toContain('SPT refusal 50/30 at 4.00 m: show source');
   });
@@ -63,6 +66,17 @@ describe('ProfileColumn', () => {
       expect(html).toContain(`id="${id}"`);
       expect(html).toContain(`url(#${id})`);
     }
+  });
+
+  it('draws a marker per sample (box for soil, triangle for water) and outlines the picked one', () => {
+    const b = { ...borehole(), testResults: [
+      { sampleName: 'P1', sampleType: 'soil' as const, depth: 2, values: [] },
+      { sampleName: 'W1', sampleType: 'water' as const, depth: 3, values: [] },
+    ] };
+    const html = render(b, { test: 1 });
+    expect(html).toContain('aria-label="Sample P1 at 2.00 m" aria-pressed="false"');
+    expect(html).toContain('aria-label="Water sample W1 at 3.00 m" aria-pressed="true"');
+    expect(render(b, { gw: K.gwStrike })).toContain('aria-label="GW strike 1.80 m" aria-pressed="true"');
   });
 
   it('says "ET not stated" when the final depth is unknown', () => {

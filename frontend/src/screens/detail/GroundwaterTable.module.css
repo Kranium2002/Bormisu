@@ -16,3 +16,24 @@
   font: var(--fs-sm) var(--font-mono);
   color: var(--c-faint);
 }
+
+/* Rows pick a reading like the LAYERS rows pick a layer. */
+.row {
+  cursor: pointer;
+  background: var(--c-surface);
+}
+
+.row:hover {
+  background: var(--c-hover);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.selected,
+.selected:hover {
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-accent);
+}

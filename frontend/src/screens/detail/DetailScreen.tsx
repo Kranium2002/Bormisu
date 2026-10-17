@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusChip } from '../../components/StatusChip';
 import { boreholeStatus } from '../../domain/review';
@@ -17,7 +17,8 @@ import { useT } from '../../i18n';
 /**
  * Borehole detail: sticky header (ID, status, OPEN IN REVIEW, EXPORT ▾), the DIN 4023
  * profile on the left, and METADATA + LOCATION, LAYERS and GROUNDWATER on the right.
- * Every value links to its source; the profile and the layer table share the selected layer.
+ * Every value links to its source; the profile and the tables share the selection: the layer, a
+ * groundwater reading (its triangle and its GROUNDWATER row) and a sample (its marker and its TEST RESULTS row).
  */
 export function DetailScreen() {
   const b = useSelectedBorehole();
@@ -29,6 +30,20 @@ export function DetailScreen() {
   const reviewable = useIsReviewable(b?.uid);
   const t = useT();
   const uid = b?.uid;
+  // The picked groundwater reading or sample (index into testResults), for this borehole only.
+  const [pick, setPick] = useState<{ uid: string; gw: string | null; test: number | null } | null>(null);
+  const selectedGw = pick && pick.uid === uid ? pick.gw : null;
+  const selectedTest = pick && pick.uid === uid ? pick.test : null;
+  const selectGw = (key: string) => {
+    if (uid) setPick({ uid, gw: key, test: null });
+  };
+  const selectTest = (i: number) => {
+    if (!b) return;
+    setPick({ uid: b.uid, gw: null, test: i });
+    const d = b.testResults?.[i]?.depth;
+    const layer = d == null ? undefined : b.layers.find((l) => d >= l.from && d <= l.to);
+    if (layer) selectLayer(layer.n);
+  };
   const onOpenSource = useCallback(
     (key: string) => {
       if (uid) openSource(uid, key);
@@ -71,14 +86,15 @@ export function DetailScreen() {
             <span>{t('PROFILE')}</span>
             <span className={styles.profileNote}>DIN 4023 · depth in m bgl</span>
           </div>
-          <ProfileColumn borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
+          <ProfileColumn borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource}
+            selectedGw={selectedGw} onSelectGw={selectGw} selectedTest={selectedTest} onSelectTest={selectTest} />
         </section>
 
         <div className={styles.right}>
           <MetadataCard borehole={b} onOpenSource={onOpenSource} />
           <LayersTable borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
-          <TestResultsTable borehole={b} onSelectLayer={selectLayer} />
-          <GroundwaterTable borehole={b} onOpenSource={onOpenSource} />
+          <TestResultsTable borehole={b} selected={selectedTest} onSelect={selectTest} />
+          <GroundwaterTable borehole={b} selected={selectedGw} onSelect={selectGw} onOpenSource={onOpenSource} />
         </div>
       </div>
     </div>

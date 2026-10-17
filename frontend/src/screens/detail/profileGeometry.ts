@@ -19,9 +19,11 @@ export const X = {
   stratX: 52,
   stratW: 36,
   stratMid: 70,
-  /** Lane between Strat. and the lithology: groundwater symbols and the cored line (Table 5). */
+  /** Lane between Strat. and the lithology (Table 5): groundwater symbols, sample symbols, the cored line. */
   gwFrom: 88,
-  gwX: 98,
+  gwX: 89,
+  sampleX: 103,
+  sampleW: 8,
   layerX: 120,
   layerW: 100,
   layerMid: 170,

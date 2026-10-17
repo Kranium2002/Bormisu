@@ -7,6 +7,8 @@ import gwStruck from '../../assets/din4023_patterns/left_symbols/groundwater_str
 import gwAfter from '../../assets/din4023_patterns/left_symbols/groundwater_after_drilling.svg?raw';
 import gwRest from '../../assets/din4023_patterns/left_symbols/groundwater_rest.svg?raw';
 import cored from '../../assets/din4023_patterns/left_symbols/sample_cored.svg?raw';
+import sampleSoil from '../../assets/din4023_patterns/left_symbols/sample_sample.svg?raw';
+import sampleWater from '../../assets/din4023_patterns/left_symbols/sample_water_sample.svg?raw';
 import type { GroundwaterType, Layer, LayerProps, PatternId } from '../../domain/types';
 import { COL } from '../../theme';
 
@@ -144,6 +146,9 @@ export function propertySymbols(p: LayerProps | undefined): PropertySymbol[] {
 export const GW_SYMBOL: Record<GroundwaterType, SvgSymbol> = {
   strike: parse(gwStruck), rest: parse(gwAfter), standpipe: parse(gwRest), other: parse(gwStruck),
 };
+
+/** Sample symbol per sample type (DIN 4023 Table 5): black box for soil, open triangle for water. */
+export const SAMPLE_SYMBOL = { soil: parse(sampleSoil), water: parse(sampleWater) };
 
 /** Cored section: the double line, repeated in y. */
 export const CORED_PATTERN = 'din-cored';

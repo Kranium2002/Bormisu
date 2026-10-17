@@ -3,7 +3,7 @@ import { K } from '../../domain/keys';
 import type { Borehole, GroundwaterReading, Layer } from '../../domain/types';
 import { COL, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
 import { GW_LABEL } from './detailModel';
-import { CORED_PATTERN, CORED_W, GW_SYMBOL, layerFill, MISSING_PATTERN, patternDefs, PROP_K, propertySymbols } from './dinPatterns';
+import { CORED_PATTERN, CORED_W, GW_SYMBOL, layerFill, MISSING_PATTERN, patternDefs, PROP_K, propertySymbols, SAMPLE_SYMBOL } from './dinPatterns';
 import {
   depthScale,
   depthTicks,
@@ -23,6 +23,12 @@ interface Props {
   onSelectLayer(n: number): void;
   /** Opens the Source panel for a value key of this borehole. */
   onOpenSource(key: string): void;
+  /** The picked groundwater reading (key): its triangle is outlined, its GROUNDWATER row highlighted. */
+  selectedGw: string | null;
+  onSelectGw(key: string): void;
+  /** The picked sample (index into testResults): its marker is outlined, its TEST RESULTS row highlighted. */
+  selectedTest: number | null;
+  onSelectTest(i: number): void;
 }
 
 const INK = COL.text;
@@ -52,7 +58,7 @@ const onKeyActivate = (fn: () => void) => (e: KeyboardEvent) => {
  * (layers clickable), "not logged" band, ET label, rock head, selection, groundwater triangles
  * and the amber R marker of the first SPT refusal (both open the Source panel).
  */
-export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpenSource }: Props) {
+export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpenSource, selectedGw, onSelectGw, selectedTest, onSelectTest }: Props) {
   const { depth, s, y } = depthScale(b);
   const ticks = depthTicks(depth);
   const strat = stratBlocks(b.layers);
@@ -238,24 +244,48 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
         />
       )}
 
-      {/* groundwater: strike filled, rest level (and other readings) hollow */}
+      {/* groundwater (Table 5): a click picks the reading, its GROUNDWATER row highlights */}
       {groundwater.map((g) => {
         const gy = y(g.depth);
         const label = `GW ${GW_LABEL[g.type].toLowerCase()} ${g.depth.toFixed(2)} m`;
-        const open = () => onOpenSource(g.key);
+        const sel = g.key === selectedGw;
+        const pick = () => onSelectGw(g.key);
         return (
           <g
             key={g.key}
             className={styles.hit}
             role="button"
             tabIndex={0}
-            aria-label={`${label}: show source`}
-            onClick={open}
-            onKeyDown={onKeyActivate(open)}
+            aria-label={label}
+            aria-pressed={sel}
+            onClick={pick}
+            onKeyDown={onKeyActivate(pick)}
           >
             <title>{label}</title>
-            <line x1={X.gwFrom} y1={gy} x2={X.layerX} y2={gy} stroke={COL.gw} strokeWidth="1.5" />
+            <line x1={X.gwFrom} y1={gy} x2={X.layerX} y2={gy} stroke={COL.gw} strokeWidth={sel ? 3 : 1.5} />
             <GwSymbol type={g.type} x={X.gwX} tipY={gy} />
+            {sel && <rect className={styles.noHit} x={X.gwX - 2} y={gy - 13} width={16} height={15} fill="none" stroke={COL.accent} strokeWidth="1.5" />}
+          </g>
+        );
+      })}
+
+      {/* samples (Table 5): box = soil, open triangle = water; bottom edge at the sample depth, line to the column */}
+      {(b.testResults ?? []).map((r, i) => {
+        if (r.depth == null) return null;
+        const sym = SAMPLE_SYMBOL[r.sampleType === 'water' ? 'water' : 'soil'];
+        const h = (sym.h * X.sampleW) / sym.w;
+        const sy = y(r.depth);
+        const sel = i === selectedTest;
+        const label = `${r.sampleType === 'water' ? 'Water sample' : 'Sample'} ${r.sampleName ?? ''} at ${r.depth.toFixed(2)} m`.replace('  ', ' ');
+        const pick = () => onSelectTest(i);
+        return (
+          <g key={`s${i}`} className={styles.hit} role="button" tabIndex={0} aria-label={label} aria-pressed={sel}
+            onClick={pick} onKeyDown={onKeyActivate(pick)}>
+            <title>{label}</title>
+            <line x1={X.sampleX + X.sampleW} y1={sy} x2={X.layerX} y2={sy} stroke={INK} strokeWidth="1" />
+            <svg x={X.sampleX} y={sy - h} width={X.sampleW} height={h} viewBox={`0 0 ${sym.w} ${sym.h}`}
+              dangerouslySetInnerHTML={{ __html: sym.inner }} />
+            {sel && <rect className={styles.noHit} x={X.sampleX - 2} y={sy - h - 2} width={X.sampleW + 4} height={h + 4} fill="none" stroke={COL.accent} strokeWidth="1.5" />}
           </g>
         );
       })}

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { AddColumnMenu, RemovableHeader, useColumns } from '../../components/ColumnChooser';
 import { formatTestValue, TEST_FIELDS } from '../../domain/testResults';
 import type { Borehole, Layer, TestResult } from '../../domain/types';
@@ -8,8 +8,9 @@ import styles from './TestResultsTable.module.css';
 
 interface Props {
   borehole: Borehole;
-  /** Selects the layer a sample lies in, so the profile and LAYERS show it too. */
-  onSelectLayer(n: number): void;
+  /** Index (into `borehole.testResults`) of the picked sample, highlighted here and in the profile. */
+  selected: number | null;
+  onSelect(i: number): void;
 }
 
 /** A test-result column the user can add or remove (README_data `test_results`); SAMPLE and DEPTH always stay. */
@@ -34,12 +35,10 @@ const FIXED = { sample: 110, depth: 90, add: 34 };
 /**
  * TEST RESULTS table: one row per sample / test depth (API test_results[]). SAMPLE and DEPTH always stay;
  * the layer, the sample type and every lab value of README_data `test_results` come and go with + and ×.
- * A click on a row highlights it (like a layer row) and selects its layer.
+ * A click on a row picks the sample: the row and its marker in the profile highlight, its layer is selected.
  */
-export function TestResultsTable({ borehole: b, onSelectLayer }: Props) {
+export function TestResultsTable({ borehole: b, selected, onSelect }: Props) {
   const t = useT();
-  // The selected sample, per borehole (a new borehole starts without one).
-  const [selected, setSelected] = useState<{ uid: string; i: number } | null>(null);
   const [keys, setKeys] = useColumns('bormisu.testColumns', DEFAULT_TEST_COLUMNS, (k) => columnByKey.has(k));
   const shown = keys.map((k) => columnByKey.get(k)!);
   const hidden = TEST_COLUMNS.filter((c) => !keys.includes(c.key));
@@ -47,7 +46,8 @@ export function TestResultsTable({ borehole: b, onSelectLayer }: Props) {
     gridTemplateColumns: [`${FIXED.sample}px`, `${FIXED.depth}px`, ...shown.map((c) => `minmax(${c.min}px, 1fr)`), `${FIXED.add}px`].join(' '),
   };
   const minWidth = FIXED.sample + FIXED.depth + FIXED.add + shown.reduce((a, c) => a + c.min, 0);
-  const tests = [...(b.testResults ?? [])].sort((x, y) => (x.depth ?? Infinity) - (y.depth ?? Infinity));
+  // Sorted by depth; `i` stays the index into testResults, which the profile's markers use too.
+  const tests = (b.testResults ?? []).map((r, i) => ({ r, i })).sort((x, y) => (x.r.depth ?? Infinity) - (y.r.depth ?? Infinity));
   const layerAt = (d: number | null) => (d == null ? undefined : b.layers.find((l) => d >= l.from && d <= l.to));
 
   return (
@@ -68,13 +68,10 @@ export function TestResultsTable({ borehole: b, onSelectLayer }: Props) {
                   onAdd={(k) => setKeys([...keys, k])} />
               </div>
             </div>
-            {tests.map((r, i) => {
+            {tests.map(({ r, i }) => {
               const layer = layerAt(r.depth);
-              const sel = selected?.uid === b.uid && selected.i === i;
-              const select = () => {
-                setSelected({ uid: b.uid, i });
-                if (layer) onSelectLayer(layer.n);
-              };
+              const sel = selected === i;
+              const select = () => onSelect(i);
               return (
                 <div key={i} role="row" tabIndex={0} aria-current={sel ? 'true' : undefined}
                   className={`${card.trow} ${styles.row} ${sel ? styles.selected : ''}`} style={grid}
