@@ -39,7 +39,7 @@
     const label = svg.append('g').attr('class', 'counter').attr('transform', `translate(80, ${H - 80})`).style('opacity', 0);
     const num = label.append('text').attr('class', 'count');
     label.append('text').attr('class', 'count-sub').attr('y', 30)
-      .text(`machines · ${countries} countries`);
+      .text(`machines · ${projects.length} documented projects · ${countries} countries`);
 
     return { svg, zoom, dotLayer, home, label, num, dots, projection, total: dots.length };
   }

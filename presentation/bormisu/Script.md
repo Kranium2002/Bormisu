@@ -78,6 +78,8 @@
 
 ### Slide 04 (world map, said over it)
 
+- Map data: `data/herrenknecht-projects.json` — 84 documented projects in 40 countries, 426 machines, each with a source URL. A selection, not the full list: Herrenknecht itself speaks of more than 4,100 reference projects in more than 92 countries ([All Around #10](https://allaround.herrenknecht.com/en/issue-10.html)). Rebuild the map data with `python3 data/build_projects.py`.
+
 - Gotthard Base Tunnel bored with Herrenknecht machines: [Herrenknecht press release](https://www.herrenknecht.com/en/newsroom/pressreleasedetail/gotthard-base-tunnel-mechanized-tunnelling-completed-on-the-north-side/), [Wikipedia](https://en.wikipedia.org/wiki/Herrenknecht)
 - London Crossrail / Elizabeth line, TBMs built by Herrenknecht: [gfxspeak](https://gfxspeak.com/archives/burrowing-machines-crossrail/), [The Construction Index](https://www.theconstructionindex.co.uk/news/view/crossrail-tbm-ellie-breaks-through-in-docklands?amp=1)
 - Grand Paris Express, 19 Herrenknecht TBMs: [Tunnelbuilder](https://tunnelbuilder.com/News/Launch-of-the-first-TBM-for-the-Grand-Paris-Express-.aspx)

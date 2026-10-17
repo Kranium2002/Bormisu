@@ -18,6 +18,7 @@
     --muted: #5C4B40;
     --faint: #72625A;
     --on-dark-muted: #D9C8B4;
+    --hk-green: #7DB713; /* Herrenknecht green, from herrenknecht.com */
 
     --display: "SF Pro Display", system-ui, -apple-system, "Helvetica Neue", sans-serif;
     --text: "SF Pro Text", system-ui, -apple-system, "Helvetica Neue", sans-serif;
@@ -51,16 +52,16 @@
   .slide-title .name { font-family: var(--display); font-size: 220px; font-weight: 600; line-height: 0.92; letter-spacing: -0.045em; margin-top: 24px; color: var(--espresso); }
   .slide-title .signature { position: absolute; bottom: 64px; left: 0; right: 0; font-size: 24px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
 
-  /* 04 World: zoom out from Offenburg, countries light up, one dot per machine (world.js) */
-  .world { padding: 0; background: radial-gradient(ellipse at 50% 45%, #3a2619 0%, var(--espresso-2) 75%); }
+  /* 04 World: Herrenknecht green. Zoom out from Offenburg, countries turn dark, one white dot per machine (world.js) */
+  .world { padding: 0; background: var(--hk-green, #7DB713); }
   .worldmap { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .worldmap .land { fill: #4a3628; stroke: #2a1d16; stroke-width: 0.6; vector-effect: non-scaling-stroke; transition: fill .8s ease; }
-  .worldmap .land.hk { fill: var(--cocoa); }
-  .worldmap .home { fill: var(--ladyfinger); }
-  .worldmap .home-label { font: 600 22px var(--text); fill: var(--cream); letter-spacing: 0.04em; }
-  .worldmap .dot { fill: var(--ladyfinger); stroke: var(--espresso-2); stroke-width: 0.8; }
-  .worldmap .count { font: 700 34px var(--display); fill: var(--cream); }
-  .worldmap .count-sub { font: 600 18px var(--text); fill: var(--on-dark-muted); letter-spacing: 0.14em; text-transform: uppercase; }
+  .worldmap .land { fill: rgba(24,24,24,0.16); stroke: rgba(125,183,19,1); stroke-width: 0.7; vector-effect: non-scaling-stroke; transition: fill .8s ease; }
+  .worldmap .land.hk { fill: #181818; }
+  .worldmap .home { fill: #fff; stroke: #181818; stroke-width: 2; }
+  .worldmap .home-label { font: 700 24px var(--text); fill: #181818; letter-spacing: 0.04em; }
+  .worldmap .dot { fill: #fff; stroke: #181818; stroke-width: 0.6; }
+  .worldmap .count { font: 700 40px var(--display); fill: #181818; }
+  .worldmap .count-sub { font: 700 18px var(--text); fill: rgba(24,24,24,0.75); letter-spacing: 0.14em; text-transform: uppercase; }
 
   /* 05 Stuttgart 21 */
   .s21 { background: #111 url("img/s21.jpg") center / cover no-repeat; color: #fff; }
