@@ -15,6 +15,8 @@ export default defineConfig(({ mode }) => {
   const apiTarget = env.VITE_API_PROXY || 'http://127.0.0.1:8000';
   return {
     plugins: [react()],
+    // Worktrees that share one node_modules (a junction) give each dev server its own dep cache.
+    cacheDir: env.VITE_CACHE_DIR || undefined,
     resolve: {
       alias: { '@din': DIN_DIR },
     },
