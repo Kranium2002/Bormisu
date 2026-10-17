@@ -114,8 +114,8 @@ export function bk07(lat: number, lng: number): Borehole {
     project: NB_PROJECT,
     revision: 1,
     reviewStatus: deriveReviewStatus(values),
-    // The open question: which coordinate system the report uses.
-    openClarifications: 1,
+    // Counted by the sample source from its questions (clarifications.ts): which coordinate system the report uses.
+    openClarifications: 0,
     lat,
     lng,
     onMap: true,

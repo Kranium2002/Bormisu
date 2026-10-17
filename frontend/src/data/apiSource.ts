@@ -7,28 +7,49 @@
 import { APP_NAME } from '../config';
 import { parseNumber } from '../domain/format';
 import { pageUsageText } from '../domain/pages';
-import type { Borehole, DocumentStatus, DocumentSummary, LiveEvent, UploadProgress, UploadResult, ValuePatch } from '../domain/types';
+import type {
+  Borehole,
+  Clarification,
+  DocumentStatus,
+  DocumentSummary,
+  LiveEvent,
+  MapFeature,
+  UploadProgress,
+  UploadResult,
+  ValuePatch,
+} from '../domain/types';
 import { MULTI_FIELD_SEPARATOR } from '../schema/targetFormat';
 import {
   adaptBorehole,
+  adaptClarification,
+  adaptClarifications,
   adaptCrsCandidates,
   adaptDocument,
+  adaptFeatures,
   adaptHealth,
   adaptLiveEvent,
+  adaptPlaces,
+  adaptResultSet,
   documentLint,
   isTerminal,
   stepOf,
   toApiState,
+  toWireFilter,
   type AdaptedBorehole,
   type PatchTarget,
   type PatchValueType,
   type WireBorehole,
   type WireBoreholeList,
+  type WireClarification,
+  type WireClarificationAnswer,
   type WireCrsCandidate,
   type WireCrsConfirm,
   type WireDocument,
   type WireDocumentList,
+  type WireFeatureCollection,
   type WireHealth,
+  type WirePlace,
+  type WireResultSet,
   type WireUploadAccepted,
   type WireValuePatch,
 } from './adapters';
@@ -199,6 +220,11 @@ export function createApiSource(base: string): DataSource {
   const followed = new FollowedDocuments();
   /** Values without a provenance entry already reported (`<uid> <path>`). */
   const reported = new Set<string>();
+  /**
+   * The light map layer as last read (load, mapFeatures), by uid in the server's order: the source
+   * names a document's first borehole from it without fetching full records.
+   */
+  const features = new Map<string, MapFeature>();
 
   async function request<T>(method: string, path: string, body?: object): Promise<T> {
     const init: RequestInit = { method, headers: { Accept: 'application/json' } };
@@ -247,23 +273,60 @@ export function createApiSource(base: string): DataSource {
     );
   }
 
-  /** Boreholes the source knows for a document, in list order. */
+  /** Full records the source holds for a document, in the order they arrived. */
   const boreholesOf = (documentId: string): Borehole[] =>
     [...records.values()].map((r) => r.borehole).filter((b) => b.documentId === documentId);
+
+  /**
+   * The boreholes the source knows of a document, without fetching: its map features in the server's
+   * order, then the full records it holds that are not on the map layer (the "Not on map" list, records
+   * fetched on demand).
+   */
+  function knownOf(documentId: string): { uid: string; project: string | null }[] {
+    const own: { uid: string; project: string | null }[] = [...features.values()].filter((f) => f.documentId === documentId);
+    for (const b of boreholesOf(documentId)) if (!features.has(b.uid)) own.push({ uid: b.uid, project: b.project || null });
+    return own;
+  }
 
   /** A document with what its boreholes add: project fallback, review borehole and lint list. */
   function summarise(d: WireDocument): DocumentSummary {
     docs.set(d.document_id, d);
     const doc = adaptDocument(d);
-    const own = boreholesOf(d.document_id);
-    const first = own[0];
+    const known = knownOf(d.document_id);
     return {
       ...doc,
-      project: doc.project || first?.project || '',
-      // The document object has no lint list: the panel lists its boreholes' findings.
-      completeness: doc.completeness && { ...doc.completeness, lint: documentLint(own, d.document_id) },
-      reviewBoreholeUid: d.status === 'needs_review' || d.status === 'done' ? (first?.uid ?? null) : null,
+      project: doc.project || known.find((b) => b.project)?.project || '',
+      // The document object has no lint list: the panel lists the findings of the records the source holds.
+      completeness: doc.completeness && { ...doc.completeness, lint: documentLint(boreholesOf(d.document_id), d.document_id) },
+      reviewBoreholeUid: d.status === 'needs_review' || d.status === 'done' ? (known[0]?.uid ?? null) : null,
     };
+  }
+
+  /** The map layer (all, or one document's), replacing what the source knew of it. */
+  async function readFeatures(documentId?: string): Promise<MapFeature[]> {
+    const query = documentId ? `?document_id=${enc(documentId)}` : '';
+    const list = adaptFeatures(await request<WireFeatureCollection>('GET', `/map/boreholes.geojson${query}`));
+    if (documentId) {
+      for (const [uid, f] of features) if (f.documentId === documentId) features.delete(uid);
+    } else {
+      features.clear();
+    }
+    for (const f of list) features.set(f.uid, f);
+    return list;
+  }
+
+  /** The full records of the "Not on map" list, kept in the record cache (one provenance summary per call). */
+  async function readUnplotted(): Promise<Borehole[]> {
+    const adapted = (await listBoreholes('plotted=false')).map(remember);
+    reportUnsourced(adapted);
+    return adapted.map((a) => a.borehole);
+  }
+
+  /** A question from a single answer; one this client can't show is an error, never an invented question. */
+  function oneClarification(w: WireClarification): Clarification {
+    const c = adaptClarification(w);
+    if (!c) throw new Error(`The server answered with a question this client can't show (${String(w?.clarification_id ?? '?')}).`);
+    return c;
   }
 
   async function fetchDocument(id: string): Promise<WireDocument> {
@@ -272,10 +335,11 @@ export function createApiSource(base: string): DataSource {
     return d;
   }
 
-  /** Forgets a document the backend no longer has, with its boreholes. */
+  /** Forgets a document the backend no longer has, with its boreholes and their map features. */
   function forgetDocument(id: string): void {
     docs.delete(id);
     for (const [uid, r] of records) if (r.borehole.documentId === id) records.delete(uid);
+    for (const [uid, f] of features) if (f.documentId === id) features.delete(uid);
   }
 
   /**
@@ -381,13 +445,13 @@ export function createApiSource(base: string): DataSource {
     };
   }
 
-  /** Every borehole, following next_cursor until the list ends. */
-  async function listBoreholes(): Promise<WireBorehole[]> {
+  /** Every borehole of a filtered list (e.g. "plotted=false"), following next_cursor until the list ends. */
+  async function listBoreholes(filter: string): Promise<WireBorehole[]> {
     const out: WireBorehole[] = [];
     const seen = new Set<string>();
     let cursor: string | null = null;
     do {
-      const query: string = `?limit=${LIST_LIMIT}${cursor ? `&cursor=${enc(cursor)}` : ''}`;
+      const query: string = `?${filter}&limit=${LIST_LIMIT}${cursor ? `&cursor=${enc(cursor)}` : ''}`;
       const page: WireBoreholeList = await request<WireBoreholeList>('GET', `/boreholes${query}`);
       out.push(...page.boreholes);
       if (cursor) seen.add(cursor);
@@ -396,10 +460,22 @@ export function createApiSource(base: string): DataSource {
     return out;
   }
 
+  /** The record a save starts from: the cached one, else fetched now (full records are loaded on demand). */
+  async function recordFor(uid: string): Promise<AdaptedBorehole> {
+    const cached = records.get(uid);
+    if (cached) return cached;
+    try {
+      const adapted = remember(await request<WireBorehole>('GET', `/boreholes/${enc(uid)}`));
+      reportUnsourced([adapted]);
+      return adapted;
+    } catch (e) {
+      throw new SaveError(errorText(e), null, errorCode(e));
+    }
+  }
+
   /** One review save, run after the previous save of the same borehole has settled. */
   async function save(uid: string, key: string, patch: ValuePatch): Promise<Borehole> {
-    const known = records.get(uid);
-    if (!known) throw new SaveError(`Unknown borehole ${uid}`, null, null);
+    const known = await recordFor(uid);
     const target = known.targets[key];
     if (!target) {
       throw new SaveError(`This value has no source entry in the backend record, so it can't be saved (${key}).`, known.borehole, null);
@@ -440,17 +516,62 @@ export function createApiSource(base: string): DataSource {
     },
 
     async load() {
-      const [list, docList] = await Promise.all([listBoreholes(), request<WireDocumentList>('GET', '/documents')]);
-      const adapted = list.map(remember);
-      reportUnsourced(adapted);
-      const boreholes = adapted.map((a) => a.borehole);
+      // The light map layer and the few unplotted records; full records of plotted boreholes come on demand.
+      const [docList, mapped, unplotted] = await Promise.all([
+        request<WireDocumentList>('GET', '/documents'),
+        readFeatures(),
+        readUnplotted(),
+      ]);
       const documents = docList.documents.map(summarise);
       // Documents still being processed (e.g. after a reload during extraction) keep updating.
       for (const d of docList.documents) {
         if (isTerminal(d.status)) followed.delete(d.document_id);
         else followed.add(d.document_id);
       }
-      return { boreholes, documents };
+      return { documents, features: mapped, unplotted };
+    },
+
+    mapFeatures(documentId) {
+      return readFeatures(documentId);
+    },
+
+    unplotted() {
+      return readUnplotted();
+    },
+
+    async createResultSet(filter) {
+      return adaptResultSet(await request<WireResultSet>('POST', '/result-sets', toWireFilter(filter)));
+    },
+
+    async getResultSet(id) {
+      return adaptResultSet(await request<WireResultSet>('GET', `/result-sets/${enc(id)}`));
+    },
+
+    async resultSetFeatures(id) {
+      return adaptFeatures(await request<WireFeatureCollection>('GET', `/result-sets/${enc(id)}/geojson`));
+    },
+
+    async geocode(query) {
+      return adaptPlaces(await request<WirePlace[]>('GET', `/geocode?q=${enc(query.trim())}`));
+    },
+
+    async clarifications(options = {}) {
+      const params = [
+        ...(options.status ? [`status=${enc(options.status)}`] : []),
+        ...(options.documentId ? [`document_id=${enc(options.documentId)}`] : []),
+      ];
+      const query = params.length ? `?${params.join('&')}` : '';
+      return adaptClarifications(await request<WireClarification[]>('GET', `/clarifications${query}`));
+    },
+
+    async answerClarification(id, values, answeredBy) {
+      // The generated type of a free-form object is an empty record; the values go as the form holds them.
+      const body: WireClarificationAnswer = { values: values as WireClarificationAnswer['values'], answered_by: answeredBy };
+      return oneClarification(await request<WireClarification>('POST', `/clarifications/${enc(id)}/answer`, body));
+    },
+
+    async skipClarification(id) {
+      return oneClarification(await request<WireClarification>('POST', `/clarifications/${enc(id)}/skip`));
     },
 
     async getBorehole(uid) {
@@ -467,6 +588,7 @@ export function createApiSource(base: string): DataSource {
       // The answer is the document's full list: a borehole it no longer has (merged or removed) is gone.
       const listed = new Set(boreholes.map((b) => b.uid));
       for (const [uid, r] of records) if (r.borehole.documentId === documentId && !listed.has(uid)) records.delete(uid);
+      for (const [uid, f] of features) if (f.documentId === documentId && !listed.has(uid)) features.delete(uid);
       return boreholes;
     },
 

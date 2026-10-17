@@ -1,0 +1,25 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "BoreholeFilter",
+  "example": {
+    "search": "HL-0",
+    "country": "Example Country",
+    "project": "Harbourline Tunnel (fictional)",
+    "document_id": "doc_01JFICT0000000000000000D1",
+    "min_depth_m": 5,
+    "max_depth_m": 20.5,
+    "din4023_codes": ["T", "mG"],
+    "lithology_min_depth_m": 3,
+    "has_spt": true,
+    "has_groundwater": false,
+    "review_status": ["unreviewed", "in_review"],
+    "include_unreviewed": true,
+    "area": {
+      "type": "polygon",
+      "polygon": {
+        "type": "Polygon",
+        "coordinates": [[[174.76, -36.85], [174.78, -36.85], [174.78, -36.84], [174.76, -36.84], [174.76, -36.85]]]
+      }
+    }
+  }
+}

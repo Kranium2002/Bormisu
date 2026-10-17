@@ -56,8 +56,9 @@ export function sampleDocuments(printed: PrintedIds): DocumentSummary[] {
         ],
       },
       reviewBoreholeUid: `${NB_DOC_ID}:BK-07`,
-      // The coordinate system isn't printed: one question for the whole report.
-      openClarifications: 1,
+      // The coordinate system isn't printed: one question for the whole report (clarifications.ts),
+      // counted by the sample source.
+      openClarifications: 0,
       duplicateOf: null,
       error: null,
     },

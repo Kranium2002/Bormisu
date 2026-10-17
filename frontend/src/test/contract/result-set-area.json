@@ -1,0 +1,20 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "ResultSet",
+  "example": {
+    "result_set_id": "rs_01JFICT000000000000000RS02",
+    "count": 0,
+    "located_count": 0,
+    "unlocated_count": 0,
+    "excluded_unreviewed": 1,
+    "uids": [],
+    "bbox": [174.7, -36.9, 174.8, -36.8],
+    "area": { "type": "circle", "center": [174.75, -36.85], "radius_m": 1500 },
+    "definition": {
+      "review_status": ["approved"],
+      "include_unreviewed": false,
+      "area": { "type": "circle", "center": [174.75, -36.85], "radius_m": 1500 }
+    },
+    "created_at": "2026-10-17T09:05:00Z"
+  }
+}

@@ -1,0 +1,204 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "array:Clarification",
+  "example": [
+    {
+      "clarification_id": "cl_01JFICT00000000000000CRS1",
+      "kind": "crs_confirm",
+      "status": "open",
+      "document_id": "doc_01JFICT0000000000000000D7",
+      "borehole_uids": ["bh_01JFICT00000000000000LA01", "bh_01JFICT00000000000000LA02"],
+      "path": null,
+      "question": "Which coordinate system do the coordinates of the Lagoa Azul Metro boreholes use (fictional)?",
+      "fields": [
+        {
+          "name": "crs",
+          "widget": "crs_picker",
+          "label": "Coordinate system",
+          "help": "Ranked by how compactly the points fall (fictional).",
+          "required": true,
+          "unit_options": [],
+          "options": [
+            {
+              "value": "EPSG:31983",
+              "label": "SIRGAS 2000 / UTM zone 23S",
+              "evidence": { "document_id": "doc_01JFICT0000000000000000D7", "page": 2, "box": [0.1, 0.2, 0.4, 0.02], "snippet": "E 333 120  N 7 394 880" }
+            },
+            {
+              "value": "EPSG:29193",
+              "label": "SAD69 / UTM zone 23S",
+              "evidence": { "document_id": "doc_01JFICT0000000000000000D7", "page": 2, "box": [0.1, 0.2, 0.4, 0.02], "snippet": "E 333 120  N 7 394 880" }
+            }
+          ],
+          "default": null
+        },
+        {
+          "name": "swap_axes",
+          "widget": "boolean",
+          "label": "The first printed value is the northing",
+          "help": null,
+          "required": false,
+          "unit_options": [],
+          "options": [],
+          "default": false
+        }
+      ],
+      "evidence": [
+        { "document_id": "doc_01JFICT0000000000000000D7", "page": 2, "box": [0.1, 0.2, 0.4, 0.02], "snippet": "E 333 120  N 7 394 880" }
+      ],
+      "answer": null,
+      "answered_by": null,
+      "created_at": "2026-10-17T08:00:00Z",
+      "resolved_at": null
+    },
+    {
+      "clarification_id": "cl_01JFICT00000000000000RD01",
+      "kind": "choose_reading",
+      "status": "open",
+      "document_id": "doc_01JFICT0000000000000000D1",
+      "borehole_uids": ["bh_01JFICT00000000000000HL01"],
+      "path": "stratigraphy[1].depth_to_m",
+      "question": "Two readings of the bottom of layer 2 in HL-01 disagree (fictional). Which one is on the page?",
+      "fields": [
+        {
+          "name": "reading",
+          "widget": "choose_reading",
+          "label": "Layer bottom (m)",
+          "help": null,
+          "required": true,
+          "options": [
+            {
+              "value": 4.2,
+              "label": "4.20 (OCR)",
+              "evidence": { "document_id": "doc_01JFICT0000000000000000D1", "page": 4, "box": [0.1, 0.4, 0.05, 0.02], "snippet": "4.20" }
+            },
+            {
+              "value": 4.7,
+              "label": "4.70 (second read)"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        { "document_id": "doc_01JFICT0000000000000000D1", "page": 4, "box": [0.1, 0.4, 0.05, 0.02], "snippet": "4.20 / 4.70 (handwritten)" }
+      ],
+      "created_at": "2026-10-17T08:01:00Z"
+    },
+    {
+      "clarification_id": "cl_01JFICT00000000000000UN01",
+      "kind": "unit_ambiguous",
+      "status": "skipped",
+      "document_id": "doc_01JFICT0000000000000000D1",
+      "borehole_uids": ["bh_01JFICT00000000000000HL02"],
+      "path": "test_results[0].value",
+      "question": "The unit weight of sample S1 is printed as '1,95' without a unit (fictional). Which unit is it?",
+      "fields": [
+        {
+          "name": "value",
+          "widget": "number_unit",
+          "label": "Unit weight",
+          "help": null,
+          "required": true,
+          "unit_options": ["kN/m³", "t/m³", "g/cm³"],
+          "default": 1.95
+        }
+      ],
+      "evidence": [
+        { "document_id": "doc_01JFICT0000000000000000D1", "page": 9, "box": null, "snippet": "γ = 1,95" }
+      ],
+      "answer": null,
+      "answered_by": null,
+      "created_at": "2026-10-17T08:02:00Z",
+      "resolved_at": null
+    },
+    {
+      "clarification_id": "cl_01JFICT00000000000000LC01",
+      "kind": "locate_borehole",
+      "status": "open",
+      "document_id": "doc_01JFICT0000000000000000D6",
+      "borehole_uids": ["bh_01JFICT00000000000000TQ02"],
+      "path": null,
+      "question": "TQ-02 has no coordinates in the report (fictional). Where was it drilled?",
+      "fields": [
+        { "name": "location", "widget": "map_point", "label": "Click the borehole position on the map", "help": "The site plan on page 3 shows TQ-02.", "required": true },
+        { "name": "source_note", "widget": "text", "label": "Where does this position come from?", "help": null }
+      ],
+      "evidence": [
+        { "document_id": "doc_01JFICT0000000000000000D6", "page": 3, "box": [0.52, 0.41, 0.06, 0.03], "snippet": "TQ-02" }
+      ],
+      "answer": null,
+      "answered_by": null,
+      "created_at": "2026-10-17T08:03:00Z",
+      "resolved_at": null
+    },
+    {
+      "clarification_id": "cl_01JFICT00000000000000BB01",
+      "kind": "borehole_boundary",
+      "status": "open",
+      "document_id": "doc_01JFICT0000000000000000D1",
+      "borehole_uids": ["bh_01JFICT00000000000000HL01", "bh_01JFICT00000000000000HL02"],
+      "path": null,
+      "question": "Page 7 is labelled HL-02 but continues the depth scale of HL-01 (fictional). Which pages belong to HL-02?",
+      "fields": [
+        { "name": "pages", "widget": "page_range", "label": "Pages of HL-02", "help": null, "required": true, "default": [7, 7] }
+      ],
+      "evidence": [
+        { "document_id": "doc_01JFICT0000000000000000D1", "page": 6, "box": [0.7, 0.02, 0.22, 0.03], "snippet": "SHEET 2 OF 2" },
+        { "document_id": "doc_01JFICT0000000000000000D1", "page": 7, "box": [0.08, 0.05, 0.18, 0.03], "snippet": "HL-02" }
+      ],
+      "answer": null,
+      "answered_by": null,
+      "created_at": "2026-10-17T08:04:00Z",
+      "resolved_at": null
+    },
+    {
+      "clarification_id": "cl_01JFICT00000000000000DT01",
+      "kind": "datum_convention",
+      "status": "open",
+      "document_id": "doc_01JFICT0000000000000000D1",
+      "borehole_uids": ["bh_01JFICT00000000000000HL02"],
+      "path": "metadata.depth_origin",
+      "question": "Are the depths of HL-02 measured below ground or below the quay edge (fictional)?",
+      "fields": [
+        {
+          "name": "depth_origin",
+          "widget": "select",
+          "label": "Depths are measured from",
+          "help": null,
+          "required": true,
+          "options": [
+            { "value": "ground", "label": "Ground level" },
+            { "value": "relative", "label": "The quay edge (a relative origin)" }
+          ]
+        }
+      ],
+      "evidence": [
+        { "document_id": "doc_01JFICT0000000000000000D1", "page": 7, "box": [0.08, 0.17, 0.3, 0.03], "snippet": "depths below quay edge" }
+      ],
+      "answer": null,
+      "answered_by": null,
+      "created_at": "2026-10-17T08:05:00Z",
+      "resolved_at": null
+    },
+    {
+      "clarification_id": "cl_01JFICT00000000000000DU01",
+      "kind": "duplicate",
+      "status": "answered",
+      "document_id": "doc_01JFICT0000000000000000D1",
+      "borehole_uids": ["bh_01JFICT00000000000000HL02"],
+      "path": null,
+      "question": "Page 8 looks like a copy of page 6 (fictional). Is it the same log?",
+      "fields": [
+        { "name": "same_log", "widget": "boolean", "label": "Page 8 shows the same log as page 6", "help": null, "required": true, "default": true }
+      ],
+      "evidence": [
+        { "document_id": "doc_01JFICT0000000000000000D1", "page": 6, "box": null, "snippet": null },
+        { "document_id": "doc_01JFICT0000000000000000D1", "page": 8, "box": null, "snippet": null }
+      ],
+      "answer": { "same_log": true },
+      "answered_by": "A. Reviewer (fictional)",
+      "created_at": "2026-10-17T08:06:00Z",
+      "resolved_at": "2026-10-17T08:30:00Z"
+    }
+  ]
+}

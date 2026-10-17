@@ -11,6 +11,7 @@ import type { LiveEvent, LiveStatus } from '../domain/types';
 import { EXAMPLES_MISSING, EXAMPLES_PRESENT, eventFiles, eventTypeOf, example } from '../test/contract/examples';
 import { FIXTURES, fixture } from '../test/contract/wire';
 import {
+  adaptClarification,
   adaptDocument,
   adaptLiveEvent,
   LIVE_EVENT_TYPES,
@@ -55,8 +56,8 @@ function server(route: Route = () => undefined) {
     const own = await route(method, url);
     if (own) return own;
     const path = url.slice(BASE.length);
-    if (path === '/boreholes?limit=5000') return json(200, fixture('boreholes-page-1'));
-    if (path === '/boreholes?limit=5000&cursor=cur_FICT_page2') return json(200, fixture('boreholes-page-2'));
+    if (path === '/map/boreholes.geojson') return json(200, fixture('map-features'));
+    if (path === '/boreholes?plotted=false&limit=5000') return json(200, { count: 0, boreholes: [], next_cursor: null });
     if (path === '/documents') return json(200, { documents: [...documents.values()] });
     const m = /^\/documents\/([^/?]+)$/.exec(path);
     if (m && method === 'GET') {
@@ -104,8 +105,10 @@ describe('event data → LiveEvent (adapters)', () => {
       type: 'borehole.created', uid: 'bh_01JFICT00000000000000KR02', documentId: D2, revision: 1, plotted: false,
     });
     expect(adaptLiveEvent('borehole.updated', eventFixture('borehole.updated'))).toEqual({ type: 'borehole.updated', uid: HL01, revision: 5 });
-    expect(adaptLiveEvent('clarification.created', eventFixture('clarification.created'))).toEqual({
-      type: 'clarification.created', clarificationId: 'cl_01JFICT00000000000000CL01', documentId: D1, boreholeUids: [HL01],
+    const created = eventFixture<WireClarification>('clarification.created');
+    expect(adaptLiveEvent('clarification.created', created)).toEqual({ type: 'clarification.created', clarification: adaptClarification(created) });
+    expect(adaptLiveEvent('clarification.created', created)).toMatchObject({
+      clarification: { id: 'cl_01JFICT00000000000000CL01', documentId: D1, boreholeUids: [HL01], kind: 'choose_reading' },
     });
     expect(adaptLiveEvent('clarification.resolved', eventFixture('clarification.resolved'))).toEqual({
       type: 'clarification.resolved', clarificationId: 'cl_01JFICT00000000000000CL01', status: 'skipped',
@@ -118,7 +121,7 @@ describe('event data → LiveEvent (adapters)', () => {
   it('a clarification without borehole_uids has none (the field is optional)', () => {
     const c = eventFixture<WireClarification>('clarification.created');
     delete c.borehole_uids;
-    expect(adaptLiveEvent('clarification.created', c)).toMatchObject({ boreholeUids: [] });
+    expect(adaptLiveEvent('clarification.created', c)).toMatchObject({ clarification: { boreholeUids: [] } });
   });
 
   it('is null for an unknown type or data without the fields the contract requires', () => {
@@ -150,11 +153,14 @@ describe('event data → LiveEvent (adapters)', () => {
         'document.deleted': { documentId: data.document_id },
         'borehole.created': { uid: data.uid, documentId: data.document_id, revision: data.revision, plotted: data.plotted },
         'borehole.updated': { uid: data.uid, revision: data.revision },
-        'clarification.created': { clarificationId: data.clarification_id, documentId: data.document_id, boreholeUids: data.borehole_uids ?? [] },
+        'clarification.created': { clarification: adaptClarification(data) },
         'clarification.resolved': { clarificationId: data.clarification_id, status: data.status },
         'job.failed': { documentId: data.document_id, stage: data.stage, detail: data.detail, retryable: data.retryable },
       };
       expect(event).toEqual({ type, ...(expected[type] as object) });
+      if (event?.type === 'clarification.created') {
+        expect(event.clarification).toMatchObject({ id: data.clarification_id, documentId: data.document_id, boreholeUids: data.borehole_uids ?? [] });
+      }
     });
 
     it('each example arrives through the stream as that LiveEvent', () => {
@@ -201,8 +207,8 @@ describe('the event stream', () => {
     expect(events.slice(1)).toEqual(
       LIVE_EVENT_TYPES.filter((t) => t !== 'document.updated').map((type) => adaptLiveEvent(type, eventFixture(type))),
     );
-    expect(events.find((e) => e.type === 'clarification.created')).toEqual({
-      type: 'clarification.created', clarificationId: 'cl_01JFICT00000000000000CL01', documentId: D1, boreholeUids: [HL01],
+    expect(events.find((e) => e.type === 'clarification.created')).toMatchObject({
+      type: 'clarification.created', clarification: { id: 'cl_01JFICT00000000000000CL01', documentId: D1, boreholeUids: [HL01] },
     });
     unsubscribe();
   });
