@@ -28,3 +28,10 @@ label_prefixes:
           bohrung, bohrloch, perforación, perforacion, perfuração, perfuracao, furo, boorgat, boring nr,
           borhull, borhål, borehul, sonda, hull, id, punkt, pkt]
   number_signs: ["no.", "no", "nr.", "nr", "n°", "nº", "n.", "#", "number", "núm.", "núm", "num.", "nummer"]
+# Second opinion on a classifier outlier (app.pipeline.classify.second_opinion): a page put in a role that
+# feeds no extraction although it looks like the log sheets around it (a log neighbour of the same page
+# size, and handwriting or log sheets on both sides) is labelled again with the extractor model. At most
+# `max_share` of the document's pages (at least one) and `max_pages` per document; sizes match within
+# `size_tolerance` (share of the side).
+second_opinion: { max_share: 0.1, max_pages: 10, size_tolerance: 0.02, roles: [log_sheet, log_continuation],
+                  handwriting: [partial, full], skip_roles: [blank, duplicate] }
