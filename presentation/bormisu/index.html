@@ -88,39 +88,41 @@
   .bw img { width: 100%; height: 100%; object-fit: cover; }
   .core-bg { background: radial-gradient(ellipse at 50% 40%, #4a3122 0%, var(--espresso-2) 70%); }
 
-  /* 07 Reports: nine pages, scattered and overlapping, lift on hover */
-  .pile { padding: 0; background: radial-gradient(ellipse at 50% 45%, #fffaf2 0%, #efe3d2 100%); }
-  .pile .stage { position: absolute; inset: 0; }
+  /* 07 Reports: a crowd of pages behind, the three hardest in front */
+  .pile { padding: 0; background: radial-gradient(ellipse at 50% 50%, #f7efe3 0%, #e4d5c0 100%); }
+  .pile .crowd, .pile .front { position: absolute; inset: 0; }
+  .bgsheet {
+    position: absolute; width: 300px; left: var(--x); top: var(--y);
+    transform: rotate(var(--r)); opacity: 0;
+    border-radius: 4px; overflow: hidden; background: #fff;
+    box-shadow: 0 10px 30px rgba(59,36,24,0.22);
+    filter: blur(1.2px) saturate(0.8);
+  }
+  .bgsheet img { display: block; width: 100%; height: auto; }
+  .is-active .bgsheet { animation: bgin .7s var(--ease) var(--d) forwards, drift 9s ease-in-out calc(var(--d) + .7s) infinite alternate; }
+  @keyframes bgin { from { opacity: 0; transform: translateY(-120px) rotate(var(--r)); } to { opacity: .55; transform: rotate(var(--r)); } }
+  @keyframes drift { from { opacity: .55; transform: rotate(var(--r)); } to { opacity: .55; transform: translate(14px, -10px) rotate(calc(var(--r) + 2deg)); } }
+  .pile .veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 52%, rgba(247,239,227,0.75) 0%, rgba(247,239,227,0) 60%); }
   .sheet {
-    position: absolute; width: 470px;
-    left: var(--x); top: var(--y);
-    transform: rotate(var(--r));
-    opacity: 0;
-    transition: transform .6s var(--ease), box-shadow .6s var(--ease), opacity .6s;
-    border-radius: 6px; overflow: hidden; background: #fff;
-    box-shadow: 0 18px 50px rgba(59,36,24,0.28);
-    cursor: zoom-in;
+    position: absolute; left: var(--x); top: var(--y); width: var(--w);
+    transform: rotate(var(--r)); opacity: 0;
+    border-radius: 8px; overflow: hidden; background: #fff;
+    box-shadow: 0 30px 90px rgba(59,36,24,0.45);
   }
   .sheet img { display: block; width: 100%; height: auto; }
-  /* moving sheen across each page */
+  /* moving sheen across each front page */
   .sheet::after {
     content: ""; position: absolute; inset: -40%;
     background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,0.55) 50%, transparent 58%);
-    transform: translateX(-60%);
-    pointer-events: none;
+    transform: translateX(-60%); pointer-events: none;
   }
-  .is-active .sheet { animation: drop .9s var(--ease) both; animation-delay: var(--d); }
+  .is-active .sheet { animation: drop 1s var(--ease) var(--d) forwards; }
   .is-active .sheet::after { animation: sheen 5s ease-in-out infinite; animation-delay: calc(var(--d) + 1.2s); }
   @keyframes drop {
-    from { opacity: 0; transform: translateY(-260px) rotate(calc(var(--r) * -2)) scale(1.1); }
+    from { opacity: 0; transform: translateY(160px) rotate(calc(var(--r) * -2)) scale(0.85); }
     to { opacity: 1; transform: rotate(var(--r)); }
   }
   @keyframes sheen { 0%, 70% { transform: translateX(-60%); } 100% { transform: translateX(60%); } }
-  .sheet:hover {
-    z-index: 20; animation: none; opacity: 1;
-    transform: rotate(0) scale(1.45);
-    box-shadow: 0 40px 120px rgba(59,36,24,0.45);
-  }
 
   /* 08 Demo */
   .demo .big { font-family: var(--display); font-size: 260px; font-weight: 700; letter-spacing: -0.05em; color: var(--ladyfinger); }
@@ -175,6 +177,7 @@
     [data-anim], .sheet { opacity: 1 !important; transition: none !important; animation: none !important; }
     [data-anim] { transform: none !important; }
     .sheet { transform: rotate(var(--r)) !important; }
+    .bgsheet { opacity: .55 !important; animation: none !important; }
     .s21-emoji, .hero-img-zoom, .finisher-logo { animation: none !important; }
   }
 </style>
@@ -219,18 +222,42 @@
     <div class="frame" data-anim style="--d: 100ms;"><img class="hero-img-zoom" src="img/bw-map.png" alt="Borehole clusters across Baden-Württemberg" /></div>
   </section>
 
-  <!-- 07 REPORTS — nine real pages from the dataset. Hover a page to lift it -->
+  <!-- 07 REPORTS — a crowd of real pages behind; the three hardest (Norwegian handwriting, Spanish, Korean) in front -->
   <section class="pile" data-label="07 Reports">
-    <div class="stage">
-      <figure class="sheet" style="--x: 80px;   --y: 150px; --r: -9deg; --d: 0.10s;"><img src="img/r6-typewriter.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 1360px; --y: 120px; --r: 8deg;  --d: 0.25s;"><img src="img/r9-sam.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 300px;  --y: 420px; --r: 5deg;  --d: 0.40s;"><img src="img/r8-kuwait.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 1180px; --y: 450px; --r: -6deg; --d: 0.55s;"><img src="img/r7-sea.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 560px;  --y: 60px;  --r: -4deg; --d: 0.70s; width: 640px;"><img src="img/r4-spanish.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 1020px; --y: 70px;  --r: 6deg;  --d: 0.85s;"><img src="img/r5-catalan.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 150px;  --y: 560px; --r: -3deg; --d: 1.00s;"><img src="img/r2-norway-hand.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 1420px; --y: 520px; --r: 4deg;  --d: 1.15s;"><img src="img/r3-malaysia-hand.jpg" alt="" /></figure>
-      <figure class="sheet" style="--x: 720px;  --y: 330px; --r: -2deg; --d: 1.30s; width: 520px;"><img src="img/r1-korean.jpg" alt="" /></figure>
+    <div class="crowd">
+      <figure class="bgsheet" style="--x: -54px; --y: 364px; --r: -2.9deg; --d: 0.02s;"><img src="img/bg/p01.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1049px; --y: -95px; --r: 1.6deg; --d: 0.04s;"><img src="img/bg/p02.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 593px; --y: 717px; --r: -2.3deg; --d: 0.06s;"><img src="img/bg/p03.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1744px; --y: -85px; --r: 2.0deg; --d: 0.08s;"><img src="img/bg/p04.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1520px; --y: -77px; --r: -11.1deg; --d: 0.10s;"><img src="img/bg/p05.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1521px; --y: 704px; --r: -3.6deg; --d: 0.12s;"><img src="img/bg/p06.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1070px; --y: 298px; --r: 1.8deg; --d: 0.14s;"><img src="img/bg/p07.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: -51px; --y: 706px; --r: -0.1deg; --d: 0.16s;"><img src="img/bg/p08.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1744px; --y: 734px; --r: 7.8deg; --d: 0.18s;"><img src="img/bg/p09.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 164px; --y: 754px; --r: 11.9deg; --d: 0.20s;"><img src="img/bg/p10.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 833px; --y: 328px; --r: -7.0deg; --d: 0.22s;"><img src="img/bg/p11.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1271px; --y: 711px; --r: -11.7deg; --d: 0.24s;"><img src="img/bg/p12.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1279px; --y: 357px; --r: -0.1deg; --d: 0.26s;"><img src="img/bg/p13.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1056px; --y: 737px; --r: -5.9deg; --d: 0.28s;"><img src="img/bg/p14.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: -86px; --y: -85px; --r: 0.3deg; --d: 0.30s;"><img src="img/bg/p15.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1270px; --y: -57px; --r: -9.7deg; --d: 0.32s;"><img src="img/bg/p16.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1516px; --y: 343px; --r: -12.9deg; --d: 0.34s;"><img src="img/bg/p17.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 852px; --y: 689px; --r: 7.4deg; --d: 0.36s;"><img src="img/bg/p18.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 396px; --y: 330px; --r: -4.5deg; --d: 0.38s;"><img src="img/bg/p19.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 607px; --y: -24px; --r: -0.1deg; --d: 0.40s;"><img src="img/bg/p20.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1761px; --y: 348px; --r: -12.1deg; --d: 0.42s;"><img src="img/bg/p21.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 365px; --y: -66px; --r: -0.7deg; --d: 0.44s;"><img src="img/bg/p22.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 177px; --y: -92px; --r: -12.3deg; --d: 0.46s;"><img src="img/bg/p23.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 404px; --y: 719px; --r: 4.1deg; --d: 0.48s;"><img src="img/bg/p24.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 628px; --y: 347px; --r: -6.0deg; --d: 0.50s;"><img src="img/bg/p25.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 834px; --y: -56px; --r: -13.4deg; --d: 0.52s;"><img src="img/bg/p26.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 164px; --y: 335px; --r: -9.3deg; --d: 0.54s;"><img src="img/bg/p27.jpg" alt="" /></figure>
+    </div>
+    <div class="veil"></div>
+    <div class="front">
+      <figure class="sheet" style="--x: 170px;  --y: 150px; --w: 520px; --r: -6deg; --d: 0.9s;"><img src="img/r2-norway-hand.jpg" alt="Handwritten Norwegian borehole sheet" /></figure>
+      <figure class="sheet" style="--x: 1230px; --y: 140px; --w: 520px; --r: 5deg;  --d: 1.2s;"><img src="img/r1-korean.jpg" alt="Korean drill log" /></figure>
+      <figure class="sheet" style="--x: 560px;  --y: 230px; --w: 800px; --r: -1deg; --d: 1.5s;"><img src="img/r4-spanish.jpg" alt="Spanish soil probe sheet" /></figure>
     </div>
   </section>
 
