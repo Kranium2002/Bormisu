@@ -1,0 +1,98 @@
+/* DIN and SPT stay narrow (codes like "G, s", "R 50/30"), so a lithology fits one line at 1280 px. */
+.cols {
+  grid-template-columns: 34px 112px minmax(0, 1fr) 60px 108px 64px 64px 76px 30px;
+}
+
+.row {
+  cursor: pointer;
+  background: var(--c-surface);
+}
+
+.row:hover {
+  background: var(--c-hover);
+}
+
+/* Inset, so the ring isn't clipped by the rows above and below. */
+.row:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.selected,
+.selected:hover {
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-green);
+}
+
+.cell {
+  padding: var(--space-2);
+  min-width: 0;
+}
+
+.spt {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.rBadge {
+  background: var(--c-amber);
+  color: var(--c-text);
+  font-weight: 800;
+  font-size: var(--fs-xs);
+  padding: 1px 6px;
+  border-radius: 2px;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: normal;
+}
+
+.rBadge:hover {
+  box-shadow: inset 0 0 0 1px var(--c-amber-text);
+}
+
+.rBadge:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.sptText {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: var(--fs-md);
+  color: var(--c-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+button.sptText:hover {
+  text-decoration: underline;
+}
+
+button.sptText:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Without a source page the R and the SPT text are plain text. */
+.inert,
+span.sptText {
+  cursor: inherit;
+}
+
+.lintText {
+  color: var(--c-red);
+}
+
+.lint {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--c-red);
+  font-weight: 700;
+}
+
+.lintWarn {
+  color: var(--c-amber-text);
+}

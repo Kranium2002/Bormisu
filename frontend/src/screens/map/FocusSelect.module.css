@@ -1,0 +1,55 @@
+/*
+ * Over the map's top-left corner, right of Leaflet's zoom bar (left 10px, 34px wide, 64px high). Same
+ * height as the zoom bar, so both line up; a note (loading, outlines unavailable) makes it taller.
+ */
+.box {
+  position: absolute;
+  top: 10px;
+  left: 52px;
+  z-index: var(--z-map-overlay);
+  box-sizing: border-box;
+  min-height: 64px;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 200px;
+}
+
+.label {
+  font: 800 var(--fs-sm) var(--font-sans);
+  letter-spacing: var(--ls-head);
+  color: var(--c-text);
+}
+
+/* A native select restyled: square, thin border, dark-green chevron. */
+.select {
+  appearance: none;
+  font: 600 var(--fs-md) var(--font-sans);
+  color: var(--c-text);
+  background-color: var(--c-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23003E25' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-2) center;
+  border: 1px solid var(--c-border);
+  border-radius: 0;
+  padding: var(--space-1) 28px var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+.select:hover {
+  border-color: var(--c-dark);
+}
+
+.select:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.note {
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}

@@ -1,0 +1,143 @@
+/*
+ * Shared button hierarchy. Compose, don't copy:
+ *   .save { composes: primary from '../../styles/buttons.module.css'; }
+ * as the FIRST declaration of a single-class rule. Labels are UPPERCASE in the source string.
+ *
+ * The base rules sit in :where() (specificity 0), so a composing module's own declarations
+ * (padding, colour, height) always win, whatever order the bundler puts the files in. In dev, Vite
+ * inlines a copy of this file into every module that composes it; the build keeps one copy near
+ * the end of the bundle. The states (:hover, :active, :disabled, :focus-visible) keep their
+ * specificity, so they still win over a plain override.
+ *
+ * primary     green fill, dark-green text (never white on green). At most one per region.
+ * secondary   outlined.
+ * quiet       text button, e.g. CANCEL.
+ * link        colour modifier: link green for quiet navigation (`composes: quiet link from ...`).
+ * small       size modifier for inline controls: `composes: secondary small from ...`.
+ * iconButton  32x32, for every × close.
+ */
+
+:where(.primary) {
+  cursor: pointer;
+  background: var(--c-green);
+  color: var(--c-on-green);
+  border: 0;
+  border-radius: 4px;
+  font: 700 var(--fs-sm) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  padding: 10px var(--space-4);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--c-green-hover);
+}
+
+.primary:active:not(:disabled) {
+  box-shadow: inset 0 2px 0 rgba(0, 62, 37, 0.25);
+}
+
+.primary:disabled {
+  background: var(--c-line);
+  color: var(--c-faint);
+  cursor: default;
+  box-shadow: none;
+}
+
+:where(.secondary) {
+  cursor: pointer;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-text);
+  border-radius: 4px;
+  font: 700 var(--fs-sm) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  padding: 9px 14px;
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--c-hover);
+}
+
+.secondary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.secondary:disabled {
+  border-color: var(--c-border);
+  color: var(--c-faint);
+  cursor: default;
+}
+
+:where(.quiet) {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 2px;
+  min-height: 24px;
+  padding: var(--space-1) var(--space-2);
+  font: 700 var(--fs-xs) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  color: var(--c-muted);
+}
+
+.quiet:hover:not(:disabled) {
+  color: var(--c-text);
+  text-decoration: underline;
+}
+
+.quiet:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.quiet:disabled {
+  color: var(--c-faint);
+  cursor: default;
+}
+
+/* Colour modifier for quiet navigation text buttons (OPEN DETAIL ›, SHOW WORLD ›): `composes: quiet link from ...`. */
+:where(.link) {
+  color: var(--c-green-text);
+}
+
+/* Size modifier. Declared after the variants so its padding and size win when composed together. */
+:where(.small) {
+  padding: 7px var(--space-3);
+  font-size: var(--fs-xs);
+}
+
+:where(.iconButton) {
+  cursor: pointer;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--c-muted);
+  font: 400 20px / 1 var(--font-sans);
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--c-line);
+  color: var(--c-text);
+}
+
+.iconButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.iconButton:disabled {
+  color: var(--c-border-strong);
+  cursor: default;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.quiet:focus-visible,
+.iconButton:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}

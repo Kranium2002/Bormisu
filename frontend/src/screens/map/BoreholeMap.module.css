@@ -1,0 +1,37 @@
+/* Leaflet container. Grayscale tiles and popup chrome are global (tokens.css), as Leaflet owns that DOM. */
+.map {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * Tile seams. At fractional zoom (zoomSnap 0.25) the 256 px tiles are scaled and their edges fall
+ * between pixels. Leaflet's fix (mix-blend-mode: plus-lighter) then adds up both edge pixels and draws
+ * a white hairline where tiles meet, very visible next to the focus border. Normal blending plus half
+ * a pixel of overlap closes the seams without the bright line.
+ */
+.map :global(.leaflet-tile-container img.leaflet-tile) {
+  mix-blend-mode: normal;
+  width: 256.5px !important;
+  height: 256.5px !important;
+}
+
+/*
+ * Pins: a soft dark edge around the white ring, so grey and green pins stay visible on pale tiles and
+ * on the country mask. Only the clickable pins (the focus mask and border and the MY LOCATION dot are
+ * non-interactive); fills and stacking are untouched.
+ */
+.map :global(.leaflet-overlay-pane path.leaflet-interactive) {
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+}
+
+/* "SIMULATED LOCATION" next to the MY LOCATION dot (a permanent Leaflet tooltip). */
+.meLabel {
+  font: 800 var(--fs-2xs) var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  color: var(--c-gw);
+  border: 1px solid var(--c-gw);
+  border-radius: 0;
+  padding: 2px 6px;
+  box-shadow: var(--shadow-card);
+}

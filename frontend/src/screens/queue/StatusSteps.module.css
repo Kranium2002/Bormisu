@@ -1,0 +1,86 @@
+/* classifying — extracting — needs review — done */
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--c-faint);
+  font-weight: 400;
+}
+
+.dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c-surface);
+  border: 2px solid var(--c-border);
+}
+
+.conn {
+  flex: none;
+  width: 18px;
+  height: 1px;
+  background: var(--c-border);
+}
+
+/* step states (queueView.StepState) */
+.done {
+  color: var(--c-text);
+}
+
+.done .dot {
+  background: var(--c-green);
+  border-color: var(--c-green);
+}
+
+.active {
+  color: var(--c-text);
+  font-weight: 700;
+}
+
+.active .dot {
+  border-color: var(--c-green);
+}
+
+.review {
+  color: var(--c-text);
+  font-weight: 700;
+}
+
+.review .dot {
+  background: var(--c-amber);
+  border-color: var(--c-amber);
+}
+
+.failed {
+  color: var(--c-red);
+  font-weight: 700;
+}
+
+.failed .dot {
+  background: var(--c-red);
+  border-color: var(--c-red);
+}
+
+.pulse {
+  /* bpulse is the global keyframes in tokens.css */
+  animation: global(bpulse) 1.2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}

@@ -1,0 +1,9 @@
+.popover {
+  position: absolute;
+  right: 0;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-popover);
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+}

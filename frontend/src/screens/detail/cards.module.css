@@ -1,0 +1,80 @@
+/* Shared by the detail screen's cards and tables. */
+
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+}
+
+.head {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--c-border);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+}
+
+/* Numbers only (depths, coordinates, dates, counts); words stay in the sans. */
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* "not in source", "illegible", "not reached": grey italics, never 0. */
+.missing {
+  color: var(--c-faint);
+  font-style: italic;
+}
+
+/* Sentence-case chips ('Lint', 'Inferred'), the same shape as the method badges. */
+.chip {
+  composes: chip from '../../styles/chips.module.css';
+  cursor: default;
+}
+
+.chipRed {
+  background: var(--c-red-bg);
+  color: var(--c-red);
+}
+
+.chipAmber {
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+}
+
+.chipGreen {
+  background: var(--c-green-bg);
+  color: var(--c-green-text);
+}
+
+.chipGrey {
+  background: var(--c-line);
+  color: var(--c-muted);
+}
+
+/* Table header row (grey band). */
+.thead {
+  display: grid;
+  background: var(--c-line);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  color: var(--c-muted);
+}
+
+.th {
+  padding: var(--space-2);
+  white-space: nowrap;
+}
+
+.trow {
+  display: grid;
+  font-size: var(--fs-md);
+  align-items: center;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.empty {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-md);
+  color: var(--c-faint);
+  font-style: italic;
+}

@@ -1,0 +1,43 @@
+.svg {
+  display: block;
+  font-family: var(--font-sans);
+}
+
+.hit {
+  cursor: pointer;
+}
+
+/* Layers, GW triangles and the R marker are buttons inside the SVG: the dark ring of every control. */
+.hit:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.noHit {
+  pointer-events: none;
+}
+
+.legend {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--c-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.rBadge {
+  background: var(--c-amber);
+  color: var(--c-text);
+  font-weight: 800;
+  font-size: var(--fs-2xs);
+  padding: 0 var(--space-1);
+  border-radius: 2px;
+}

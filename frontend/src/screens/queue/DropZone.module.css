@@ -1,0 +1,80 @@
+/* Drop zone: a label around a visually hidden file input, so a click opens the file chooser. */
+
+.zone {
+  position: relative;
+  border: 2px dashed var(--c-border-strong);
+  background: var(--c-surface);
+  padding: var(--space-5) var(--space-5) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+}
+
+.zone:hover {
+  border-color: var(--c-grey);
+}
+
+/* Keyboard focus on the hidden input rings the whole zone (a mouse click shows no ring). */
+.zone:has(.input:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Unsupported file: red until the next valid drop. Dragging over it again still shows green. */
+.zoneError,
+.zoneError:hover {
+  border-color: var(--c-red);
+  background: var(--c-red-bg-soft);
+}
+
+.drag,
+.drag:hover {
+  border-color: var(--c-green);
+  background: var(--c-drop);
+}
+
+/* Visually hidden but focusable: Tab reaches the chooser, Enter/Space opens it. */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+}
+
+.title {
+  font: 800 var(--fs-lg) var(--font-sans);
+  letter-spacing: var(--ls-head);
+}
+
+.sub {
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+/* Fixed slot for "Uploading…" and the error: empty while idle, so the queue never shifts. */
+.statusLine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 16px;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.uploading {
+  color: var(--c-green-text);
+}
+
+.error {
+  color: var(--c-red);
+}

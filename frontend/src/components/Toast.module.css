@@ -1,0 +1,16 @@
+/* Bottom-left, so it never covers the Review field list on the right. */
+.toast {
+  position: absolute;
+  left: var(--space-5);
+  bottom: var(--space-5);
+  transform: none;
+  background: var(--c-dark);
+  border-left: 3px solid var(--c-green);
+  color: var(--c-surface);
+  font-size: var(--fs-md);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 2px;
+  z-index: var(--z-toast);
+  box-shadow: var(--shadow-toast);
+  white-space: nowrap;
+}

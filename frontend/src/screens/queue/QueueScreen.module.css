@@ -1,0 +1,98 @@
+/* Upload & queue screen layout (prototype template lines 81–123). */
+
+.scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.page {
+  /* Shared by the column header and every document card. */
+  --queue-cols: 320px minmax(0, 1fr) 300px;
+  --queue-gap: var(--space-5);
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font: 900 var(--fs-title) var(--font-sans);
+  letter-spacing: var(--ls-title);
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch {
+  width: 10px;
+  height: 14px;
+  border: 1px solid transparent;
+}
+
+/* The backend can't list documents (API mode): boreholes still load, the queue stays empty. */
+.notice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--c-amber);
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+
+/* DOCUMENT · STATUS · CHECKS over the cards' columns (card padding + its 1px border). */
+.colHead {
+  display: grid;
+  grid-template-columns: var(--queue-cols);
+  gap: var(--queue-gap);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  color: var(--c-muted);
+  padding: 0 calc(var(--space-4) + 1px);
+}
+
+/* CHECKS sits over the right-aligned completeness chip. */
+.colHead > :last-child {
+  text-align: right;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.empty {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  padding: var(--space-5) var(--space-4);
+  font-size: var(--fs-md);
+  color: var(--c-muted);
+  text-align: center;
+}

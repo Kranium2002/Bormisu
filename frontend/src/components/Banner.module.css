@@ -1,0 +1,17 @@
+.banner {
+  flex: none;
+  box-sizing: border-box;
+  min-height: 32px;
+  background: var(--c-line);
+  border-bottom: 1px solid var(--c-border);
+  padding: var(--space-1) var(--space-5);
+  font-size: var(--fs-md);
+  color: var(--c-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tag {
+  composes: tag from '../styles/chips.module.css';
+}

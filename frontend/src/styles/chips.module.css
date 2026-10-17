@@ -1,0 +1,28 @@
+/*
+ * Shared chips and badges. Compose, don't copy:
+ *   .lint { composes: chip from '../../styles/chips.module.css'; background: ...; color: ...; }
+ *
+ * chip  sentence case ('Lint', 'Inferred', 'Needs attention'). Colour is never the only signal:
+ *       pair it with text or a glyph. Green means reviewed / primary, never "correct".
+ * tag   the dark DEMO tag: the only caps tag.
+ *
+ * Both rules sit in :where() (specificity 0), so a composing module's own declarations always win,
+ * whatever order the bundler puts the files in (see buttons.module.css).
+ */
+
+:where(.chip, .tag) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: 700 var(--fs-2xs) / 1.4 var(--font-sans);
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+:where(.tag) {
+  background: var(--c-text);
+  color: var(--c-surface);
+  letter-spacing: var(--ls-caps);
+}

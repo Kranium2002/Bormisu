@@ -1,0 +1,134 @@
+.results {
+  grid-column: 1 / span 2;
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--c-surface);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font: 800 var(--fs-sm) var(--font-sans);
+  letter-spacing: var(--ls-head);
+}
+
+.summary {
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+/* The column header sits inside the scroll box (sticky), so it lines up with the rows even when a
+   scrollbar takes width. Its negative margin stretches the grey band over the box padding. */
+.scroll {
+  overflow: auto;
+  flex: 1;
+  padding: 0 var(--space-3);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1.3fr) 110px 150px minmax(0, 1fr) 130px;
+  align-items: center;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 calc(-1 * var(--space-3));
+  padding: 0 var(--space-3);
+  background: var(--c-line);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  color: var(--c-muted);
+}
+
+.header .cell {
+  padding: var(--space-2) var(--space-3);
+}
+
+.body {
+  font-size: var(--fs-md);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.cell {
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+/* The whole row opens the detail with the pointer; the OPEN DETAIL › button is the keyboard way. */
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  background: var(--c-hover);
+}
+
+.id {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.muted {
+  color: var(--c-muted);
+}
+
+.warn {
+  color: var(--c-amber-text);
+}
+
+/* The button's own padding replaces the cell's, so the row keeps the height of a text row. */
+.actionCell {
+  padding: 0;
+}
+
+.action {
+  composes: quiet link from '../../styles/buttons.module.css';
+}
+
+.empty {
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--fs-md);
+  color: var(--c-muted);
+}
+
+.focus {
+  color: var(--c-dark);
+}
+
+/* Boreholes outside the focus country: one line under the table, always visible, with SHOW WORLD. */
+.footer {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-5);
+  border-top: 1px solid var(--c-border);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  background: var(--c-surface);
+}
+
+.footerDetail {
+  font-weight: 400;
+  color: var(--c-muted);
+}
+
+.showWorld {
+  composes: quiet link from '../../styles/buttons.module.css';
+  margin-left: auto;
+}

@@ -1,0 +1,305 @@
+/* One value row of the Review list (prototype template lines 157–181). */
+.row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 78px 112px;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-surface);
+  cursor: pointer;
+  scroll-margin-top: 44px;
+}
+
+.row:not(.focused):hover {
+  background: var(--c-hover);
+}
+
+.focused {
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-green);
+}
+
+.labelCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.page {
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.valueCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* raw → normalised */
+.pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.raw {
+  font: var(--fs-sm) var(--font-mono);
+  color: var(--c-muted);
+  overflow-wrap: anywhere;
+}
+
+.to {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.arrow {
+  flex: none;
+  color: var(--c-faint);
+}
+
+/* SPT refusal badge (amber R): a chip, paired with the letter and a tooltip */
+.refusal {
+  composes: chip from '../../styles/chips.module.css';
+  flex: none;
+  background: var(--c-amber);
+  color: var(--c-text);
+  cursor: help;
+}
+
+.norm {
+  min-width: 0;
+  font: 500 var(--fs-md) var(--font-mono);
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+
+.normError {
+  color: var(--c-red);
+}
+
+/* 3-line lithology */
+.lith {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  row-gap: var(--space-1);
+  font-size: var(--fs-sm);
+  align-items: baseline;
+}
+
+.lithKey {
+  font-size: var(--fs-2xs);
+  color: var(--c-faint);
+  letter-spacing: var(--ls-caps);
+}
+
+.lithRaw {
+  font-family: var(--font-mono);
+  color: var(--c-muted);
+}
+
+.lithEn {
+  font-weight: 600;
+}
+
+.lithDin {
+  font-family: var(--font-mono);
+}
+
+.state {
+  font-style: italic;
+  color: var(--c-faint);
+  font-size: var(--fs-md);
+}
+
+.ai {
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--c-faint);
+}
+
+.noteFaint,
+.noteOk,
+.noteWarn {
+  font-size: var(--fs-xs);
+}
+
+.noteFaint {
+  color: var(--c-faint);
+}
+
+.noteOk {
+  color: var(--c-green-text);
+}
+
+.noteWarn {
+  color: var(--c-amber-text);
+}
+
+.lintError,
+.lintWarn,
+.flagText {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.lintError {
+  color: var(--c-red);
+}
+
+.lintWarn,
+.flagText {
+  color: var(--c-amber-text);
+}
+
+/* inline edit / flag input: input and buttons share one 30 px line; the global focus ring marks the input */
+.edit {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  cursor: default;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-md);
+  font-family: var(--font-mono);
+  color: var(--c-text);
+  background: var(--c-surface);
+  box-sizing: border-box;
+}
+
+.save {
+  composes: primary small from '../../styles/buttons.module.css';
+  height: 30px;
+  padding: 0 var(--space-3);
+}
+
+.cancel {
+  composes: quiet from '../../styles/buttons.module.css';
+  height: 30px;
+  padding: 0 var(--space-3);
+}
+
+/* more actions while focused */
+.moreBar {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: 2px;
+  cursor: default;
+}
+
+.crs,
+.more {
+  cursor: pointer;
+  min-height: 24px;
+  font-size: var(--fs-xs);
+  padding: var(--space-1) var(--space-2);
+  border-radius: 2px;
+  line-height: normal;
+}
+
+.crs:active,
+.more:active {
+  transform: translateY(1px);
+}
+
+.crs {
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  background: var(--c-dark);
+  color: var(--c-surface);
+  border: 0;
+}
+
+.crs:hover {
+  background: var(--c-dark-hover);
+}
+
+.more {
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+}
+
+.more:hover {
+  border-color: var(--c-border-strong);
+  background: var(--c-hover);
+}
+
+.morePressed,
+.morePressed:hover {
+  background: var(--c-line);
+  border-color: var(--c-muted);
+  font-weight: 700;
+}
+
+/* ✓ ✎ ⚑ */
+.actions {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+  cursor: default;
+}
+
+.act {
+  /* prototype: 30 × 28 content box + 1 px border */
+  box-sizing: border-box;
+  width: 32px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-lg);
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.actApprove {
+  font-weight: 700;
+}
+
+.act:hover {
+  border-color: var(--c-border-strong);
+  background: var(--c-hover);
+}
+
+.act:active {
+  transform: translateY(1px);
+}
+
+/* approved: green fill with dark-green text (never white on green) */
+.actApproved,
+.actApproved:hover {
+  background: var(--c-green);
+  border-color: var(--c-green);
+  color: var(--c-on-green);
+}
+
+.actFlagged,
+.actFlagged:hover {
+  background: var(--c-amber);
+  border-color: var(--c-amber);
+  color: var(--c-text);
+}

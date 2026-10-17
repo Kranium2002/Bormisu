@@ -1,0 +1,38 @@
+.icon {
+  flex: none;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  padding: 0;
+  color: var(--c-muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+button.icon:hover {
+  color: var(--c-dark);
+  background: var(--c-line);
+}
+
+button.icon:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Non-interactive variant (no onClick): same glyph, no pointer. */
+.inert {
+  cursor: default;
+}
+
+.dim {
+  opacity: 0.35;
+}
+
+.glyph {
+  display: block;
+}

@@ -1,0 +1,124 @@
+.header {
+  flex: none;
+  height: 56px;
+  background: var(--c-dark);
+  color: var(--c-surface);
+  display: flex;
+  align-items: stretch;
+  padding: 0 var(--space-5);
+  gap: var(--space-6);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Brand mark: its sizes are the logo's, not the type scale's. */
+.logo {
+  width: 30px;
+  height: 30px;
+  background: var(--c-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 19px;
+  color: var(--c-dark);
+}
+
+.name {
+  font-weight: 900;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+}
+
+.tagline {
+  font-size: var(--fs-sm);
+  font-weight: 300;
+  color: var(--c-nav-idle);
+}
+
+/* Items are padded so the focus ring clears the label; gap + padding keep 28 px between labels. */
+.nav {
+  display: flex;
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+.navItem {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-caps);
+  color: var(--c-nav-idle);
+  background: none;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+}
+
+.navItem:hover {
+  color: var(--c-surface);
+}
+
+/* Green on the dark-green bar (5.0:1), drawn inside the item so the bar doesn't clip it. */
+.navItem:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: -3px;
+}
+
+.active {
+  color: var(--c-surface);
+  border-bottom-color: var(--c-green);
+}
+
+.badge {
+  composes: chip from '../styles/chips.module.css';
+  background: var(--c-amber);
+  color: var(--c-text);
+  letter-spacing: 0;
+}
+
+.search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.input {
+  width: 290px;
+  height: 32px;
+  border: 0;
+  border-radius: 2px;
+  padding: 0 var(--space-3);
+  font-size: var(--fs-md);
+  font-family: inherit;
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-sizing: border-box;
+}
+
+.input:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: 2px;
+}
+
+.message {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: var(--fs-sm);
+  padding: var(--space-2) var(--space-3);
+  box-shadow: var(--shadow-search);
+  z-index: var(--z-search);
+  white-space: nowrap;
+}

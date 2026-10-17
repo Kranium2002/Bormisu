@@ -1,0 +1,239 @@
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: var(--z-scrim);
+}
+
+.panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 600px;
+  background: var(--c-surface);
+  z-index: var(--z-panel);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--c-border);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+  /* the 32 px close button sits beside the first line */
+  padding-top: var(--space-1);
+}
+
+.close {
+  composes: iconButton from '../styles/buttons.module.css';
+  margin: 0 calc(-1 * var(--space-2)) 0 0;
+}
+
+.heading {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+}
+
+/* The value's label inside the heading keeps its own case ('SPT @ 10.50 m'). */
+.headingLabel {
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.sub {
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+.subMono {
+  font: var(--fs-sm) var(--font-mono);
+  color: var(--c-muted);
+}
+
+/* source panel */
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.raw {
+  font: var(--fs-sm) var(--font-mono);
+}
+
+.noBox {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--c-amber-text);
+}
+
+.scroll {
+  flex: 1;
+  overflow: auto;
+  background: var(--c-scan-bg);
+  padding: var(--space-4);
+}
+
+/* Both scrollers are tab stops (tabIndex 0, inside the focus trap); draw the ring inside, between head and foot. */
+.scroll:focus-visible,
+.body:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.status {
+  font-size: var(--fs-md);
+  color: var(--c-muted);
+}
+
+.error {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--c-red);
+}
+
+.foot {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--c-border);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.primary {
+  composes: primary from '../styles/buttons.module.css';
+}
+
+/* completeness panel */
+.body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.compHead {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+
+.ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ID chip: the glyph repeats the colour's meaning (✓ extracted, ✕ missing, + unexpected). */
+.id {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: 600 var(--fs-sm) var(--font-mono);
+  padding: var(--space-1) var(--space-2);
+  border-radius: 2px;
+  border: 1px solid var(--c-line);
+  background: var(--c-line);
+  color: var(--c-text);
+}
+
+.id::before {
+  content: '✓';
+  content: '✓' / '';
+  font: 700 var(--fs-2xs) var(--font-sans);
+  color: var(--c-muted);
+}
+
+.missing {
+  background: var(--c-red-bg);
+  color: var(--c-red);
+  border-color: var(--c-red);
+}
+
+.missing::before {
+  content: '✕';
+  content: '✕' / '';
+  color: inherit;
+}
+
+.unexpected {
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  border-color: var(--c-amber);
+}
+
+.unexpected::before {
+  content: '+';
+  content: '+' / '';
+  color: inherit;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.legendGlyph {
+  font-weight: 700;
+  margin-right: var(--space-1);
+}
+
+.legendMissing {
+  color: var(--c-red);
+}
+
+.legendUnexpected {
+  color: var(--c-amber-text);
+}
+
+.lintHead {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  margin: var(--space-2) 0 0;
+}
+
+.lintRow {
+  display: grid;
+  grid-template-columns: 70px 64px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--fs-md);
+  border-top: 1px solid var(--c-line);
+  padding-top: var(--space-2);
+}
+
+.sevError {
+  composes: chip from '../styles/chips.module.css';
+  justify-self: start;
+  background: var(--c-red-bg);
+  color: var(--c-red);
+}
+
+.sevWarning {
+  composes: chip from '../styles/chips.module.css';
+  justify-self: start;
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}

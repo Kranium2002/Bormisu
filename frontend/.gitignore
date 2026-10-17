@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.env.local
+# The repo root ignores .env.*; the sample-mode env file holds no secrets and must be committed.
+!.env.sample
+!.env.example
