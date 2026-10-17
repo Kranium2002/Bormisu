@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-LlmRoute = Literal["openrouter", "openai"]
+LlmRoute = Literal["mistral", "openrouter", "openai"]
 OcrRoute = Literal["mistral", "openrouter", "openai"]
 ModelRole = Literal["classifier", "extractor"]
 OPENAI_BASE_URL = "https://api.openai.com/v1"
@@ -58,10 +58,14 @@ class Settings(BaseSettings):
     mistral_base_url: str = "https://api.mistral.ai/v1"
     # The variable the openai SDK (chat) reads; structured calls and OCR with an OpenAI key use it too.
     openai_base_url: str = OPENAI_BASE_URL
-    # Which provider runs the classifier, extractor, second reads and sheet mapping: openrouter, openai, or
-    # auto (openrouter when its key is set, else openai; a 401/403 on one moves to the other when that one
-    # is configured, remembered per process).
-    llm_provider: Literal["auto", "openrouter", "openai"] = "auto"
+    # Which provider runs the classifier, extractor, second reads, sheet mapping and bh3's page reading:
+    # mistral (direct API), openrouter, openai, or auto (mistral -> openrouter -> openai, the first whose key
+    # is set; a 401/403 on one moves to the next configured one, remembered until the worker restarts).
+    llm_provider: Literal["auto", "mistral", "openrouter", "openai"] = "auto"
+    # Mistral model ids (direct API; calls are priced from data/prices.yaml, Mistral reports no cost)
+    mistral_classifier_model: str = "mistral-small-latest"
+    mistral_extractor_model: str = "mistral-medium-latest"
+    mistral_bh3_model: str = "mistral-medium-latest"
     # OpenRouter model ids
     classifier_model: str = "mistralai/mistral-small-2603"
     extractor_model: str = "mistralai/mistral-large-4-0"
@@ -227,18 +231,21 @@ class Settings(BaseSettings):
     def llm_routes(self) -> list[LlmRoute]:
         """The providers LLM_PROVIDER allows for structured model calls with the keys at hand, in order."""
         keys: dict[LlmRoute, SecretStr | None] = {
+            "mistral": self.mistral_api_key,
             "openrouter": self.openrouter_api_key,
             "openai": self.openai_api_key,
         }
         if self.llm_provider != "auto":
             return [self.llm_provider] if keys[self.llm_provider] is not None else []
-        return [route for route in ("openrouter", "openai") if keys[route] is not None]
+        return [route for route in ("mistral", "openrouter", "openai") if keys[route] is not None]
 
     def llm_model(self, role: ModelRole, provider: LlmRoute) -> str:
         """The model id of the classifier or the extractor on a provider."""
         if provider == "openai":
             chosen = self.openai_extractor_model if role == "extractor" else self.openai_classifier_model
             return chosen or self.chat_model
+        if provider == "mistral":
+            return self.mistral_extractor_model if role == "extractor" else self.mistral_classifier_model
         return self.extractor_model if role == "extractor" else self.classifier_model
 
     @property

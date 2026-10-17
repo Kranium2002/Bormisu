@@ -225,8 +225,9 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     await work(queue, doc_id)
 
     assert bridge.read == [2, 3, 4]  # the log pages, one at a time
-    assert bridge.vlm_args == ("https://openrouter.ai/api/v1", "mistralai/mistral-large-4-0")
-    assert bridge.llm_model == "mistralai/mistral-small-2603"  # the classifier model normalises layers
+    # Mistral first (live_mode sets its key): its vision model reads, its classifier model normalises layers
+    assert bridge.vlm_args == ("https://api.mistral.ai/v1", "mistral-medium-latest")
+    assert bridge.llm_model == "mistral-small-latest"
     assert bridge.built_with["doc_id"] == doc_id and bridge.built_with["llm"] is not None
     assert fakes.extractor.calls == 0  # bh3 covered every log page
     doc = await document(client, doc_id)
@@ -253,7 +254,7 @@ async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
     async with get_sessionmaker()() as session:
         rows = (await session.scalars(select(ProviderCall).where(ProviderCall.document_id == doc_id))).all()
     bh3_rows = [r for r in rows if r.purpose == "bh3:tile"]
-    assert len(bh3_rows) == 3 and all(r.provider == "openrouter" and r.input_tokens == 2400 for r in bh3_rows)
+    assert len(bh3_rows) == 3 and all(r.provider == "mistral" and r.input_tokens == 2400 for r in bh3_rows)
 
     # A retry of the extraction finds every bh3 borehole finished and creates nothing twice.
     from app.pipeline.orchestrator import stage_extract

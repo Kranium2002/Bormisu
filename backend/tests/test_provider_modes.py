@@ -35,18 +35,21 @@ def test_health_and_mode_for_every_key_combination(
 ) -> None:
     env(dict(zip(KEYS, (mistral, openrouter, openai), strict=True)))
     health = build_health()
-    llm = openrouter or openai
+    llm = mistral or openrouter or openai
     assert health.providers.ocr is (mistral or openrouter or openai)
     assert health.providers.classifier is llm and health.providers.extractor is llm
     assert health.providers.chat is openai
-    # Any one of OPENROUTER_API_KEY or OPENAI_API_KEY gives live mode; Mistral alone covers OCR only.
+    # Any one key gives live mode: Mistral, OpenRouter and OpenAI each run OCR and the models.
     assert health.mode == ("live" if llm else "demo")
     settings = get_settings()
     expected_ocr = [
         r for r, on in (("mistral", mistral), ("openrouter", openrouter), ("openai", openai)) if on
     ]
     assert settings.ocr_routes == expected_ocr
-    assert settings.llm_routes == [r for r, on in (("openrouter", openrouter), ("openai", openai)) if on]
+    expected_llm = [
+        r for r, on in (("mistral", mistral), ("openrouter", openrouter), ("openai", openai)) if on
+    ]
+    assert settings.llm_routes == expected_llm
 
 
 @pytest.mark.parametrize(

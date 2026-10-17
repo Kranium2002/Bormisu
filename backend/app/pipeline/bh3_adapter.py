@@ -102,6 +102,10 @@ class VisionRoute:
 def vision_route(settings: Settings) -> VisionRoute | None:
     """Provider, key and models bh3 runs on: the first configured LLM route."""
     for route in settings.llm_routes:
+        if route == "mistral" and settings.mistral_api_key is not None:
+            key = settings.mistral_api_key.get_secret_value()
+            text_model = settings.llm_model("classifier", route)
+            return VisionRoute(route, settings.mistral_base_url, key, settings.mistral_bh3_model, text_model)
         if route == "openrouter" and settings.openrouter_api_key is not None:
             key = settings.openrouter_api_key.get_secret_value()
             text_model = settings.llm_model("classifier", route)

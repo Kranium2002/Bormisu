@@ -13,10 +13,12 @@ The reply is validated with the Pydantic model; one retry gets the validation er
 accepted. Cost: the usage cost the provider reports (OpenRouter), else tokens times data/prices.yaml for the
 requested model; every call is written to provider_calls and the budget is checked before it.
 
-LLM_PROVIDER picks the providers (Settings.llm_routes). In auto mode with both keys, a 401/403 moves the
-call, and every later call of this process, to the other provider, with that provider's model for the role
-(CLASSIFIER_MODEL / EXTRACTOR_MODEL on OpenRouter, OPENAI_CLASSIFIER_MODEL / OPENAI_EXTRACTOR_MODEL on
-OpenAI).
+LLM_PROVIDER picks the providers (Settings.llm_routes): mistral (direct API, OpenAI-compatible chat
+completions), openrouter, openai; auto tries them in that order. A 401/403 moves the call, and every later
+call of this process, to the next configured provider, with that provider's model for the role
+(MISTRAL_CLASSIFIER_MODEL / MISTRAL_EXTRACTOR_MODEL on Mistral, CLASSIFIER_MODEL / EXTRACTOR_MODEL on
+OpenRouter, OPENAI_CLASSIFIER_MODEL / OPENAI_EXTRACTOR_MODEL on OpenAI). Mistral reports no cost: its calls
+are priced from data/prices.yaml.
 """
 
 from __future__ import annotations
@@ -35,7 +37,7 @@ from app.providers.schema import strict_json_schema
 
 logger = logging.getLogger("geomemory.providers.llm")
 TIMEOUT_S = 180.0
-LABELS: dict[str, str] = {"openrouter": "OpenRouter", "openai": "OpenAI"}
+LABELS: dict[str, str] = {"mistral": "Mistral", "openrouter": "OpenRouter", "openai": "OpenAI"}
 REFUSED_STATUS = frozenset({401, 403})
 T = TypeVar("T", bound=BaseModel)
 
@@ -160,7 +162,9 @@ class LlmClient:
         self.settings = get_settings()
         if not self.settings.llm_routes:
             raise ProviderError(
-                "No model provider is configured (set OPENROUTER_API_KEY or OPENAI_API_KEY).", retryable=False
+                "No model provider is configured (set MISTRAL_API_KEY, OPENROUTER_API_KEY or "
+                "OPENAI_API_KEY).",
+                retryable=False,
             )
         self._http = http
 
@@ -202,6 +206,14 @@ class LlmClient:
                 "max_completion_tokens": max_tokens,
                 "response_format": response_format,
             }
+        if provider == "mistral":  # OpenAI-compatible chat completions; no OpenRouter-only fields
+            return {
+                "model": model,
+                "messages": messages,
+                "temperature": 0,
+                "max_tokens": max_tokens,
+                "response_format": response_format,
+            }
         return {
             "model": model,
             "messages": messages,
@@ -219,6 +231,14 @@ class LlmClient:
     async def _post(self, provider: LlmRoute, body: dict[str, Any]) -> dict[str, Any]:
         if provider == "openai":
             return await post_openai_chat(self._http, body)
+        if provider == "mistral":
+            key = self.settings.mistral_api_key
+            if key is None:
+                raise ProviderError("Mistral is not configured.", retryable=False)
+            url = self.settings.mistral_base_url.rstrip("/") + "/chat/completions"
+            headers = {"Authorization": f"Bearer {key.get_secret_value()}"}
+            response = await _send(self._http, url, body, headers, "Mistral", TIMEOUT_S)
+            return _json(response, "Mistral")
         url = self.settings.openrouter_base_url.rstrip("/") + "/chat/completions"
         response = await _send(self._http, url, body, self._openrouter_headers(), "OpenRouter", TIMEOUT_S)
         return _json(response, "OpenRouter")
