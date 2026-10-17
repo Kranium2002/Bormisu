@@ -110,3 +110,29 @@
   color: var(--c-muted);
   margin-left: 10px;
 }
+
+/* NOT ON MAP (n) and LIST ›: the boreholes LIST shows with their reason. */
+.offMap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--c-line);
+}
+
+.offTitle {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  color: var(--c-muted);
+}
+
+.offLink {
+  composes: quiet link from '../../styles/buttons.module.css';
+  padding: 2px 0;
+  font-size: var(--fs-2xs);
+  text-decoration: none;
+}

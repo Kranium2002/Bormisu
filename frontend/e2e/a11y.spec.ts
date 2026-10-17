@@ -99,12 +99,12 @@ test.describe('route changes', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByRole('main', { name: 'Upload & queue' })).toBeFocused();
 
-    await nav(page, 'MAP');
+    await nav(page, 'LIST');
     await resultRow(page, 'BK-07').focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('main', { name: 'Borehole detail' })).toBeFocused();
     await page.goBack();
-    await expect(page.getByRole('main', { name: 'Map' })).toBeFocused();
+    await expect(page.getByRole('main', { name: 'Borehole list' })).toBeFocused();
 
     // The search field keeps the focus when its search changes the screen.
     await nav(page, 'UPLOAD & QUEUE');

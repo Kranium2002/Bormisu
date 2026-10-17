@@ -18,6 +18,7 @@ test('/ redirects to /map', async ({ page }) => {
 test('the Back button walks back through the screens; Forward again', async ({ page }) => {
   await openApp(page);
   const uid = await uidOf(page, 'BK-07');
+  await nav(page, 'LIST');
   await resultRow(page, 'BK-07').click();
   await expect(detailHeading(page, 'BK-07')).toBeVisible();
   expect(pathOf(page)).toBe(`/boreholes/${uid}`);
@@ -33,8 +34,8 @@ test('the Back button walks back through the screens; Forward again', async ({ p
   await expect(detailHeading(page, 'BK-07')).toBeVisible();
   await expect(navLink(page, 'MAP')).toHaveClass(/active/);
   await page.goBack();
-  await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
-  expect(new URL(page.url()).pathname).toBe('/map');
+  await expect(navLink(page, 'LIST')).toHaveAttribute('aria-current', 'page');
+  expect(new URL(page.url()).pathname).toBe('/list');
   await page.goForward();
   await expect(detailHeading(page, 'BK-07')).toBeVisible();
 });
@@ -128,7 +129,7 @@ test('unknown boreholes and pages say so, with a link to the map', async ({ page
     await expect(page.getByRole('heading', { name: 'BOREHOLE NOT FOUND' })).toBeVisible();
   }
   await page.getByRole('link', { name: 'OPEN MAP' }).click();
-  await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^FILTERS/ }).first()).toBeVisible();
 
   await openUrl(page, '/no-such-page');
   await expect(page.getByRole('heading', { name: 'PAGE NOT FOUND' })).toBeVisible();
@@ -157,6 +158,7 @@ test('a deep link shows the loading state, never "not found", while the data loa
 test('/review goes to the last reviewed borehole with its focused value; UPLOAD & QUEUE is the active tab', async ({ page }) => {
   await openApp(page);
   const uid = await uidOf(page, 'BK-01');
+  await nav(page, 'LIST');
   await resultRow(page, 'BK-01').click();
   await page.getByRole('button', { name: '› OPEN IN REVIEW' }).click();
   await expect(reviewHeading(page, 'BK-01')).toBeVisible();
@@ -172,6 +174,7 @@ test('/review goes to the last reviewed borehole with its focused value; UPLOAD 
 
 test('overlays across routes: Escape and the side panel work, Back out of Review closes its CRS dialog', async ({ page }) => {
   await openApp(page);
+  await nav(page, 'LIST');
   await resultRow(page, 'BK-07').click();
   const refusal = page.getByRole('grid', { name: 'Layers' }).getByRole('button', { name: 'R', exact: true }).first();
   await refusal.click();
@@ -197,7 +200,7 @@ test('overlays across routes: Escape and the side panel work, Back out of Review
   const toast = page.getByRole('status').filter({ hasText: /clean values? approved$/ });
   await expect(toast).toBeVisible();
   await nav(page, 'MAP');
-  await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^FILTERS/ }).first()).toBeVisible();
   await expect(toast).toBeVisible();
   await expect(mainNav(page)).toBeVisible();
 });
