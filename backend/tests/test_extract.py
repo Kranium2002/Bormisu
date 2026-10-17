@@ -27,6 +27,7 @@ from app.pipeline.extract import (
     NothingToExtractError,
     build_input,
     extract_group,
+    merge_results,
 )
 from app.pipeline.group import plan_groups
 from app.pipeline.orchestrator import run_pipeline
@@ -528,6 +529,29 @@ async def test_large_input_is_split_by_page_and_merged(db: None, monkeypatch: py
         assert fake.calls == 3 and again.result == outcome.result and again.warnings == outcome.warnings
     finally:
         get_settings.cache_clear()
+
+
+def test_merged_parts_keep_the_deepest_printed_final_depth() -> None:
+    """A first sheet gives its own last base where the final depth goes; the last sheet prints the final
+    depth. Fictional values."""
+    first = ExtractionResult.model_validate(
+        result(
+            header=header(total_depth=rv("4,50", "p1.b9")), layers=[layer("0,00", "4,50", "Kies", "p1.b9")]
+        )
+    )
+    last = ExtractionResult.model_validate(
+        result(
+            header=header(total_depth=rv("Endtiefe 17,20 m", "p3.b4")),
+            layers=[layer(None, "17,20", "Sand", "p3.b4")],
+        )
+    )
+    middle = ExtractionResult.model_validate(result(layers=[layer(None, "9,10", "Lehm", "p2.b2")]))
+    for parts in ([first, middle, last], [last, first]):
+        assert merge_results(parts).header.total_depth.raw == "Endtiefe 17,20 m"
+    # printed in different units: the first part's value is kept
+    feet = ExtractionResult.model_validate(result(header=header(total_depth=rv("30 ft", "p3.b4"))))
+    metres = ExtractionResult.model_validate(result(header=header(total_depth=rv("12,0 m", "p1.b9"))))
+    assert merge_results([metres, feet]).header.total_depth.raw == "12,0 m"
 
 
 # ----------------------------------------------------------------------------------------------

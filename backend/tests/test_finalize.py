@@ -1465,3 +1465,256 @@ async def test_missing_or_untrusted_text_layers_are_skipped(db: None) -> None:
     assert uid is not None
     rec = await record_of(uid)
     assert rec.provenance["metadata.borehole_depth_m"].box == [0.6, 0.07, 0.2, 0.02]
+
+
+# ----------------------------------------------------------------------------------------------
+# Family 7: a log whose depth column prints only the base of each stratum, over three sheets
+# ----------------------------------------------------------------------------------------------
+
+BASES_BLOCKS = block_map(
+    [
+        blk("p1.b0", "Bohrung FB 7", (0.08, 0.04, 0.2, 0.02), quality=None),
+        blk("p1.b1", "0,40 m", (0.08, 0.2, 0.06, 0.02), quality=None),
+        blk("p1.b2", "Mutterboden", (0.2, 0.2, 0.3, 0.02), quality=None),
+        blk("p1.b3", "2,10 m", (0.08, 0.3, 0.06, 0.02), quality=None),
+        blk("p1.b4", "Lehm, sandig", (0.2, 0.3, 0.3, 0.02), quality=None),
+        blk("p1.b5", "5,00 m", (0.08, 0.5, 0.06, 0.02), quality=None),
+        blk("p1.b6", "Kies, sandig", (0.2, 0.5, 0.3, 0.02), quality=None),
+        blk("p2.b0", "7,30 m", (0.08, 0.2, 0.06, 0.02), quality=None),
+        blk("p2.b1", "Sand, kiesig", (0.2, 0.2, 0.3, 0.02), quality=None),
+        blk("p3.b0", "9,00 m", (0.08, 0.3, 0.06, 0.02), quality=None),
+        blk("p3.b1", "Ton, steif", (0.2, 0.3, 0.3, 0.02), quality=None),
+    ]
+)
+# (base, its block, description, its block) of every printed stratum, top to bottom
+BASES_ROWS = [
+    ("0,40 m", "p1.b1", "Mutterboden", "p1.b2"),
+    ("2,10 m", "p1.b3", "Lehm, sandig", "p1.b4"),
+    ("5,00 m", "p1.b5", "Kies, sandig", "p1.b6"),
+    ("7,30 m", "p2.b0", "Sand, kiesig", "p2.b1"),
+    ("9,00 m", "p3.b0", "Ton, steif", "p3.b1"),
+]
+BASES_ROLES: dict[int, str | None] = {1: "log_sheet", 2: "log_continuation", 3: "log_continuation"}
+
+
+def bases_result(
+    rows: Sequence[tuple[str, str, str, str]] = tuple(BASES_ROWS), *, first_top: RawValue | None = None
+) -> ExtractionResult:
+    """As the model returns a log that prints one depth per stratum: the base in to_raw, the top empty."""
+    layers = [
+        layer(absent(), rv(base, base_block), rv(text, text_block), language="de")
+        for base, base_block, text, text_block in rows
+    ]
+    if first_top is not None:
+        layers[0] = layers[0].model_copy(update={"from_raw": first_top})
+    head = header(borehole_label=rv("FB 7", "p1.b0"), depth_unit=rv("m", "p1.b1"))
+    return result(head, layers)
+
+
+def bases_group(*pages: int) -> PageGroup:
+    return PageGroup(key=f"g-fb7-{pages}", label_raw="FB 7", label_canonical="FB7", pages=pages)
+
+
+def intervals(draft: RecordDraft) -> list[tuple[float, float]]:
+    assert draft.body is not None
+    return [(layer["depth_from_m"], layer["depth_to_m"]) for layer in draft.body["stratigraphy"]]
+
+
+def test_a_log_printing_only_bases_starts_at_the_ground_and_each_layer_at_the_base_above() -> None:
+    draft = build_record(
+        "doc_X", bases_group(1, 2, 3), outcome(bases_result(), BASES_BLOCKS), page_roles=BASES_ROLES
+    )
+    # one layer per printed stratum, none invented, each top derived
+    assert intervals(draft) == [(0.0, 0.4), (0.4, 2.1), (2.1, 5.0), (5.0, 7.3), (7.3, 9.0)]
+    prov = draft.provenance
+    ground = prov["stratigraphy[0].depth_from_m"]
+    assert (ground.method, ground.raw, ground.page) == ("derived", None, 1)  # no printed value: the row
+    above = prov["stratigraphy[1].depth_from_m"]
+    assert (above.method, above.raw, above.page) == ("derived", "0,40 m", 1)
+    assert above.box == [0.08, 0.2, 0.06, 0.02]  # the printed base above
+    across = prov["stratigraphy[3].depth_from_m"]  # the first row of the next sheet: the last base above
+    assert (across.method, across.raw, across.page) == ("derived", "5,00 m", 1)
+    assert all(prov[f"stratigraphy[{i}].depth_to_m"].method == "ocr" for i in range(5))  # bases as printed
+    assert not any("unreadable layer interval" in w for w in draft.warnings)
+    # pages of unknown role count as a log's first sheet
+    unknown = build_record("doc_X", bases_group(1, 2, 3), outcome(bases_result(), BASES_BLOCKS))
+    assert intervals(unknown) == intervals(draft)
+
+
+def test_the_ground_the_model_implies_on_the_first_row_is_read_as_0_m() -> None:
+    for implied in ("0,00", "0"):
+        res = bases_result(BASES_ROWS[:2], first_top=rv(implied, state="not_in_source"))
+        draft = build_record("doc_X", bases_group(1), outcome(res, BASES_BLOCKS), page_roles=BASES_ROLES)
+        assert intervals(draft) == [(0.0, 0.4), (0.4, 2.1)]
+        entry = draft.provenance["stratigraphy[0].depth_from_m"]
+        assert (entry.method, entry.raw) == ("derived", None)
+
+
+def test_printed_tops_stay_and_only_the_missing_top_is_derived() -> None:
+    res = bases_result(BASES_ROWS[:3])
+    tops = [rv("0,40 m", "p1.b1"), rv("2,10 m", "p1.b3")]
+    printed_tops = [
+        row.model_copy(update={"from_raw": top}) for row, top in zip(res.layers[1:], tops, strict=True)
+    ]
+    res = res.model_copy(update={"layers": [res.layers[0], *printed_tops]})
+    draft = build_record("doc_X", bases_group(1), outcome(res, BASES_BLOCKS), page_roles=BASES_ROLES)
+    assert intervals(draft) == [(0.0, 0.4), (0.4, 2.1), (2.1, 5.0)]
+    methods = [draft.provenance[f"stratigraphy[{i}].depth_from_m"].method for i in range(3)]
+    assert methods == ["derived", "ocr", "ocr"]
+
+
+def test_a_further_sheet_read_on_its_own_does_not_start_at_the_ground() -> None:
+    """The first stratum of a further sheet starts where the sheet before ends, which this group lacks:
+    it is left out, never given a top of 0 m."""
+    res = bases_result(BASES_ROWS[3:])
+    draft = build_record("doc_X", bases_group(2, 3), outcome(res, BASES_BLOCKS), page_roles=BASES_ROLES)
+    assert intervals(draft) == [(7.3, 9.0)]
+    assert any("layer 1: unreadable layer interval" in w for w in draft.warnings)
+
+
+def test_no_top_is_taken_across_a_sheet_read_in_another_group() -> None:
+    rows = [*BASES_ROWS[:3], BASES_ROWS[4]]  # page 2 belongs to another group
+    res = bases_result(rows)
+    gap = build_record("doc_X", bases_group(1, 3), outcome(res, BASES_BLOCKS), page_roles=BASES_ROLES)
+    assert intervals(gap) == [(0.0, 0.4), (0.4, 2.1), (2.1, 5.0)]
+    # page 2 is part of the group (it prints no stratum): the log follows on
+    whole = build_record("doc_X", bases_group(1, 2, 3), outcome(res, BASES_BLOCKS), page_roles=BASES_ROLES)
+    assert intervals(whole)[-1] == (5.0, 9.0)
+
+
+def test_values_that_do_not_go_down_the_log_get_no_derived_top() -> None:
+    elevations = [
+        ("312,40", "p1.b1", "Mutterboden", "p1.b2"),
+        ("310,10", "p1.b3", "Lehm, sandig", "p1.b4"),
+        ("307,50", "p1.b5", "Kies, sandig", "p1.b6"),
+    ]
+    res = bases_result(elevations)
+    draft = build_record("doc_X", bases_group(1), outcome(res, BASES_BLOCKS), page_roles=BASES_ROLES)
+    assert intervals(draft) == []  # nothing invented
+    repeated = [BASES_ROWS[0], ("0,40 m", "p1.b3", "Lehm, sandig", "p1.b4"), BASES_ROWS[2]]
+    res = bases_result(repeated)
+    draft = build_record("doc_X", bases_group(1), outcome(res, BASES_BLOCKS), page_roles=BASES_ROLES)
+    assert intervals(draft) == [(0.0, 0.4), (0.4, 5.0)]  # a base not below the one above gets no top
+
+
+def _de_header(**update: RawValue) -> ExtractionResult:
+    res = de_result()
+    return res.model_copy(update={"header": res.header.model_copy(update=update)})
+
+
+def _de_coordinates(**update: RawValue) -> ExtractionResult:
+    res = de_result()
+    coords = res.header.coordinates.model_copy(update=update)
+    return res.model_copy(update={"header": res.header.model_copy(update={"coordinates": coords})})
+
+
+def test_a_ground_level_printed_below_its_datum_is_read_and_flagged() -> None:
+    res = _de_header(ground_level=rv("- 2,35", "p2.b7"))
+    draft = build_record("doc_X", DE_GROUP, outcome(res, DE_BLOCKS))
+    assert draft.body is not None
+    assert draft.body["metadata"]["surface_elevation_mASL"] == -2.35  # the sign printed apart is its sign
+    entry = draft.provenance["metadata.surface_elevation_mASL"]
+    assert (entry.raw, entry.status) == ("- 2,35", "unreviewed")
+    assert entry.flag is not None and "local reference" in entry.flag
+    plain = build_record("doc_X", DE_GROUP, outcome(de_result(), DE_BLOCKS))
+    assert plain.provenance["metadata.surface_elevation_mASL"].flag is None
+
+
+def test_a_negative_depth_printed_below_ground_is_a_depth() -> None:
+    water = ExtractedGroundwater(type="strike", depth_raw=rv("-2,80 m u. G.", "p2.b17"), date_raw=absent())
+    res = de_result().model_copy(update={"groundwater": [water]})
+    draft = build_record("doc_X", DE_GROUP, outcome(res, DE_BLOCKS))
+    assert draft.body is not None
+    reading = draft.body["groundwater"][0]
+    assert (reading["depth_m"], reading["raw"]) == (2.8, "-2,80 m u. G.")
+
+
+def test_a_start_and_end_printed_as_one_range_are_both_read() -> None:
+    res = _de_header(start_date=rv("11.03. - 14.03.24", "p2.b4"), end_date=absent())
+    draft = build_record("doc_X", DE_GROUP, outcome(res, DE_BLOCKS))
+    assert draft.body is not None
+    meta = draft.body["metadata"]
+    assert (meta["start_date"], meta["end_date"], meta.get("drilling_date")) == (
+        "2024-03-11",
+        "2024-03-14",
+        None,
+    )
+    for key in ("start_date", "end_date"):
+        entry = draft.provenance[f"metadata.{key}"]
+        assert (entry.method, entry.raw) == ("derived", "11.03. - 14.03.24")
+    # the end field printing the range's end agrees; one printing another date does not
+    agreeing = _de_header(start_date=rv("11.03.-14.03.2024", "p2.b4"), end_date=rv("14.03.2024", "p2.b4"))
+    meta = (build_record("doc_X", DE_GROUP, outcome(agreeing, DE_BLOCKS)).body or {})["metadata"]
+    assert (meta["start_date"], meta["end_date"]) == ("2024-03-11", "2024-03-14")
+    other = _de_header(start_date=rv("11.03.-14.03.2024", "p2.b4"), end_date=rv("20.03.2024", "p2.b4"))
+    meta = (build_record("doc_X", DE_GROUP, outcome(other, DE_BLOCKS)).body or {})["metadata"]
+    assert (meta["start_date"], meta["end_date"]) == (None, "2024-03-20")
+    assert meta["drilling_date"] == "11.03.-14.03.2024 – 20.03.2024"  # as printed, not guessed
+
+
+def test_a_date_in_brackets_after_the_place_is_the_drilling_date_when_no_date_is_printed() -> None:
+    place = rv("Fiktivweiler (IV/1962)", "p2.b3")
+    res = _de_header(location=place, start_date=absent(), end_date=absent())
+    draft = build_record("doc_X", DE_GROUP, outcome(res, DE_BLOCKS))
+    assert draft.body is not None
+    meta = draft.body["metadata"]
+    assert (meta["location_name"], meta["drilling_date"], meta["start_date"]) == (
+        "Fiktivweiler",
+        "IV/1962",
+        None,
+    )
+    entry = draft.provenance["metadata.drilling_date"]
+    assert (entry.method, entry.raw, entry.page) == ("derived", "IV/1962", 2)
+    # a printed date wins: the place stays as printed
+    dated = build_record("doc_X", DE_GROUP, outcome(_de_header(location=place), DE_BLOCKS))
+    assert dated.body is not None
+    assert dated.body["metadata"]["location_name"] == "Fiktivweiler (IV/1962)"
+
+
+def test_raised_leading_digits_read_as_the_system_are_put_in_front_of_the_values() -> None:
+    res = _de_coordinates(
+        x_raw=rv("12 345", "p2.b8"), y_raw=rv("45 678", "p2.b9"), system_raw=rv("35 57", "p2.b10")
+    )
+    draft = build_record("doc_X", DE_GROUP, outcome(res, DE_BLOCKS))
+    assert draft.body is not None
+    coords = draft.body["metadata"]["coordinates"]
+    assert (coords["local_x"], coords["local_y"], coords["coordinate_system"]) == (3512345.0, 5745678.0, None)
+    assert (coords["x_raw"], coords["y_raw"]) == ("12 345", "45 678")  # as printed
+    entry = draft.provenance["metadata.coordinates.local_x"]
+    assert (entry.method, entry.raw) == ("derived", "12 345 / 35 57")
+    assert "metadata.coordinates.coordinate_system" not in draft.provenance
+    assert draft.crs_status != "stated"
+
+
+def test_a_diameter_sign_the_text_layer_left_unmapped_is_put_back() -> None:
+    res = de_result()
+    stones = res.layers[2].model_copy(
+        update={"description_raw": rv("Ton, Steine (bis 8 cm \u0098)", "p3.b2")}
+    )
+    res = res.model_copy(update={"layers": [*res.layers[:2], stones]})
+    draft = build_record("doc_X", DE_GROUP, outcome(res, DE_BLOCKS))
+    assert draft.body is not None
+    assert draft.body["stratigraphy"][2]["original_description"] == "Ton, Steine (bis 8 cm Ø)"
+    assert draft.provenance["stratigraphy[2].original_description"].raw == "Ton, Steine (bis 8 cm Ø)"
+
+
+BASES_DOC_A = "doc_01JFINAL00000000000000FB7"
+BASES_DOC_B = "doc_01JFINAL00000000000000FB8"
+
+
+@pytest.mark.db
+async def test_finalize_reads_the_page_roles_for_a_log_printing_only_bases(db: None) -> None:
+    """A log's first sheet starts at the ground; a page classified as a further sheet does not."""
+    res = bases_result(BASES_ROWS[:3])
+    await make_document(BASES_DOC_A, pages={1: ("log_sheet", ["FB 7"], None)})
+    uid = await finalize_group(BASES_DOC_A, bases_group(1), outcome(res, BASES_BLOCKS))
+    assert uid is not None
+    rec = await record_of(uid)
+    assert [(s.depth_from_m, s.depth_to_m) for s in rec.stratigraphy] == [(0.0, 0.4), (0.4, 2.1), (2.1, 5.0)]
+    assert rec.provenance["stratigraphy[0].depth_from_m"].method == "derived"
+
+    await make_document(BASES_DOC_B, pages={1: ("log_continuation", ["FB 7"], None)})
+    uid = await finalize_group(BASES_DOC_B, bases_group(1), outcome(res, BASES_BLOCKS))
+    assert uid is not None
+    rec = await record_of(uid)
+    assert [(s.depth_from_m, s.depth_to_m) for s in rec.stratigraphy] == [(0.4, 2.1), (2.1, 5.0)]

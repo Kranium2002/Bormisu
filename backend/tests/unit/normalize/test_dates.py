@@ -8,7 +8,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.normalize.dates import ambiguous_month_names, parse_date
+from app.normalize.dates import ambiguous_month_names, parse_date, parse_date_range, trailing_date
 from app.normalize.numbers import load_data
 
 DATES = [
@@ -38,6 +38,8 @@ DATES = [
     ("en abbreviated", "04-Mar-2026", "2026-03-04"),
     ("en short year", "4-Mar-26", "2026-03-04"),
     ("de", "4. März 2026", "2026-03-04"),
+    ("roman month", "17.IX.1965", "1965-09-17"),
+    ("roman month spaced", "3. XI. 88", "1988-11-03"),
     ("de abbreviated", "15 Dez. 2026", "2026-12-15"),
     ("at", "3. Jänner 2026", "2026-01-03"),
     ("fr", "le 4 mars 2026", "2026-03-04"),
@@ -66,6 +68,8 @@ UNDECIDED = [
     ("31.02.2026", "not a calendar date"),
     ("04.03.1700", "outside"),
     ("Mar 2026", "no day"),
+    ("IV/1962", "no day"),
+    ("iv/1962", "not a date"),  # Roman numerals name a month only in capitals
     ("03/2026", "no day"),
     ("2026", "no day"),
     ("04.-06.03.2026", "range"),
@@ -159,3 +163,52 @@ def test_parsing_an_iso_result_is_idempotent(text: str) -> None:
     result = parse_date(text)
     if result.iso is not None:
         assert parse_date(result.iso).iso == result.iso
+
+
+@pytest.mark.parametrize(
+    ("raw", "span"),
+    [
+        ("11.05. - 02.06.97", ("1997-05-11", "1997-06-02")),  # the start leaves out the year
+        ("08.-09.10.2003", ("2003-10-08", "2003-10-09")),  # ... and the month
+        ("21.10.-24.10.2019", ("2019-10-21", "2019-10-24")),
+        ("2026-03-04 - 2026-03-06", ("2026-03-04", "2026-03-06")),
+        ("4.3.26 bis 6.3.26", ("2026-03-04", "2026-03-06")),
+        ("3 March 2026 to 9 March 2026", ("2026-03-03", "2026-03-09")),
+    ],
+)
+def test_a_printed_range_gives_its_start_and_end(raw: str, span: tuple[str, str]) -> None:
+    assert parse_date_range(raw) == span
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "12.03.2024",  # one date
+        "2026-03-04",
+        "28.12. - 03.01.89",  # the start would follow the end
+        "31.02. - 04.03.2026",  # not a calendar date
+        "Mai - Juni 1965",  # no day
+        "abc - def",
+        "",
+        None,
+    ],
+)
+def test_anything_but_a_range_of_two_dates_is_no_range(raw: str | None) -> None:
+    assert parse_date_range(raw) is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "split"),
+    [
+        ("Fiktivdorf (IV/1962)", ("Fiktivdorf", "IV/1962")),
+        ("Fiktivdorf, Hauptstr. 3 (12.03.1962)", ("Fiktivdorf, Hauptstr. 3", "12.03.1962")),
+        ("Beispielstadt [Mai 1965]", ("Beispielstadt", "Mai 1965")),
+        ("Beispielstadt (Flst. 12/4)", None),  # a parcel number, not a date
+        ("Beispielstadt (1962)", None),  # a year alone may be anything
+        ("(IV/1962)", None),  # nothing before it
+        ("Fiktivdorf", None),
+        (None, None),
+    ],
+)
+def test_a_bracketed_date_after_a_text_is_split_off(raw: str | None, split: tuple[str, str] | None) -> None:
+    assert trailing_date(raw) == split

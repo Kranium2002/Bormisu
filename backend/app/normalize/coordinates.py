@@ -408,6 +408,34 @@ def _result_none(reason: str, notes: list[str]) -> CoordinateResult:
     return CoordinateResult(kind=None, notes=notes, reason=reason)
 
 
+# Two 2-digit groups read as the system text, and grid values of five digits (an optional glued label and
+# decimals): the leading digits of both values were printed raised ("R 22 925  H 70 335" with "34" and
+# "53" set above the first digits).
+_RAISED_PAIR = re.compile(r"^\s*([0-9]{2})\s+([0-9]{2})\s*$")
+_FIVE_DIGITS = re.compile(
+    r"^(?P<label>\s*(?:[^\W\d_]+\.?\s*[:=]?\s*)?)(?P<digits>[0-9](?:\s?[0-9]){4})(?P<frac>[.,][0-9]+)?\s*$"
+)
+
+
+def raised_prefixes(system_raw: str | None, x_raw: str | None, y_raw: str | None) -> tuple[str, str] | None:
+    """The two values with the raised leading digits in front, when the printed system text is nothing but
+    two digit pairs ("34 53") and both values have five digits ("22 925", "70 335" -> "3422925",
+    "5370335"); the first pair belongs to the first value. None for anything else."""
+    if system_raw is None or x_raw is None or y_raw is None:
+        return None
+    pair = _RAISED_PAIR.match(ascii_digits(unicodedata.normalize("NFKC", system_raw)))
+    if pair is None:
+        return None
+    joined: list[str] = []
+    for prefix, raw in zip(pair.groups(), (x_raw, y_raw), strict=True):
+        match = _FIVE_DIGITS.match(ascii_digits(unicodedata.normalize("NFKC", raw)))
+        if match is None:
+            return None
+        digits = re.sub(r"\s", "", match.group("digits"))
+        joined.append(f"{match.group('label')}{prefix}{digits}{match.group('frac') or ''}")
+    return joined[0], joined[1]
+
+
 def parse_coordinates(
     x_raw: str | None,
     y_raw: str | None,

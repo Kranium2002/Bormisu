@@ -7,7 +7,7 @@ from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from app.normalize.api import NumberStyle
-from app.normalize.coordinates import parse_coordinates
+from app.normalize.coordinates import parse_coordinates, raised_prefixes
 from app.normalize.numbers import format_number
 
 GEOGRAPHIC = [
@@ -239,3 +239,22 @@ def test_a_note_in_parentheses_after_a_coordinate_is_not_part_of_it() -> None:
     assert (result.kind, result.local_x, result.local_y) == ("projected", 314957.0, 5819600.0)
     assert any("parentheses" in note for note in result.notes)
     assert parse_coordinates("12 (34)", "5").kind is None  # numbers in parentheses are not a note
+
+
+@pytest.mark.parametrize(
+    ("system", "x", "y", "joined"),
+    [
+        ("35 57", "12 345", "45 678", ("3512345", "5745678")),
+        ("35 57", "R: 12345", "H: 45 678,5", ("R: 3512345", "H: 5745678,5")),
+        ("35 57", "1234", "45 678", None),  # four digits: not the raised style
+        ("35 57", "312 345", "45 678", None),  # six digits: a value of its own
+        ("Zone 35", "12 345", "45 678", None),  # a printed system name
+        ("3557", "12 345", "45 678", None),
+        (None, "12 345", "45 678", None),
+        ("35 57", None, "45 678", None),
+    ],
+)
+def test_raised_leading_digits_read_as_the_system_go_in_front_of_the_values(
+    system: str | None, x: str | None, y: str | None, joined: tuple[str, str] | None
+) -> None:
+    assert raised_prefixes(system, x, y) == joined

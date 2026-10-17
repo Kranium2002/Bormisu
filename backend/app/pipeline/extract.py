@@ -8,7 +8,8 @@ text plus the block ids it came from (app.pipeline.schemas.ExtractionResult); Py
 `extract_group` is idempotent: a run is keyed by sha256(document sha256, group key, model, prompt and
 schema versions, sha256 of the input), and a finished run with that key is reused without a call. An input
 above EXTRACT_MAX_INPUT_TOKENS is split by page; each part is its own cached run and the parts are merged
-(header from the first part, layers in depth order without exact duplicates, other lists concatenated).
+(header from the first part with empty fields filled from later parts and the deepest printed final depth,
+layers in depth order without exact duplicates, other lists concatenated).
 Block ids the model cites that are not in the input are dropped and reported as warnings, never trusted.
 """
 
@@ -36,8 +37,8 @@ from app.db.session import get_sessionmaker
 from app.din import din_codes
 from app.ids import new_id
 from app.normalize.lithology import valid_din_code
-from app.normalize.numbers import parse_number
-from app.normalize.units import lab_tests, match_lab_test
+from app.normalize.numbers import after_field_label, parse_number
+from app.normalize.units import canonical_unit, lab_tests, match_lab_test
 from app.pipeline import textlayer
 from app.pipeline.schemas import EXTRACTION_SCHEMA_VERSION, ExtractionResult
 from app.pipeline.types import BlockRef, ExtractionInput, ExtractionOutcome, PageGroup
@@ -468,6 +469,29 @@ def _fill_header(first: dict[str, Any], later: dict[str, Any]) -> None:
                 first[name] = other
 
 
+def _deepest_total_depth(headers: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """The deepest final depth the parts print: a first sheet may give its own last base where the final
+    depth goes, while the last sheet prints the final depth. None when no part prints a readable one or the
+    parts print it in different units."""
+    best: dict[str, Any] | None = None
+    best_value = -math.inf
+    unit_keys: set[str] = set()
+    for head in headers:
+        value = head.get("total_depth")
+        if not _is_raw_value(value) or value["raw"] is None or value["state"] != "ok":
+            continue
+        number = parse_number(str(value["raw"]))
+        if number.value is None and (bare := after_field_label(str(value["raw"]))) is not None:
+            number = parse_number(bare)  # printed with its label ("Endtiefe 26,60 m")
+        if number.value is None:
+            continue
+        if number.unit is not None:
+            unit_keys.add(canonical_unit(number.unit) or number.unit)
+        if abs(number.value) > best_value:
+            best, best_value = value, abs(number.value)
+    return best if len(unit_keys) <= 1 else None
+
+
 def _norm_text(value: Any) -> str | None:
     if not _is_raw_value(value) or value["raw"] is None:
         return None
@@ -537,6 +561,9 @@ def merge_results(parts: Sequence[ExtractionResult]) -> ExtractionResult:
     header: dict[str, Any] = dumps[0]["header"]
     for later in dumps[1:]:
         _fill_header(header, later["header"])
+    deepest = _deepest_total_depth([dump["header"] for dump in dumps])
+    if deepest is not None:
+        header["total_depth"] = deepest
     layers: list[dict[str, Any]] = []
     by_signature: dict[tuple[str | None, ...], dict[str, Any]] = {}
     for dump in dumps:
