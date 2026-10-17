@@ -500,6 +500,11 @@ export function createSampleSource(): DataSource {
       const d = docs.find((x) => x.id === documentId);
       if (d?.status === 'failed') {
         docs = docs.map((x) => (x.id === documentId ? { ...x, status: 'queued', step: 0, error: null } : x));
+      } else if (d?.warnings?.length) {
+        // 1.2.1: a retry reads the unread pages again; the sample simply reads them.
+        docs = docs.map((x) => (x.id === documentId ? { ...x, warnings: [] } : x));
+      } else {
+        throw new ApiError(409, 'not_failed', 'The document has not failed and has no unread pages.');
       }
     },
 

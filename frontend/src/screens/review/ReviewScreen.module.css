@@ -165,36 +165,6 @@
   white-space: nowrap;
 }
 
-/* ---------- document warnings (contract 1.2.1): pages that were not read ---------- */
-.warnings {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-5);
-  background: var(--c-amber-bg);
-  border-bottom: 1px solid var(--c-amber);
-  color: var(--c-amber-text);
-  font-size: var(--fs-sm);
-  line-height: 1.45;
-}
-
-.warningList {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.warningRetry {
-  composes: secondary small from '../../styles/buttons.module.css';
-  flex: none;
-  white-space: nowrap;
-}
-
 .cleanWrap {
   position: relative;
   flex: none;
@@ -459,10 +429,6 @@
     margin-left: auto;
   }
 
-  .warnings {
-    padding: var(--space-2) var(--space-4);
-  }
-
   .body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
@@ -506,10 +472,6 @@
     margin-left: 0;
     flex: 1 1 140px;
     width: auto;
-  }
-
-  .warnings {
-    flex-wrap: wrap;
   }
 
   .body {

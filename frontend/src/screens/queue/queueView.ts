@@ -318,3 +318,11 @@ export function completenessChipText(c: Pick<Completeness, 'listed' | 'missing'>
   const head = fill(t('Report lists {listed} · extracted {extracted}'), { listed: c.listed, extracted: c.listed - m });
   return m ? `${head} · ${fill(t('⚠ {n} missing'), { n: m })}` : `${head} ✓`;
 }
+
+/**
+ * True when RETRY reads a document's unread pages again (contract 1.2.1): it has warnings and is in
+ * review or done. A failed document keeps its own RETRY with the error.
+ */
+export function canRetryWarnings(d: Pick<DocumentSummary, 'warnings' | 'error' | 'status'>): boolean {
+  return !!d.warnings?.length && !d.error && (d.status === 'needs_review' || d.status === 'done');
+}

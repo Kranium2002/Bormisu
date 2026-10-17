@@ -6,6 +6,8 @@ import { placeholderPage } from '../../domain/pages';
 import {
   canOpenPage,
   canOpenReview,
+  canRetryWarnings,
+  completenessChipText,
   countChips,
   docHint,
   docMeta,
@@ -240,5 +242,21 @@ describe('page strip', () => {
     const noRole = makePage({ n: 6, type: 'unknown', role: null, used: false, ocr: null, handwriting: 'none' });
     expect(pageTitle(noRole, 'doc_A')).toBe('p.6 · type unknown · unused: type unknown');
     expect(canOpenPage(dup)).toBe(true);
+  });
+});
+
+describe('canRetryWarnings (1.2.1)', () => {
+  it('only a document in review or done with warnings, never a failed one', () => {
+    const w = ['Page 2 was not read; boreholes on it are missing.'];
+    expect(canRetryWarnings(doc({ status: 'needs_review', warnings: w }))).toBe(true);
+    expect(canRetryWarnings(doc({ status: 'done', warnings: w }))).toBe(true);
+    expect(canRetryWarnings(doc({ status: 'needs_review', warnings: [] }))).toBe(false);
+    expect(canRetryWarnings(doc({ status: 'needs_review' }))).toBe(false);
+    expect(canRetryWarnings(doc({ status: 'failed', error: 'x', warnings: w }))).toBe(false);
+  });
+
+  it('the CHECKS chip text', () => {
+    expect(completenessChipText({ listed: 14, missing: ['BK-12'] })).toBe('Report lists 14 · extracted 13 · ⚠ 1 missing');
+    expect(completenessChipText({ listed: 9, missing: [] })).toBe('Report lists 9 · extracted 9 ✓');
   });
 });

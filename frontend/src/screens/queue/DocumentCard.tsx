@@ -7,6 +7,7 @@ import type { Borehole, DocumentProgress, DocumentSummary } from '../../domain/t
 import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import styles from './DocumentCard.module.css';
+import { DocumentWarnings } from './DocumentWarnings';
 import { PageStrip, type ThumbnailUrl } from './PageStrip';
 import {
   canOpenReview,
@@ -272,6 +273,7 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
           <CompletenessChip doc={doc} />
         </div>
       </div>
+      <DocumentWarnings doc={doc} variant="card" />
       {doc.progress && <Progress progress={doc.progress} />}
       <CountChips counts={doc.counts} />
       <div className={styles.bottom}>

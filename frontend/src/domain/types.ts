@@ -259,6 +259,12 @@ export interface DocumentSummary {
   error?: string | null;            // extraction failed (API status "failed")
   /** The pipeline stage that failed, as the server names it (contract 1.2.0 `failed_stage`), or null. */
   failedStage?: string | null;
+  /**
+   * Readable notes on a document in review that is not complete (contract 1.2.1 `warnings`), e.g.
+   * "Page 1 was not read; boreholes on it are missing. Retry the document to read it." RETRY reads the
+   * missing pages. Empty (or absent) otherwise.
+   */
+  warnings?: string[];
 }
 export interface CrsCandidate {
   name: string; code: string; note: string | null; score: number | null; verdict: CrsVerdict | null;

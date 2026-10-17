@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { EmptyState } from '../../components/EmptyState';
 import { useT } from '../../i18n';
-import { useAppStore, useReviewBorehole } from '../../store/appStore';
+import { useAppStore, useDocument, useReviewBorehole } from '../../store/appStore';
+import { DocumentWarnings } from '../queue/DocumentWarnings';
 import { FieldList } from './FieldList';
 import { ReviewHeader } from './ReviewHeader';
 import styles from './ReviewScreen.module.css';
@@ -32,10 +33,13 @@ export function ReviewScreen() {
 
 function Review({ b }: { b: Borehole }) {
   const keys = useMemo(() => rowKeys(reviewRows(b)), [b]);
+  const doc = useDocument(b.documentId);
   useReviewKeys(keys);
   return (
     <div className={styles.screen} data-screen-label="Extraction review">
       <ReviewHeader b={b} />
+      {/* Pages of this report that were not read (1.2.1), with RETRY */}
+      {doc && <DocumentWarnings doc={doc} variant="banner" />}
       <div className={styles.body}>
         <ScanPane b={b} />
         <FieldList b={b} />

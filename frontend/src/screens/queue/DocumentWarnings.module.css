@@ -1,0 +1,59 @@
+/* Warnings of a document in review (contract 1.2.1): amber, they ask for attention. */
+
+.box,
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  cursor: default;
+}
+
+/* Inside a queue card */
+.box {
+  border: 1px solid var(--c-amber);
+  border-radius: 2px;
+  padding: var(--space-2) var(--space-3);
+}
+
+/* Across the Review screen, under its header */
+.banner {
+  flex: none;
+  border-bottom: 1px solid var(--c-amber);
+  padding: var(--space-2) var(--space-5);
+}
+
+.icon {
+  flex: none;
+  font-weight: 700;
+}
+
+.list {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.retry {
+  composes: secondary small from '../../styles/buttons.module.css';
+  flex: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .box,
+  .banner {
+    flex-wrap: wrap;
+  }
+
+  .banner {
+    padding: var(--space-2) var(--space-4);
+  }
+}

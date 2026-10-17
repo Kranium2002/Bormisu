@@ -796,6 +796,8 @@ export function adaptDocument(d: WireDocument): DocumentSummary {
     duplicateOf: d.duplicate_of ?? null,
     error: d.status === 'failed' ? d.error || 'Extraction failed' : null,
     failedStage: d.status === 'failed' && isText(d.failed_stage) ? d.failed_stage : null,
+    // Shown as they are; the contract sends them only for a document in review or done.
+    warnings: d.status === 'needs_review' || d.status === 'done' ? (d.warnings ?? []).filter(isText) : [],
   };
 }
 

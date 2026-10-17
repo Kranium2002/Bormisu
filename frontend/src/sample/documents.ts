@@ -56,6 +56,8 @@ export function sampleDocuments(printed: PrintedIds): DocumentSummary[] {
         ],
       },
       reviewBoreholeUid: `${NB_DOC_ID}:BK-07`,
+      // Fictional 1.2.1 warning: the page that would hold the missing BK-12 was not read.
+      warnings: ['Page 27 was not read; boreholes on it are missing. Retry the document to read it.'],
       // The coordinate system isn't printed: one question for the whole report (clarifications.ts),
       // counted by the sample source.
       openClarifications: 0,
