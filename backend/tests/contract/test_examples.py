@@ -1135,12 +1135,23 @@ def test_version_has_a_changelog_entry() -> None:
         assert addition in entry, addition
     for dropped in ("/api/v1/auth/password", "AuthPasswordChange", "RateLimited", "429"):
         assert dropped not in entry, dropped
+    patch = _section(changelog, "## 1.2.1 ", "\n## ")
+    for addition in ("Document.warnings", "/documents/{id}/retry", "needs_review", "429", "crs_confirm"):
+        assert addition in patch, addition
     previous = _section(changelog, "## 1.2.0 ", "\n## ")
     for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
         assert addition in previous, addition
     older = _section(changelog, "## 1.1.0 ", "\n## ")
     for addition in ("crs_label", "confirmed_by", "/clarifications/{clarification_id}/crs-candidates"):
         assert addition in older, addition
+
+
+def test_contract_1_2_1_document_warnings() -> None:
+    warnings = SCHEMAS["Document"]["properties"]["warnings"]
+    assert warnings["type"] == "array" and warnings["items"] == {"type": "string"}
+    assert "warnings" not in SCHEMAS["Document"]["required"]
+    retry = SPEC["paths"]["/api/v1/documents/{document_id}/retry"]["post"]
+    assert "unread pages" in retry["responses"]["409"]["description"] and "warnings" in retry["description"]
 
 
 def test_clarification_crs_candidates_operation() -> None:

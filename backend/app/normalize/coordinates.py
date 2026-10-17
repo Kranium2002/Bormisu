@@ -472,6 +472,9 @@ def _assign(roles: list[Role | None], first: Role, second: Role) -> tuple[int | 
 def _geographic(values: list[float], roles: list[Role | None], notes: list[str]) -> CoordinateResult:
     lon_index, lat_index = _assign(roles, "ew", "ns")
     swap = False
+    # Only N/S/E/W marks or lat/long labels state the order; X/Y labels do not for degrees (geodetic X is
+    # often the latitude), so with both values inside ±90 the order stays to be confirmed.
+    assumed = not any(r in ("ns", "ew") for r in roles) and all(abs(v) <= 90 for v in values)
     if lon_index is None or lat_index is None:
         if abs(values[0]) > 90 >= abs(values[1]):
             lon_index, lat_index = 0, 1
@@ -479,11 +482,9 @@ def _geographic(values: list[float], roles: list[Role | None], notes: list[str])
             lon_index, lat_index = 1, 0
             notes.append("latitude printed first (decided by the value ranges, no labels printed)")
         else:
-            return CoordinateResult(
-                kind="geographic",
-                notes=notes,
-                reason="axis order not printed and both values fit a latitude",
-            )
+            lat_index, lon_index = 0, 1  # nothing says: latitude first, the usual way to write degrees
+    if assumed:
+        notes.append("axis order not printed and both values fit a latitude; to be confirmed with the system")
     if lon_index == lat_index:
         return _result_none("both values are marked as the same axis", notes)
     lat, lon = values[lat_index], values[lon_index]
@@ -499,7 +500,14 @@ def _geographic(values: list[float], roles: list[Role | None], notes: list[str])
         return _result_none("latitude outside ±90", notes)
     if abs(lon) > 180:
         return _result_none("longitude outside ±180", notes)
-    return CoordinateResult(kind="geographic", latitude=lat, longitude=lon, swap_suspected=swap, notes=notes)
+    return CoordinateResult(
+        kind="geographic",
+        latitude=lat,
+        longitude=lon,
+        swap_suspected=swap,
+        notes=notes,
+        order_assumed=assumed,
+    )
 
 
 def _projected(axes: list[_Axis], roles: list[Role | None], notes: list[str]) -> CoordinateResult:

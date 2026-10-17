@@ -4,7 +4,9 @@ Candidates are the entries of data/crs_registry.yaml (plus, when a reference pla
 UTM zone of that place), each tried in both axis orders. The evidence that separates them is generic: the
 EPSG area of use, the distance of the transformed centroid to a reference place geocoded from the
 boreholes' own location text, the compactness of the points and how specific the system is for their
-spread. Every threshold lives in the registry's `ranking` section. Nothing here knows about particular
+spread. Candidates the evidence cannot separate (same verdict and score, e.g. the two axis orders of
+degrees without a reference place) put the reading whose points are on or near land first (app.geo.land).
+Every threshold lives in the registry's `ranking` section. Nothing here knows about particular
 documents, projects, countries or layouts.
 """
 
@@ -31,6 +33,7 @@ from app.db.models import Borehole, Document
 from app.db.session import get_sessionmaker
 from app.errors import ApiError
 from app.geo.geocoder import nominatim, normalise_query, uploaded_places
+from app.geo.land import near_land
 from app.geo.plotting import to_wgs84
 from app.schemas.documents import CrsCandidate, CrsPoint
 
@@ -120,13 +123,21 @@ class RankingConfig:
     utm_from_reference: bool
     geocode_max_external: int
     geocode_budget_s: float
+    land_margin_km: float
+    land_sample: int
 
 
 @lru_cache
 def ranking_config() -> RankingConfig:
     """The ranking thresholds. Every key is required: thresholds live in data, not in code."""
     r = _registry_data()["ranking"]
-    weights, extent, worldwide, geocode = r["weights"], r["extent"], r["worldwide"], r["geocode"]
+    weights, extent, worldwide, geocode, land = (
+        r["weights"],
+        r["extent"],
+        r["worldwide"],
+        r["geocode"],
+        r["land"],
+    )
     bands = {
         verdict: (float(r["bands"][verdict][0]), float(r["bands"][verdict][1])) for verdict in VERDICT_ORDER
     }
@@ -150,6 +161,8 @@ def ranking_config() -> RankingConfig:
         utm_from_reference=bool(r["utm_from_reference"]),
         geocode_max_external=int(geocode["max_external_queries"]),
         geocode_budget_s=float(geocode["budget_s"]),
+        land_margin_km=float(land["margin_km"]),
+        land_sample=int(land["sample"]),
     )
 
 
@@ -378,10 +391,19 @@ class _Scored:
     code: str
     swap: bool
 
-    @property
-    def sort_key(self) -> tuple[int, float, float, tuple[str, int, str], bool]:
+    def sort_key(self, ashore: float = 1.0) -> tuple[int, float, float, float, tuple[str, int, str], bool]:
+        """`ashore`: share of the points on or near land (only computed within a tie)."""
         area = self.area_km2 if self.area_km2 is not None else math.inf
-        return (VERDICT_ORDER[self.verdict], -self.score, area, _code_key(self.code), self.swap)
+        return (VERDICT_ORDER[self.verdict], -self.score, -ashore, area, _code_key(self.code), self.swap)
+
+
+def _ashore(item: _Scored, cfg: RankingConfig) -> float:
+    """Share of (a sample of) the candidate's points on land or within the margin of it."""
+    points = item.candidate.points[: max(1, cfg.land_sample)]
+    if not points:
+        return 1.0
+    hits = sum(1 for p in points if near_land(round(p.lat, 2), round(p.lon, 2), cfg.land_margin_km))
+    return hits / len(points)
 
 
 def _evaluate(
@@ -456,6 +478,15 @@ def _evaluate(
     return _Scored(candidate, verdict, score, area_km2, entry.code, swap)
 
 
+def _with_land_note(item: _Scored, ashore: float | None, cfg: RankingConfig) -> CrsCandidate:
+    if ashore is None or ashore >= 1.0:
+        return item.candidate
+    far = "all points" if ashore == 0.0 else f"{1 - ashore:.0%} of the points"
+    note = f"{far} more than {cfg.land_margin_km:.0f} km from land"
+    candidate = item.candidate
+    return candidate.model_copy(update={"note": f"{candidate.note}; {note}" if candidate.note else note})
+
+
 def _cap(items: list[_Scored], limit: int) -> tuple[list[_Scored], list[_Scored]]:
     """Keep `limit` candidates; a tie of matches (same score) at the cut stays whole.
 
@@ -477,7 +508,8 @@ def rank_candidates(
 ) -> list[CrsCandidate]:
     """`points` are (uid, local_x, local_y) as printed. Returns candidates best first.
 
-    Order: verdict, score, smaller area of use, EPSG code, unswapped before swapped.
+    Order: verdict, score, then within a tie more points on or near land, smaller area of use, EPSG code,
+    unswapped before swapped.
     """
     if not points:
         return []
@@ -491,9 +523,11 @@ def rank_candidates(
             item = _evaluate(entry, swap, points, reference, cfg, entry.code in generated)
             if item is not None:
                 scored.append(item)
-    scored.sort(key=lambda item: item.sort_key)
+    tied_scores = Counter((item.verdict, item.score) for item in scored)
+    ashore = {id(item): _ashore(item, cfg) for item in scored if tied_scores[(item.verdict, item.score)] > 1}
+    scored.sort(key=lambda item: item.sort_key(ashore.get(id(item), 1.0)))
     kept, dropped = _cap(scored, cfg.max_candidates)
-    out = [item.candidate for item in kept]
+    out = [_with_land_note(item, ashore.get(id(item)), cfg) for item in kept]
     if dropped and out:
         last_kept = kept[-1]
         tied = sum(

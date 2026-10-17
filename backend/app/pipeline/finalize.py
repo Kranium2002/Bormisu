@@ -47,6 +47,7 @@ from app.db.models import Borehole, Clarification, Document, FieldValue, Page
 from app.db.session import get_sessionmaker
 from app.events.writer import emit
 from app.geo.crs_candidates import area_of_use, candidates_for_boreholes, ranking_config
+from app.geo.land import near_land
 from app.geo.plotting import to_wgs84
 from app.normalize import coordinates as coordinates_parser
 from app.normalize import crs as crs_parser
@@ -196,6 +197,17 @@ class RecordDraft:
     datum_finding: DatumFinding | None = None
     datum_origin: str | None = None
     datum_evidence: list[EvidenceEntry] = field(default_factory=list)
+
+
+def _swap_on_land(code: str, x: float, y: float) -> bool:
+    """The point as read is far from land while the swapped reading is on or near it."""
+    margin = ranking_config().land_margin_km
+    read, swapped = to_wgs84(code, x, y), to_wgs84(code, x, y, swap_axes=True)
+    if read is None or swapped is None:
+        return False
+    return not near_land(round(read[0], 2), round(read[1], 2), margin) and near_land(
+        round(swapped[0], 2), round(swapped[1], 2), margin
+    )
 
 
 def _inside_area(code: str, x: float, y: float) -> bool:
@@ -490,11 +502,19 @@ class _Builder:
             self.prov[f"metadata.coordinates.{key}"] = self._axis_entry(number, c.x_raw, c.y_raw)
         system = coords["coordinate_system"]
         resolved = crs_parser.resolve_printed_system(system, parsed)
-        if resolved.code is not None and _inside_area(resolved.code, *point):
+        order_doubtful = (
+            parsed.order_assumed and resolved.code is not None and _swap_on_land(resolved.code, *point)
+        )
+        if resolved.code is not None and _inside_area(resolved.code, *point) and not order_doubtful:
             coords["crs_code"] = resolved.code
             return "stated", resolved.code, resolved.reason
         note: str | None
-        if resolved.code is not None:
+        if order_doubtful:
+            note = (
+                f"the axis order is not printed and the position read with '{system}' is far from land, "
+                "the swapped one is not; asked as unconfirmed"
+            )
+        elif resolved.code is not None:
             note = (
                 f"the printed system '{system}' ({resolved.code}) does not place the point "
                 "inside its area of use; asked as unconfirmed"

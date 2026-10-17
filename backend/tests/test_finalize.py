@@ -24,8 +24,10 @@ from sqlalchemy import func, select
 from app.clarify.answers import answer_clarification
 from app.db.models import Borehole, Clarification, Document, Page
 from app.db.session import get_sessionmaker
+from app.geo.crs_candidates import rank_candidates
 from app.pipeline import textlayer
 from app.pipeline.finalize import (
+    RecordDraft,
     build_record,
     finalize_document,
     finalize_group,
@@ -611,6 +613,43 @@ def test_degrees_without_a_printed_system_are_inferred_not_plotted() -> None:
         pytest.approx(47.4252),
     )
     assert "latitude" not in coords and "crs_code" not in coords
+
+
+def _plain_degrees(labels: str | None, system: str | None) -> RecordDraft:
+    """Fictional decimal degrees printed as X then Y (a point inland in southern Africa when the first is the
+    latitude, open ocean when it is the longitude)."""
+    res = dm_result(1, "S9", "-32.929816", "27.437978")
+    coordinates = res.header.coordinates.model_copy(
+        update={
+            "labels_raw": rv(labels, "p1.b1") if labels else absent(),
+            "system_raw": rv(system, "p1.b3") if system else absent(),
+        }
+    )
+    head = res.header.model_copy(update={"coordinates": coordinates})
+    return build_record(
+        "doc_X",
+        PageGroup(key="g", label_raw="S9", label_canonical="S9", pages=(1,)),
+        outcome(res.model_copy(update={"header": head}), dm_blocks(1, "S9", "-32.929816", "27.437978")),
+    )
+
+
+def test_degrees_without_axis_order_or_system_are_asked_with_the_reading_on_land_first() -> None:
+    for labels, swap in ((None, False), ("X Y", True)):
+        draft = _plain_degrees(labels, None)
+        assert draft.body is not None
+        coords = draft.body["metadata"]["coordinates"]
+        assert (draft.crs_status, draft.crs_code) == ("inferred", None)
+        best = rank_candidates([("bh_fictional", coords["local_x"], coords["local_y"])])[0]
+        assert (best.crs, best.swap_axes) == ("EPSG:4326", swap)
+        assert (best.points[0].lat, best.points[0].lon) == (-32.929816, 27.437978)
+
+
+def test_a_printed_geographic_system_with_an_assumed_order_that_lands_at_sea_is_asked() -> None:
+    plain = _plain_degrees(None, "WGS 84")  # read latitude first: on land, so the printed system stands
+    assert (plain.crs_status, plain.crs_code) == ("stated", "EPSG:4326")
+    labelled = _plain_degrees("X Y", "WGS 84")  # X read as the longitude: open ocean, the swap is on land
+    assert (labelled.crs_status, labelled.crs_code) == ("inferred", None)
+    assert any("far from land" in w for w in labelled.warnings)
 
 
 def test_a_printed_system_that_does_not_fit_the_values_is_not_trusted() -> None:

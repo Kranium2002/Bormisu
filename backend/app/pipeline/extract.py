@@ -273,6 +273,10 @@ def needs_image(segment: PageSegment, handwriting: str | None, low_confidence: f
         return True  # nothing was read: the model reads the page image itself
     if handwriting in IMAGE_HANDWRITING:
         return True
+    if all(b.box is None for b in segment.blocks):
+        # Text-only OCR (no block positions): the layout, e.g. which depth in a column bounds which layer,
+        # is only in the image.
+        return True
     return any(b.confidence is not None and b.confidence < low_confidence for b in segment.blocks)
 
 

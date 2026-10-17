@@ -22,6 +22,19 @@ Sign-in with email and password, agreed with both sessions (docs/handover/RESUME
 - Every operation except `getHealth`, `getHealthV1`, `register` and `login` answers 401 `not_authenticated` without a valid session, including `GET /documents/{id}/pages/{n}.png`, `GET /events` and `POST /chat` (realtime-and-chat.md sections 1 and 2). Any signed-in user may read and write; `admin` is reserved for user management. Writes are accepted whatever `Origin` or `Referer` they carry.
 - The actor of every revision, `Clarification.answered_by` and the actor of a CRS confirmation is the signed-in user's display name, else their email. `ValuePatch.confirmed_by`, `CrsConfirmRequest.confirmed_by`, `ClarificationAnswer.answered_by` and the approve-clean `confirmed_by` query parameter are still accepted and ignored.
 
+## 1.2.1 (2026-10-17)
+
+Additive only: one new optional field on `Document` and a retry that accepts more documents. Clients built against 1.2.0 keep working.
+
+### Added
+- `Document.warnings` (`string[]`, optional, empty by default): readable notes on a document in review that is not complete, e.g. "Page 1 was not read; boreholes on it are missing. Retry the document to read it." Show them on the document as they are, with the retry action.
+
+### Changed behaviour (no shape change)
+- A page that cannot be read (OCR refused, also after rate limits were waited out) no longer fails the whole document: everything that was read is finalised (boreholes, pins, clarifications), the document goes to `needs_review` and `warnings` names the unread pages. Only a document where nothing at all could be extracted still fails (`failed_stage` `extract`, retryable).
+- `POST /documents/{id}/retry` also accepts a `needs_review` or `done` document with unread pages and reads only those pages again (stored OCR, boreholes and answers are kept). 409 `not_failed` otherwise, as before.
+- Rate limits (HTTP 429 from a provider) are waited out on the server (Retry-After honoured) and the page is tried again later in the same job, so a burst of 429s no longer leaves pages unread.
+- Decimal degrees printed without a stated axis order (no N/E or lat/long label; X/Y labels included) are read and asked about with a `crs_confirm` question instead of being left unread; the candidate ranking puts the axis order whose points are on or near land first when other evidence ties.
+
 ## 1.2.0 (2026-10-17)
 
 Additive only: one new optional field on `Document`, one optional query parameter, two new fields in an event payload and clarified descriptions. Clients built against 1.1.0 keep working.
