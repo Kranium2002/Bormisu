@@ -364,6 +364,7 @@ paths:
         (`source` ocr). Boxes use the provenance convention: [x, y, w, h] normalised 0-1 on the page image
         (`pages/{n}.png`), top-left origin. An empty list when the page has no words yet.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The page's words.
           content:
@@ -398,6 +399,7 @@ paths:
         large); approximate = the row (and column, when known) the value was read from, when its text could
         not be located; page = only the page is known (`box` null).
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The page's evidence.
           content:
@@ -708,6 +710,7 @@ paths:
       x-priority: P1
       summary: Planned lines uploaded so far, newest first (1.3.0).
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Alignment list.
           content:
@@ -761,6 +764,7 @@ paths:
                     zone 32N). With lon/lat columns it names a geographic system other than WGS84.
                     Ignored for GeoJSON, KML and GPX, which are WGS84 by definition.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "201":
           description: Stored.
           content:
@@ -794,6 +798,7 @@ paths:
       operationId: getAlignment
       x-priority: P1
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The stored line.
           content:
@@ -810,6 +815,7 @@ paths:
       x-priority: P1
       summary: Deletes the line. Result sets issued for it stay valid until they expire.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "204":
           description: Deleted.
         "404":
@@ -838,6 +844,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/AlignmentQuery" }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Hits, buffer band and counts.
           content:

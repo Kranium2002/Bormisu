@@ -1977,6 +1977,7 @@ export interface operations {
                     "application/json": components["schemas"]["PageWord"][];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown document (document_not_found) or page (page_not_found). */
             404: {
                 headers: {
@@ -2009,6 +2010,7 @@ export interface operations {
                     "application/json": components["schemas"]["EvidenceItem"][];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown document (document_not_found) or page (page_not_found). */
             404: {
                 headers: {
@@ -2391,6 +2393,7 @@ export interface operations {
                     "application/json": components["schemas"]["AlignmentList"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
         };
     };
     uploadAlignment: {
@@ -2431,6 +2434,7 @@ export interface operations {
                     "application/json": components["schemas"]["Alignment"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description File larger than 10 MB. code too_large. */
             413: {
                 headers: {
@@ -2485,6 +2489,7 @@ export interface operations {
                     "application/json": components["schemas"]["Alignment"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown id. code alignment_not_found. */
             404: {
                 headers: {
@@ -2514,6 +2519,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown id. code alignment_not_found. */
             404: {
                 headers: {
@@ -2549,6 +2555,7 @@ export interface operations {
                     "application/json": components["schemas"]["AlignmentResult"];
                 };
             };
+            401: components["responses"]["NotAuthenticated"];
             /** @description Unknown id. code alignment_not_found. */
             404: {
                 headers: {
