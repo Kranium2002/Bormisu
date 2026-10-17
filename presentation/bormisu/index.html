@@ -53,7 +53,7 @@
 
   /* 02 Hook: the number counts up when the slide opens */
   .hook { background: #000; color: #fff; }
-  .hook .big { font-family: var(--display); font-size: 300px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hook .big { font-family: var(--display); font-size: 260px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
   .hook .unit { font-family: var(--display); font-size: 110px; font-weight: 600; letter-spacing: -0.03em; color: var(--ladyfinger); margin-top: 8px; }
 
   /* 03 Herrenknecht film: blank, just the video */
@@ -203,8 +203,8 @@
 
   <!-- 02 HOOK — time the Gotthard Base Tunnel saves; see Script.md for the figure -->
   <section class="hook center" data-label="02 Hook">
-    <div class="big" data-count="4">4</div>
-    <div class="unit" data-anim style="--d: 1400ms;">lifetimes</div>
+    <div class="big" data-count="3000000">3,000,000</div>
+    <div class="unit" data-anim style="--d: 1400ms;">hours</div>
   </section>
 
   <!-- 03 HERRENKNECHT — blank, just the footage. Drop it in as herrenknecht.mp4 next to this file -->
@@ -380,7 +380,7 @@
     const end = +el.dataset.count, t0 = performance.now();
     const tick = (t) => {
       const k = Math.min(1, (t - t0) / 1400);
-      el.textContent = Math.round(end * (1 - Math.pow(1 - k, 3)));
+      el.textContent = Math.round(end * (1 - Math.pow(1 - k, 3))).toLocaleString('en-US');
       if (k < 1) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

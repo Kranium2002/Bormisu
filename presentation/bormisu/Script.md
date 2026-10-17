@@ -8,11 +8,11 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 > Hi, we're **Team Tiramisu**, and this is **Bormisu**.
 
-## 02 · Hook: 4 lifetimes (~25 s)
+## 02 · Hook: 3 million hours (~25 s)
 
 *(the number counts up, let it land)*
 
-> 4 lifetimes.
+> 3 million hours.
 > That's how much time the Gotthard Base Tunnel saves its passengers every year.
 > That means goods travel faster.
 > That means the cost of living goes down.
@@ -101,7 +101,7 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 ## Sources
 
-### Slide 02 (4 lifetimes)
+### Slide 02 (3 million hours)
 
 Rough calculation, assuming a lifetime of about 80 years (700,000 hours):
 
@@ -110,7 +110,7 @@ Rough calculation, assuming a lifetime of about 80 years (700,000 hours):
 - **Per year:** 16,400 × 0.5 h × 365 ≈ 3.0 million hours ≈ **4 lifetimes**. With a full hour saved: ≈ 9 lifetimes.
 - **Since it opened (2016–2026):** about 13,000 passengers a day on average × 0.5 h × 365 × 10 years ≈ 24 million hours ≈ **34 lifetimes**. With a full hour saved: ≈ 68 lifetimes.
 
-The slide uses the conservative per-year figure: **4 lifetimes** (30 minutes saved, 2025 ridership). Freight time is not counted.
+The slide uses the conservative per-year figure: **about 3 million hours** (2.99 million: 30 minutes saved, 2025 ridership). Freight time is not counted.
 
 ### Slide 03 (said over the video)
 
