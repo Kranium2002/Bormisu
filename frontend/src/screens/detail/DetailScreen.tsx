@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusChip } from '../../components/StatusChip';
 import { displayStatus } from '../../domain/status';
-import { useT } from '../../i18n';
+import { useLang, useT } from '../../i18n';
 import { mapHref } from '../../routing/navLinks';
 import { sheetPath } from '../../routing/urlState';
 import { useAppStore, useIsReviewable, useSelectedBorehole } from '../../store/appStore';
@@ -26,6 +26,7 @@ import styles from './DetailScreen.module.css';
  */
 export function DetailScreen() {
   const t = useT();
+  const lang = useLang((s) => s.lang);
   const b = useSelectedBorehole();
   const selectedLayer = useAppStore((s) => s.selectedLayer);
   const selectLayer = useAppStore((s) => s.selectLayer);
@@ -119,7 +120,7 @@ export function DetailScreen() {
               onSelectSample={selectSample}
             />
           </div>
-          <ProfileLegend borehole={b} />
+          <ProfileLegend borehole={b} de={lang === 'de'} />
         </section>
 
         <div className={styles.right}>
