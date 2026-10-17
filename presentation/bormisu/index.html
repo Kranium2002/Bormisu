@@ -51,9 +51,10 @@
   .slide-title .name { font-family: var(--display); font-size: 220px; font-weight: 600; line-height: 0.92; letter-spacing: -0.045em; margin-top: 24px; color: var(--espresso); }
   .slide-title .signature { position: absolute; bottom: 64px; left: 0; right: 0; font-size: 24px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
 
-  /* 02 Hook (placeholder) */
-  .hook .big { font-family: var(--display); font-size: 200px; font-weight: 600; letter-spacing: -0.04em; color: var(--ladyfinger); }
-  .hook .todo { margin-top: 24px; font-size: 26px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--on-dark-muted); }
+  /* 02 Hook: the number counts up when the slide opens */
+  .hook { background: #000; color: #fff; }
+  .hook .big { font-family: var(--display); font-size: 300px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hook .unit { font-family: var(--display); font-size: 110px; font-weight: 600; letter-spacing: -0.03em; color: var(--ladyfinger); margin-top: 8px; }
 
   /* 03 Herrenknecht film: blank, just the video */
   .film { padding: 0; background: #000; }
@@ -188,10 +189,10 @@
     <div class="signature" data-anim style="--d: 700ms;">Team Tiramisu · Herrenknecht challenge · BFH 2026</div>
   </section>
 
-  <!-- 02 HOOK — placeholder, content to be defined -->
-  <section class="dark hook center" data-label="02 Hook">
-    <div class="big">Hook</div>
-    <div class="todo">To be defined</div>
+  <!-- 02 HOOK — time the Gotthard Base Tunnel saves; see Script.md for the figure -->
+  <section class="hook center" data-label="02 Hook">
+    <div class="big" data-count="50">50</div>
+    <div class="unit" data-anim style="--d: 1400ms;">lifetimes</div>
   </section>
 
   <!-- 03 HERRENKNECHT — blank, just the footage. Drop it in as herrenknecht.mp4 next to this file -->
@@ -327,9 +328,20 @@
     s.classList.remove('is-active');
     if (i === idx) {
       void s.offsetWidth; s.classList.add('is-active');
+      s.querySelectorAll('[data-count]').forEach(countUp);
       if (v) { try { v.currentTime = 0; } catch (e) {} v.play().catch(() => {}); }
     } else if (v) v.pause();
   });
+  // count a number up from 0 to data-count over ~1.4 s
+  function countUp(el) {
+    const end = +el.dataset.count, t0 = performance.now();
+    const tick = (t) => {
+      const k = Math.min(1, (t - t0) / 1400);
+      el.textContent = Math.round(end * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
   stage.addEventListener('slidechange', (e) => setActive(e.detail.index));
   // the init slidechange can fire before this listener exists
   requestAnimationFrame(() => {

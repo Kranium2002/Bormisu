@@ -8,17 +8,24 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 > Hi, we're **Team Tiramisu**, and this is **Bormisu**.
 
-## 02 · Hook (~15 s)
+## 02 · Hook: 50 lifetimes (~25 s)
 
-*TODO: to be defined.*
+*(the number counts up, let it land)*
+
+> 50 lifetimes.
+> That's how much time the Gotthard Base Tunnel saves every year. *(see the note on this figure under Sources)*
+> That means goods travel faster.
+> That means the cost of living goes down.
+> That means parents get more time with their families.
 
 ## 03 · Herrenknecht video (~30 s, talk over the footage)
 
-> This is Herrenknecht — tunnel boring machines from Schwanau, just down the road.
-> They're digging Paris's new metro, the Grand Paris Express.
-> They bored the Gotthard Base Tunnel — 57 kilometres through the Alps, the longest railway tunnel in the world.
+> All of that because of one company: Herrenknecht.
+> The world's most advanced tunnel boring machine company — from Schwanau, just down the road.
+> They build the machines for the Paris Metro, the Grand Paris Express.
+> They bored the Gotthard Base Tunnel — 57 kilometres through the Alps.
 > In Hong Kong, they built the biggest tunnel boring machine ever — 17.6 metres — for the airport link under the sea.
-> And they also worked on Stuttgart 21…
+> And they also built for Stuttgart 21…
 
 ## 04 · Stuttgart 21 🤫 (~5 s)
 
@@ -28,7 +35,7 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 
 ## 05 · Drill core (~25 s)
 
-> But for all of these amazing projects, you first need one thing: drill cores.
+> But to build tunnels like these, you have to understand the ground. And that means drilling.
 > A drill core tells you what the ground is made of — soil or rock, how hard, where the water sits.
 > That decides which machine you build. Get it wrong, and the machine is wrong.
 
@@ -90,6 +97,17 @@ Put the Herrenknecht footage next to it as `herrenknecht.mp4`; slide 03 plays it
 ---
 
 ## Sources
+
+### Slide 02 (50 lifetimes) — figure not yet backed up
+
+Rough calculation, assuming a lifetime of about 80 years (700,000 hours):
+
+- The tunnel carried on average **16,400 passengers a day** in 2025, and 9,000 a day in 2015 ([swissinfo, SBB figures](https://www.swissinfo.ch/eng/swiss-democracy/the-gotthard-base-tunnel-ten-years-on/91672319)).
+- Time saved: about **30 minutes** from the base tunnel alone ([swissinfo](https://www.swissinfo.ch/eng/business/gotthard-base-tunnel_world-s-longest-rail-tunnel-has-a-way-to-go/42940622)), about **1 hour** on Zurich–Milan together with the Ceneri tunnel ([Gulf News](https://gulfnews.com/amp/story/world%2Feurope%2Fthe-worlds-longest-tunnel-opens-in-switzerland-1.1838836)).
+- **Per year:** 16,400 × 0.5 h × 365 ≈ 3.0 million hours ≈ **4 lifetimes**. With a full hour saved: ≈ 9 lifetimes.
+- **Since it opened (2016–2026):** about 13,000 passengers a day on average × 0.5 h × 365 × 10 years ≈ 24 million hours ≈ **34 lifetimes**. With a full hour saved: ≈ 68 lifetimes.
+
+So "50 lifetimes **every year**" is too high for passengers. "**About 50 lifetimes since it opened**" is in the right range. Freight time is not counted here.
 
 ### Slide 03 (said over the video)
 
