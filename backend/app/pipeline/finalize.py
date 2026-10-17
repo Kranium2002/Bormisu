@@ -16,10 +16,10 @@ finalize_document(document_id)
     Completeness against the labels printed on summary and coordinate tables, `documents.duplicate_of` and
     one `duplicate` question per earlier document the document repeats (app.clarify.duplicates), one
     `crs_confirm` question per project (or per document without a project label) for boreholes whose
-    system was not stated, a `locate_borehole` question for each borehole without coordinates but with a
-    printed place, the lint across the document's boreholes (cluster outliers, shared coordinates), the
-    `boreholes_extracted` progress counter and the document status (needs_review, or done when every
-    borehole is approved).
+    system was not stated, a `locate_borehole` question for each borehole without coordinates (with or
+    without a printed place), the lint across the document's boreholes (cluster outliers, shared
+    coordinates), the `boreholes_extracted` progress counter and the document status (needs_review, or done
+    when every borehole is approved).
 
 Unknown stays null with a reason; no value is invented and nothing depends on a particular document.
 """

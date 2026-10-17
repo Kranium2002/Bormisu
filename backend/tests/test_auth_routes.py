@@ -14,7 +14,7 @@ from app.auth.deps import LOCAL_USER
 from app.config import get_settings
 from app.db.models import Clarification, Revision
 from app.db.session import get_sessionmaker
-from tests.auth_utils import LOGOUT, ME, PASSWORD, REVIEWER, SECOND, register
+from tests.auth_utils import LOGIN, LOGOUT, ME, REVIEWER, SECOND, register
 from tests.contract_utils import iter_operations, validate_response
 from tests.test_api import DOC_ID, _fixture_document, call
 
@@ -253,7 +253,7 @@ async def test_logout_then_401(client: httpx.AsyncClient, anon_client: httpx.Asy
     await call(client, "GET", "/api/v1/documents", expect=200)
     out = await call(client, "POST", LOGOUT, expect=204)
     assert "Max-Age=0" in out.headers["set-cookie"] or "max-age=0" in out.headers["set-cookie"].lower()
-    for method, path in (("GET", "/api/v1/documents"), ("GET", ME), ("POST", PASSWORD)):
+    for method, path in (("GET", "/api/v1/documents"), ("GET", ME), ("POST", "/api/v1/result-sets")):
         response = await client.request(method, path)
         assert response.status_code == 401 and response.json()["code"] == "not_authenticated"
     # The ended session's token is refused even when a client keeps sending it.
@@ -305,5 +305,16 @@ async def test_auth_disabled_keeps_everything_open(
     ).json()
     assert answered["answered_by"] == "Local user"
     assert (await _actors(uid))[1:] == ["Local user", "Local user"]
-    refused = await client.post(PASSWORD, json={"current_password": "x", "new_password": "y" * 12})
-    assert refused.status_code == 403 and refused.json()["code"] == "forbidden"
+    created = await client.post(
+        "/api/v1/result-sets", json={}, headers={"Origin": "https://elsewhere.example"}
+    )
+    assert created.status_code == 201, created.text
+
+
+async def test_there_is_no_password_change_route(client: httpx.AsyncClient) -> None:
+    """Minimal sign-in: a password is reset on the server (python -m app.users), not in the browser."""
+    body = {"current_password": REVIEWER.password, "new_password": "a-new-fictional-pass"}
+    response = await client.post("/api/v1/auth/password", json=body)
+    assert response.status_code == 404 and response.json()["code"] == "route_not_found"
+    signed_in = await client.post(LOGIN, json={"email": REVIEWER.email, "password": REVIEWER.password})
+    assert signed_in.status_code == 200

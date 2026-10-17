@@ -1,7 +1,7 @@
 """Account rules (contract 1.3.0) as 422 field errors with plain messages the forms show as they are.
 
 - email: trimmed and lower-cased, one "@" with text on both sides, no spaces, at most 254 characters;
-- password: 10 to 128 characters, not the email, not on the common-password list;
+- password: 8 to 128 characters, nothing else;
 - display_name: trimmed, blank is none, at most 80 characters.
 """
 
@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.auth.passwords import is_common
 from app.errors import ApiError
 from app.schemas.auth import (
     DISPLAY_NAME_MAX_LENGTH,
@@ -48,18 +47,14 @@ def email_error(email: str) -> str | None:
     return None
 
 
-def new_password_error(password: str, email: str | None) -> str | None:
-    """The problem with a new password, or None. `email` is the account's (normalised) email."""
+def password_error(password: str) -> str | None:
+    """The problem with a new password (its length), or None."""
     if not password:
         return "Enter a password."
     if len(password) < PASSWORD_MIN_LENGTH:
         return f"Use at least {PASSWORD_MIN_LENGTH} characters."
     if len(password) > PASSWORD_MAX_LENGTH:
         return f"Use at most {PASSWORD_MAX_LENGTH} characters."
-    if email and normalize_email(password) == email:
-        return "The password must not be your email."
-    if is_common(password):
-        return "This password is too common."
     return None
 
 
@@ -83,7 +78,7 @@ def checked_registration(
     errors: list[FieldError] = []
     if problem := email_error(email):
         errors.append(field_error("email", problem))
-    if problem := new_password_error(password, email):
+    if problem := password_error(password):
         errors.append(field_error("password", problem))
     if problem := display_name_error(display_name):
         errors.append(field_error("display_name", problem))

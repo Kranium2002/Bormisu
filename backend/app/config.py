@@ -45,12 +45,6 @@ class Settings(BaseSettings):
     # "open": anyone may create an account (the first one becomes admin). "closed": only the first
     # account can be registered in the browser; later ones come from `python -m app.users create`.
     auth_registration: Literal["open", "closed"] = "open"
-    # Sign-in limits, per API process (in memory). Failed sign-ins per email and per client address
-    # within the window, and registrations per client address within an hour.
-    auth_login_failures_per_email: int = 5
-    auth_login_failures_per_ip: int = 20
-    auth_login_window_s: int = 900
-    auth_registrations_per_ip: int = 10
 
     # Providers (secrets)
     openrouter_api_key: SecretStr | None = Field(

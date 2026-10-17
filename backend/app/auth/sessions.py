@@ -1,7 +1,8 @@
 """Cookie sessions: a random 256-bit token in the `gm_session` cookie, its SHA-256 in `sessions`.
 
-A session lasts until sign-out (or a password change or reset, which end the user's other sessions).
-The cookie is HttpOnly, SameSite=Lax, Path=/, and Secure only with COOKIE_SECURE=true (HTTPS).
+A session lasts until sign-out, or until a password reset from the command line ends the user's
+sessions; there is no expiry. The cookie is HttpOnly, SameSite=Lax, Path=/, and Secure only with
+COOKIE_SECURE=true (HTTPS).
 """
 
 from __future__ import annotations
@@ -62,12 +63,9 @@ async def end_session(session: AsyncSession, token: str) -> None:
     await session.execute(delete(AuthSession).where(AuthSession.token_hash == token_hash(token)))
 
 
-async def end_sessions(session: AsyncSession, user_id: str, *, keep_hash: str | None = None) -> None:
-    """End every session of the user, except the one with `keep_hash` when given."""
-    query = delete(AuthSession).where(AuthSession.user_id == user_id)
-    if keep_hash is not None:
-        query = query.where(AuthSession.token_hash != keep_hash)
-    await session.execute(query)
+async def end_sessions(session: AsyncSession, user_id: str) -> None:
+    """End every session of the user."""
+    await session.execute(delete(AuthSession).where(AuthSession.user_id == user_id))
 
 
 async def user_for_token(session: AsyncSession, token: str) -> tuple[User, AuthSession] | None:

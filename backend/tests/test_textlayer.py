@@ -103,7 +103,8 @@ def header(**values: RawValue) -> ExtractedHeader:
 
 def layer(top: RawValue, bottom: RawValue, description: RawValue, **cells: RawValue) -> ExtractedLayer:
     names = ("uscs_raw", "colour_raw", "consistency_raw", "moisture_raw", "weathering_raw")
-    extra = {n: cells.pop(n, absent()) for n in (*names, "stratigraphic_name_raw")}
+    more = ("stratigraphic_name_raw", "engineering_soil_unit_raw", "geologic_age_raw")
+    extra = {n: cells.pop(n, absent()) for n in (*names, *more)}
     assert not cells
     return ExtractedLayer(
         from_raw=top,
@@ -394,6 +395,59 @@ def test_english_record_and_spt_rows() -> None:
     assert hit_box(res.header.ground_level) == box_of(layer, ("12.50m", 0))
     assert hit_box(spt[0].n_raw) == box_of(layer, ("N=14", 0))
     assert hit_box(res.header.borehole_label) == box_of(layer, ("BH-12", 0))
+
+
+def test_engineering_soil_unit_and_geologic_age_get_word_boxes_in_their_rows() -> None:
+    """Both columns repeat a value on several rows ("HB 2", "Quartär"): each layer gets its own row's word."""
+    layer = page(
+        printed_at(0.05, 0.1, "Tiefe")
+        + printed_at(0.6, 0.1, "Homogenbereich")
+        + printed_at(0.8, 0.1, "Alter"),
+        printed_at(0.05, 0.2, "0,00")
+        + printed_at(0.12, 0.2, "0,80")
+        + printed_at(0.25, 0.2, "Auffüllung, Sand")
+        + printed_at(0.6, 0.2, "HB 1")
+        + printed_at(0.8, 0.2, "Quartär"),
+        printed_at(0.05, 0.24, "0,80")
+        + printed_at(0.12, 0.24, "2,40")
+        + printed_at(0.25, 0.24, "Kies, sandig")
+        + printed_at(0.6, 0.24, "HB 2")
+        + printed_at(0.8, 0.24, "Quartär"),
+        printed_at(0.05, 0.28, "2,40")
+        + printed_at(0.12, 0.28, "5,00")
+        + printed_at(0.25, 0.28, "Kies, schwach sandig")
+        + printed_at(0.6, 0.28, "HB 2")
+        + printed_at(0.8, 0.28, "Tertiär"),
+    )
+    b = "p1.b0"
+    rows = [
+        ("0,00", "0,80", "Auffüllung, Sand", "HB 1", "Quartär"),
+        ("0,80", "2,40", "Kies, sandig", "HB 2", "Quartär"),
+        ("2,40", "5,00", "Kies, schwach sandig", "HB 2", "Tertiär"),
+    ]
+    res = result(
+        header(),
+        [
+            layer_values(
+                top, bottom, text, b, engineering_soil_unit_raw=rv(unit, b), geologic_age_raw=rv(age, b)
+            )
+            for top, bottom, text, unit, age in rows
+        ],
+    )
+    resolution = resolve(res, [block(b, WHOLE)], layer)
+
+    def hit_box(value: RawValue) -> Box | None:
+        hit = resolution.get(value)
+        assert hit is not None and hit.page == 1, value
+        return hit.box
+
+    fill, gravel, deep = res.layers
+    assert hit_box(fill.engineering_soil_unit_raw) == box_of(layer, ("HB", 0), ("1", 0))
+    assert hit_box(gravel.engineering_soil_unit_raw) == box_of(layer, ("HB", 1), ("2", 0))
+    assert hit_box(deep.engineering_soil_unit_raw) == box_of(layer, ("HB", 2), ("2", 1))
+    assert hit_box(fill.geologic_age_raw) == box_of(layer, ("Quartär", 0))
+    assert hit_box(gravel.geologic_age_raw) == box_of(layer, ("Quartär", 1))
+    assert hit_box(deep.geologic_age_raw) == box_of(layer, ("Tertiär", 0))
 
 
 # ----------------------------------------------------------------------------------------------

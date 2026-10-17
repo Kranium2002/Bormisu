@@ -1,4 +1,4 @@
 {
-  "detail": "This request came from a page of another site and was refused.",
+  "detail": "Registration is closed on this server. Ask an admin for an account.",
   "code": "forbidden"
 }

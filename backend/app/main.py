@@ -74,7 +74,7 @@ def create_app(*, open_queue: bool = True) -> FastAPI:
         allow_headers=["Content-Type", "Last-Event-ID", "Accept"],
     )
     # Public: the health checks (system; its /api/v1/stats needs a session itself) and sign-in (auth:
-    # register and login are public, logout answers with or without a session, me and password need one).
+    # register and login are public, logout answers with or without a session, me needs one).
     app.include_router(system.router)
     app.include_router(auth.router, prefix=API_V1)
     # Everything else needs a signed-in user (401 not_authenticated), including page images, the event

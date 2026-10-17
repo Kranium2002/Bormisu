@@ -1,10 +1,12 @@
-"""Sign-in core (contract 1.3.0): register, login, limits, password change, Origin check, sessions, CLI.
+"""Sign-in core (contract 1.3.0, minimal): register, login, logout, me, sessions, any Origin, the CLI.
 
-Fictional accounts only (example.test). Rate limits are lowered through the environment per test.
+Fictional accounts only (example.test). There are no rate limits, no Origin check and no password change
+in the browser; the only password rule is 8 to 128 characters.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from collections.abc import Iterator
 from typing import Any
@@ -14,8 +16,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app import users as users_cli
-from app.auth.limits import SlidingWindow
-from app.auth.passwords import common_passwords, hash_password, needs_rehash, verify_password
+from app.auth.passwords import hash_password, verify_password
 from app.config import get_settings
 from app.db.models import AuthSession, User
 from app.db.session import get_sessionmaker
@@ -23,7 +24,6 @@ from tests.auth_utils import (
     LOGIN,
     LOGOUT,
     ME,
-    PASSWORD,
     REGISTER,
     REVIEWER,
     SECOND,
@@ -103,20 +103,30 @@ async def test_first_account_is_admin_later_ones_reviewer(anon_client: httpx.Asy
     assert taken.json()["code"] == "email_taken"
 
 
+async def test_two_simultaneous_first_registrations_make_exactly_one_admin(db: None, queue: object) -> None:
+    async with app_client() as one, app_client() as two:
+        answers = await asyncio.gather(register(one, REVIEWER), register(two, SECOND))
+        assert sorted(str(a["role"]) for a in answers) == ["admin", "reviewer"]
+        for client in (one, two):
+            assert (await client.get(ME)).status_code == 200
+    async with get_sessionmaker()() as session:
+        roles = (await session.scalars(select(User.role))).all()
+    assert sorted(roles) == ["admin", "reviewer"]
+
+
 async def test_registration_rules_answer_one_message_per_field(anon_client: httpx.AsyncClient) -> None:
     cases: list[tuple[dict[str, Any], dict[str, str]]] = [
-        ({"email": "not-an-email", "password": "short"}, {"email": "", "password": "at least 10"}),
+        ({"email": "not-an-email", "password": "short"}, {"email": "", "password": "at least 8"}),
+        ({"email": "a@example.test", "password": "seven-7"}, {"password": "at least 8"}),
         ({"email": "", "password": "x" * 129}, {"email": "Enter your email", "password": "at most 128"}),
-        ({"email": "a@example.test", "password": "QWERTYUIOP"}, {"password": "too common"}),
-        (
-            {"email": "long.name@example.test", "password": "Long.Name@example.test"},
-            {"password": "your email"},
-        ),
+        ({"email": "a@example.test", "password": ""}, {"password": "Enter a password"}),
         (
             {"email": "a@example.test", "password": "fine-fictional-pass", "display_name": "n" * 81},
             {"display_name": "80"},
         ),
         ({"email": "a b@example.test", "password": "fine-fictional-pass"}, {"email": "name@example.org"}),
+        ({"email": "a@b@example.test", "password": "fine-fictional-pass"}, {"email": "name@example.org"}),
+        ({"email": "@example.test", "password": "fine-fictional-pass"}, {"email": "name@example.org"}),
     ]
     for body, expected in cases:
         response = await call(anon_client, "POST", REGISTER, expect=422, json=body)
@@ -126,6 +136,20 @@ async def test_registration_rules_answer_one_message_per_field(anon_client: http
             assert words in fields[field], (field, fields[field])
             assert not fields[field].startswith("Value error"), fields[field]
     assert await _session_count() == 0
+
+
+async def test_any_password_of_8_to_128_characters_is_accepted(anon_client: httpx.AsyncClient) -> None:
+    """Length is the only rule: no common-password list, and the email itself is allowed."""
+    accepted = [
+        Account("eight@example.test", "12345678", None),
+        Account("longest@example.test", "p" * 128, None),
+        Account("common@example.test", "password", None),
+        Account("same.as.email@example.test", "same.as.email@example.test", None),
+    ]
+    for account in accepted:
+        await register(anon_client, account)
+        await call(anon_client, "POST", LOGOUT, expect=204)
+        assert (await login(anon_client, account)).status_code == 200
 
 
 async def test_login_logout_and_the_same_answer_for_unknown_email(anon_client: httpx.AsyncClient) -> None:
@@ -190,144 +214,44 @@ async def test_closed_registration_allows_only_the_first_account(
 
 
 # ------------------------------------------------------------------------------------------------
-# Limits
+# No limits, no Origin check
 # ------------------------------------------------------------------------------------------------
 
 
-async def test_failed_sign_ins_are_limited_per_email(
-    settings_env: pytest.MonkeyPatch, db: None, queue: object
-) -> None:
-    _set(settings_env, AUTH_LOGIN_FAILURES_PER_EMAIL="3")
-    async with app_client() as client:
-        await register(client)
-        for _ in range(3):
-            await call(
-                client, "POST", LOGIN, expect=401, json={"email": REVIEWER.email, "password": "nope-nope-1"}
-            )
-        limited = await call(
-            client, "POST", LOGIN, expect=429, json={"email": REVIEWER.email, "password": REVIEWER.password}
+async def test_failed_sign_ins_are_never_locked_out(anon_client: httpx.AsyncClient) -> None:
+    await register(anon_client)
+    await call(anon_client, "POST", LOGOUT, expect=204)
+    proxied = {"X-Forwarded-For": "198.51.100.7"}
+    for _ in range(12):
+        wrong = {"email": REVIEWER.email, "password": "nope-nope-1"}
+        await call(anon_client, "POST", LOGIN, expect=401, json=wrong, headers=proxied)
+    assert (await login(anon_client)).status_code == 200
+    for n in range(12):
+        account = Account(f"user{n}@example.test", "fictional-pass-phrase-1", None)
+        body = {"email": account.email, "password": account.password}
+        await call(anon_client, "POST", REGISTER, expect=201, json=body, headers=proxied)
+
+
+async def test_writes_work_with_any_or_no_origin_header(anon_client: httpx.AsyncClient) -> None:
+    """Behind the web proxy the Origin may name any host: no write is refused because of it."""
+    client = anon_client
+    headers: list[dict[str, str]] = [
+        {},
+        {"Origin": "https://elsewhere.example"},
+        {"Referer": "https://elsewhere.example/page"},
+        {"Origin": "http://192.0.2.10:8080"},
+        {"Origin": "null"},
+    ]
+    body = {"email": REVIEWER.email, "password": REVIEWER.password, "display_name": REVIEWER.display_name}
+    await call(client, "POST", REGISTER, expect=201, json=body, headers=headers[1])
+    for sent in headers:
+        await call(client, "POST", "/api/v1/result-sets", expect=201, json={}, headers=sent)
+        await call(client, "POST", LOGOUT, expect=204, headers=sent)
+        assert (await client.get(ME)).status_code == 401
+        signed_in = await client.post(
+            LOGIN, json={"email": REVIEWER.email, "password": REVIEWER.password}, headers=sent
         )
-        assert limited.json()["code"] == "rate_limited"
-        assert 1 <= int(limited.headers["retry-after"]) <= 900
-        # Another email is not affected.
-        await call(client, "POST", LOGIN, expect=401, json={"email": SECOND.email, "password": "nope-nope-1"})
-
-
-async def test_failed_sign_ins_are_limited_per_client_address(
-    settings_env: pytest.MonkeyPatch, db: None, queue: object
-) -> None:
-    _set(settings_env, AUTH_LOGIN_FAILURES_PER_IP="2")
-    async with app_client() as client:
-        proxied = {"X-Forwarded-For": "198.51.100.7"}
-        for n in range(2):
-            body = {"email": f"guess{n}@example.test", "password": "nope-nope-1"}
-            await call(client, "POST", LOGIN, expect=401, json=body, headers=proxied)
-        body = {"email": "guess9@example.test", "password": "nope-nope-1"}
-        await call(client, "POST", LOGIN, expect=429, json=body, headers=proxied)
-        # The address our proxy appends last counts, so a different client is not limited.
-        await call(client, "POST", LOGIN, expect=401, json=body, headers={"X-Forwarded-For": "198.51.100.8"})
-
-
-async def test_registrations_are_limited_per_client_address(
-    settings_env: pytest.MonkeyPatch, db: None, queue: object
-) -> None:
-    _set(settings_env, AUTH_REGISTRATIONS_PER_IP="2")
-    async with app_client() as client:
-        for n in range(2):
-            await register(client, Account(f"user{n}@example.test", "fictional-pass-phrase-1", None))
-        limited = await call(
-            client,
-            "POST",
-            REGISTER,
-            expect=429,
-            json={"email": "user9@example.test", "password": "fictional-pass-phrase-1"},
-        )
-    assert limited.headers["retry-after"].isdigit()
-
-
-def test_sliding_window_counts_within_its_window() -> None:
-    now = [1000.0]
-    window = SlidingWindow(2, 60, clock=lambda: now[0])
-    assert window.retry_after("k") is None
-    window.hit("k")
-    window.hit("k")
-    assert window.retry_after("k") == 60
-    now[0] += 30
-    assert window.retry_after("k") == 30
-    now[0] += 31
-    assert window.retry_after("k") is None
-    window.hit("k")
-    window.reset("k")
-    assert window.retry_after("k") is None
-
-
-# ------------------------------------------------------------------------------------------------
-# Password change
-# ------------------------------------------------------------------------------------------------
-
-
-async def test_password_change_ends_the_other_sessions(client: httpx.AsyncClient) -> None:
-    async with app_client() as other:
-        assert (await login(other)).status_code == 200
-        wrong = await call(
-            client,
-            "POST",
-            PASSWORD,
-            expect=401,
-            json={"current_password": "not-the-password", "new_password": "a-new-fictional-pass"},
-        )
-        assert wrong.json()["code"] == "invalid_credentials"
-        await call(client, "GET", ME, expect=200)  # a wrong current password keeps the session
-        weak = await call(
-            client,
-            "POST",
-            PASSWORD,
-            expect=422,
-            json={"current_password": REVIEWER.password, "new_password": "1234567890"},
-        )
-        assert set(_fields(weak)) == {"new_password"}
-        new = "a-new-fictional-pass"
-        await call(
-            client,
-            "POST",
-            PASSWORD,
-            expect=204,
-            json={"current_password": REVIEWER.password, "new_password": new},
-        )
-        await call(client, "GET", ME, expect=200)
-        assert (await other.get(ME)).status_code == 401
-    old = await client.post(LOGIN, json={"email": REVIEWER.email, "password": REVIEWER.password})
-    assert old.status_code == 401
-    assert (await login(client, Account(REVIEWER.email, new, None))).status_code == 200
-
-
-# ------------------------------------------------------------------------------------------------
-# Writes from other sites
-# ------------------------------------------------------------------------------------------------
-
-
-async def test_writes_from_a_foreign_page_are_refused(client: httpx.AsyncClient) -> None:
-    foreign = {"Origin": "https://evil.example"}
-    refused = await client.post("/api/v1/result-sets", json={}, headers=foreign)
-    assert refused.status_code == 403 and refused.json()["code"] == "forbidden"
-    by_referer = await client.post(
-        "/api/v1/result-sets", json={}, headers={"Referer": "https://evil.example/page"}
-    )
-    assert by_referer.status_code == 403
-    login_from_elsewhere = await client.post(
-        LOGIN, json={"email": REVIEWER.email, "password": REVIEWER.password}, headers=foreign
-    )
-    assert login_from_elsewhere.status_code == 403
-    assert (await client.get("/api/v1/documents", headers=foreign)).status_code == 200  # reads pass
-    for allowed in ("http://testserver", "http://localhost:8080", "http://localhost:5173"):
-        response = await client.post("/api/v1/result-sets", json={}, headers={"Origin": allowed})
-        assert response.status_code == 201, (allowed, response.text)
-    proxied = await client.post(
-        "/api/v1/result-sets",
-        json={},
-        headers={"Origin": "http://192.0.2.10:8080", "Host": "192.0.2.10:8080"},
-    )
-    assert proxied.status_code == 201  # the page and the API share the host behind the web proxy
+        assert signed_in.status_code == 200, (sent, signed_in.text)
 
 
 # ------------------------------------------------------------------------------------------------
@@ -341,8 +265,6 @@ def test_password_hashes() -> None:
     assert verify_password(hashed, "fictional-pass-phrase-1")
     assert not verify_password(hashed, "fictional-pass-phrase-2")
     assert not verify_password("not-a-hash", "fictional-pass-phrase-1")
-    assert not needs_rehash(hashed) and needs_rehash("not-a-hash")
-    assert "qwertyuiop" in common_passwords() and all(p == p.lower() for p in common_passwords())
 
 
 async def test_users_cli(db: None, queue: object) -> None:
@@ -352,13 +274,17 @@ async def test_users_cli(db: None, queue: object) -> None:
     assert "reviewer" in await users_cli.create("helper@example.test", "fictional-pass-phrase-2", None, None)
     with pytest.raises(users_cli.UsageError, match="exists already"):
         await users_cli.create("lead@example.test", "fictional-pass-phrase-3", None, None)
-    with pytest.raises(users_cli.UsageError, match="too common"):
-        await users_cli.create("third@example.test", "password123", None, None)
+    with pytest.raises(users_cli.UsageError, match="at least 8"):
+        await users_cli.create("third@example.test", "seven-7", None, None)
+    with pytest.raises(users_cli.UsageError, match=r"name@example\.org"):
+        await users_cli.create("not-an-email", "fictional-pass-phrase-3", None, None)
     assert "now admin" in await users_cli.set_role("HELPER@example.test", "admin")
     async with app_client() as client:
         assert (
             await login(client, Account("lead@example.test", "fictional-pass-phrase-1", None))
         ).status_code == 200
+        with pytest.raises(users_cli.UsageError, match="at most 128"):
+            await users_cli.reset_password("lead@example.test", "x" * 129)
         reset = await users_cli.reset_password("lead@example.test", "a-new-fictional-pass")
         assert "ended" in reset
         assert (await client.get(ME)).status_code == 401

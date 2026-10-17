@@ -543,6 +543,8 @@ ROWS: tuple[tuple[str, _RowSpec], ...] = (
                 "moisture_raw",
                 "weathering_raw",
                 "stratigraphic_name_raw",
+                "engineering_soil_unit_raw",
+                "geologic_age_raw",
             ),
             True,
         ),

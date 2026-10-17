@@ -57,7 +57,14 @@ HOLES = (
         12.0,
         [
             {"depth_from_m": 0.0, "depth_to_m": 4.0, "din4023_code": "S", "spt_n_value": 10},
-            {"depth_from_m": 4.0, "depth_to_m": 12.0, "din4023_code": "T", "spt_n_value": 20},
+            {
+                "depth_from_m": 4.0,
+                "depth_to_m": 12.0,
+                "din4023_code": "T",
+                "spt_n_value": 20,
+                "engineering_soil_unit": "HB 2 (fictional)",
+                "geologic_age": "Quaternary",
+            },
         ],
         approved=True,
         water=3.5,
@@ -374,6 +381,9 @@ async def test_get_borehole_is_trimmed(db: None) -> None:
     assert out["borehole_id"] == "CR-1" and out["review_status"] == "approved" and out["plotted"] is True
     assert [layer["index"] for layer in out["layers"]] == [0, 1] and out["layer_count"] == 2
     assert out["layers"][1]["din4023_code"] == "T" and out["groundwater"][0]["depth_m"] == 3.5
+    top, clay = out["layers"]
+    assert (clay["engineering_soil_unit"], clay["geologic_age"]) == ("HB 2 (fictional)", "Quaternary")
+    assert "engineering_soil_unit" not in top and "geologic_age" not in top  # unknown is left out
     assert isinstance(out["lint_count"], int) and out["metadata"]["borehole_depth_m"] == 12.0
     assert out["source_file"].startswith("fictional-")
     missing = await run_tool(state_for(), "get_borehole", {"uid": "bh_missing"})

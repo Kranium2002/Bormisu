@@ -19,7 +19,13 @@ import pytest
 from sqlalchemy import select
 
 from app.clarify.answers import answer_clarification
-from app.clarify.checks import SourceReading, ask_conflicting_sources, distinct_readings, needs_location
+from app.clarify.checks import (
+    SourceReading,
+    ask_conflicting_sources,
+    distinct_readings,
+    needs_location,
+    printed_place,
+)
 from app.clarify.duplicates import page_copies
 from app.clarify.service import clarification_out
 from app.db.models import Borehole, Clarification, Document, Event, FieldValue, Page, Revision
@@ -203,11 +209,15 @@ def test_distinct_readings_compare_numbers_with_a_tolerance_and_text_without_cas
 
 
 def test_needs_location_only_without_any_coordinate() -> None:
+    assert needs_location({"metadata": {"location_name": " Fictional Quarry Road "}})
+    assert needs_location({"metadata": {"coordinates": {}}}) and needs_location({})
+    assert needs_location({"metadata": {"coordinates": {"x_raw": "", "latitude": None}}})
+    assert not needs_location({"metadata": {"location_name": "X", "coordinates": {"x_raw": "413210"}}})
+    assert not needs_location({"metadata": {"coordinates": {"latitude": 48.1}}})
     assert (
-        needs_location({"metadata": {"location_name": " Fictional Quarry Road "}}) == "Fictional Quarry Road"
+        printed_place({"metadata": {"location_name": " Fictional Quarry Road "}}) == "Fictional Quarry Road"
     )
-    assert needs_location({"metadata": {"location_name": "X", "coordinates": {"x_raw": "413210"}}}) is None
-    assert needs_location({"metadata": {"coordinates": {}}}) is None
+    assert printed_place({"metadata": {"location_name": "  "}}) is None and printed_place({}) is None
 
 
 # ----------------------------------------------------------------------------------------------
@@ -737,7 +747,7 @@ async def test_a_consistent_note_asks_nothing(db: None) -> None:
 
 
 @pytest.mark.db
-async def test_a_borehole_without_coordinates_but_with_a_place_is_asked_to_be_located(db: None) -> None:
+async def test_every_borehole_without_coordinates_is_asked_to_be_located(db: None) -> None:
     async with get_sessionmaker()() as session:
         doc = await new_document(session, "doc_01JCHECKS0000000000000LC1", file_name="fictional-quarry.pdf")
         unplaced = {
@@ -751,13 +761,21 @@ async def test_a_borehole_without_coordinates_but_with_a_place_is_asked_to_be_lo
         c = await add_borehole(session, doc, "g3", utm_body("Q-5", 320512.0, 5812334.0, location_name="X"))
         await session.commit()
     await finalize_document(doc.id)
-    await finalize_document(doc.id)
-    (question,) = await clarifications("locate_borehole")
-    await assert_contract(question)
-    assert question.borehole_uids == [a.uid] and "Fictional Quarry Road" in question.question
-    assert [f["widget"] for f in question.fields] == ["map_point", "text"]
+    await finalize_document(doc.id)  # idempotent: still one question per borehole
+    asked = {q.borehole_uids[0]: q for q in await clarifications("locate_borehole")}
+    assert sorted(asked) == sorted([a.uid, b.uid]) and c.uid not in asked  # c has printed coordinates
+    for one in asked.values():
+        await assert_contract(one)
+        assert len(one.borehole_uids) == 1 and [f["widget"] for f in one.fields] == ["map_point", "text"]
+        assert one.fields[0]["required"] is True
+    question = asked[a.uid]
+    assert "Fictional Quarry Road" in question.question
     assert question.evidence[0]["page"] == 2 and question.evidence[0]["snippet"] == "Fictional Quarry Road"
-    assert b.uid and c.uid  # no coordinates and no place, or printed coordinates: nothing to ask
+    # No coordinates and no place: still asked, pointing at the log that names the borehole.
+    nowhere_question = asked[b.uid]
+    assert "Q-4" in nowhere_question.question and "no place name" in nowhere_question.question
+    assert "page 3" in nowhere_question.fields[0]["help"]
+    assert [(e["page"], e["snippet"]) for e in nowhere_question.evidence] == [(3, "Q-4")]
 
     await answer(
         question.id, {"location": {"lat": -33.91, "lon": 151.07}, "source_note": "site plan, sheet 2"}
@@ -771,6 +789,12 @@ async def test_a_borehole_without_coordinates_but_with_a_place_is_asked_to_be_lo
         )
         assert last is not None and last.action == "locate" and "site plan, sheet 2" in last.changes["note"]
         assert (await session.get(Clarification, question.id)).status == "answered"  # type: ignore[union-attr]
+
+    await answer(nowhere_question.id, {"location": {"lat": 47.99, "lon": 7.85}})
+    placed = await record_of(b.uid)
+    assert placed.plotted and placed.unplotted_reason is None
+    assert (placed.metadata.coordinates.latitude, placed.metadata.coordinates.longitude) == (47.99, 7.85)
+    assert placed.provenance["metadata.coordinates.longitude"].method == "edited"
 
 
 @pytest.mark.db

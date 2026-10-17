@@ -1,4 +1,4 @@
-"""Accounts: register, authenticate, change or reset a password, set a role. Used by the routes and the CLI.
+"""Accounts: register, authenticate, reset a password. Used by the routes and the CLI.
 
 The first account becomes admin, later ones reviewer (an advisory lock makes two simultaneous first
 registrations safe). Hashing runs in a worker thread so it never blocks the event loop.
@@ -12,7 +12,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.passwords import burn_verify, hash_password, needs_rehash, verify_password
+from app.auth.passwords import burn_verify, hash_password, verify_password
 from app.auth.sessions import end_sessions
 from app.db.models import User
 from app.errors import ApiError
@@ -76,28 +76,18 @@ async def create_user(
 
 
 async def authenticate(session: AsyncSession, email: str, password: str) -> User | None:
-    """The account when the email and password match, else None (same time either way)."""
+    """The account when the email and password match, else None (the same answer either way)."""
     user = await user_by_email(session, email) if email else None
     if user is None or len(password) > PASSWORD_MAX_LENGTH:
         await asyncio.to_thread(burn_verify, password[:PASSWORD_MAX_LENGTH])
         return None
     if not await asyncio.to_thread(verify_password, user.password_hash, password):
         return None
-    if needs_rehash(user.password_hash):
-        user.password_hash = await asyncio.to_thread(hash_password, password)
     return user
 
 
-async def set_password(
-    session: AsyncSession, user: User, new_password: str, *, keep_session_hash: str | None = None
-) -> None:
-    """Store a new password and end the user's sessions (all, or all but `keep_session_hash`)."""
+async def set_password(session: AsyncSession, user: User, new_password: str) -> None:
+    """Store a new password (command-line reset) and end every session of the user."""
     user.password_hash = await asyncio.to_thread(hash_password, new_password)
-    await end_sessions(session, user.id, keep_hash=keep_session_hash)
+    await end_sessions(session, user.id)
     await session.flush()
-
-
-async def password_matches(user: User, password: str) -> bool:
-    if len(password) > PASSWORD_MAX_LENGTH:
-        return False
-    return await asyncio.to_thread(verify_password, user.password_hash, password)

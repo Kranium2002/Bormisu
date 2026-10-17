@@ -3,12 +3,13 @@
     python -m app.users create --email EMAIL [--name NAME] [--role reviewer|admin] [--password PASSWORD]
     python -m app.users reset-password --email EMAIL [--password PASSWORD]
     python -m app.users set-role --email EMAIL --role reviewer|admin
+    python -m app.users sign-out --email EMAIL
     python -m app.users list
 
 In docker compose: `docker compose exec api python -m app.users ...`. Without --password the password is
-asked for twice (not echoed). The rules are the same as in the browser (app.auth.policy). A new account
-without --role becomes admin when it is the first one, else reviewer. A password reset ends every session
-of that user.
+asked for twice (not echoed). The rules are the same as in the browser (app.auth.policy: a password has 8
+to 128 characters). A new account without --role becomes admin when it is the first one, else reviewer.
+A password reset ends every session of that user (there is no password change in the browser).
 """
 
 from __future__ import annotations
@@ -21,12 +22,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 
-from app.auth.policy import (
-    checked_registration,
-    email_error,
-    new_password_error,
-    normalize_email,
-)
+from app.auth.policy import checked_registration, email_error, normalize_email, password_error
 from app.auth.service import create_user, set_password, user_by_email
 from app.auth.sessions import end_sessions
 from app.db.models import User
@@ -45,9 +41,9 @@ def _messages(error: ApiError) -> str:
     return error.detail
 
 
-def _ask_password(email: str) -> str:
+def _ask_password() -> str:
     first = getpass.getpass("New password: ")
-    if (problem := new_password_error(first, email)) is not None:
+    if (problem := password_error(first)) is not None:
         raise UsageError(f"password: {problem}")
     if getpass.getpass("Repeat the password: ") != first:
         raise UsageError("The passwords do not match.")
@@ -58,7 +54,7 @@ async def create(email: str, password: str | None, name: str | None, role: Role 
     email = normalize_email(email)
     if (problem := email_error(email)) is not None:
         raise UsageError(f"email: {problem}")
-    password = password if password is not None else _ask_password(email)
+    password = password if password is not None else _ask_password()
     try:
         email, display_name = checked_registration(email, password, name)
     except ApiError as exc:
@@ -85,8 +81,8 @@ async def _existing(email: str) -> tuple[str, User]:
 
 async def reset_password(email: str, password: str | None) -> str:
     email, _ = await _existing(email)
-    password = password if password is not None else _ask_password(email)
-    if (problem := new_password_error(password, email)) is not None:
+    password = password if password is not None else _ask_password()
+    if (problem := password_error(password)) is not None:
         raise UsageError(f"password: {problem}")
     async with get_sessionmaker()() as session:
         user = await user_by_email(session, email)

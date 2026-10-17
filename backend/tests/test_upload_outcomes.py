@@ -11,7 +11,8 @@ provider is called. Every API response is checked against the contract.
 (c) no coordinates, a printed place        -> not plotted (no_coordinates) + one locate_borehole question;
                                               the map_point answer plots it
 (d) no coordinates and no place            -> not plotted (no_coordinates), listed with its reason in
-                                              GET /boreholes?plotted=false; no question is asked
+                                              GET /boreholes?plotted=false + one locate_borehole question;
+                                              the map_point answer plots it
 (e) a provider failure                     -> failed with a readable error, failed_stage and job.failed;
                                               POST /retry finishes the document once the provider answers
 (f) only narrative pages                   -> needs_review with found.boreholes 0, every page with the
@@ -417,11 +418,11 @@ async def test_a_place_without_coordinates_ends_in_a_locate_question(
 
 
 # ----------------------------------------------------------------------------------------------
-# (d) No coordinates and no place: listed as not on the map, with its reason
+# (d) No coordinates and no place: listed as not on the map, asked to be located; the map point plots
 # ----------------------------------------------------------------------------------------------
 
 
-async def test_no_coordinates_and_no_place_is_listed_not_on_map(
+async def test_no_coordinates_and_no_place_ends_in_a_locate_question(
     client: httpx.AsyncClient, live_mode: None, queue: Any, providers: Providers
 ) -> None:
     pdf = report(log_page("OX-5", "Project: Fictional Ditch"), cover="FICTIONAL REPORT D")
@@ -442,9 +443,30 @@ async def test_no_coordinates_and_no_place_is_listed_not_on_map(
         (record["uid"], "no_coordinates")
     ]
     assert await map_points(client) == {}
-    # Nothing to ask about: no question, and the record stays reviewable like any other.
-    assert await questions(client) == [] and doc["open_clarifications"] == 0
     assert record["stratigraphy"] and record["metadata"]["borehole_depth_m"] == 4.2
+
+    # Nothing in the report places it, so a reviewer is asked to: one locate_borehole question.
+    assert doc["open_clarifications"] == 1 and record["open_clarifications"] == 1
+    (question,) = await questions(client)
+    assert question["kind"] == "locate_borehole" and question["borehole_uids"] == [record["uid"]]
+    assert "OX-5" in question["question"] and "no place name" in question["question"]
+    point_field = next(f for f in question["fields"] if f["widget"] == "map_point")
+    assert point_field["required"] is True
+    assert question["evidence"][0]["page"] == 2 and question["evidence"][0]["box"] is not None
+
+    # Before the answer the coordinates have no provenance entry, so they cannot be patched directly.
+    patch = {"path": "metadata.coordinates.latitude", "action": "edit", "value": 48.1}
+    refused = await call(client, "PATCH", f"/api/v1/boreholes/{record['uid']}/values", expect=404, json=patch)
+    assert refused["code"] == "path_not_found"
+
+    await answer(client, question, {point_field["name"]: {"lat": 48.0101, "lon": 7.8302}})
+    pins = await map_points(client)
+    assert pins[record["uid"]] == pytest.approx((7.8302, 48.0101))
+    placed = (await records(client, doc_id))["OX-5"]
+    assert (placed["plotted"], placed["unplotted_reason"]) == (True, None)
+    assert placed["provenance"]["metadata.coordinates.latitude"]["method"] == "edited"
+    assert (await call(client, "GET", "/api/v1/boreholes?plotted=false", expect=200))["count"] == 0
+    assert (await document(client, doc_id))["open_clarifications"] == 0
 
 
 # ----------------------------------------------------------------------------------------------

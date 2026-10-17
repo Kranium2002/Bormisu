@@ -106,7 +106,6 @@ REQUIRED_FILES = {
     "UserAnswer.json",
     "AuthRegisterRequest.json",
     "AuthLoginRequest.json",
-    "AuthPasswordChange.json",
     "chat/turn.sse",
     "chat/error.sse",
 }
@@ -1126,13 +1125,16 @@ def test_version_has_a_changelog_entry() -> None:
         "/api/v1/auth/login",
         "/api/v1/auth/logout",
         "/api/v1/auth/me",
-        "/api/v1/auth/password",
+        "8 to 128 characters",
+        "no rate limits",
         "not_authenticated",
         "Health.auth",
         "cookieAuth",
         "confirmed_by",
     ):
         assert addition in entry, addition
+    for dropped in ("/api/v1/auth/password", "AuthPasswordChange", "RateLimited", "429"):
+        assert dropped not in entry, dropped
     previous = _section(changelog, "## 1.2.0 ", "\n## ")
     for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
         assert addition in previous, addition
@@ -1201,7 +1203,8 @@ PUBLIC_OPERATIONS = {"getHealth", "getHealthV1", "register", "login"}
 
 
 def test_contract_1_3_sign_in() -> None:
-    """1.3.0: a cookie session on every operation except health, register and login (logout: optional)."""
+    """1.3.0 (minimal): a cookie session on every operation except health, register and login (logout:
+    optional); no password change, no rate limits, no Origin check, passwords of 8 to 128 characters."""
     scheme = SPEC["components"]["securitySchemes"]["cookieAuth"]
     assert (scheme["type"], scheme["in"], scheme["name"]) == ("apiKey", "cookie", "gm_session")
     assert SPEC["security"] == [{"cookieAuth": []}]
@@ -1220,17 +1223,25 @@ def test_contract_1_3_sign_in() -> None:
             else:
                 assert "security" not in operation, f"{op_id} overrides the default security"
                 assert "401" in operation["responses"], f"{method.upper()} {template} declares no 401"
-                if op_id != "changePassword":
-                    assert operation["responses"]["401"] == not_authenticated, op_id
-    assert {"register", "login", "logout", "getMe", "changePassword"} <= seen
+                assert operation["responses"]["401"] == not_authenticated, op_id
+            if template.startswith("/api/v1/auth/"):
+                assert "429" not in operation["responses"], f"{op_id}: sign-in has no rate limits"
+    assert {"register", "login", "logout", "getMe"} <= seen
+    assert "changePassword" not in seen and "/api/v1/auth/password" not in SPEC["paths"]
+    assert "AuthPasswordChange" not in SCHEMAS and "RateLimited" not in SPEC["components"]["responses"]
+    assert "8 to 128 characters" in SCHEMAS["AuthRegisterRequest"]["description"]
+    assert "common" not in SCHEMAS["AuthRegisterRequest"]["description"]
+    assert "no Origin or Referer check" in SPEC["info"]["description"]
+    logout = SPEC["paths"]["/api/v1/auth/logout"]["post"]["responses"]
+    assert set(logout) == {"204"}, "logout answers 204 whatever the request"
     auth = SCHEMAS["Health"]["properties"]["auth"]
     assert "auth" not in SCHEMAS["Health"]["required"], "additive: optional inside 1.x"
     assert auth["properties"]["registration"]["enum"] == ["open", "closed"]
     assert SCHEMAS["User"]["properties"]["role"]["enum"] == ["reviewer", "admin"]
     assert SCHEMAS["UserAnswer"]["properties"]["user"] == {"$ref": "#/components/schemas/User"}
     register = SPEC["paths"]["/api/v1/auth/register"]["post"]["responses"]
-    assert {"201", "403", "409", "422", "429"} <= set(register)
-    retry_after = SPEC["components"]["responses"]["RateLimited"]["headers"]["Retry-After"]
-    assert retry_after["schema"]["type"] == "integer"
+    assert set(register) == {"201", "403", "409", "422"}
+    login = SPEC["paths"]["/api/v1/auth/login"]["post"]["responses"]
+    assert set(login) == {"200", "401", "422"}
     for section in (_section(REALTIME_MD, "## 1.", "## 2."), _section(REALTIME_MD, "## 2.", "### 2.1")):
         assert "not_authenticated" in section and "gm_session" in section

@@ -521,6 +521,8 @@ _LAYER_FIELDS = (
     "din4023_code",
     "uscs_group",
     "stratigraphic_name",
+    "engineering_soil_unit",
+    "geologic_age",
     "spt_n_value",
     "spt_refusal",
     "rqd_pct",

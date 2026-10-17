@@ -1,9 +1,11 @@
 """Sign-in (contract 1.3.0): email and password accounts, cookie sessions, the signed-in user as actor.
 
-- `passwords`: argon2id hashes and the common-password list (data/common_passwords.txt).
-- `policy`: the rules for emails, passwords and display names, as 422 field errors.
+Minimal by design (hackathon scope): register, login, logout, me; no rate limits, no Origin check, no
+password change in the browser (reset from the command line: python -m app.users).
+
+- `passwords`: argon2id hashes.
+- `policy`: the rules for emails, passwords (8 to 128 characters) and display names, as 422 field errors.
 - `sessions`: the `gm_session` cookie and the `sessions` table (SHA-256 of the token, never the token).
-- `limits`: in-memory sign-in and registration limits per API process.
-- `service`: register, authenticate, change password, set role (shared by the routes and the CLI).
-- `deps`: `current_user` (every protected route), `actor_name`, the Origin check on writes.
+- `service`: register, authenticate, reset a password (shared by the routes and the CLI).
+- `deps`: `current_user` (every protected route) and `actor_name`.
 """

@@ -1,7 +1,8 @@
 """Questions raised by document-level checks (BACKEND.md 7.8 and 7.9) and what their answers change.
 
-* `locate_borehole`: a borehole without any printed coordinate but with a printed location name. The answer
-  (a map point) is applied by app.clarify.answers through app.review.service.set_manual_location.
+* `locate_borehole`: a borehole without any printed coordinate, with or without a printed location name,
+  so a reviewer can always place it. The answer (a map point) is applied by app.clarify.answers through
+  app.review.service.set_manual_location.
 * `datum_convention`: a depth sign or origin note that the printed layer depths contradict (the finding
   comes from app.validate.datum). One question per document and kind; it grows to cover every borehole of
   the document with the same contradiction.
@@ -38,6 +39,7 @@ from app.validate.datum import CONVENTION_OPTIONS, DatumFinding
 from app.validate.document import section
 
 LOCATION_PATH = "metadata.location_name"
+LABEL_PATH = "metadata.borehole_id"
 DEPTH_ORIGIN_PATH = "metadata.depth_origin"
 COORDINATE_KEYS = ("latitude", "longitude", "local_x", "local_y", "x_raw", "y_raw")
 
@@ -70,19 +72,32 @@ class EvidenceEntry:
 # ----------------------------------------------------------------------------------------------
 
 
-def needs_location(record: dict[str, Any]) -> str | None:
-    """The printed location name of a record that has no coordinate at all; None otherwise."""
+def needs_location(record: dict[str, Any]) -> bool:
+    """True when the record has no coordinate at all (nothing a coordinate system could place)."""
     meta = record.get("metadata") or {}
     coords = meta.get("coordinates") or {}
-    if any(coords.get(key) not in (None, "") for key in COORDINATE_KEYS):
-        return None
-    location = meta.get("location_name")
+    return not any(coords.get(key) not in (None, "") for key in COORDINATE_KEYS)
+
+
+def printed_place(record: dict[str, Any]) -> str | None:
+    """The printed location name of a record, trimmed; None when none is printed."""
+    location = (record.get("metadata") or {}).get("location_name")
     return location.strip() if isinstance(location, str) and location.strip() else None
 
 
+async def _evidence(
+    session: AsyncSession, bh: Borehole, doc: Document, path: str, fallback: str | None
+) -> EvidenceEntry | None:
+    """Where the value at `path` is printed (page and box), or None without a page."""
+    source = await session.get(FieldValue, (bh.uid, path))
+    if source is None or source.page is None:
+        return None
+    return EvidenceEntry(source.document_id or doc.id, source.page, source.box, source.raw or fallback)
+
+
 async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
-    """One `locate_borehole` question per borehole of `doc` without coordinates but with a printed place.
-    Returns how many questions were asked for the first time."""
+    """One `locate_borehole` question per borehole of `doc` without any coordinate, with or without a printed
+    place name. Returns how many questions were asked for the first time."""
     boreholes = (
         await session.scalars(
             select(Borehole)
@@ -92,34 +107,39 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
     ).all()
     asked = 0
     for bh in boreholes:
-        location = needs_location(bh.record)
-        if location is None:
+        if not needs_location(bh.record):
             continue
         key = f"locate_borehole:{bh.uid}"
         if await session.scalar(select(Clarification.id).where(Clarification.dedupe_key == key)) is not None:
             continue
-        source = await session.get(FieldValue, (bh.uid, LOCATION_PATH))
-        evidence = []
-        where = ""
-        if source is not None and source.page is not None:
-            evidence.append(
-                EvidenceEntry(source.document_id or doc.id, source.page, source.box, source.raw or location)
+        location = printed_place(bh.record)
+        if location is not None:
+            entry = await _evidence(session, bh, doc, LOCATION_PATH, location)
+            where = f" (page {entry.page})" if entry is not None else ""
+            question = (
+                f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
+                f"'{location}'. Where was it drilled?"
             )
-            where = f" (page {source.page})"
+            help_text = f"Printed location: {location}{where}."
+        else:
+            entry = await _evidence(session, bh, doc, LABEL_PATH, bh.label_raw)
+            where = f" (the log is on page {entry.page})" if entry is not None else ""
+            question = (
+                f"{bh.label_raw} has no coordinates and no place name in {doc.file_name}. "
+                "Where was it drilled?"
+            )
+            help_text = f"Nothing printed places it{where}: use a site plan or another source."
         await create_clarification(
             session,
             kind="locate_borehole",
             document_id=doc.id,
-            question=(
-                f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
-                f"'{location}'. Where was it drilled?"
-            ),
+            question=question,
             fields=[
                 {
                     "name": "location",
                     "widget": "map_point",
                     "label": "Click the borehole position on the map",
-                    "help": f"Printed location: {location}{where}.",
+                    "help": help_text,
                     "required": True,
                 },
                 {
@@ -129,7 +149,7 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
                     "required": False,
                 },
             ],
-            evidence=[e.as_dict() for e in evidence],
+            evidence=[entry.as_dict()] if entry is not None else [],
             borehole_uids=[bh.uid],
             project=doc.project,
             dedupe_key=key,

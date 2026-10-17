@@ -24,9 +24,9 @@ Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on th
 
 ### Accounts and sign-in
 
-- Sign in with email and password. Every page and every API route except `/api/health`, register and login needs a session. Any signed-in user can read, review and upload; your name (or your email when you set no name) is recorded on every change you make.
-- Sessions last until you sign out. Changing your password signs out your other browsers.
-- More accounts, a forgotten password or a role change are handled on the server, because there is no email verification or reset by email (hackathon scope):
+- Register with an email and a password of 8 to 128 characters; the first account becomes admin. Every page and every API route except `/api/health`, register and login needs a session. Any signed-in user can read, review and upload; your name (or your email when you set no name) is recorded on every change you make.
+- Sign-in is deliberately minimal (hackathon scope): sessions last until you sign out, there are no attempt limits, and there is no password change in the browser.
+- More accounts, a forgotten password or a role change are handled on the server, because there is no email verification or reset by email:
 
   ```bash
   docker compose exec api python -m app.users create --email reviewer@example.org --name "A Reviewer"
@@ -129,4 +129,4 @@ No challenge or customer data is committed: no sample files, no values copied fr
 - **Conflicting values:** a value printed differently in a summary table and in a log is only asked about once the extractor reports both readings; the question type and its answer handling are in place.
 - **Chat units:** the chat tools return metres; feet are converted in the answer text.
 - **ARM machines:** `postgis/postgis` publishes amd64 images only, so on ARM the database runs under emulation.
-- **Accounts:** no email verification and no password reset by email; an admin resets passwords with `python -m app.users`. Sign-in attempt limits are kept in memory per API process, so a restart clears them.
+- **Accounts:** minimal sign-in: no email verification, no password reset by email or change in the browser (an admin resets passwords with `python -m app.users`), no sign-in attempt limits and no session expiry.

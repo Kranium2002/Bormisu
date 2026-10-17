@@ -113,7 +113,7 @@ def queue() -> Iterator[object]:
 
 @asynccontextmanager
 async def app_client() -> AsyncIterator[httpx.AsyncClient]:
-    """A fresh app (own sign-in limits) and an HTTP client with no session, the queue open."""
+    """A fresh app and an HTTP client with no session, the queue open."""
     from app.main import create_app
     from app.queue import queue_app
 
