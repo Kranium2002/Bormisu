@@ -55,13 +55,13 @@
   /* 04 World: Herrenknecht green. Zoom out from Offenburg, countries turn dark, one white dot per machine (world.js) */
   .world { padding: 0; background: var(--hk-green, #7DB713); }
   .worldmap { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .worldmap .land { fill: rgba(24,24,24,0.16); stroke: rgba(125,183,19,1); stroke-width: 0.7; vector-effect: non-scaling-stroke; transition: fill .8s ease; }
-  .worldmap .land.hk { fill: #181818; }
+  .worldmap .land { fill: rgba(255,255,255,0.45); stroke: var(--hk-green); stroke-width: 0.9; vector-effect: non-scaling-stroke; transition: fill .8s ease; }
+  .worldmap .land.hk { fill: #111; }
   .worldmap .home { fill: #fff; stroke: #181818; stroke-width: 2; }
   .worldmap .home-label { font: 700 24px var(--text); fill: #181818; letter-spacing: 0.04em; }
-  .worldmap .dot { fill: #fff; stroke: #181818; stroke-width: 0.6; }
-  .worldmap .count { font: 700 40px var(--display); fill: #181818; }
-  .worldmap .count-sub { font: 700 18px var(--text); fill: rgba(24,24,24,0.75); letter-spacing: 0.14em; text-transform: uppercase; }
+  .worldmap .dot { fill: #fff; stroke: #111; stroke-width: 1.2; }
+  .worldmap .count { font: 700 44px var(--display); fill: #111; }
+  .worldmap .count-sub { font: 700 18px var(--text); fill: #111; letter-spacing: 0.14em; text-transform: uppercase; }
 
   /* 05 Stuttgart 21 */
   .s21 { background: #111 url("img/s21.jpg") center / cover no-repeat; color: #fff; }

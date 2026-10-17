@@ -54,7 +54,7 @@
     frame(m, W / 2, H / 2, 1);
     m.zoom.selectAll('.land').classed('hk', function () { return this.dataset.hk === '1'; });
     m.dotLayer.selectAll('circle').data(m.dots).join('circle').attr('class', 'dot')
-      .attr('cx', (d) => d.x).attr('cy', (d) => d.y).attr('r', 4);
+      .attr('cx', (d) => d.x).attr('cy', (d) => d.y).attr('r', 4.6);
     m.num.text(m.total.toLocaleString('en-US'));
     m.label.style('opacity', 1);
     m.home.select('text').style('opacity', 0);
@@ -101,7 +101,7 @@
     const n = m.dots.length, spread = 1600;
     m.dotLayer.selectAll('circle').data(m.dots).join('circle').attr('class', 'dot')
       .attr('cx', (d) => d.x).attr('cy', (d) => d.y).attr('r', 0)
-      .transition().delay((_, i) => 500 + (i / n) * spread).duration(350).ease(d3.easeBackOut).attr('r', 4);
+      .transition().delay((_, i) => 500 + (i / n) * spread).duration(350).ease(d3.easeBackOut).attr('r', 4.6);
     m.home.select('circle').transition().duration(400).attr('r', 7);
     m.label.transition().delay(500).duration(400).style('opacity', 1);
     m.num.transition().delay(500).duration(spread + 350)
