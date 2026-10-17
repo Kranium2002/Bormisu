@@ -135,11 +135,19 @@ The symbols only: the horizontal depth line (stroke width 5 at scale 1), numbers
 | groundwater | `struck` | open triangle on its tip, tip on the line at the depth where water was struck; depth above the line, date `(YYYY-MM-DD)` below it in brackets |
 | groundwater | `after_drilling` | half-filled triangle: level after drilling, or after the water level changed; date in brackets plus hours since drilling stopped / paused: `(2021-09-30) 3 h` |
 | groundwater | `rest` | filled triangle: rest water level in an observation well; date **without** brackets |
-| groundwater | `rise` | arrow up from the struck level to the risen level. `parts`: `top` chevron with its tip on the risen level, `bottom` (same chevron) with its legs on the struck level, a straight shaft (`shaft_width`) joining the two tips. `svg` is a preview at the norm's length |
-| groundwater | `fall` | arrow down: `top` V with its legs on the struck level, `bottom` arrowhead below it, shaft joining the tips |
+| groundwater | `rise` | arrow up from the struck level to the risen level, stretchable in y (see below). `top` = arrowhead, its top edge on the risen level; `bottom` = foot, its bottom edge on the struck level. `svg` is a preview at the norm's length |
+| groundwater | `fall` | arrow down: `top` = V, its top edge on the struck level; `bottom` = arrowhead at the end of the arrow |
 | joints | `dip` | drawn for dip direction 0° (arrow up). Rotate clockwise by the dip direction around `anchor` (135 → arrow to SE); write `dip direction / dip` along the line, e.g. `135 / 25` |
 
-Scale like the rest: one uniform factor for the whole drawing, never stretch a symbol (except the arrow shafts, which are plain lines).
+**Stretchable arrows (`rise`, `fall`).** `parts` has three files, all 70 wide with the shaft at x = 35:
+```
+top     groundwater_<rise|fall>_top.svg      62 high, fixed
+middle  groundwater_arrow_middle.svg         10 high, repeat in y for any length
+bottom  groundwater_<rise|fall>_bottom.svg   62 high, fixed
+```
+Stack them: top at the upper level, bottom ending at the lower level, the middle tile repeated in the gap (gap = distance − 124 at scale 1; a partly cut last tile is fine, it is a straight line). Gap below 0: the levels are too close for an arrow, draw only the triangles. Browsers can show a hairline where two images meet: overlap the parts by 1 unit.
+
+Scale like the rest: one uniform factor for the whole drawing, never stretch a symbol.
 
 ## Source
 Symbols traced from the tables of DIN 4023:2023-02 (Tables 1–3), colours from its Annex A; Table 5 and Table 6 symbols redrawn as vectors from the norm's measurements. The norm itself is published and copyrighted by DIN Media.

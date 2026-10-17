@@ -92,20 +92,26 @@
   "repeat_y": false,
   "parts": {
    "top": {
-    "svg": "left_symbols/chevron_up.svg",
+    "svg": "left_symbols/groundwater_rise_top.svg",
+    "height": 62,
     "anchor": [
      35,
      0
     ]
    },
+   "middle": {
+    "svg": "left_symbols/groundwater_arrow_middle.svg",
+    "height": 10,
+    "repeat_y": true
+   },
    "bottom": {
-    "svg": "left_symbols/chevron_up.svg",
+    "svg": "left_symbols/groundwater_rise_bottom.svg",
+    "height": 62,
     "anchor": [
      35,
      62
     ]
-   },
-   "shaft_width": 5
+   }
   }
  },
  {
@@ -120,20 +126,26 @@
   "repeat_y": false,
   "parts": {
    "top": {
-    "svg": "left_symbols/chevron_down.svg",
+    "svg": "left_symbols/groundwater_fall_top.svg",
+    "height": 62,
     "anchor": [
      35,
      0
     ]
    },
+   "middle": {
+    "svg": "left_symbols/groundwater_arrow_middle.svg",
+    "height": 10,
+    "repeat_y": true
+   },
    "bottom": {
-    "svg": "left_symbols/chevron_down.svg",
+    "svg": "left_symbols/groundwater_fall_bottom.svg",
+    "height": 62,
     "anchor": [
      35,
      62
     ]
-   },
-   "shaft_width": 5
+   }
   }
  },
  {
