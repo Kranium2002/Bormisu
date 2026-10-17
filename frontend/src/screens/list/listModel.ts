@@ -10,7 +10,7 @@ import type { Borehole } from '../../domain/types';
 import type { ResultRow, SortKey } from '../map/explore/resultsModel';
 
 /** Narrowest widths (px) of the columns that are always there. */
-export const FIXED_MIN = { borehole: 110, project: 180, status: 170, action: 210 } as const;
+export const FIXED_MIN = { borehole: 90, project: 150, status: 150, action: 190 } as const;
 /** The table's side padding (2 × --space-3). */
 const TABLE_PADDING = 24;
 

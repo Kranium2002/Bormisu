@@ -131,8 +131,9 @@ test.describe('review', () => {
     await expect(page.getByRole('status').getByRole('button', { name: 'SHOW ON MAP' })).toBeVisible();
     await expect(row(page, 'CoordinateSystem').getByText('confirmed for the whole document')).toBeVisible();
 
-    await nav(page, 'MAP');
-    await expect(resultRow(page, 'BK-01')).toContainText(`confirmed · ${label}`);
+    await nav(page, 'LIST');
+    await expect(resultRow(page, 'BK-01')).toContainText('confirmed');
+    await expect(resultRow(page, 'BK-01')).toContainText(label);
   });
 
   test('with your name set, the CRS dialog says it is stored with it', async ({ page }) => {

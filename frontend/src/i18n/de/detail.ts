@@ -32,6 +32,11 @@ export const detail: Record<string, string> = {
   'not in source': 'nicht in der Quelle',
   illegible: 'unleserlich',
   'No usable coordinates': 'Keine verwertbaren Koordinaten',
+  STATED: 'ANGEGEBEN',
+  INFERRED: 'ABGELEITET',
+  CONFIRMED: 'BESTÄTIGT',
+  UNKNOWN: 'UNBEKANNT',
+  'DATUM NOT STATED': 'HÖHENBEZUG NICHT ANGEGEBEN',
   'Show source': 'Quelle zeigen',
 
   // layers

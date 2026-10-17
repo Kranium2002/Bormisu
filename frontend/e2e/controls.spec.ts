@@ -47,7 +47,7 @@ test.describe('every control works', () => {
     await expect(popup(page)).toContainText('BK-11');
   });
 
-  test('map: zoom, colour switch, draw tools, RESULTS sort and MAP, popup buttons, NOT ON MAP', async ({ page }) => {
+  test('map: zoom, colour switch, draw tools, LIST sort and MAP, popup buttons, NOT ON MAP', async ({ page }) => {
     const before = zoomOf(page);
     await page.getByRole('button', { name: 'Zoom in' }).click();
     await expect.poll(() => zoomOf(page)).toBeGreaterThan(before);
@@ -68,6 +68,7 @@ test.describe('every control works', () => {
       await expect(button).toHaveAttribute('aria-pressed', 'false');
     }
 
+    await nav(page, 'LIST');
     const sortBy = page.getByRole('columnheader', { name: 'BOREHOLE' });
     await sortBy.getByRole('button').click();
     await expect(sortBy).toHaveAttribute('aria-sort', /ascending|descending/);
@@ -86,13 +87,14 @@ test.describe('every control works', () => {
     await page.goBack();
     await loaded(page);
 
-    const notOnMap = page.getByRole('complementary', { name: /^NOT ON MAP/ });
-    await notOnMap.getByRole('button').first().click();
+    await nav(page, 'LIST');
+    await page.getByRole('button', { name: /^Open detail of BK-13:/ }).click();
     await expect(page).toHaveURL(/\/boreholes\//);
     expect(await disabledWithoutReason(page)).toEqual([]);
   });
 
   test('explore panel: place search, a filter applied, RESET', async ({ page }) => {
+    await page.getByRole('button', { name: /^FILTERS/ }).first().click();
     const panel = page.getByRole('region', { name: 'Search and filters' });
     await panel.getByRole('textbox', { name: 'Town, address or place' }).fill('Elbhafen');
     await panel.getByRole('button', { name: 'SEARCH', exact: true }).click();
@@ -114,8 +116,8 @@ test.describe('every control works', () => {
     await nav(page, 'UPLOAD & QUEUE');
 
     await nb.locator('[data-map-step="notOnMap"]').click();
-    await expect(page).toHaveURL(/\/map/);
-    await expect(page.getByRole('complementary', { name: /^NOT ON MAP/ }).locator('[data-document-id]').first()).toBeFocused();
+    await expect(page).toHaveURL(/\/list/);
+    await expect(page.locator('[role="table"] [role="row"][data-uid]:focus')).toContainText('NOT ON MAP');
     await nav(page, 'UPLOAD & QUEUE');
 
     await nb.getByRole('button', { name: /open questions?$/ }).click();
@@ -142,6 +144,7 @@ test.describe('every control works', () => {
     await expect(toast(page)).toContainText(/^Answer stored · \d+ boreholes? placed/);
     await toast(page).getByRole('button', { name: 'SHOW ON MAP' }).click();
     await expect(page).toHaveURL(/\/map/);
+    await nav(page, 'LIST');
     await expect(resultRow(page, 'BK-01')).toContainText('confirmed');
 
     await nav(page, 'UPLOAD & QUEUE');
@@ -212,6 +215,7 @@ test.describe('every control works', () => {
   });
 
   test('detail: a layer, a source, the export menu, OPEN IN REVIEW', async ({ page }) => {
+    await nav(page, 'LIST');
     await resultRow(page, 'BK-07').click();
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
     await page.getByRole('button', { name: /^Layer 3: / }).first().click();

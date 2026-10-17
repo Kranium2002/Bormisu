@@ -8,7 +8,7 @@
  * cluster icons (DOM) and the pixels of the pins' canvas.
  */
 import type { Page } from '@playwright/test';
-import { expect, nav, navLink, openApp, openUrl, pathOf, resultRow, test, uidOf } from './fixtures';
+import { expect, loaded, nav, navLink, openApp, openUrl, pathOf, resultRow, test, uidOf } from './fixtures';
 
 /** Plotted boreholes of the fictional sample. */
 const SAMPLE_PINS = 45;
@@ -352,7 +352,8 @@ test.describe('map canvas', () => {
     await nav(page, 'UPLOAD & QUEUE');
     await page.waitForTimeout(1200);
     await nav(page, 'MAP');
-    await mapReady(page);
+    // The search box still holds "EQ-03": the map keeps only its match.
+    await mapReady(page, 1);
   });
 });
 
@@ -378,25 +379,21 @@ test.describe('header search on the map', () => {
   });
 });
 
-/*
- * The lists around the map (MapScreen, ResultsTable, NotOnMapList) belong to the explore side of
- * M2; these checks of round 1 stay here until its specs carry them.
- */
-test.describe('map screen lists', () => {
-  test.beforeEach(async ({ page }) => openApp(page));
-
-  test('the not-on-map list and the results table', async ({ page }) => {
-    const aside = page.getByRole('complementary').filter({ has: page.getByRole('heading', { name: 'NOT ON MAP (3)' }) });
-    await expect(aside).toContainText('BK-13');
-    await expect(aside).toContainText('BK-14');
-    await expect(aside).toContainText('SK-05');
-    await expect(aside.getByText(/^(No coordinates in source|Coordinate system unknown|Coordinate system needs confirmation|Coordinates implausible|Not placed on the map)$/)).toHaveCount(3);
-    await expect(page.getByText('48 boreholes · 7 projects', { exact: true })).toBeVisible();
-    await expect(page.locator('[role="table"] [role="row"][data-uid]')).toHaveCount(48);
-    await expect(resultRow(page, 'BK-07')).toContainText('18.00 m');
+/* LIST (/list): every borehole the map knows, those without a pin with their reason. */
+test.describe('LIST', () => {
+  test.beforeEach(async ({ page }) => {
+    await openApp(page);
+    await nav(page, 'LIST');
   });
 
-  test('a results row opens the borehole detail at /boreholes/:uid', async ({ page }) => {
+  test('every borehole once; those not on the map with their reason', async ({ page }) => {
+    await expect(page.getByText('48 boreholes · 7 projects', { exact: false })).toBeVisible();
+    await expect(page.locator('[role="table"] [role="row"][data-uid]')).toHaveCount(48);
+    await expect(resultRow(page, 'BK-07')).toContainText('18.00 m');
+    for (const id of ['BK-13', 'BK-14', 'SK-05']) await expect(resultRow(page, id)).toContainText('NOT ON MAP · ');
+  });
+
+  test('a row opens the borehole detail at /boreholes/:uid', async ({ page }) => {
     const uid = await uidOf(page, 'EQ-02');
     await resultRow(page, 'EQ-02').click();
     await expect(page.getByText('EQ-02', { exact: true }).first()).toBeVisible();
@@ -409,5 +406,22 @@ test.describe('map screen lists', () => {
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
     await expect(page.getByText(/not on the map/).first()).toBeVisible();
   });
-});
 
+  test('+ adds a column from the full records (loading, then values); × removes it; the choice is kept', async ({ page }) => {
+    await page.getByRole('columnheader', { name: 'Add a column' }).locator('summary').click();
+    await page.getByRole('button', { name: 'LAYERS', exact: true }).click();
+    const layers = page.getByRole('columnheader', { name: /^LAYERS/ });
+    await expect(layers).toBeVisible();
+    await expect(resultRow(page, 'BK-07').getByRole('cell').nth(6)).toHaveText(/^\d+$/);
+    await page.reload();
+    await loaded(page);
+    await expect(page.getByRole('columnheader', { name: /^LAYERS/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Remove column LAYERS' }).click();
+    await expect(page.getByRole('columnheader', { name: /^LAYERS/ })).toHaveCount(0);
+  });
+
+  test('the header search narrows the rows as it is typed', async ({ page }) => {
+    await page.getByLabel('Search project or borehole ID').fill('EQ-0');
+    await expect(page.locator('[role="table"] [role="row"][data-uid]')).toHaveCount(9);
+  });
+});

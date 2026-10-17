@@ -158,8 +158,8 @@ test.describe('inbox', () => {
     await expect(group.getByLabel(/^Map preview of /)).toBeVisible();
     await d.getByRole('button', { name: 'ANSWER', exact: true }).click();
     await expect(d).toHaveCount(0);
-    await nav(page, 'MAP');
-    // The Neckarbogen boreholes are placed with the confirmed system (RESULTS: "confirmed · <name>").
+    await nav(page, 'LIST');
+    // The Neckarbogen boreholes are placed with the confirmed system (LIST: "confirmed · <name>").
     await expect(resultRow(page, 'BK-01')).toContainText('confirmed');
   });
 
