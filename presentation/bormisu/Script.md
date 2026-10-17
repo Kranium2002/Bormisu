@@ -41,10 +41,16 @@
 
 ## 08 · Key features
 
-> The Key Features are
-> It reads any report: PDF, handwriting, any language. And where it's unsure, it flags the case for a human to verify.
-> Area scraping: draw an area on the map and get an overview of many soil samples at once.
-> And export: the data comes out in your format, as PDF, JPEG, CSV and may more.
+> So what you just saw, and more.
+
+**Click 1:**
+> It reads any report: scans, handwriting, any language. And where it's unsure, it flags the case for a human to verify.
+
+**Click 2:**
+> Area scraping: draw an area or a planned line, and you get an overview of many soil samples at once.
+
+**Click 3:**
+> And export: your data in your format, as PDF, JPEG or CSV.
 
 ## 09 · Sovereignty
 

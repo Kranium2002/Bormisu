@@ -6,6 +6,7 @@
  *      and posts {slideIndexChanged: N} to the parent window on nav.
  *  (b) keyboard navigation — ←/→, PgUp/PgDn, Space, Home/End, number keys.
  *  (c) press R to reset to slide 0 (with a tasteful keyboard hint); F toggles full screen.
+ *      Build steps: data-steps="n" on a slide makes → step through data-step 1..n first (event: slidestep).
  *  (d) bottom-center overlay showing slide count + hints, fades out on idle.
  *  (e) auto-scaling — inner canvas is a fixed design size (default 1920×1080)
  *      scaled with `transform: scale()` to fit the viewport, letterboxed.
@@ -1286,6 +1287,8 @@
     _go(i, reason = 'api') {
       if (!this._slides.length) return;
       const clamped = Math.max(0, Math.min(this._slides.length - 1, i));
+      // a slide with build steps starts at step 0 whenever it is entered
+      if (clamped !== this._index && this._slides[clamped].dataset.steps) this._step(this._slides[clamped], 0);
       if (clamped === this._index) {
         this._flashOverlay();
         return;
@@ -1297,14 +1300,26 @@
     /** Step forward/back skipping any slide marked data-deck-skip. Falls
      *  back to _go's clamp-at-ends behaviour (flash overlay) when there's
      *  nothing further in that direction. */
+    /** Build steps: a slide with data-steps="n" takes n clicks (data-step 1..n) before the deck moves on. */
+    _step(slide, n) {
+      slide.dataset.step = String(n);
+      this.dispatchEvent(new CustomEvent('slidestep', { detail: { slide, step: n }, bubbles: true, composed: true }));
+    }
+
     _advance(dir, reason) {
       if (!this._slides.length) return;
+      const cur = this._slides[this._index];
+      const steps = cur ? +(cur.dataset.steps || 0) : 0, at = cur ? +(cur.dataset.step || 0) : 0;
+      if (dir > 0 && at < steps) { this._step(cur, at + 1); return; }
+      if (dir < 0 && at > 0) { this._step(cur, at - 1); return; }
       let i = this._index + dir;
       while (i >= 0 && i < this._slides.length && this._slides[i].hasAttribute('data-deck-skip')) {
         i += dir;
       }
       if (i < 0 || i >= this._slides.length) { this._flashOverlay(); return; }
       this._go(i, reason);
+      // stepping back into a slide shows it complete
+      if (dir < 0) { const t = this._slides[i]; if (+(t.dataset.steps || 0) > 0) this._step(t, +t.dataset.steps); }
     }
 
     // ── Thumbnail rail ────────────────────────────────────────────────────
