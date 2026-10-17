@@ -144,6 +144,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/pages/{n}/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+                n: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * Every word of a page with its box (1.2.2), for highlighting evidence on the original page.
+         * @description Words in reading order. Pages with a usable PDF text layer give its words (`source` text,
+         *     `conf` 1). Scans, photos and handwriting give the boxes the server located for the extracted
+         *     values (`source` located, one entry per value text), else the words of an OCR read with boxes
+         *     (`source` ocr). Boxes use the provenance convention: [x, y, w, h] normalised 0-1 on the page image
+         *     (`pages/{n}.png`), top-left origin. An empty list when the page has no words yet.
+         */
+        get: operations["getPageWords"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/pages/{n}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+                n: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * Every extracted value whose evidence is on this page, across the document's boreholes (1.2.2).
+         * @description One item per value path whose provenance cites this page (the same entries as
+         *     `BoreholeRecord.provenance`), in page order (top to bottom). Clicking a value in the record and
+         *     clicking its box on the page are the same item: `borehole_uid` + `path`. `method` says how good
+         *     the box is: read = the printed words of the PDF text layer; located = a scan, photo or handwriting
+         *     where the server located the value's text on the page image; ocr = an OCR block of a scan (can be
+         *     large); approximate = the row (and column, when known) the value was read from, when its text could
+         *     not be located; page = only the page is known (`box` null).
+         */
+        get: operations["getPageEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/boreholes": {
         parameters: {
             query?: never;
@@ -704,6 +760,43 @@ export interface components {
                 text?: string;
                 confidence?: number | null;
             }[];
+        };
+        /** @description One word of a page (1.2.2). */
+        PageWord: {
+            /** @description The word as printed or as the OCR read it. */
+            t: string;
+            /** @description [x, y, w, h] normalised 0-1, top-left origin, on the page image. */
+            b: number[];
+            conf: number | null;
+            /**
+             * @description PDF text layer; a value located on the page image; an OCR read.
+             * @enum {string}
+             */
+            source: "text" | "located" | "ocr";
+        };
+        /** @description One extracted value and where it is on the page (1.2.2). */
+        EvidenceItem: {
+            borehole_uid: string;
+            /** @description The borehole label as printed (BoreholeRecord metadata.borehole_id). */
+            borehole_label: string;
+            /** @description Value path as in BoreholeRecord.provenance, e.g. "stratigraphy[2].depth_to_m". */
+            path: string;
+            /** @description Readable name of the value, e.g. "Layer 3 · bottom depth". */
+            label: string;
+            /** @description The value as the record shows it, with its unit, e.g. "3.40 m". */
+            value_display: string | null;
+            /** @description Text exactly as printed or written (provenance raw). */
+            raw_text: string | null;
+            /** @description [x, y, w, h] normalised 0-1, top-left origin; null when only the page is known. */
+            box: number[] | null;
+            /**
+             * @description How precise the box is (see getPageEvidence).
+             * @enum {string}
+             */
+            method: "read" | "located" | "ocr" | "approximate" | "page";
+            confidence: number | null;
+            /** @enum {string} */
+            review_status: "unreviewed" | "approved" | "flagged";
         };
         Lint: {
             path: string;
@@ -1400,6 +1493,70 @@ export interface operations {
                 };
             };
             /** @description Unknown document or page. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getPageWords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+                n: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page's words. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageWord"][];
+                };
+            };
+            /** @description Unknown document (document_not_found) or page (page_not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getPageEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+                n: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page's evidence. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceItem"][];
+                };
+            };
+            /** @description Unknown document (document_not_found) or page (page_not_found). */
             404: {
                 headers: {
                     [name: string]: unknown;

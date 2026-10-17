@@ -9,6 +9,7 @@
  *   /review/:uid?key=<value key>
  *   /boreholes/:uid?layer=<n>
  *   /inbox?q=<clarification id>     the questions, with the open one's dialog
+ *   /verify/:uid?page=<n>           side-by-side check of a borehole: original page n next to its extracted values
  *   anything else                   not found
  *
  * The path names the screen (a new history entry); the query holds state within the screen (the map
@@ -24,6 +25,9 @@ export const ROUTE = {
   review: 'review/:uid',
   detail: 'boreholes/:uid',
   inbox: 'inbox',
+  list: 'list',
+  sheet: 'sheet/:uid',
+  verify: 'verify/:uid',
 } as const;
 
 /** Centre and zoom of the map. */
@@ -48,6 +52,12 @@ export type AppRoute =
   | { kind: 'detail'; uid: string; layer: number | null }
   /** The inbox; `q` is the question whose dialog is open (FRONTEND.md F12). */
   | { kind: 'inbox'; q: string | null }
+  /** Every borehole as a table (also those not on the map). */
+  | { kind: 'list' }
+  /** The generated borehole sheet of a record, printable; `lang` is the sheet's language when set. */
+  | { kind: 'sheet'; uid: string; lang: string | null }
+  /** Side-by-side verification of a borehole on source page `page` (null: the screen picks the first page). */
+  | { kind: 'verify'; uid: string; page: number | null }
   | { kind: 'notFound'; path: string };
 
 export type RouteKind = AppRoute['kind'];
@@ -124,6 +134,9 @@ export function parseLocation(pathname: string, search: string): AppRoute {
   if (head === 'review') return uid ? { kind: 'review', uid, key: param(q, 'key') } : { kind: 'reviewIndex' };
   if (head === 'boreholes' && uid) return { kind: 'detail', uid, layer: positiveInt(param(q, 'layer')) };
   if (head === 'inbox' && uid === undefined) return { kind: 'inbox', q: param(q, 'q') };
+  if (head === 'list' && uid === undefined) return { kind: 'list' };
+  if (head === 'sheet' && uid) return { kind: 'sheet', uid, lang: param(q, 'lang') };
+  if (head === 'verify' && uid) return { kind: 'verify', uid, page: positiveInt(param(q, 'page')) };
   return notFound;
 }
 
@@ -160,6 +173,16 @@ export function inboxPath(q?: string | null): string {
   return `/${ROUTE.inbox}${query([['q', q ? enc(q) : null]])}`;
 }
 
+/** /sheet/:uid, with the sheet's language when given. */
+export function sheetPath(uid: string, lang?: string | null): string {
+  return `/sheet/${enc(uid)}${query([['lang', lang ? enc(lang) : null]])}`;
+}
+
+/** /verify/:uid, on source page `page` when given. */
+export function verifyPath(uid: string, page?: number | null): string {
+  return `/verify/${enc(uid)}${query([['page', page != null ? String(page) : null]])}`;
+}
+
 /** The URL of a route. */
 export function routePath(r: AppRoute): string {
   switch (r.kind) {
@@ -175,6 +198,12 @@ export function routePath(r: AppRoute): string {
       return boreholePath(r.uid, r.layer);
     case 'inbox':
       return inboxPath(r.q);
+    case 'list':
+      return `/${ROUTE.list}`;
+    case 'sheet':
+      return sheetPath(r.uid, r.lang);
+    case 'verify':
+      return verifyPath(r.uid, r.page);
     case 'notFound':
       return r.path;
   }
@@ -182,7 +211,7 @@ export function routePath(r: AppRoute): string {
 
 /** The borehole a route is about, or null. */
 export function routeUid(r: AppRoute | null): string | null {
-  return r && (r.kind === 'review' || r.kind === 'detail') ? r.uid : null;
+  return r && (r.kind === 'review' || r.kind === 'detail' || r.kind === 'sheet' || r.kind === 'verify') ? r.uid : null;
 }
 
 /** True when both routes show the same screen (same kind and borehole); query state does not count. */

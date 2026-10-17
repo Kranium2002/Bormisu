@@ -7,7 +7,7 @@
  * Seed state needed: none (the lists are replaced). Read-only.
  */
 import type { Page } from '@playwright/test';
-import { expect, expectPins, loaded, nav, navLink, test } from './fixtures';
+import { expect, expectPins, loaded, nav, test } from './fixtures';
 
 async function emptyLists(page: Page): Promise<void> {
   await page.route(/\/api\/v1\/map\/boreholes\.geojson/, (route) => route.fulfill({ json: { type: 'FeatureCollection', features: [] } }));
@@ -31,11 +31,7 @@ test('an empty database loads without errors: no pins, empty RESULTS, queue and 
   await expectPins(page, 0);
   await nav(page, 'UPLOAD & QUEUE');
   await expect(page.getByText('No documents yet.')).toBeVisible();
-  // Nothing to review: REVIEW is off and says why; /review says so too.
-  const review = navLink(page, 'REVIEW');
-  await expect(review).toHaveAttribute('aria-disabled', 'true');
-  await expect(review).toHaveAttribute('title', 'No report is ready for review yet. Upload one under UPLOAD & QUEUE.');
-  await expect(review).not.toHaveAttribute('href');
+  // Nothing to review: /review says so.
   await page.goto('/review');
   await loaded(page);
   await expect(page.getByText('NOTHING TO REVIEW')).toBeVisible();

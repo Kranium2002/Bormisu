@@ -1,0 +1,6 @@
+/* LIST: the table fills the screen; it scrolls in its own box, both ways. */
+.screen {
+  position: absolute;
+  inset: 0;
+  background: var(--c-surface);
+}

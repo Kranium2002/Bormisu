@@ -3,10 +3,10 @@
 .card {
   border: 1px solid var(--c-border);
   background: var(--c-surface);
-  padding: 16px 18px;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   cursor: default;
 }
 
@@ -26,7 +26,7 @@
 
 /* Focused from a "show document" button (tabIndex -1, not in the tab order). */
 .card:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -51,7 +51,7 @@
 }
 
 .dupLink:hover {
-  color: var(--c-green-text);
+  color: var(--c-muted);
 }
 
 .questions {
@@ -92,7 +92,7 @@
 
 .progressFill {
   height: 4px;
-  background: var(--c-green);
+  background: var(--c-accent);
   transition: width 0.25s ease;
 }
 
@@ -103,26 +103,14 @@
 }
 
 .retry {
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 7px 12px;
-  border: 1px solid var(--c-red);
-  border-radius: 4px;
-  background: var(--c-surface);
+  composes: secondary small from '../../styles/buttons.module.css';
+  border-color: var(--c-red);
   color: var(--c-red);
   white-space: nowrap;
 }
 
 .retry:hover:not(:disabled) {
   background: var(--c-red-bg-soft);
-}
-
-.retry:disabled {
-  cursor: default;
-  opacity: 0.6;
 }
 
 .top {
@@ -141,14 +129,14 @@
 
 .name {
   margin: 0;
-  font: 600 13px var(--font-mono);
+  font: 500 var(--fs-md) var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .meta {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
 }
 
@@ -175,7 +163,7 @@
 }
 
 .comp:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -228,32 +216,19 @@
   gap: 16px;
 }
 
+/* Under the name: "All boreholes reviewed", "Processing…" (frontend_din) */
 .hint {
-  font-size: 12px;
+  margin-top: var(--space-2);
+  font-size: var(--fs-sm);
   color: var(--c-faint);
-  white-space: nowrap;
 }
 
+/* OPEN IN REVIEW ›: a text button under the name; its text lines up with the name. */
 .hintAction {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--c-green-text);
+  composes: quiet link from '../../styles/buttons.module.css';
+  align-self: flex-start;
+  margin: var(--space-1) 0 0 calc(-1 * var(--space-2));
   white-space: nowrap;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-.hintAction:hover {
-  color: var(--c-dark);
-}
-
-.hintAction:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: 3px;
 }
 
 .hintError {
@@ -267,7 +242,7 @@
 /* "N on the map · SHOW": opens the map on the document's pins. */
 .onMap {
   border: 1px solid var(--c-dark);
-  background: #fff;
+  background: var(--c-surface);
   color: var(--c-dark);
   font: inherit;
   font-size: 11px;
@@ -281,7 +256,7 @@
 
 .onMap:hover,
 .onMap:focus-visible {
-  background: var(--c-green-bg);
+  background: var(--c-hover);
 }
 
 /* The next step to the map (CONFIRM a coordinate system, PLACE a borehole): amber, it waits for you. */
@@ -301,13 +276,13 @@
 
 .nextStep:hover,
 .nextStep:focus-visible {
-  background: #fff;
+  background: var(--c-surface);
 }
 
 /* "N not on the map · WHY": neutral, it explains. */
 .whyStep {
   border: 1px solid var(--c-border-strong);
-  background: #fff;
+  background: var(--c-surface);
   color: var(--c-muted);
   font: inherit;
   font-size: 11px;
@@ -351,10 +326,6 @@
   .bottom {
     flex-wrap: wrap;
     align-items: center;
-  }
-
-  .hint {
-    white-space: normal;
   }
 
   .errorBlock {

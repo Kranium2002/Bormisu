@@ -1,0 +1,250 @@
+/* LIST (frontend_din): a grey header band, white rows with a hairline, mono figures, colour only for status. */
+.results {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-5);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.summary {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--c-muted);
+}
+
+.off {
+  color: var(--c-amber-text);
+}
+
+/* Its own scroll box, both ways: many columns scroll sideways inside it, never the page. */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.table {
+  padding: 0 var(--space-3);
+}
+
+.headGroup {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.row {
+  display: grid; /* columns: inline style, they depend on the chosen columns */
+  align-items: center;
+}
+
+.header {
+  margin: 0 calc(-1 * var(--space-3));
+  padding: 0 var(--space-3);
+  background: var(--c-line);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  color: var(--c-muted);
+}
+
+.cell {
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.header .cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+}
+
+.optional .label,
+.sort {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sort {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sort:hover {
+  color: var(--c-text);
+}
+
+.sort:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.arrow {
+  margin-left: var(--space-1);
+  font-size: 9px;
+}
+
+.loading {
+  font-weight: 400;
+  letter-spacing: 0;
+  font-style: italic;
+  color: var(--c-faint);
+}
+
+.addCell {
+  justify-content: flex-end;
+}
+
+.body {
+  font-size: var(--fs-md);
+  border-bottom: 1px solid var(--c-line);
+  cursor: pointer;
+}
+
+.body .cell {
+  overflow-wrap: anywhere;
+}
+
+.body:hover {
+  background: var(--c-hover);
+}
+
+.body:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* The borehole selected on the map, and the rows a queue card's WHY points at. */
+.selected,
+.selected:hover,
+.pointed,
+.pointed:hover {
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-text);
+}
+
+.id {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.warn {
+  color: var(--c-amber-text);
+}
+
+.faint {
+  color: var(--c-faint);
+}
+
+/* STATUS: the review chip, and NOT ON MAP with its reason under it. */
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+/* "NOT ON MAP": red for missing coordinates, amber when the CRS is the problem. */
+.notOnMap {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px var(--space-2);
+  border-radius: 3px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: var(--ls-caps);
+  background: var(--c-red-bg);
+  color: var(--c-red);
+}
+
+.notOnMapWarn {
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.map {
+  composes: secondary small from '../../styles/buttons.module.css';
+}
+
+.open {
+  composes: quiet link from '../../styles/buttons.module.css';
+  white-space: nowrap;
+}
+
+.empty {
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--fs-md);
+  color: var(--c-muted);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  border-top: 1px solid var(--c-line);
+  font-size: var(--fs-sm);
+}
+
+.range,
+.pageNo {
+  color: var(--c-muted);
+  font-family: var(--font-mono);
+}
+
+.pageButton {
+  composes: secondary small from '../../styles/buttons.module.css';
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .head {
+    padding: var(--space-2) var(--space-4);
+  }
+}

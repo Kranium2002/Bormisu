@@ -17,10 +17,49 @@
   line-height: 0;
 }
 
+/* Loading or failed image: keep the page's 560:780 shape so the boxes don't collapse. */
+.reserved {
+  aspect-ratio: 560 / 780;
+}
+
 .image {
   width: 100%;
   height: auto;
   display: block;
+}
+
+.imageLoading {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  opacity: 0;
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  text-align: center;
+  line-height: 1.4;
+  font-family: var(--font-sans);
+}
+
+.placeholderTitle {
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  color: var(--c-muted);
+}
+
+.placeholderPath {
+  font: var(--fs-xs) var(--font-mono);
+  color: var(--c-muted);
+  overflow-wrap: anywhere;
 }
 
 .text {
@@ -46,9 +85,14 @@ button.box {
   cursor: pointer;
 }
 
+button.box:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .focus {
-  border: 3px solid var(--c-green);
-  background: rgba(125, 183, 19, 0.16);
+  border: 3px solid var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
 }
 
 .flagged {
@@ -60,7 +104,7 @@ button.box {
 }
 
 .approved {
-  border: 1.5px solid rgba(125, 183, 19, 0.75);
+  border: 1.5px solid color-mix(in srgb, var(--c-green) 75%, transparent);
 }
 
 .idle {
@@ -68,7 +112,7 @@ button.box {
 }
 
 .highlight {
-  border: 3px solid var(--c-green);
-  background: rgba(125, 183, 19, 0.16);
+  border: 3px solid var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
   box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.12);
 }

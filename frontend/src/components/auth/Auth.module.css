@@ -1,4 +1,7 @@
-/* Sign-in screen, user menu and password dialog. Brand tokens only; every text pair is at least 4.5:1. */
+/*
+ * Sign-in screen, user menu and password dialog in frontend_din's black and white: the card opens with
+ * the black brand band of the app bar. Tokens only; every text pair is at least 4.5:1.
+ */
 
 .page {
   min-height: 100%;
@@ -17,38 +20,35 @@
   box-sizing: border-box;
   background: var(--c-surface);
   box-shadow: var(--shadow-card);
-  border-top: 4px solid var(--c-dark);
-  padding: 24px 24px 28px;
+  padding: 0 24px 28px;
 }
 
+/* The app bar's brand: logo and product name on black. */
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: var(--space-3);
+  margin: 0 -24px 22px;
+  padding: var(--space-3) 24px;
+  background: var(--c-dark);
+  color: var(--c-surface);
 }
 
+/* Brand mark: its sizes are the logo's, not the type scale's. */
 .logo {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   flex: none;
-  background: var(--c-green);
-  color: var(--c-dark);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  font-size: 20px;
-  text-transform: uppercase;
+  display: block;
 }
 
 .appName {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--c-dark);
+  color: var(--c-surface);
 }
 
 .modeTitle {
@@ -139,7 +139,6 @@
 .primary:focus-visible,
 .link:focus-visible,
 .menuItem:focus-visible,
-.userButton:focus-visible,
 .secondary:focus-visible {
   outline: 2px solid var(--c-dark);
   outline-offset: 2px;
@@ -182,33 +181,23 @@
 }
 
 .primary {
-  cursor: pointer;
+  composes: primary from '../../styles/buttons.module.css';
   height: 42px;
-  border: 0;
-  border-radius: 4px;
-  background: var(--c-green);
-  color: var(--c-on-green);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-md);
 }
 
+/* Busy (signing in): dimmed black, not the grey of a button that can't act. */
 .primary:disabled {
   cursor: progress;
+  background: var(--c-accent);
+  color: var(--c-on-accent);
   opacity: 0.75;
 }
 
 .secondary {
-  cursor: pointer;
+  composes: secondary from '../../styles/buttons.module.css';
   height: 36px;
   padding: 0 14px;
-  border: 1px solid var(--c-border-strong);
-  border-radius: 4px;
-  background: var(--c-surface);
-  color: var(--c-text);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
 }
 
 .switch {
@@ -258,13 +247,19 @@
   border: 1px solid var(--c-nav-idle);
   border-radius: 2px;
   background: none;
-  color: #fff;
-  font-size: 12px;
+  color: var(--c-surface);
+  font-size: var(--fs-sm);
   font-weight: 700;
 }
 
 .userButton:hover {
-  border-color: #fff;
+  border-color: var(--c-surface);
+}
+
+/* White ring on the black bar. */
+.userButton:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: 2px;
 }
 
 .menu {
@@ -351,13 +346,8 @@
 }
 
 .close {
-  cursor: pointer;
+  composes: iconButton from '../../styles/buttons.module.css';
   font-size: 22px;
-  line-height: 1;
-  background: none;
-  border: 0;
-  padding: 0 4px;
-  color: var(--c-text);
 }
 
 .actions {

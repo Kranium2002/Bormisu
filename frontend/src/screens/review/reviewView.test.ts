@@ -24,6 +24,11 @@ import {
   siblings,
   siteCentre,
   sptTitle,
+  cleanCountOf,
+  methodText,
+  scanScale,
+  sheetTabText,
+  valueMark,
 } from './reviewView';
 
 const box = (x: number, y: number): Box => ({ x, y, w: 0.1, h: 0.02 });
@@ -33,7 +38,7 @@ describe('reviewRows', () => {
   it('groups BOREHOLE, GROUNDWATER and LAYER n with range and page', () => {
     const b = makeBorehole();
     const heads = reviewRows(b).flatMap((r) => (r.kind === 'head' ? [r.title] : []));
-    expect(heads).toEqual(['BOREHOLE', 'GROUNDWATER', 'LAYER 1 · 0.00–2.50 M · P.1', 'LAYER 2 · 2.50–6.00 M · P.1']);
+    expect(heads).toEqual(['BOREHOLE', 'GROUNDWATER', 'LAYER 1 · 0.00–2.50 m · p.1', 'LAYER 2 · 2.50–6.00 m · p.1']);
   });
 
   it('puts samples and test results last, under SAMPLES and TEST RESULTS', () => {
@@ -325,7 +330,7 @@ describe('DV-11-UI: values whose source is in another document', () => {
     const b = makeBorehole({
       values: [lab({ key: 'l1', group: 'layer', layer: 1, page: 3 }), makeValue({ key: 'l1b', group: 'layer', layer: 1, page: 8 })],
     });
-    expect(reviewRows(b)[0]).toMatchObject({ kind: 'head', title: 'LAYER 1 · 0.00–2.50 M · P.8' });
+    expect(reviewRows(b)[0]).toMatchObject({ kind: 'head', title: 'LAYER 1 · 0.00–2.50 m · p.8' });
   });
 });
 
@@ -352,5 +357,44 @@ describe('questionKeys (F12)', () => {
       makeClarification({ id: 'd', boreholeUids: ['bh_Q'], path: 'metadata.depth_origin' }),
     ];
     expect(questionKeys(b, list)).toEqual({});
+  });
+});
+
+describe('frontend_din review look', () => {
+  it('valueMark: the certainty dot with how the value was read in its tooltip', () => {
+    const ocr = makeValue({ key: K.finalDepth, label: 'Final depth', method: 'OCR', confidence: 0.62 });
+    expect(valueMark(ocr)).toEqual({ kind: 'unsure', title: 'AI unsure (62 %) · OCR · 62 % confidence' });
+    const missing = makeValue({ key: K.finalDepth, label: 'Final depth', state: 'not in source', method: null, confidence: null });
+    expect(valueMark(missing)).toMatchObject({ kind: 'missing', title: 'Not in the source · the backend sent no method for this value' });
+    expect(valueMark(makeValue({ key: K.finalDepth, status: 'flagged', flag: 'boundary' })).kind).toBe('flagged');
+    expect(methodText({ method: 'Derived', confidence: null, formula: 'top + thickness' })).toBe('derived: top + thickness');
+  });
+
+  it('valueMark and the caption follow the translator', () => {
+    const de = (en: string) => ({ 'read from the text layer': 'aus der Textebene gelesen', 'AI sure': 'KI sicher' })[en] ?? en;
+    expect(methodText({ method: 'Read', confidence: null }, de)).toBe('aus der Textebene gelesen');
+    expect(scanCaption(7, [7, 8], undefined, false, (en) => (en.startsWith('page {page} · sheet') ? 'Seite {page} · Blatt {i} von {n}' : en)).text).toBe(
+      'Seite 7 · Blatt 1 von 2',
+    );
+  });
+
+  it('scanScale: fills a wide pane within its bounds, fits a phone with a gutter', () => {
+    expect(scanScale(660)).toBe(1);
+    expect(scanScale(390)).toBeCloseTo((390 - 32) / 560, 3);
+    expect(scanScale(200)).toBe(0.5);
+    expect(scanScale(720)).toBe(1.107);
+    expect(scanScale(2000)).toBe(1.45);
+  });
+
+  it('cleanCountOf counts the clean values of the whole document’s loaded boreholes', () => {
+    const clean = (key: string) => makeValue({ key, method: 'Read', confidence: 0.99, status: 'unreviewed' });
+    const a = makeBorehole({ uid: 'bh_A', documentId: 'doc_1', values: [clean(K.finalDepth), clean(K.project)] });
+    const b = makeBorehole({ uid: 'bh_B', documentId: 'doc_1', values: [clean(K.finalDepth)] });
+    const other = makeBorehole({ uid: 'bh_C', documentId: 'doc_2', values: [clean(K.finalDepth)] });
+    expect(cleanCountOf([a, b, other], a)).toBe(3);
+  });
+
+  it('sheet tabs keep page references lowercase', () => {
+    expect(sheetTabText(0, 7)).toBe('SHEET 1 · p.7');
   });
 });

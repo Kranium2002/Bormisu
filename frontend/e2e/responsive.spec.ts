@@ -136,7 +136,7 @@ for (const size of SIZES) {
       await expectOnScreen(page.locator('label').filter({ hasText: 'DROP REPORTS HERE' }));
       await expectOnScreen(page.getByLabel('Project (optional)'));
       await expectOnScreen(page.getByRole('button', { name: 'Choose a folder to upload' }));
-      await expectOnScreen(page.getByRole('button', { name: 'OPEN REVIEW ›' }).first());
+      await expectOnScreen(page.getByRole('button', { name: 'OPEN IN REVIEW ›' }).first());
       await expectOnScreen(page.getByRole('button', { name: /^Report lists 14/ }));
       await expectNoSidewaysScroll(page);
       await shot(page, `queue-${size.width}`);
@@ -149,7 +149,7 @@ for (const size of SIZES) {
       await expectOnScreen(page.getByRole('button', { name: 'Previous borehole' }));
       await expectOnScreen(page.getByRole('button', { name: 'Next borehole' }));
       await expectOnScreen(page.getByRole('tab', { name: 'SHEET 1 · P.7' }));
-      await expectOnScreen(page.getByRole('button', { name: '› BOREHOLE DETAIL' }));
+      await expectOnScreen(page.getByRole('button', { name: '› OPEN DETAIL' }));
       await expectOnScreen(page.getByRole('button', { name: 'APPROVE ALL CLEAN' }));
       // The current value (the inferred CRS) with its actions.
       const row = page.locator('[data-key="CoordinateSystem"]');
@@ -228,7 +228,7 @@ for (const size of SIZES) {
         expect(box?.width ?? 0).toBeLessThan(size.width);
       }
       await expectOnScreen(panel.getByRole('button', { name: 'Close panel' }));
-      await expectOnScreen(panel.getByRole('button', { name: 'OPEN IN REVIEW' }));
+      await expectOnScreen(panel.getByRole('button', { name: 'OPEN FULL REVIEW ›' }));
       await expectNoSidewaysScroll(page);
       await shot(page, `source-${size.width}`);
       await panel.getByRole('button', { name: 'Close panel' }).click();

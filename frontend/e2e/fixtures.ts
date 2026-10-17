@@ -59,18 +59,38 @@ export async function loaded(page: Page): Promise<void> {
 /** The header's main navigation. */
 export const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main' });
 
-/** A link of the header nav (MAP, UPLOAD & QUEUE with its badge, REVIEW). */
-export const navLink = (page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW') =>
+/** A link of the header nav (MAP, LIST, UPLOAD & QUEUE and INBOX with their badges). */
+export type NavName = 'MAP' | 'LIST' | 'UPLOAD & QUEUE' | 'INBOX';
+export const navLink = (page: Page, name: NavName) =>
   mainNav(page).getByRole('link', { name: new RegExp(`^${name}`) });
 
-/** Goes to one of the three main screens through the header nav. */
-export async function nav(page: Page, name: 'MAP' | 'UPLOAD & QUEUE' | 'REVIEW'): Promise<void> {
-  await navLink(page, name).click();
+/**
+ * Goes to a main screen through the header nav. Review has no tab (it opens from UPLOAD & QUEUE and
+ * the detail): 'REVIEW' goes to /review in the page (no reload), which opens the review target.
+ */
+export async function nav(page: Page, name: NavName | 'REVIEW'): Promise<void> {
+  if (name !== 'REVIEW') {
+    await navLink(page, name).click();
+    return;
+  }
+  await page.evaluate(() => {
+    window.history.pushState(null, '', '/review');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
 }
 
-/** The opaque uid of a borehole, read from its RESULTS row on the map screen. */
+/**
+ * The opaque uid of a borehole, read from its row in LIST. From another screen it opens LIST in the
+ * page and goes Back afterwards, so the screen (and what the sample holds) stays as it was.
+ */
 export async function uidOf(page: Page, id: string): Promise<string> {
+  const away = !new URL(page.url()).pathname.startsWith('/list');
+  if (away) await nav(page, 'LIST');
   const uid = await resultRow(page, id).getAttribute('data-uid');
+  if (away) {
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/list/);
+  }
   expect(uid, `uid of ${id}`).toBeTruthy();
   return uid as string;
 }
@@ -99,6 +119,6 @@ export async function legendNumber(page: Page, status: LegendStatus): Promise<nu
   return Number(await legendCount(page, status).textContent());
 }
 
-/** A RESULTS row by its borehole ID as printed (uids are opaque). */
+/** A row of LIST by its borehole ID as printed (uids are opaque). */
 export const resultRow = (page: Page, id: string) =>
   page.locator('[role="table"] [role="row"][data-uid]').filter({ has: page.getByText(id, { exact: true }) }).first();

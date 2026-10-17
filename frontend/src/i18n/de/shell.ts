@@ -1,0 +1,96 @@
+/** German texts of the shell area, keyed by the English wording (see src/i18n/index.ts). */
+export const shell: Record<string, string> = {
+  // header
+  'Borehole Intelligence': 'Bohrprofil-Analyse',
+  INBOX: 'POSTEINGANG',
+  Language: 'Sprache',
+  'go to the map': 'zur Karte',
+  'documents need review': 'Dokumente warten auf Prüfung',
+  'Clear the search': 'Suche leeren',
+  'Filters the map and the list while you type; Enter jumps to the borehole':
+    'Filtert Karte und Liste beim Tippen; Enter springt zur Bohrung',
+  CHAT: 'CHAT',
+  'Ask the chat assistant': 'Den Chat-Assistenten fragen',
+  'Close the chat': 'Chat schließen',
+  // status chips
+  Approved: 'Freigegeben',
+  'In review': 'In Prüfung',
+  Unreviewed: 'Ungeprüft',
+  'Needs attention': 'Prüfen',
+  // banners
+  DEMO: 'DEMO',
+  'DEMO MODE': 'DEMO-MODUS',
+  'Demo mode: fictional sample loaded. Live extraction needs an API key.':
+    'Demo-Modus: fiktive Beispieldaten geladen. Die Live-Auswertung braucht einen API-Schlüssel.',
+  'Live extraction needs API keys': 'Die Live-Auswertung braucht API-Schlüssel',
+  'Uploading is off; the boreholes already stored can be reviewed and exported.':
+    'Hochladen ist aus; die gespeicherten Bohrungen lassen sich prüfen und exportieren.',
+  // loading, errors, not found
+  LOADING: 'LADEN',
+  'Loading boreholes and documents…': 'Bohrungen und Dokumente werden geladen…',
+  'Loading the borehole…': 'Die Bohrung wird geladen…',
+  'NO DATA': 'KEINE DATEN',
+  'Loading failed.': 'Laden fehlgeschlagen.',
+  RETRY: 'ERNEUT VERSUCHEN',
+  RELOAD: 'NEU LADEN',
+  'NOT LOADED': 'NICHT GELADEN',
+  'The borehole could not be loaded. Check the connection and reload the page.':
+    'Die Bohrung konnte nicht geladen werden. Verbindung prüfen und die Seite neu laden.',
+  'BOREHOLE NOT FOUND': 'BOHRUNG NICHT GEFUNDEN',
+  'No loaded borehole has the ID in this link. It may have been deleted, or the link is incomplete.':
+    'Keine geladene Bohrung hat die ID aus diesem Link. Sie wurde vielleicht gelöscht, oder der Link ist unvollständig.',
+  'PAGE NOT FOUND': 'SEITE NICHT GEFUNDEN',
+  'There is no page at this address.': 'Unter dieser Adresse gibt es keine Seite.',
+  'THIS PAGE FAILED': 'DIESE SEITE IST FEHLGESCHLAGEN',
+  'OPEN MAP': 'KARTE ÖFFNEN',
+  // your name, user menu
+  'YOUR NAME': 'IHR NAME',
+  'Signed as': 'Angemeldet als',
+  'stored with your confirmations': 'wird mit Ihren Bestätigungen gespeichert',
+  'Set your name to store it with your confirmations': 'Namen setzen, um ihn mit Ihren Bestätigungen zu speichern',
+  'Optional. Kept in this browser only and stored with what you confirm. Leave empty to confirm without a name.':
+    'Optional. Nur in diesem Browser gespeichert und mit Ihren Bestätigungen abgelegt. Leer lassen, um ohne Namen zu bestätigen.',
+  SAVE: 'SPEICHERN',
+  'Clear name': 'Namen löschen',
+  REVIEWER: 'PRÜFER',
+  ADMIN: 'ADMIN',
+  'SIGN OUT': 'ABMELDEN',
+  'SIGNING OUT…': 'ABMELDUNG…',
+  // sign-in
+  'SIGN IN': 'ANMELDEN',
+  'CREATE ACCOUNT': 'KONTO ANLEGEN',
+  'SIGNING IN…': 'ANMELDUNG…',
+  'CREATING ACCOUNT…': 'KONTO WIRD ANGELEGT…',
+  EMAIL: 'E-MAIL',
+  'DISPLAY NAME': 'ANZEIGENAME',
+  PASSWORD: 'PASSWORT',
+  'REPEAT PASSWORD': 'PASSWORT WIEDERHOLEN',
+  'No account yet?': 'Noch kein Konto?',
+  'Have an account?': 'Schon ein Konto?',
+  'Create an account': 'Konto anlegen',
+  'Sign in': 'Anmelden',
+  'Check the fields marked below.': 'Bitte die markierten Felder prüfen.',
+  // chat drawer
+  'NEW CHAT': 'NEUER CHAT',
+  'Close the chat (Esc)': 'Chat schließen (Esc)',
+  'Wait for the answer, or STOP it': 'Auf die Antwort warten oder STOPP drücken',
+  'Nothing to clear yet': 'Noch nichts zu leeren',
+  'Start a new conversation': 'Neues Gespräch beginnen',
+  'Ask about the uploaded boreholes, for example how many are deeper than 10 m in a town. Answers come from the uploaded reports; numbers come from the database.':
+    'Fragen Sie zu den hochgeladenen Bohrungen, zum Beispiel wie viele in einem Ort tiefer als 10 m sind. Antworten stammen aus den hochgeladenen Berichten, Zahlen aus der Datenbank.',
+  'Thinking…': 'Denkt nach…',
+  'Draw the area on the map.': 'Zeichnen Sie das Gebiet auf der Karte.',
+  CANCEL: 'ABBRECHEN',
+  'Area drawn on the map: it goes with your next message.': 'Gebiet auf der Karte gezeichnet: es geht mit Ihrer nächsten Nachricht mit.',
+  REMOVE: 'ENTFERNEN',
+  'Include unreviewed': 'Ungeprüfte einbeziehen',
+  'THIS MAP AREA': 'DIESER KARTENAUSSCHNITT',
+  'Ask about the area the map shows: it goes with your next messages':
+    'Zum gezeigten Kartenausschnitt fragen: er geht mit Ihren nächsten Nachrichten mit',
+  'Chat is off': 'Chat ist aus',
+  'Ask about the boreholes…': 'Fragen zu den Bohrungen…',
+  'Send (Enter)': 'Senden (Enter)',
+  'Type a question first': 'Zuerst eine Frage eingeben',
+  STOP: 'STOPP',
+  SEND: 'SENDEN',
+};

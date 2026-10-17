@@ -207,6 +207,11 @@ export interface Borehole {
 }
 
 export interface PageItem { kind: 'text' | 'line'; x: number; y: number; w?: number; h?: number; text?: string; fontSize?: number; fontWeight?: number; color?: string }
+/**
+ * A word on a page image (contract 1.2.2 `PageWord`): PDF text-layer words, values located on a scan, or
+ * OCR words; the verification view draws them faintly for context. Box normalised like provenance boxes.
+ */
+export interface PageWord { text: string; box: Box; conf: number | null; source: 'text' | 'located' | 'ocr' }
 /** A rendered page. API pages have imageUrl. Sample pages are drawn from items in a 560x780 px space. */
 export interface PageContent { documentId: string; page: number; type: PageType; usage: string; label: string; imageUrl?: string; items?: PageItem[] }
 
@@ -259,6 +264,12 @@ export interface DocumentSummary {
   error?: string | null;            // extraction failed (API status "failed")
   /** The pipeline stage that failed, as the server names it (contract 1.2.0 `failed_stage`), or null. */
   failedStage?: string | null;
+  /**
+   * Readable notes on a document in review that is not complete (contract 1.2.1 `warnings`), e.g.
+   * "Page 1 was not read; boreholes on it are missing. Retry the document to read it." RETRY reads the
+   * missing pages. Empty (or absent) otherwise.
+   */
+  warnings?: string[];
 }
 export interface CrsCandidate {
   name: string; code: string; note: string | null; score: number | null; verdict: CrsVerdict | null;

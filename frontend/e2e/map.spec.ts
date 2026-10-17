@@ -13,7 +13,7 @@ import { expect, nav, navLink, openApp, openUrl, pathOf, resultRow, test, uidOf 
 /** Plotted boreholes of the fictional sample. */
 const SAMPLE_PINS = 45;
 const AMBER = '#E39B00';
-const GREEN = '#7DB713';
+const GREEN = '#1E7B34';
 /** Depth class colours (src/screens/map/depthClasses.ts). */
 const DEPTH_COLOURS = ['#FCA636', '#E16462', '#B12A90', '#6A00A8', '#0D0887'];
 const DEPTH_LABELS = ['0–10 m', '>10–20 m', '>20–50 m', '>50–100 m', '>100 m', 'Depth not stated'];
@@ -228,7 +228,7 @@ test.describe('map canvas', () => {
     const detail = p.getByRole('button', { name: 'Open detail of BK-11' });
     const review = p.getByRole('button', { name: 'Review BK-11' });
     const source = p.getByRole('button', { name: 'Source of the final depth of BK-11' });
-    await expect(detail).toHaveText('DETAIL');
+    await expect(detail).toHaveText('OPEN DETAIL ›');
     await expect(review).toBeEnabled();
     await expect(source).toBeEnabled();
 
@@ -369,12 +369,12 @@ test.describe('header search on the map', () => {
     expect(new URL(page.url()).pathname).toBe('/map');
   });
 
-  test('search "BK-13" explains why it is not on the map', async ({ page }) => {
+  test('search "BK-13" explains why it is not on the map and opens LIST', async ({ page }) => {
     await search(page, 'BK-13');
-    const message = page.getByRole('status').filter({ hasText: 'Listed under Not on map' });
+    const message = page.getByRole('status').filter({ hasText: 'Shown in LIST' });
     await expect(message).toBeVisible();
     await expect(message).toContainText('BK-13:');
-    await expect(page.locator('.leaflet-popup')).toHaveCount(0);
+    await expect(navLink(page, 'LIST')).toHaveAttribute('aria-current', 'page');
   });
 });
 

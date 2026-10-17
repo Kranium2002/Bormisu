@@ -132,7 +132,7 @@ test('unknown boreholes and pages say so, with a link to the map', async ({ page
 
   await openUrl(page, '/no-such-page');
   await expect(page.getByRole('heading', { name: 'PAGE NOT FOUND' })).toBeVisible();
-  for (const name of ['MAP', 'UPLOAD & QUEUE', 'REVIEW'] as const) {
+  for (const name of ['MAP', 'LIST', 'UPLOAD & QUEUE', 'INBOX'] as const) {
     await expect(navLink(page, name)).not.toHaveAttribute('aria-current', 'page');
   }
   await page.getByRole('link', { name: 'OPEN MAP' }).click();
@@ -154,7 +154,7 @@ test('a deep link shows the loading state, never "not found", while the data loa
   await expect(page.getByText('BOREHOLE NOT FOUND')).toHaveCount(0);
 });
 
-test('REVIEW goes to the last reviewed borehole with its focused value', async ({ page }) => {
+test('/review goes to the last reviewed borehole with its focused value; UPLOAD & QUEUE is the active tab', async ({ page }) => {
   await openApp(page);
   const uid = await uidOf(page, 'BK-01');
   await resultRow(page, 'BK-01').click();
@@ -163,9 +163,10 @@ test('REVIEW goes to the last reviewed borehole with its focused value', async (
   await page.locator('[data-key="BoreholeDepth"]').click();
   await expect.poll(() => pathOf(page)).toBe(`/review/${uid}?key=BoreholeDepth`);
   await nav(page, 'MAP');
-  await expect(navLink(page, 'REVIEW')).toHaveAttribute('href', `/review/${encodeURIComponent(uid)}?key=BoreholeDepth`);
   await nav(page, 'REVIEW');
+  await expect.poll(() => pathOf(page)).toBe(`/review/${uid}?key=BoreholeDepth`);
   await expect(reviewHeading(page, 'BK-01')).toBeVisible();
+  await expect(navLink(page, 'UPLOAD & QUEUE')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('[data-key="BoreholeDepth"]')).toHaveAttribute('aria-current', 'true');
 });
 

@@ -128,6 +128,11 @@ export interface ReviewSlice {
   cancelEdit(): void;
   toggleApprove(key: string): void;
   toggleFlag(key: string): void;
+  /**
+   * The document view's correction of any borehole's value: a changed text becomes the value
+   * (method Edited), the same text confirms it; both approve it. Saved like a review edit.
+   */
+  correctValue(uid: string, key: string, text: string): void;
   /** Sets "not in source" / "illegible" (and approves); the same state again resets it to ok + unreviewed. */
   setState(key: string, state: Exclude<FieldState, 'ok'>): void;
   /** Opens the confirmation and asks the source how many clean values the document has; closes it when open. */

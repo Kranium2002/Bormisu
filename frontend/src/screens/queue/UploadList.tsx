@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
+import { EN, fill, type Tr } from '../review/fill';
 import {
   formatBytes,
   isFinishedUpload,
@@ -12,18 +14,18 @@ import { DROP_INPUT_ID } from './DropZone';
 import styles from './UploadList.module.css';
 
 /** The status text of one upload, e.g. "Uploading 45%", "Already uploaded", "Failed: …". */
-export function uploadStatusText(item: UploadItem): string {
+export function uploadStatusText(item: UploadItem, t: Tr = EN): string {
   switch (item.status) {
     case 'queued':
-      return 'Waiting';
+      return t('Waiting');
     case 'uploading':
-      return `Uploading ${uploadPercent(item)}%`;
+      return fill(t('Uploading {pct}%'), { pct: uploadPercent(item) });
     case 'done':
-      return item.duplicate ? 'Already uploaded' : 'Uploaded';
+      return t(item.duplicate ? 'Already uploaded' : 'Uploaded');
     case 'failed':
-      return `Failed: ${item.error ?? 'unknown error'}`;
+      return `${t('Failed')}: ${item.error ?? t('unknown error')}`;
     case 'cancelled':
-      return 'Cancelled';
+      return t('Cancelled');
   }
 }
 
@@ -46,8 +48,9 @@ interface RowProps {
  * remove once finished). A duplicate says "Already uploaded" and shows the existing document.
  */
 export function UploadRow({ item, retryBlocked, documentListed, onCancel, onRemove, onRetry, onShowDocument }: RowProps) {
+  const t = useT();
   const pct = uploadPercent(item);
-  const status = uploadStatusText(item);
+  const status = uploadStatusText(item, t);
   const running = item.status === 'queued' || item.status === 'uploading';
   const showable = item.status === 'done' && item.documentId !== null && documentListed;
   const valueText = item.status === 'done' ? status : `${formatBytes(item.loaded)} of ${formatBytes(item.total)}`;
@@ -60,7 +63,7 @@ export function UploadRow({ item, retryBlocked, documentListed, onCancel, onRemo
         </span>
         <span className={styles.meta}>
           {formatBytes(item.size)}
-          {item.project && ` · Project: ${item.project}`}
+          {item.project && ` · ${t('Project')}: ${item.project}`}
         </span>
       </div>
       <div className={styles.progress}>
@@ -82,7 +85,7 @@ export function UploadRow({ item, retryBlocked, documentListed, onCancel, onRemo
       <div className={styles.actions}>
         {running && (
           <button type="button" className={styles.action} aria-label={`Cancel upload of ${item.name}`} onClick={() => onCancel(item.id)}>
-            CANCEL
+            {t('CANCEL')}
           </button>
         )}
         {showable && (
@@ -92,7 +95,7 @@ export function UploadRow({ item, retryBlocked, documentListed, onCancel, onRemo
             aria-label={item.duplicate ? `Show the existing document of ${item.name}` : `Show the document of ${item.name}`}
             onClick={() => onShowDocument(item.documentId!)}
           >
-            SHOW DOCUMENT
+            {t('SHOW DOCUMENT')}
           </button>
         )}
         {item.status === 'failed' && (
@@ -101,16 +104,16 @@ export function UploadRow({ item, retryBlocked, documentListed, onCancel, onRemo
             className={styles.action}
             aria-label={`Retry upload of ${item.name}`}
             disabled={!!retryBlocked}
-            title={retryBlocked ?? 'Send this file again'}
+            title={retryBlocked ?? t('Send this file again')}
             aria-description={retryBlocked ?? undefined}
             onClick={() => onRetry(item.id)}
           >
-            RETRY
+            {t('RETRY')}
           </button>
         )}
         {isFinishedUpload(item) && (
           <button type="button" className={styles.remove} aria-label={`Remove ${item.name} from the list`} onClick={() => onRemove(item.id)}>
-            REMOVE
+            {t('REMOVE')}
           </button>
         )}
       </div>
@@ -123,6 +126,7 @@ export function UploadRow({ item, retryBlocked, documentListed, onCancel, onRemo
  * it changes, and CLEAR FINISHED. Focus stays in the list when a row's buttons change or a row goes.
  */
 export function UploadList({ onShowDocument }: { onShowDocument(documentId: string): void }) {
+  const t = useT();
   const uploads = useAppStore((s) => s.uploads);
   const documents = useAppStore((s) => s.documents);
   const retryBlocked = useAppStore((s) => uploadBlockedReason(s.health));
@@ -170,7 +174,7 @@ export function UploadList({ onShowDocument }: { onShowDocument(documentId: stri
     <section className={styles.uploads} aria-labelledby="upload-list-title">
       <div className={styles.head}>
         <h2 id="upload-list-title" ref={heading} className={styles.title} tabIndex={-1}>
-          UPLOADS
+          {t('UPLOADS')}
         </h2>
         <span className={styles.summary} role="status" aria-live="polite">
           {uploadSummary(uploads)}
@@ -184,7 +188,7 @@ export function UploadList({ onShowDocument }: { onShowDocument(documentId: stri
               clearFinished();
             }}
           >
-            CLEAR FINISHED
+            {t('CLEAR FINISHED')}
           </button>
         )}
       </div>

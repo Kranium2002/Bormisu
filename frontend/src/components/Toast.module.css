@@ -1,12 +1,14 @@
+/* frontend_din's toast: black with a white edge, bottom centre over the screen. */
 .toast {
   position: absolute;
   left: 50%;
   bottom: 28px;
   transform: translateX(-50%);
-  background: var(--c-text);
-  color: #fff;
-  font-size: 13px;
-  padding: 11px 18px;
+  background: var(--c-dark);
+  border-left: 3px solid var(--c-on-dark-accent);
+  color: var(--c-surface);
+  font-size: var(--fs-md);
+  padding: var(--space-3) var(--space-4);
   border-radius: 2px;
   z-index: var(--z-toast);
   box-shadow: var(--shadow-toast);
@@ -23,17 +25,22 @@
   margin-left: 14px;
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.6);
-  color: #fff;
+  color: var(--c-surface);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 4px 10px;
+  letter-spacing: var(--ls-caps);
+  padding: var(--space-1) 10px;
   border-radius: 2px;
   cursor: pointer;
 }
 
-.action:hover,
+.action:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .action:focus-visible {
   background: rgba(255, 255, 255, 0.16);
+  outline: var(--focus-ring-on-dark);
+  outline-offset: 2px;
 }

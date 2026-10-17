@@ -1,0 +1,25 @@
+/* Status dot in front of a value (green sure, yellow unsure, red flagged, grey not in the source). */
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.sure {
+  background: var(--c-green);
+}
+
+.unsure {
+  background: var(--c-amber);
+}
+
+.flagged {
+  background: var(--c-red);
+}
+
+.missing {
+  background: var(--c-border-strong);
+}

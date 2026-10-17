@@ -10,6 +10,9 @@
  *   /review/:uid      review of a borehole (?key=value key)
  *   /boreholes/:uid   borehole detail (?layer=n)
  *   /inbox            clarification questions (?q=question whose dialog is open)
+ *   /list             every borehole as a table, also those not on the map
+ *   /sheet/:uid       generated borehole sheet of a record, printable (?lang=en|de)
+ *   /verify/:uid      side-by-side check: original page next to the extracted values (?page=n)
  *   anything else     not found, with a link to the map
  *
  * No loaders: the store loads the data, and navigation stays synchronous. nginx serves index.html for
@@ -20,12 +23,15 @@ import { App } from './App';
 import {
   BoreholeRoute,
   InboxRoute,
+  ListRoute,
   MapRoute,
   NotFoundRoute,
   QueueRoute,
   ReviewIndexRoute,
   ReviewRoute,
   RouteError,
+  SheetRoute,
+  VerifyRoute,
 } from './routing/screens';
 import { ROUTE } from './routing/urlState';
 
@@ -46,6 +52,9 @@ export const routes: RouteObject[] = [
           { path: ROUTE.review, Component: ReviewRoute },
           { path: ROUTE.detail, Component: BoreholeRoute },
           { path: ROUTE.inbox, Component: InboxRoute },
+          { path: ROUTE.list, Component: ListRoute },
+          { path: ROUTE.sheet, Component: SheetRoute },
+          { path: ROUTE.verify, Component: VerifyRoute },
           { path: '*', Component: NotFoundRoute },
         ],
       },

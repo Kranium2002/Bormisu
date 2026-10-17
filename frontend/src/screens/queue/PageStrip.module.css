@@ -27,7 +27,7 @@
 
 .cell:hover:not([aria-disabled='true']),
 .cell:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
 }
 
 /* Not classified yet: keeps its tooltip, but there is no page to show. */

@@ -1,4 +1,5 @@
 import type { BoreholeStatus } from '../domain/types';
+import { useT } from '../i18n';
 import { statusChip } from '../theme';
 import styles from './StatusChip.module.css';
 
@@ -12,9 +13,10 @@ interface Props {
 /** Status chip: Approved (green) / In review, Unreviewed (grey) / Needs attention (amber). */
 export function StatusChip({ status, size = 'sm' }: Props) {
   const c = statusChip(status);
+  const t = useT();
   return (
     <span className={`${styles.chip} ${styles[size]}`} style={{ background: c.bg, color: c.fg }}>
-      {c.label}
+      {t(c.label)}
     </span>
   );
 }

@@ -251,3 +251,21 @@ describe('DocumentCard', () => {
     });
   });
 });
+
+describe('1.2.1: document warnings', () => {
+  const warning = 'Page 3 was not read; boreholes on it are missing. Retry the document to read it.';
+
+  it('shows the warnings as the server wrote them, with RETRY, next to OPEN IN REVIEW ›', () => {
+    const doc = makeDocument({ status: 'needs_review', step: 2, reviewBoreholeUid: 'bh_TEST', warnings: [warning] });
+    const html = renderToStaticMarkup(<DocumentCard doc={doc} onShowDocument={noop} />);
+    expect(html).toContain(warning);
+    expect(html).toContain('OPEN IN REVIEW ›');
+    expect(html.match(/<button[^>]*>RETRY<\/button>/)?.[0]).toContain('title="Read the missing pages again"');
+  });
+
+  it('a document without warnings shows none', () => {
+    const html = renderToStaticMarkup(<DocumentCard doc={makeDocument({ status: 'done', step: 3, warnings: [] })} onShowDocument={noop} />);
+    expect(html).not.toContain('Document warnings');
+    expect(html).not.toContain('RETRY');
+  });
+});

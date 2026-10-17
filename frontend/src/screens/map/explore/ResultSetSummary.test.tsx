@@ -27,4 +27,11 @@ describe('ResultSetSummary', () => {
     expect(render({ busy: true })).toMatch(/aria-busy="true"[^>]*>.*Selecting boreholes…/);
     expect(render({ error: 'Result set not found or expired.' })).toMatch(/<p[^>]*role="alert">Result set not found or expired\.<\/p>/);
   });
+
+  it('compact (the chip over the map): "N boreholes" on screen, the rest for screen readers, extra before CLEAR', () => {
+    const html = render({ resultSet: RS, compact: true, extra: <a href="/list">OPEN LIST ›</a> });
+    expect(html).toContain('FILTERED');
+    expect(html).toMatch(/aria-atomic="true">7 boreholes<span[^>]*> · 6 on the map · 1 not located · 2 unreviewed left out<\/span><\/p>/);
+    expect(html.indexOf('OPEN LIST ›')).toBeLessThan(html.indexOf('>CLEAR<'));
+  });
 });

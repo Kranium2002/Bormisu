@@ -41,10 +41,10 @@ test('header: product name from config, the screens as links with their URLs, no
   await openApp(page);
   await expect(page).toHaveTitle('Bormisu');
   await expect(page.getByRole('banner')).toContainText('Bormisu');
-  // MAP, UPLOAD & QUEUE and REVIEW are links (M2 adds the inbox next to them).
-  for (const screen of ['MAP', 'UPLOAD & QUEUE', 'REVIEW'] as const) await expect(navLink(page, screen)).toHaveCount(1);
-  const paths = { 'UPLOAD & QUEUE': /^\/queue$/, REVIEW: /^\/review\/[^/]+$/, MAP: /^\/map$/ };
-  for (const screen of ['UPLOAD & QUEUE', 'REVIEW', 'MAP'] as const) {
+  // MAP, LIST, UPLOAD & QUEUE and INBOX are links (Review opens from UPLOAD & QUEUE).
+  for (const screen of ['MAP', 'LIST', 'UPLOAD & QUEUE', 'INBOX'] as const) await expect(navLink(page, screen)).toHaveCount(1);
+  const paths = { 'UPLOAD & QUEUE': /^\/queue$/, LIST: /^\/list$/, INBOX: /^\/inbox$/, MAP: /^\/map$/ };
+  for (const screen of ['UPLOAD & QUEUE', 'LIST', 'INBOX', 'MAP'] as const) {
     await nav(page, screen);
     await expect(navLink(page, screen)).toHaveAttribute('aria-current', 'page');
     expect(new URL(page.url()).pathname).toMatch(paths[screen]);

@@ -1,4 +1,5 @@
 import { useId, useMemo, type Ref } from 'react';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import { useColourMode } from './canvas/colourMode';
 import styles from './MapLegend.module.css';
@@ -31,6 +32,7 @@ export function MapLegend({ ref }: Props) {
   const boreholes = useAppStore((s) => s.boreholes);
   const unplottedUids = useAppStore((s) => s.unplottedUids);
   const resultSet = useAppStore((s) => s.resultSet);
+  const t = useT();
   const name = useId();
   const titleId = useId();
   const switchId = useId();
@@ -40,7 +42,7 @@ export function MapLegend({ ref }: Props) {
   const rows = useMemo(() => legendRows(pins, colourBy, members), [pins, colourBy, members]);
 
   // With a result set active, the counts are its members'.
-  const title = members ? `SELECTION · ${colourBy === 'status' ? 'STATUS' : 'DEPTH'}` : colourBy === 'status' ? 'REVIEW STATUS' : 'FINAL DEPTH';
+  const title = members ? (colourBy === 'status' ? 'SELECTION · STATUS' : 'SELECTION · DEPTH') : colourBy === 'status' ? 'REVIEW STATUS' : 'FINAL DEPTH';
   return (
     <div
       ref={ref}
@@ -51,7 +53,7 @@ export function MapLegend({ ref }: Props) {
     >
       <div className={styles.switch}>
         <span className={styles.switchLabel} id={switchId}>
-          COLOUR BY
+          {t('COLOUR BY')}
         </span>
         <div className={styles.options} role="radiogroup" aria-labelledby={switchId}>
           {MODES.map((m) => (
@@ -64,20 +66,20 @@ export function MapLegend({ ref }: Props) {
                 checked={colourBy === m.value}
                 onChange={() => setColourBy(m.value)}
               />
-              {m.label}
+              {t(m.label)}
             </label>
           ))}
         </div>
       </div>
       <div className={styles.title} id={titleId}>
-        {title}
+        {t(title)}
       </div>
       {/* The counts change with uploads, reviews and selections: screen readers hear them (FRONTEND.md section 6). */}
       <ul className={styles.list} aria-labelledby={titleId} aria-live="polite">
         {rows.map((r) => (
           <li key={r.key} className={styles.row} data-key={r.key} data-status={r.status}>
             <span className={styles.dot} style={{ background: r.paint.fill, borderColor: r.paint.stroke }} aria-hidden="true" />
-            <span className={styles.label}>{r.label}</span>
+            <span className={styles.label}>{t(r.label)}</span>
             <span className={styles.count}>{r.count}</span>
           </li>
         ))}

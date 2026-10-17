@@ -1,13 +1,14 @@
 /**
  * Content of a map pin popup (FRONTEND.md F9): borehole ID, project, final depth (or "Depth not
- * stated"), status chip, the CRS (its label, amber when inferred or unknown), and DETAIL, REVIEW
- * and SOURCE. A button that can't act is
+ * stated"), status chip, the CRS (its label, amber when inferred or unknown), OPEN DETAIL › across
+ * the popup, and REVIEW and SOURCE under it. A button that can't act is
  * disabled and the reason is printed under the buttons (and tied to the button with
  * aria-describedby). Leaflet measures popup content when it opens, so it is built synchronously as
  * DOM. Text goes in via textContent, never innerHTML: borehole IDs and project names come from
  * parsed reports and must not be able to inject markup.
  */
 import chipStyles from '../../components/StatusChip.module.css';
+import { tr } from '../../i18n';
 import { statusChip } from '../../theme';
 import type { PopupAction, PopupView } from './mapModel';
 import styles from './MapPopup.module.css';
@@ -56,7 +57,7 @@ export function buildPopup(view: PopupView, actions: PopupActions): HTMLElement 
 
   const chipRow = el('div', styles.chipRow);
   const c = statusChip(view.status);
-  const chip = el('span', `${chipStyles.chip} ${chipStyles.sm}`, c.label);
+  const chip = el('span', `${chipStyles.chip} ${chipStyles.sm}`, tr(c.label));
   chip.style.background = c.bg;
   chip.style.color = c.fg;
   chipRow.append(chip);
@@ -72,9 +73,9 @@ export function buildPopup(view: PopupView, actions: PopupActions): HTMLElement 
   const sourceWhy = `map-popup-${popupIds}-source`;
   const row = el('div', styles.actions);
   row.append(
-    button('DETAIL', `Open detail of ${view.id}`, `${styles.action} ${styles.primary}`, { enabled: true, reason: null }, '', actions.onDetail),
-    button('REVIEW', `Review ${view.id}`, styles.action, view.review, reviewWhy, actions.onReview),
-    button('SOURCE', `Source of the final depth of ${view.id}`, styles.action, view.source, sourceWhy, actions.onSource),
+    button(tr('OPEN DETAIL ›'), `Open detail of ${view.id}`, `${styles.action} ${styles.primary}`, { enabled: true, reason: null }, '', actions.onDetail),
+    button(tr('REVIEW'), `Review ${view.id}`, styles.action, view.review, reviewWhy, actions.onReview),
+    button(tr('SOURCE'), `Source of the final depth of ${view.id}`, styles.action, view.source, sourceWhy, actions.onSource),
   );
   root.append(row);
 

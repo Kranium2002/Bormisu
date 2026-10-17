@@ -4,11 +4,14 @@ import { QuestionsButton } from '../../components/clarify/QuestionsButton';
 import { stageStep } from '../../data/adapters';
 import { completenessSummary } from '../../domain/review';
 import type { Borehole, DocumentProgress, DocumentSummary } from '../../domain/types';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import styles from './DocumentCard.module.css';
+import { DocumentWarnings } from './DocumentWarnings';
 import { PageStrip, type ThumbnailUrl } from './PageStrip';
 import {
   canOpenReview,
+  completenessChipText,
   countChips,
   docHint,
   docMeta,
@@ -28,8 +31,9 @@ import { StatusSteps } from './StatusSteps';
 
 /** Completeness chip ("Report lists 14 · extracted 13 · ⚠ 1 missing") that opens the Completeness panel. */
 function CompletenessChip({ doc }: { doc: DocumentSummary }) {
+  const t = useT();
   const openCompleteness = useAppStore((s) => s.openCompleteness);
-  if (!doc.completeness) return <span className={styles.muted}>checks run after extraction</span>;
+  if (!doc.completeness) return <span className={styles.muted}>{t('Checks run after extraction')}</span>;
   const summary = completenessSummary(doc.completeness);
   const onClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -40,19 +44,20 @@ function CompletenessChip({ doc }: { doc: DocumentSummary }) {
       type="button"
       className={`${styles.comp} ${styles[summary.tone]}`}
       onClick={onClick}
-      title="Borehole IDs named in the report vs extracted, plus lint findings"
+      title={t('Borehole IDs named in the report vs extracted, plus lint findings')}
     >
-      {summary.chipText}
+      {completenessChipText(doc.completeness, t)}
     </button>
   );
 }
 
 /** Found counts ("13 BH · 63 layers · …"), or "not processed yet" before extraction. */
 function CountChips({ counts }: { counts: DocumentSummary['counts'] }) {
-  const chips = countChips(counts);
-  if (!chips) return <span className={styles.muted}>not processed yet</span>;
+  const t = useT();
+  const chips = countChips(counts, t);
+  if (!chips) return <span className={styles.muted}>{t('not processed yet')}</span>;
   return (
-    <ul className={styles.counts} aria-label="Found">
+    <ul className={styles.counts} aria-label={t('Found')}>
       {chips.map((c) => (
         <li key={c.label} className={styles.count}>
           <b>{c.n}</b> {c.label}
@@ -64,7 +69,8 @@ function CountChips({ counts }: { counts: DocumentSummary['counts'] }) {
 
 /** Progress bars of a document the backend works on: pages classified, OCR, boreholes extracted. */
 function Progress({ progress }: { progress: DocumentProgress }) {
-  const view = progressView(progress);
+  const t = useT();
+  const view = progressView(progress, t);
   return (
     <div className={styles.progress}>
       {view.bars.map((b) => (
@@ -123,6 +129,7 @@ function useMapSteps(doc: DocumentSummary): MapStep[] {
  * the card behind it.
  */
 function MapStepButton({ step, documentId }: { step: MapStep; documentId: string }) {
+  const t = useT();
   const showOnMap = useAppStore((s) => s.showDocumentOnMap);
   const openClarification = useAppStore((s) => s.openClarification);
   const openCrsDialog = useAppStore((s) => s.openCrsDialog);
@@ -147,8 +154,8 @@ function MapStepButton({ step, documentId }: { step: MapStep; documentId: string
   };
   const tone = step.kind === 'onMap' ? styles.onMap : step.kind === 'notOnMap' ? styles.whyStep : styles.nextStep;
   return (
-    <button type="button" className={tone} data-map-step={step.kind} title={mapStepTitle(step)} onClick={onClick}>
-      {mapStepText(step)}
+    <button type="button" className={tone} data-map-step={step.kind} title={mapStepTitle(step, t)} onClick={onClick}>
+      {mapStepText(step, t)}
     </button>
   );
 }
@@ -168,7 +175,9 @@ interface Props {
 }
 
 /**
- * One document of the queue. When it has a reviewable borehole, the card (and its hint) opens Review.
+ * One document of the queue (frontend_din card: file name in mono, pages · project, status track,
+ * CHECKS chip, OPEN IN REVIEW › under the name). When it has a reviewable borehole, the card (and
+ * OPEN IN REVIEW ›) opens Review.
  * It shows progress while the backend works, open questions (a badge that opens the first one in the
  * question dialog, or the inbox), a duplicate link and, after processing, the way to the map: "N on
  * the map · SHOW", or the next step (CONFIRM a coordinate system, PLACE a borehole, WHY it is not on
@@ -177,17 +186,18 @@ interface Props {
  * retry cannot fix it.
  */
 export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = null, thumbnailUrl = null, onShowDocument }: Props) {
+  const t = useT();
   const openReview = useAppStore((s) => s.openReview);
   const retryDocument = useAppStore((s) => s.retryDocument);
   const documents = useAppStore((s) => s.documents);
   const [retrying, setRetrying] = useState(false);
   const reviewable = canOpenReview(doc);
-  const hint = docHint(doc, failure);
-  const retryOff = retryBlocked ?? (failure && !failure.retryable ? NOT_RETRYABLE : null);
-  const duplicate = duplicateText(doc, documents);
+  const hint = docHint(doc, failure, t);
+  const retryOff = retryBlocked ?? (failure && !failure.retryable ? t(NOT_RETRYABLE) : null);
+  const duplicate = duplicateText(doc, documents, t);
   // A link only to another card: a duplicate of itself (an upload of the same bytes again) says so as text.
   const duplicateListed = !!doc.duplicateOf && !isSelfDuplicate(doc) && documents.some((d) => d.id === doc.duplicateOf);
-  const questions = questionsText(doc);
+  const questions = questionsText(doc, t);
   // The badge opens this document's first unresolved question (or the inbox while none is loaded).
   const firstQuestion = useAppStore((s) => firstQuestionOf(s.clarifications, doc.id));
   const steps = useMapSteps(doc);
@@ -238,7 +248,7 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
           <h2 className={styles.name} title={doc.name}>
             {doc.name}
           </h2>
-          <span className={styles.meta}>{docMeta(doc)}</span>
+          <span className={styles.meta}>{docMeta(doc, t)}</span>
           {duplicate &&
             (duplicateListed ? (
               <button type="button" className={styles.dupLink} onClick={onDuplicate}>
@@ -247,26 +257,27 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
             ) : (
               <span className={styles.meta}>{duplicate}</span>
             ))}
+          {hint?.tone === 'action' && (
+            <button type="button" className={styles.hintAction} onClick={onHint}>
+              {hint.text}
+            </button>
+          )}
+          {hint?.tone === 'muted' && <span className={styles.hint}>{hint.text}</span>}
         </div>
-        <StatusSteps step={step} failed={failed} failedStage={failed ? stageText(failedStage) : ''} />
+        <StatusSteps step={step} failed={failed} failedStage={failed ? stageText(failedStage, t) : ''} />
         <div className={styles.checks}>
           {steps.map((step) => (
             <MapStepButton key={step.kind} step={step} documentId={doc.id} />
           ))}
-          {questions && <QuestionsButton text={questions} questionId={firstQuestion} about="this document" />}
+          {questions && <QuestionsButton text={questions} questionId={firstQuestion} about={t('this document')} />}
           <CompletenessChip doc={doc} />
         </div>
       </div>
+      <DocumentWarnings doc={doc} variant="card" />
       {doc.progress && <Progress progress={doc.progress} />}
       <CountChips counts={doc.counts} />
       <div className={styles.bottom}>
         <PageStrip doc={doc} thumbnailUrl={thumbnailUrl} />
-        {hint?.tone === 'action' && (
-          <button type="button" className={styles.hintAction} onClick={onHint}>
-            {hint.text}
-          </button>
-        )}
-        {hint?.tone === 'muted' && <span className={styles.hint}>{hint.text}</span>}
         {hint?.tone === 'error' && (
           <span className={styles.errorBlock}>
             <span className={styles.hintError} role="alert">
@@ -276,11 +287,11 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
               type="button"
               className={styles.retry}
               disabled={retrying || !!retryOff}
-              title={retryOff ?? (retrying ? 'Re-queuing…' : 'Re-queue this document from its last successful step')}
+              title={retryOff ?? (retrying ? t('Re-queuing…') : t('Re-queue this document from its last successful step'))}
               aria-description={retryOff ?? undefined}
               onClick={(e) => void onRetry(e)}
             >
-              {retrying ? 'RETRYING…' : 'RETRY'}
+              {retrying ? t('RETRYING…') : t('RETRY')}
             </button>
           </span>
         )}

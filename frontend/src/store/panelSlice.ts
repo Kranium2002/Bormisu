@@ -80,6 +80,20 @@ function routePatch(s: AppState, route: AppRoute, entering: boolean): Partial<Ap
         editing: s.editing && s.editing.key !== key ? null : s.editing,
       };
     }
+    case 'verify': {
+      // Side by side works on the review borehole, so Review's actions (approve, edit, flag) act on it.
+      const b = find(route.uid);
+      if (!b) return { screen: 'review' };
+      if (s.reviewUid === route.uid) return { screen: 'review' };
+      const focusKey = initialFocusKey(b);
+      return {
+        screen: 'review',
+        reviewUid: route.uid,
+        focusKey,
+        editing: null,
+        reviewPage: route.page ?? pageFor(b, b.values.find((v) => v.key === focusKey), b.primaryPage),
+      };
+    }
     case 'detail': {
       const b = find(route.uid);
       // An unknown borehole shows "not found"; the selection stays as it was.
@@ -90,6 +104,8 @@ function routePatch(s: AppState, route: AppRoute, entering: boolean): Partial<Ap
         : { selectedLayer: layer };
     }
     case 'inbox':
+    case 'list':
+    case 'sheet':
     case 'notFound':
       return {};
   }

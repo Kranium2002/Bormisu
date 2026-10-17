@@ -29,7 +29,7 @@ test.describe('every control works', () => {
   test.beforeEach(async ({ page }) => openApp(page));
 
   test('header: the nav links, the inbox badge, your name and the borehole search', async ({ page }) => {
-    for (const [name, path] of [['UPLOAD & QUEUE', '/queue'], ['REVIEW', '/review/'], ['MAP', '/map']] as const) {
+    for (const [name, path] of [['UPLOAD & QUEUE', '/queue'], ['LIST', '/list'], ['MAP', '/map']] as const) {
       await nav(page, name);
       await expect(page).toHaveURL(new RegExp(path));
     }
@@ -146,7 +146,7 @@ test.describe('every control works', () => {
 
     await nav(page, 'UPLOAD & QUEUE');
     await expect(nb.locator('[data-map-step="crs"]')).toHaveCount(0);
-    await nb.getByRole('button', { name: 'OPEN REVIEW ›' }).click();
+    await nb.getByRole('button', { name: 'OPEN IN REVIEW ›' }).click();
     await expect(page).toHaveURL(/\/review\//);
   });
 
@@ -206,7 +206,7 @@ test.describe('every control works', () => {
     await expect(page.getByRole('heading', { name: 'REVIEW · BK-08' })).toBeVisible();
     await page.getByRole('button', { name: /^Previous borehole/ }).click();
     await expect(page.getByRole('heading', { name: 'REVIEW · BK-07' })).toBeVisible();
-    await page.getByRole('button', { name: '› BOREHOLE DETAIL' }).click();
+    await page.getByRole('button', { name: '› OPEN DETAIL' }).click();
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
     expect(await disabledWithoutReason(page)).toEqual([]);
   });

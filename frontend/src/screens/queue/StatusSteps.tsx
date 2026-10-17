@@ -1,4 +1,5 @@
 import type { DocumentStep } from '../../domain/types';
+import { useT } from '../../i18n';
 import { stepViews, type StepState } from './queueView';
 import styles from './StatusSteps.module.css';
 
@@ -19,18 +20,19 @@ interface Props {
 
 /** The four processing steps of a document; the running one pulses, "needs review" is amber, a failed one red. */
 export function StatusSteps({ step, failed, failedStage = '' }: Props) {
+  const t = useT();
   const views = stepViews(step, failed);
   return (
-    <ol className={styles.steps} aria-label="Processing status">
+    <ol className={styles.steps} aria-label={t('Processing status')}>
       {views.map((s, i) => (
         <li
           key={s.label}
           className={`${styles.step} ${styles[s.state]}`}
           aria-current={s.state === 'active' || s.state === 'review' || s.state === 'failed' ? 'step' : undefined}
-          title={`${s.label}: ${STATE_TEXT[s.state]}${s.state === 'failed' && failedStage ? ` at ${failedStage}` : ''}`}
+          title={`${t(s.label)}: ${t(STATE_TEXT[s.state])}${s.state === 'failed' && failedStage ? ` ${t('at')} ${failedStage}` : ''}`}
         >
           <span className={`${styles.dot} ${s.pulse ? styles.pulse : ''}`} aria-hidden="true" />
-          {s.label}
+          {t(s.label)}
           {i < views.length - 1 && <span className={styles.conn} aria-hidden="true" />}
         </li>
       ))}

@@ -34,11 +34,12 @@ const render = (b: Borehole) =>
 
 const legend = (b: Borehole) => renderToStaticMarkup(<ProfileLegend borehole={b} />);
 
-/** The `<g>` of one layer button. */
+/** The markup of one layer button, up to the next button. */
 function layerGroup(html: string, n: number): string {
   const start = html.indexOf(`aria-label="Layer ${n}:`);
   expect(start, `layer ${n}`).toBeGreaterThan(-1);
-  return html.slice(start, html.indexOf('</g>', start));
+  const end = html.indexOf('role="button"', start);
+  return html.slice(start, end < 0 ? undefined : end);
 }
 
 describe('ProfileColumn', () => {
@@ -82,18 +83,76 @@ describe('ProfileColumn', () => {
     expect(layerGroup(html, 2)).toContain('fill="url(#din-geological_Mg)"');
   });
 
-  it('fills an unknown code plain #E0E0E0 and writes the code', () => {
+  it('fills an unknown code solid red, labelled "no pattern assigned", and writes the code', () => {
     const g = layerGroup(render(withLayers([makeLayer({ n: 1, from: 0, to: 6, din: 'Qz', dinNotation: null })])), 1);
-    expect(g).toContain('fill="#E0E0E0"');
-    expect(g).not.toContain('url(#');
+    expect(g).toContain('fill="#C8102E"');
+    expect(g).not.toContain('url(#din-');
+    expect(g).toContain('>no pattern assigned</text>');
     expect(g).toMatch(/>Qz<\/text>/);
     expect(g).toContain('Qz is not a DIN 4023 code');
+  });
+
+  it('draws the first secondary component over the right half and two equal parts side by side', () => {
+    const html = render(
+      withLayers([
+        makeLayer({ n: 1, from: 0, to: 3, din: 'U', dinNotation: "U, s'" }),
+        makeLayer({ n: 2, from: 3, to: 6, din: 'S', dinNotation: 'S/G' }),
+      ]),
+    );
+    expect(layerGroup(html, 1)).toMatch(/x="170"[^>]*fill="url\(#din-sym-soil_S\)"/);
+    expect(layerGroup(html, 2)).toContain('fill="url(#din-sym-soil_S)"');
+    expect(layerGroup(html, 2)).toContain('fill="url(#din-sym-soil_G)"');
+  });
+
+  it('draws the Table 6 properties the record states and nothing for words no DIN term matches', () => {
+    const html = render(
+      withLayers([
+        makeLayer({ n: 1, from: 0, to: 3, din: 'T', consistency: 'stiff', moisture: 'wet' }),
+        makeLayer({ n: 2, from: 3, to: 6, din: 'Sst', weathering: 'W2', consistency: 'crumbly-ish', moisture: 'damp' }),
+      ]),
+    );
+    expect(layerGroup(html, 1)).toContain('data-prop="consistency_stiff"');
+    expect(layerGroup(html, 1)).toContain('data-prop="moisture_wet"');
+    expect(layerGroup(html, 2)).toContain('data-prop="weathering_w2_3"');
+    expect(layerGroup(html, 2)).not.toContain('data-prop="consistency');
+    expect(layerGroup(html, 2)).not.toContain('data-prop="moisture');
+  });
+
+  it('draws the cored line only for a layer the record says is cored', () => {
+    const html = render(withLayers([makeLayer({ n: 1, from: 0, to: 3, isCore: true }), makeLayer({ n: 2, from: 3, to: 6, isCore: null })]));
+    expect(layerGroup(html, 1)).toContain('data-cored');
+    expect(layerGroup(html, 2)).not.toContain('data-cored');
+  });
+
+  it('draws sample markers at their depth, pickable, water samples as a triangle', () => {
+    const b = {
+      ...withLayers([makeLayer({ n: 1, from: 0, to: 6 })]),
+      samples: [
+        { name: 'P1', typeCode: 'GP', from: 1, to: 1.5, key: K.sampleName(0) },
+        { name: 'W2', typeCode: 'W', from: 3, to: null, key: K.sampleName(1) },
+        { name: 'P3', typeCode: null, from: null, to: null, key: K.sampleName(2) },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <ProfileColumn borehole={b} selectedLayer={1} onSelectLayer={() => undefined} onOpenSource={() => undefined} selectedSample={1} onSelectSample={() => undefined} />,
+    );
+    expect(html).toContain('aria-label="Sample P1 at 1.50 m" aria-pressed="false"');
+    expect(html).toContain('aria-label="Water sample W2 at 3.00 m" aria-pressed="true"');
+    expect(html).not.toContain('P3');
+  });
+
+  it('has no buttons when read-only (the printable sheet)', () => {
+    const html = renderToStaticMarkup(
+      <ProfileColumn borehole={borehole()} selectedLayer={1} onSelectLayer={() => undefined} onOpenSource={() => undefined} readOnly />,
+    );
+    expect(html).not.toContain('role="button"');
+    expect(html).toContain('rock head 2.50');
   });
 
   it('fills a layer without a code plain #E0E0E0 and writes no code', () => {
     const g = layerGroup(render(withLayers([makeLayer({ n: 1, from: 0, to: 6, din: null, dinNotation: null })])), 1);
     expect(g).toContain('fill="#E0E0E0"');
-    expect(g).not.toContain('url(#');
+    expect(g).not.toContain('url(#din-');
     expect(g).toContain('no DIN code');
     expect(g).not.toContain('font-weight="700"');
   });
@@ -161,15 +220,16 @@ describe('ProfileLegend', () => {
     expect(html).toContain('title="T: Clay (Ton)"');
   });
 
-  it('keeps the groundwater and refusal items and says "nach DIN 4023"', () => {
-    const html = legend(borehole());
+  it('lists the groundwater symbols of the readings drawn, the refusal item and says "nach DIN 4023"', () => {
+    const b = borehole();
+    const html = legend({ ...b, groundwater: [...b.groundwater, { type: 'rest', depth: 2, elevation: null, date: null, raw: null, key: K.gw(1) }] });
     expect(html).toContain('GW strike');
     expect(html).toContain('GW rest level');
     expect(html).toContain('SPT refusal (click)');
     expect(html).toContain('nach DIN 4023');
   });
 
-  it('lists unknown codes plain grey and notes layers without a code', () => {
+  it('lists unknown codes red ("no pattern assigned") and notes layers without a code', () => {
     const b = withLayers([
       makeLayer({ n: 1, from: 0, to: 1, din: 'A' }),
       makeLayer({ n: 2, from: 1, to: 2, din: 'Qz' }),
@@ -178,7 +238,9 @@ describe('ProfileLegend', () => {
     ]);
     const html = legend(b);
     expect(codes(html)).toEqual(['A', 'Qz']);
-    expect(html).toContain('not a DIN 4023 code');
+    expect(html).toContain('Qz is not a DIN 4023 code');
+    expect(html).toContain('no pattern assigned');
+    expect(html).toContain('fill="#C8102E"');
     expect(html).toContain('no DIN code in source');
     expect(html).toContain('fill="#E0E0E0"');
     expect(html).toContain('fill="#fff"');

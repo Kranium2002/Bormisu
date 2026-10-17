@@ -112,3 +112,39 @@ describe('FE-QUEUE-1: a classified page of unknown type', () => {
     expect(html).not.toContain('not classified yet');
   });
 });
+
+describe('SourcePanelView: correcting the value', () => {
+  const panel = { kind: 'source' as const, uid: 'bh_X', key: K.finalDepth, documentId: doc.id, page: 1, box: null };
+  const ready = { status: 'ready', content } as const;
+
+  it('shows a field with the value and CONFIRM (nothing changed yet), and OPEN FULL REVIEW', () => {
+    const html = renderToStaticMarkup(
+      <SourcePanelView panel={panel} value={onPage} doc={doc} page={ready} onCorrect={() => undefined} onOpenInReview={() => undefined} />,
+    );
+    expect(html).toContain('aria-label="Corrected value for Final depth"');
+    expect(html).toContain('value="6.00"');
+    expect(html).toContain('>CONFIRM</button>');
+    expect(html).toContain('OPEN FULL REVIEW ›');
+  });
+
+  it('a read-only value can only be confirmed and says why', () => {
+    const crs = makeValue({ key: K.crs, label: 'CRS', value: 'EPSG:25832', page: 1, box: null, readOnlyReason: 'Set the CRS in the CRS dialog' });
+    const html = renderToStaticMarkup(<SourcePanelView panel={{ ...panel, key: K.crs }} value={crs} doc={doc} page={ready} onCorrect={() => undefined} />);
+    expect(html).toContain('readOnly=""');
+    expect(html).toContain('Set the CRS in the CRS dialog');
+    expect(html).toContain('>CONFIRM</button>');
+  });
+
+  it('a value without a provenance entry says it can’t be corrected', () => {
+    const html = renderToStaticMarkup(
+      <SourcePanelView panel={panel} value={{ ...onPage, hasProvenance: false }} doc={doc} page={ready} onCorrect={() => undefined} />,
+    );
+    expect(html).not.toContain('Corrected value for');
+    expect(html).toContain('can’t be corrected here');
+  });
+
+  it('has no field without a correction action (a page opened from the queue)', () => {
+    const html = renderToStaticMarkup(<SourcePanelView panel={panel} value={onPage} doc={doc} page={ready} />);
+    expect(html).not.toContain('Corrected value for');
+  });
+});

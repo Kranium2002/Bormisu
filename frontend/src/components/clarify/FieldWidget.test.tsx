@@ -128,7 +128,7 @@ describe('FieldWidget', () => {
     const radios = html.match(/<button[^>]*role="radio"[^>]*>/g) ?? [];
     expect(radios).toHaveLength(3);
     expect(radios[0]).toContain('aria-checked="true"');
-    expect(radios[0]).toContain('border-left-color:#7DB713');
+    expect(radios[0]).toContain('border-left-color:#1E7B34');
     expect(radios[1]).toContain('border-left-color:#E39B00');
     // No candidate: the neutral colour.
     expect(radios[2]).toContain('border-left-color:#A3A3A2');

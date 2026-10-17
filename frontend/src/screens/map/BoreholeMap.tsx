@@ -82,6 +82,8 @@ let dismissedOutlineNonce: number | null = null;
 interface Props {
   /** The plotted boreholes, each with its status (mapRows). */
   pins: PinRow[];
+  /** True while the header search filters `pins` to its matches: they are drawn larger. */
+  searchActive?: boolean;
   /** Drawn with the larger radius and on top (the borehole open in Review). */
   highlightUid: string | null;
   focus: MapFocus | null;
@@ -110,7 +112,7 @@ const flying = (focus: MapFocus | null, uid: string | null) => !!focus && focus.
 const wasReset = (s: AppState, prev: AppState) =>
   s.filter !== prev.filter && !s.resultSet && !s.resultSetBusy && s.filter.area === null && onlyArea(s.filter);
 
-export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, legendRef, onOpen, onViewChange, onSelect }: Props) {
+export function BoreholeMap({ pins, searchActive = false, highlightUid, focus, view, selectedUid, legendRef, onOpen, onViewChange, onSelect }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -143,7 +145,13 @@ export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, lege
   const mapOutline = useAppStore((s) => s.mapOutline);
   const chatAreaRequest = useAppStore((s) => s.chatAreaRequest);
   const chatArea = useAppStore((s) => s.chatArea);
-  const members = useMemo(() => (resultSet ? new Set(resultSet.uids) : null), [resultSet]);
+  // The result set's members are drawn larger; while the header search filters the pins (only the
+  // matches are passed in), the matches are, too (those of the result set when one is active).
+  const members = useMemo(() => {
+    const set = resultSet ? new Set(resultSet.uids) : null;
+    if (!searchActive) return set;
+    return new Set(pins.filter((p) => !set || set.has(p.uid)).map((p) => p.uid));
+  }, [resultSet, searchActive, pins]);
   // An area drawn for the chat (until its message is sent), else the area being selected while its
   // request runs, else the active result set's (none after a reset).
   const areaShown = chatArea ?? (resultSetBusy && filterArea ? filterArea : (resultSet?.area ?? null));

@@ -69,7 +69,12 @@
   font-weight: 700;
   letter-spacing: 0.07em;
   color: var(--c-muted);
-  padding: 0 19px;
+  padding: 0 calc(var(--space-4) + 1px);
+}
+
+/* CHECKS sits over the right-aligned chips */
+.columns > :last-child {
+  text-align: right;
 }
 
 .list {

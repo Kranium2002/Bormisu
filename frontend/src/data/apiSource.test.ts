@@ -656,6 +656,25 @@ describe('page thumbnails', () => {
   });
 });
 
+describe('page words (contract 1.2.2)', () => {
+  it('maps t/b/conf/source, skips a word without a box, and is empty for a backend without the endpoint', async () => {
+    backend((c) =>
+      c.url.endsWith('/pages/3/words')
+        ? json(200, [
+            { t: 'Sand,', b: [0.163, 0.231, 0.05, 0.012], conf: 0.9, source: 'text' },
+            { t: 'lost', b: null, conf: 1, source: 'ocr' },
+          ])
+        : undefined,
+    );
+    const api = createApiSource(BASE);
+    expect(await api.getPageWords!(D1, 3)).toEqual([
+      { text: 'Sand,', box: { x: 0.163, y: 0.231, w: 0.05, h: 0.012 }, conf: 0.9, source: 'text' },
+    ]);
+    // The fictional backend answers 404 route_not_found for any other path, like a server before 1.2.2.
+    expect(await api.getPageWords!(D1, 4)).toEqual([]);
+  });
+});
+
 describe('following documents', () => {
   it('load() follows every document still being processed, retry() its document', async () => {
     vi.useFakeTimers();

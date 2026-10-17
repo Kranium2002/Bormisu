@@ -111,9 +111,10 @@ export const createMapSlice: SliceCreator<MapSlice> = ({ set, get, find }) => {
       }
       const s = get();
       if (b.unplotted) {
-        if (navigator) s.showRoute({ kind: 'map', at: s.mapView, sel: null, rs: s.resultSetId });
+        // No pin to fly to: LIST shows it (with the reason it is not on the map).
+        if (navigator) s.showRoute({ kind: 'list' });
         else set({ ...LEAVE_REVIEW, screen: 'map' });
-        flashSearch(`${b.id}: ${unplottedText(b.unplotted)}. Listed under Not on map.`, SEARCH_NOT_ON_MAP_MS);
+        flashSearch(`${b.id}: ${unplottedText(b.unplotted)}. Shown in LIST.`, SEARCH_NOT_ON_MAP_MS);
         return;
       }
       clearTimeout(searchTimer);

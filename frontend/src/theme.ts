@@ -5,25 +5,25 @@
 import { PAGE_ROLE_LABELS } from './domain/pages';
 import type { BoreholeStatus, DocumentPage, Method, PageType } from './domain/types';
 
-/** Core palette (same names as the prototype's COL, plus text tones used in computed styles). */
+/** Core palette (= tokens.css, frontend_din's black and white: colour only means status). */
 export const COL = {
-  green: '#7DB713',
-  dark: '#003E25',
+  green: '#1E7B34', // status green (= --c-green)
+  dark: '#111111',
   amber: '#E39B00',
   red: '#C8102E',
   grey: '#A3A3A2',
   gw: '#1F5FA8',
-  text: '#181818',
+  text: '#111111',
   muted: '#555555',
-  faint: '#868685',
-  border: '#D6D6D6',
-  line: '#EFEFEF',
-  greenText: '#3F6A00',
+  faint: '#6B6B6B',
+  border: '#D4D4D4',
+  line: '#EEEEEE',
+  greenText: '#1A6B2D',
   amberText: '#8A5300',
-  greenBg: '#E6F1D2',
+  greenBg: '#E3F4E6',
   amberBg: '#FFEFCC',
   redBg: '#FDE7EA',
-  selected: '#F5F9EC',
+  selected: '#F0F0F0',
 } as const;
 
 /** Method badge colours. None of them is green: green must never imply "correct". */
@@ -43,7 +43,7 @@ export interface PageMeta { name: string; color: string; border: string }
  * `unknown` is the white swatch of a page the backend hasn't classified yet (see pageMeta).
  */
 export const PAGE_TYPE_META: Record<PageType, PageMeta> = {
-  log: { name: 'log', color: '#003E25', border: '#003E25' },
+  log: { name: 'log', color: '#111111', border: '#111111' },
   lab_table: { name: 'lab table', color: '#6E8FB5', border: '#6E8FB5' },
   text: { name: 'text', color: '#C9C9C8', border: '#C9C9C8' },
   drawing: { name: 'drawing', color: '#C9A36B', border: '#C9A36B' },
