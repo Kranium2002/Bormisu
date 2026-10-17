@@ -135,3 +135,31 @@ async def test_misplaced_anchors_are_refused_and_one_anchor_shifts_the_grid(db: 
     )
     for uid in uids.values():
         assert (await record_of(uid)).plotted
+
+
+@pytest.mark.db
+async def test_two_anchors_on_the_same_grid_point_are_refused_not_a_server_error(db: None) -> None:
+    async with get_sessionmaker()() as session:
+        doc = await new_document(session, "doc_01JGRID00000000000000000B2", file_name="fictional-grid-2.pdf")
+        uids = {}
+        points = {"T-1": GRID["T-1"], "T-1b": GRID["T-1"], "T-2": GRID["T-2"]}  # a hole logged twice
+        for n, (label, (x, y)) in enumerate(points.items(), start=1):
+            bh = await add_borehole(
+                session, doc, f"g{n}", grid_body(label, x, y), crs_status="unknown", crs_code=None, page=n
+            )
+            uids[label] = bh.uid
+        await session.commit()
+    await finalize_document(doc.id)
+    (question,) = await clarifications("locate_borehole")
+    lat1, lon1 = truth(*GRID["T-1"])
+    with pytest.raises(ApiError):
+        await answer(
+            question.id,
+            {
+                "anchor_1": uids["T-1"],
+                "point_1": {"lat": lat1, "lon": lon1},
+                "anchor_2": uids["T-1b"],
+                "point_2": {"lat": lat1 + 0.001, "lon": lon1},
+                "axes": X_NORTH,
+            },
+        )

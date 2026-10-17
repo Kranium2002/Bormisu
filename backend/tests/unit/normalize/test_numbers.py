@@ -9,7 +9,13 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from app.normalize.api import NumberStyle
-from app.normalize.numbers import analyse_number, format_number, learn_style, parse_number
+from app.normalize.numbers import (
+    after_field_label,
+    analyse_number,
+    format_number,
+    learn_style,
+    parse_number,
+)
 
 # (family, printed, value, unit as printed, qualifier as printed)
 PARSED = [
@@ -228,3 +234,23 @@ def test_parse_is_deterministic_and_style_never_creates_ambiguity(text: str, dec
 def test_learn_style_finds_the_decimal_of_unambiguous_numbers(values: list[float], decimal: str) -> None:
     raws = [format_number(v, decimal=decimal, decimals=2) for v in values]  # type: ignore[arg-type]
     assert learn_style(raws).decimal == decimal
+
+
+@pytest.mark.parametrize(
+    ("raw", "value"),
+    [
+        ("EL(+) 7.3 M", "7.3 M"),
+        ("EL.(+) -12.6 M", "-12.6 M"),
+        ("GL(-)3.1 m", "3.1 m"),
+        ("Kote: +41,25 m", "+41,25 m"),
+        ("H = 88.4", "88.4"),
+    ],
+)
+def test_value_after_a_field_label(raw: str, value: str) -> None:
+    """A cell that prints its own label before the value ("EL(+) 7.3 M"): the value after the label."""
+    assert after_field_label(raw) == value
+
+
+@pytest.mark.parametrize("raw", ["7.3", "-12.6 m", "(+) 4.0", "", None])
+def test_no_field_label_no_value(raw: str | None) -> None:
+    assert after_field_label(raw) is None

@@ -39,6 +39,8 @@ TABLE_ROLES = frozenset({"summary_table", "coordinate_table"})
 MIN_LISTED = 2
 # Bare IDs shorter than this (no borehole word in front) are too easily a depth or a count.
 MIN_BARE_LENGTH = 3
+# Parts of one label whose depth columns share more than this share of the shorter column are two holes.
+OVERLAP_SHARE = 0.5
 
 
 @dataclass
@@ -83,10 +85,11 @@ def ids_from_labels(labels: Iterable[str]) -> dict[str, str]:
 
 
 def _id_pattern(canonical: str) -> re.Pattern[str]:
-    """The ID as printed: its letter and digit runs, optionally split by a space, dash, dot or slash."""
+    """The ID as printed: its letter and digit runs, optionally split by a space, dash, dot or slash. Never
+    a part of a longer number: a decimal ("703,5 m") or a date ("12.05.2004") does not print the ID."""
     runs = re.findall(r"[0-9]+|[A-Z]+", canonical)
     body = r"[\s\-_./]?".join(re.escape(run) for run in runs)
-    return re.compile(rf"(?<![0-9A-Za-z]){body}(?![0-9A-Za-z])", re.IGNORECASE)
+    return re.compile(rf"(?<![0-9A-Za-z])(?<![0-9][.,/]){body}(?![0-9A-Za-z])(?![.,/][0-9])", re.IGNORECASE)
 
 
 def _prefixed(text: str, start: int) -> bool:
@@ -336,20 +339,57 @@ def _printed_position(item: Reconciled) -> tuple[str, str] | None:
     return re.sub(r"\D", "", x), re.sub(r"\D", "", y)
 
 
-def _same_hole(parts: Sequence[Reconciled], listed: dict[str, str]) -> bool:
-    """Parts with one label are one borehole when the document's tables list the label, or when no two of
-    them print different coordinates (continuation sheets read as separate holes)."""
+def _depth_span(item: Reconciled) -> tuple[float, float] | None:
+    """Shallowest and deepest printed depth of a part's depth column (layers, SPT, core runs)."""
+    result = item.outcome.result
+    raws = [
+        *(v for layer in result.layers for v in (layer.from_raw, layer.to_raw)),
+        *(test.depth_raw for test in result.spt),
+        *(v for run in result.core_runs for v in (run.from_raw, run.to_raw)),
+    ]
+    depths = [
+        d
+        for raw in raws
+        if (text := printed(raw)) is not None and (d := parse_number(text).value) is not None
+    ]
+    return (min(depths), max(depths)) if depths else None
+
+
+def _overlap(a: tuple[float, float] | None, b: tuple[float, float] | None) -> bool:
+    """Two depth columns cover the same depths: two logs each from their own top, not one log's sheets (a
+    further sheet goes on below the one before, sharing at most a boundary or a layer across the break)."""
+    if a is None or b is None:
+        return False
+    shared = min(a[1], b[1]) - max(a[0], b[0])
+    return shared > 0 and shared > OVERLAP_SHARE * min(a[1] - a[0], b[1] - b[0])
+
+
+def _holes(parts: Sequence[Reconciled], listed: dict[str, str]) -> list[list[Reconciled]]:
+    """Parts with one label (in page order) as boreholes. All one borehole when the document's tables list
+    the label. Otherwise parts that print different coordinates stay apart, and so do parts whose depth
+    columns cover the same depths: a field form numbered per site ("HA-1" under every main hole) or a
+    misread ID repeats a label on logs of other holes, and without coordinates nothing else tells them
+    apart. Continuation sheets read as separate holes go on below each other and are merged."""
     if parts[0].group.label_canonical in listed:
-        return True
+        return [list(parts)]
     positions = {pos for part in parts if (pos := _printed_position(part)) is not None}
-    return len(positions) <= 1
+    if len(positions) > 1:
+        return [[part] for part in parts]
+    holes: list[list[Reconciled]] = []
+    for part in parts:
+        span = _depth_span(part)
+        if holes and not any(_overlap(span, _depth_span(other)) for other in holes[-1]):
+            holes[-1].append(part)
+        else:
+            holes.append([part])
+    return holes
 
 
 def reconcile(
     pairs: Sequence[tuple[PageGroup, ExtractionOutcome]], tables: Tables | dict[str, str]
 ) -> list[Reconciled]:
     """Relabel to the IDs the document's tables list, then merge the parts that share a label and are one
-    borehole (`_same_hole`). Parts without a label are never merged.
+    borehole (`_holes`). Parts without a label are never merged.
 
     A borehole takes, in this order: the listed ID its own pages print; the ID of the table row its values
     were taken from; the ID of the one table row printing its total depth, when no other borehole has it."""
@@ -388,11 +428,6 @@ def reconcile(
         if isinstance(entry, Reconciled):
             out.append(entry)
         else:
-            parts = by_id[entry]
-            if len(parts) == 1:
-                out.append(parts[0])
-            elif _same_hole(parts, listed):
-                out.append(_merge(parts))
-            else:
-                out.extend(parts)
+            for hole in _holes(by_id[entry], listed):
+                out.append(hole[0] if len(hole) == 1 else _merge(hole))
     return out

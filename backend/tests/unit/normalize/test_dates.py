@@ -26,6 +26,10 @@ DATES = [
     ("uk", "13/04/2026", "2026-04-13"),
     ("us", "04/13/2026", "2026-04-13"),
     ("equal parts", "04/04/2026", "2026-04-04"),
+    # day/month, a dash, then the year (handwritten form style): day first
+    ("slash dash short year", "3/7-11", "2011-07-03"),
+    ("slash dash both small", "5/9-99", "1999-09-05"),
+    ("slash dash full year", "23/1-2004", "2004-01-23"),
     # month names in several languages
     ("en", "4 March 2026", "2026-03-04"),
     ("en us", "March 4, 2026", "2026-03-04"),
@@ -70,6 +74,7 @@ UNDECIDED = [
     ("4 Mar 26 Mar 2026", "one day and one year"),
     ("Mar 4 26", "two-digit year"),
     ("13/14/2026", "neither part"),
+    ("3/14-11", "not a calendar date"),
     ("abc", "not a date"),
     ("", "no date"),
     (None, "no date"),
