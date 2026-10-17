@@ -119,6 +119,7 @@ test.describe('route changes', () => {
 test.describe('DIN 4023 profile', () => {
   test('every layer fill points at a mounted userSpaceOnUse pattern that is not inside display:none', async ({ page }) => {
     await openApp(page);
+    await nav(page, 'LIST');
     await resultRow(page, 'BK-07').click();
     const profile = page.getByRole('group', { name: /^DIN 4023 profile of BK-07/ });
     await expect(profile).toBeVisible();

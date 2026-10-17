@@ -165,7 +165,7 @@ for (const size of SIZES) {
       await expectOnScreen(page.getByRole('button', { name: 'EXPORT ▾' }));
       await expectOnScreen(page.getByRole('group', { name: /^DIN 4023 profile of BK-07/ }));
       // The layers table keeps its columns and, where the screen is narrower, scrolls in its own box.
-      const layers = page.getByRole('grid', { name: 'Layers' });
+      const layers = page.getByRole('grid', { name: 'Layers' }).locator('xpath=..');
       await expectOnScreen(layers);
       const scroll = await layers.evaluate((el) => ({ overflow: getComputedStyle(el).overflowX, wider: el.scrollWidth > el.clientWidth + 1 }));
       if (scroll.wider) expect(scroll.overflow, 'a wider table scrolls in its own box').toBe('auto');
