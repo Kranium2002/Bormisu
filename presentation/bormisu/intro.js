@@ -13,6 +13,11 @@
   const DEPTH = 10, WATER = 4.6;             // final depth and groundwater, in m
   const SAMPLES = [2.4, 5.1, 8.4];           // BK-01 test samples P1, P2, K1, in m
   const GROUND_PX = 650;                     // how deep the site scene's layers go on screen
+  // the dive: one continuous zoom onto the very top of the globe, where its surface is level.
+  // The site is drawn inside the Earth there, 1/K small, with its ground line on the globe's surface,
+  // so zooming the Earth by K turns the curved crust into the flat ground of the site.
+  const K = 160, ZA = -88 * Math.PI / 180;   // 2° clockwise of 12 o'clock: just inside the open wedge
+  const ZX = CX + R * Math.cos(ZA), ZY = CY + R * Math.sin(ZA), TY = SURFACE;
   let token = 0;
 
   const ease = d3.easeCubicInOut;
@@ -46,30 +51,41 @@
 
     // ---- the Earth ------------------------------------------------------------------------
     const earth = svg.append('g').attr('class', 'in-earth');
+    const planet = earth.append('g');
     [[1, '#8B5A3C'], [0.965, '#C8643B'], [0.55, '#E39B3B'], [0.28, '#F5D27A']].forEach(([k, c]) =>
-      earth.append('circle').attr('cx', CX).attr('cy', CY).attr('r', R * k).attr('fill', c));
+      planet.append('circle').attr('cx', CX).attr('cy', CY).attr('r', R * k).attr('fill', c));
     const proj = d3.geoOrthographic().scale(R).translate([CX, CY]).rotate([-8, -38]).clipAngle(90);
     const path = d3.geoPath(proj);
     const land = topojson.feature(WORLD, WORLD.objects.countries);
-    const globe = earth.append('g').attr('clip-path', 'url(#in-wedge)');
+    const globe = planet.append('g').attr('clip-path', 'url(#in-wedge)');
     const sphere = globe.append('path').datum({ type: 'Sphere' }).attr('fill', '#9FC3D3');
     const grat = globe.append('path').datum(d3.geoGraticule10()).attr('fill', 'none').attr('stroke', 'rgba(255,255,255,0.35)').attr('stroke-width', 0.8);
     const lands = globe.append('path').datum(land).attr('fill', '#7DB713').attr('stroke', '#5E8E0E').attr('stroke-width', 0.5);
-    earth.append('circle').attr('cx', CX).attr('cy', CY).attr('r', R).attr('fill', 'none').attr('stroke', 'rgba(42,29,22,0.35)').attr('stroke-width', 2);
+    planet.append('circle').attr('cx', CX).attr('cy', CY).attr('r', R).attr('fill', 'none').attr('stroke', 'rgba(42,29,22,0.35)').attr('stroke-width', 2);
 
     // ---- the construction site ------------------------------------------------------------
-    const site = svg.append('g').attr('class', 'in-site').style('opacity', 0);
-    site.append('rect').attr('width', W).attr('height', SURFACE).attr('fill', 'url(#in-sky)');
+    const site = earth.append('g').attr('class', 'in-site').style('opacity', 0)
+      .attr('transform', `translate(${ZX},${ZY}) scale(${1 / K}) translate(${-CX},${-TY})`);
+    // the scene runs well past the screen and fades out at its edges, so while it grows inside the crust
+    // it reads as a soft spot of landscape, not a picture with hard corners
+    const X0 = -1500, XW = W + 3000, Y0 = -1200, YB = H + 800;
+    const fade = defs.append('radialGradient').attr('id', 'in-fade');
+    [[0, 1], [0.62, 1], [1, 0]].forEach(([o, a]) => fade.append('stop').attr('offset', o).attr('stop-color', '#fff').attr('stop-opacity', a));
+    defs.append('mask').attr('id', 'in-sitemask').attr('maskUnits', 'userSpaceOnUse').attr('x', X0).attr('y', Y0).attr('width', XW).attr('height', YB - Y0)
+      .append('rect').attr('x', X0).attr('y', Y0).attr('width', XW).attr('height', YB - Y0).attr('fill', 'url(#in-fade)');
+    site.attr('mask', 'url(#in-sitemask)');
+    site.append('rect').attr('x', X0).attr('y', Y0).attr('width', XW).attr('height', SURFACE - Y0).attr('fill', '#FBF6EF');
+    site.append('rect').attr('x', X0).attr('width', XW).attr('height', SURFACE).attr('fill', 'url(#in-sky)');
     const px = GROUND_PX / DEPTH;
     let y = SURFACE;
     LAYERS.forEach(([, c, tx, m]) => {
       const h = m * px;
-      site.append('rect').attr('y', y).attr('width', W).attr('height', h + 1).attr('fill', c);
-      site.append('rect').attr('y', y).attr('width', W).attr('height', h + 1).attr('fill', `url(#${tx})`);
+      site.append('rect').attr('x', X0).attr('y', y).attr('width', XW).attr('height', h + 1).attr('fill', c);
+      site.append('rect').attr('x', X0).attr('y', y).attr('width', XW).attr('height', h + 1).attr('fill', `url(#${tx})`);
       y += h;
     });
-    site.append('rect').attr('y', y).attr('width', W).attr('height', H - y).attr('fill', '#B4462A');
-    site.append('rect').attr('y', SURFACE - 8).attr('width', W).attr('height', 10).attr('fill', '#7DB713');
+    site.append('rect').attr('x', X0).attr('y', y).attr('width', XW).attr('height', YB - y).attr('fill', '#B4462A');
+    site.append('rect').attr('x', X0).attr('y', SURFACE - 8).attr('width', XW).attr('height', 10).attr('fill', '#7DB713');
     for (let x = 120; x < 760; x += 46) site.append('rect').attr('x', x).attr('y', SURFACE - 70).attr('width', 6).attr('height', 64).attr('fill', '#9A9A9A');
     site.append('rect').attr('x', 116).attr('y', SURFACE - 66).attr('width', 650).attr('height', 4).attr('fill', '#9A9A9A');
     site.append('rect').attr('x', 116).attr('y', SURFACE - 30).attr('width', 650).attr('height', 4).attr('fill', '#9A9A9A');
@@ -138,7 +154,7 @@
 
     // the core's box on the site: under the rod, from the surface to the bottom of the hole
     const coreBox = { x: RX - 10, y: SURFACE, w: 20, h: GROUND_PX };
-    return { svg, earth, clip, proj, sphere, grat, lands, path, site, rod, head, bottom, auger, prof, notes, COL, coreBox };
+    return { svg, earth, planet, clip, proj, sphere, grat, lands, path, site, rod, head, bottom, auger, prof, notes, COL, coreBox };
   }
 
   function wedge(m, deg) {
@@ -158,30 +174,29 @@
     return `translate(${tx},${ty}) scale(${s1},${s2})`;
   }
 
-  const END = 10400;
+  const END = 10600;
   function frame(m, t) {
-    // 0–2.6 s the globe turns; 1.2–2.6 s the wedge opens
-    m.proj.rotate([-8 - 40 * seg(t, 0, 2600), -38]);
+    // 0–2.8 s the globe turns in the middle of the slide; 1.2–2.6 s the wedge opens
+    m.proj.rotate([-8 - 40 * seg(t, 0, 2800), -38]);
     m.sphere.attr('d', m.path); m.grat.attr('d', m.path); m.lands.attr('d', m.path);
     wedge(m, 100 * ease(seg(t, 1200, 2600)));
     // 2.6–4.0 s dive into the crust at the top of the cut; the site fades in over the dive
-    const z = ease(seg(t, 2600, 3900)), k = 1 + 140 * z * z * z;
-    // aim inside the brown crust ring, in the middle of the open wedge, so the screen fills with crust
-    const za = (-90 + 50) * Math.PI / 180, zr = R * 0.982;
-    const zx = CX + zr * Math.cos(za), zy = CY + zr * Math.sin(za);
-    m.earth.attr('transform', `translate(${CX},${CY + (SURFACE + 200 - CY) * z}) scale(${k}) translate(${-zx},${-zy})`)
-      .style('opacity', 1 - seg(t, 3500, 3950));
-    // 4.2–6.4 s drill down; 6.4–7.4 s the rod comes back up
-    const down = ease(seg(t, 4200, 6400)), up = ease(seg(t, 6400, 7400));
+    // 2.8–4.6 s one continuous zoom: the focus point glides to the screen centre while the scale grows to K
+    const z = ease(seg(t, 2800, 4600)), k = Math.exp(Math.log(K) * z);
+    const sx = ZX + (CX - ZX) * z, sy = ZY + (TY - ZY) * z;
+    m.earth.attr('transform', `translate(${sx},${sy}) scale(${k}) translate(${-ZX},${-ZY})`);
+    m.planet.style('opacity', 1 - seg(t, 4300, 4600));
+    // 4.8–6.8 s drill down; 6.8–7.7 s the rod comes back up
+    const down = ease(seg(t, 4800, 6800)), up = ease(seg(t, 6800, 7700));
     const tip = SURFACE + (m.bottom - SURFACE) * down * (1 - up);
     m.rod.attr('height', Math.max(0, tip - 96));
     m.head.attr('y', Math.max(96, tip - 18));
     m.auger.attr('patternTransform', `translate(0, ${(t / 30) % 16})`);    // the auger turns
-    // 7.0 s the core shows in the hole; 7.6–9.0 s it lifts out and grows into the profile
-    const g = ease(seg(t, 7600, 9000));
-    m.site.style('opacity', seg(t, 3500, 3950) * (1 - seg(t, 7800, 8600)));
-    m.prof.style('opacity', seg(t, 6800, 7200)).attr('transform', grow(m, m.coreBox, g));
-    m.notes.style('opacity', seg(t, 9000, 9800));
+    // 7.2 s the core shows in the hole; 7.9–9.2 s it lifts out and grows into the profile
+    const g = ease(seg(t, 7900, 9200));
+    m.site.style('opacity', seg(t, 3700, 4300) * (1 - seg(t, 8000, 8800)));
+    m.prof.style('opacity', seg(t, 7100, 7400)).attr('transform', grow(m, m.coreBox, g));
+    m.notes.style('opacity', seg(t, 9200, 10000));
   }
 
   window.playIntro = function (svgEl) {
