@@ -4,17 +4,18 @@ Companion to `contracts/openapi.yaml`. Both sessions implement exactly this. Cha
 
 ## 1. Live events: `GET /api/v1/events`
 
-Server-sent events (`text/event-stream`). One connection per browser tab. Optional `?document_id=` narrows the stream to one document.
+Server-sent events (`text/event-stream`). One connection per browser tab. Optional `?document_id=` narrows the stream to one document. Optional `?last_event_id=<integer>` (1.2.0) has the same meaning as the `Last-Event-ID` header below; when both are sent, the header wins.
 
 **Transport rules (backend)**
 - Response headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`.
 - Every event has `id:` (monotonic integer from the `events` table), `event:` (type below) and one `data:` line holding JSON.
 - A comment line `: ping` every 15 s keeps proxies from closing the connection.
-- `Last-Event-ID` header on reconnect replays every stored event after that id (keep at least 24 h of events).
+- `Last-Event-ID` header on reconnect replays every stored event after that id (keep at least 24 h of events). The `last_event_id` query parameter does the same for a client that cannot set the header; the header wins when both are sent, and a header that is not a whole number is ignored. Without either, the stream starts at the newest event (no history).
 - Events are written to the database in the same transaction as the change they describe, then pushed with PostgreSQL `LISTEN/NOTIFY`, so no event is lost when the API restarts.
 
 **Client rules (frontend)**
 - Use `EventSource` and let it reconnect; it resends `Last-Event-ID` itself.
+- When a new `EventSource` has to be created (the browser gave up reconnecting), open it with `?last_event_id=<id of the last event received>` so the gap is replayed. Its own later reconnects send the header, which wins over the query parameter, so nothing is replayed twice.
 - If the stream fails three times within a minute, fall back to polling `GET /documents/{id}` every 2 s (the existing behaviour) until the stream works again.
 - Treat events as hints to refetch, except `document.updated`, which carries the whole document.
 
@@ -25,8 +26,8 @@ Server-sent events (`text/event-stream`). One connection per browser tab. Option
 | `borehole.created` | `{ "uid": "bh_…", "document_id": "doc_…", "revision": 1, "plotted": true }` | Fetch `GET /boreholes/{uid}`; add a draft pin when `include_unreviewed` is on |
 | `borehole.updated` | `{ "uid": "bh_…", "revision": 7 }` | Refetch the record if the store holds an older revision |
 | `clarification.created` | the full `Clarification` | Add to the inbox; bump the badge |
-| `clarification.resolved` | `{ "clarification_id": "cl_…", "status": "answered" }` | Remove from the open list |
-| `job.failed` | `{ "document_id": "doc_…", "stage": "ocr", "detail": "…", "retryable": true }` | Show the reason and a retry button on the card |
+| `clarification.resolved` | `{ "clarification_id": "cl_…", "status": "answered", "document_id": "doc_…", "borehole_uids": ["bh_…"] }` (`document_id` and `borehole_uids` since 1.2.0: the question's document and boreholes at the time it was resolved) | Remove from the open list; refresh the open-question counts of that document and those boreholes |
+| `job.failed` | `{ "document_id": "doc_…", "stage": "ocr", "detail": "…", "retryable": true }` (`stage` is the same name as `Document.failed_stage`, 1.2.0) | Show the reason and a retry button on the card |
 
 Example frame:
 

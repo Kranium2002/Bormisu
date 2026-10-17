@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: GeoMemory API
-  version: 1.1.0
+  version: 1.2.0
   description: |
     Contract v1 between the backend session and the frontend session. This file is the single
     source of truth for HTTP shapes. Streams (server-sent events and the chat stream) are specified
@@ -279,11 +279,9 @@ paths:
         reference place geocoded on the server from the boreholes' location name, project name or
         country (uploaded places first, then the cached geocoder), the compactness of the points, and
         how specific the system is (world-wide systems and areas of use far larger than the point
-        spread score lower). Verdict match: every point inside the area of use and, when a reference
-        place was found, the centroid near it; shifted: inside but far from the reference place, or
-        only just outside the area; out_of_range: the rest. Order: verdict, score, smaller area of
-        use, EPSG code. An unavailable geocoder never fails this call: the ranking then works without
-        a reference place and says so in `note`.
+        spread score lower). Verdict: see `CrsCandidate.verdict` (match, shifted, out_of_range).
+        Order: verdict, score, smaller area of use, EPSG code. An unavailable geocoder never fails
+        this call: the ranking then works without a reference place and says so in `note`.
       responses:
         "200":
           description: Candidates, best first. Empty when the document has no coordinates.
@@ -644,8 +642,21 @@ paths:
       operationId: streamEvents
       x-priority: P1
       summary: Server-sent events for live updates. See contracts/realtime-and-chat.md.
+      description: |
+        Without a last event id the stream starts at the newest event (no history). With one, every
+        stored event after that id is replayed first. The id can be sent as the `Last-Event-ID`
+        header (EventSource does this on its own reconnects) or, since 1.2.0, as the `last_event_id`
+        query parameter (for a stream the client opens anew, which cannot set headers). When both are
+        sent, the header wins. A header that is not a whole number is ignored.
       parameters:
         - { name: document_id, in: query, schema: { type: string } }
+        - name: last_event_id
+          in: query
+          required: false
+          description: |
+            Replay every stored event after this id (1.2.0). Same meaning as the Last-Event-ID
+            header, which wins when both are sent.
+          schema: { type: integer, minimum: 0 }
         - name: Last-Event-ID
           in: header
           required: false
@@ -835,6 +846,14 @@ components:
         project: { type: [string, "null"] }
         status: { $ref: "#/components/schemas/DocumentStatus" }
         error: { type: [string, "null"] }
+        failed_stage:
+          type: [string, "null"]
+          description: |
+            The pipeline stage that failed (1.2.0), the same name as `stage` in the `job.failed` event:
+            triage, classify, ocr, extract, reread for page documents; sheet_read, sheet_map,
+            sheet_extract for spreadsheets. null unless `status` is failed; also null when the
+            document failed before any stage ran (for example it could not be queued). Cleared when
+            the document is retried.
         mime_type: { type: string }
         size_bytes: { type: integer }
         sha256: { type: string }
@@ -1052,7 +1071,12 @@ components:
         crs_status: { type: string, enum: [stated, inferred, confirmed, unknown] }
         plotted: { type: boolean }
         unplotted_reason: { type: [string, "null"], enum: [no_coordinates, crs_unknown, crs_unconfirmed, implausible, null] }
-        rock_head_m: { type: [number, "null"] }
+        rock_head_m:
+          type: [number, "null"]
+          description: |
+            Depth of the rock head in metres: as printed or edited, else derived from the top of the
+            first layer whose DIN 4023 code is a rock. null means not stated in the source and not
+            derivable from the printed layers; it never means that rock was not reached.
         metadata: { $ref: "#/components/schemas/BoreholeMetadata" }
         stratigraphy: { type: array, items: { $ref: "#/components/schemas/Layer" } }
         groundwater: { type: array, items: { $ref: "#/components/schemas/GroundwaterReading" } }
@@ -1112,7 +1136,21 @@ components:
         crs: { type: string, description: 'EPSG code, e.g. EPSG:25832.' }
         label: { type: string }
         score: { type: number, minimum: 0, maximum: 1 }
-        verdict: { type: string, enum: [match, shifted, out_of_range] }
+        verdict:
+          type: string
+          enum: [match, shifted, out_of_range]
+          description: |
+            How the transformed points fit the system (meaning fixed in 1.2.0).
+            match: every point, transformed, lies inside the system's EPSG area of use and, when a
+            reference place is known, the centroid of the points lies within the server's match
+            distance of that place (distance 0 inside the place's bounding box).
+            shifted: every point lies inside the area of use or within the server's margin around it,
+            but some lie only in the margin, or the centroid is farther than the match distance from
+            the reference place.
+            out_of_range: at least one point lies outside the area of use and its margin, or cannot be
+            transformed (also when the server knows no area of use for the system).
+            The margin and the match distance are the server's data (its CRS registry), not part of
+            this contract; they can change without a contract change.
         note: { type: [string, "null"], description: 'Why it ranks here, e.g. "zone printed as 55H".' }
         swap_axes: { type: boolean, description: 'True when the printed X is the northing.' }
         points:

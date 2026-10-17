@@ -2,6 +2,20 @@
 
 Rules: inside 1.x only additive changes (new endpoints, new optional fields, new enum values the other side can ignore). Anything else needs a 2.0 and both sessions' agreement in `docs/handover/COORDINATION.md`. Every change gets a dated entry here in the same commit as the change.
 
+## 1.2.0 (2026-10-17)
+
+Additive only: one new optional field on `Document`, one optional query parameter, two new fields in an event payload and clarified descriptions. Clients built against 1.1.0 keep working.
+
+### Added
+- `Document.failed_stage` (`[string, null]`): the pipeline stage that failed, the same name as `stage` in the `job.failed` event (`triage`, `classify`, `ocr`, `extract`, `reread`; spreadsheets `sheet_read`, `sheet_map`, `sheet_extract`). `null` unless `status` is `failed`, and also when the document failed before any stage ran (it could not be queued). Stored when a stage fails, cleared on retry and on success.
+- `GET /api/v1/events?last_event_id=<integer>`: the same meaning as the `Last-Event-ID` header (replay every stored event after that id), for an `EventSource` created anew, which cannot set the header. The header wins when both are sent; a header that is not a whole number is ignored.
+- `clarification.resolved` event payload: `document_id` and `borehole_uids` of the resolved question (realtime-and-chat.md section 1), so a client can refresh only the affected open-question counts.
+- Examples: `failed_stage` in every `Document` (`"ocr"` in `Document.failed.json`, matching `events/job.failed.json`; `null` elsewhere); `document_id` and `borehole_uids` in `events/clarification.resolved.json`.
+
+### Clarified (descriptions only, no shape change)
+- `CrsCandidate.verdict`: match = every transformed point lies inside the system's EPSG area of use and, when a reference place is known, the centroid of the points lies within the server's match distance of it; shifted = every point inside the area of use or within the server's margin around it, but some only in the margin or the centroid far from the reference place; out_of_range = at least one point outside the area of use and its margin, or not transformable. The margin and the distance are the server's data (CRS registry), not part of the contract. `GET /documents/{id}/crs-candidates` refers to this definition.
+- `BoreholeRecord.rock_head_m`: as printed or edited, else derived from the top of the first rock layer (DIN 4023 code). `null` means not stated in the source and not derivable from the printed layers; it never means "not reached".
+
 ## 1.1.0 (2026-10-17)
 
 Additive only: new optional fields, one optional query parameter, one new endpoint and clarified descriptions. Clients built against 1.0.0 keep working.

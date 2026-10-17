@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from app.din import is_din_code
+from app.normalize.spt import parse_spt
 from app.schemas.boreholes import (
     BoreholeMetadata,
     Coordinates,
@@ -42,6 +43,22 @@ class PathError(ValueError):
 
 class ValueParseError(ValueError):
     """The value cannot be parsed for the path's type."""
+
+
+def spt_n_rule(index: int | None) -> str:
+    """How SPT text is corrected (contract ValuePatch): spt_n_value takes a whole number only."""
+    return (
+        "spt_n_value takes a whole number of blows; correct blow counts and refusals in "
+        f"stratigraphy[{index}].spt_raw instead, which the server parses again into spt_refusal, "
+        "spt_n_value (null on a refusal), spt_increments, spt_increment_mm and spt_penetration_cm"
+    )
+
+
+def _spt_n_message(vp: ValuePath, value: str, reason: str) -> str:
+    """An unusable spt_n_value text: a refusal ("50/12", "R") has no N; SPT text belongs in spt_raw."""
+    if value.strip() and parse_spt(value).refusal is True:
+        reason = f"'{value.strip()}' is an SPT refusal, which has no N value"
+    return f"{reason}. {spt_n_rule(vp.index)}"
 
 
 @dataclass(frozen=True)
@@ -184,7 +201,10 @@ def coerce_value(body: dict[str, Any], path: str | ValuePath, value: Any) -> Any
         validated = model.model_validate(trial)
     except ValidationError as exc:
         messages = "; ".join(e["msg"] for e in exc.errors() if vp.field in [str(p) for p in e["loc"]])
-        raise ValueParseError(messages or f"value is not valid for {vp}") from exc
+        message = messages or f"value is not valid for {vp}"
+        if vp.section == "stratigraphy" and vp.field == "spt_n_value" and isinstance(value, str):
+            message = _spt_n_message(vp, value, message)
+        raise ValueParseError(message) from exc
     result = validated.model_dump(mode="json")[vp.field]
     if isinstance(result, float) and not math.isfinite(result):
         raise ValueParseError(f"{vp.field} must be a finite number")
