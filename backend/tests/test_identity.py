@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from app.pipeline.identity import find_listed, ids_from_labels, reconcile
-from app.pipeline.schemas import ExtractionResult
+from app.pipeline.identity import Tables, find_listed, ids_from_labels, reconcile
+from app.pipeline.schemas import ExtractionResult, RawValue
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
 
 LISTED = ids_from_labels(["701", "702", "702b", "703", "704"])
@@ -155,3 +155,68 @@ def test_without_a_table_parts_of_one_label_merge_unless_they_print_other_positi
     assert [i.group.key for i in reconcile(same, {})] == ["BH-1:p1-p2"]
     other = [_at(sheets[0], "270,631.7", "171,703.9"), _at(sheets[1], "271,546.0", "172,097.8")]
     assert [i.group.key for i in reconcile(other, {})] == ["BH-1:p1", "BH-1:p2"]
+
+
+def _with_header(
+    part: tuple[PageGroup, ExtractionOutcome], **values: tuple[str, str]
+) -> tuple[PageGroup, ExtractionOutcome]:
+    """The part with header values (name -> (raw, cited block id))."""
+    group, out = part
+    update = {name: RawValue(raw=raw, block_ids=[bid], state="ok") for name, (raw, bid) in values.items()}
+    header = out.result.header.model_copy(update=update)
+    return group, replace(out, result=out.result.model_copy(update={"header": header}))
+
+
+def _table(page: int, rows: list[tuple[str, ...]]) -> list[BlockRef]:
+    """Fictional table cells: one block per cell, one row per 0.05 of page height."""
+    out = []
+    for r, cells in enumerate(rows):
+        for c, text in enumerate(cells):
+            out.append(
+                BlockRef(
+                    f"p{page}.b{10 * r + c}",
+                    page,
+                    text,
+                    (0.1 + 0.15 * c, 0.2 + 0.05 * r, 0.1, 0.02),
+                    0.9,
+                    0.9,
+                    "none",
+                )
+            )
+    return out
+
+
+TABLE = _table(
+    1, [("701", "4890,5", "2875,5", "68"), ("703", "4930,5", "2901", "59,4"), ("704", "4971", "2953,5", "43")]
+)
+
+
+def test_an_id_only_in_the_extractors_reading_of_a_remark_counts() -> None:
+    part = pair("Driller AS", (8,), [block(8, 1, "Br Drlr"), block(8, 2, "Kommentar ~~ illegible ~~")])
+    part = _with_header(part, notes=("Hull nr 704", "p8.b2"))
+    (item,) = reconcile([part], Tables(LISTED, frozenset({1})))
+    assert item.group.label_raw == "704" and item.outcome.result.header.borehole_label.block_ids == ["p8.b2"]
+
+
+def test_the_table_row_a_sheet_took_its_values_from_gives_its_id() -> None:
+    group, out = pair("Driller AS", (9,), [block(9, 1, "Br Drlr")])
+    out = replace(out, blocks={**out.blocks, **{b.id: b for b in TABLE}})
+    part = _with_header((group, out), total_depth=("59,4", "p1.b13"))
+    (item,) = reconcile([part], Tables(LISTED, frozenset({1})))
+    assert item.group.label_raw == "703" and item.outcome.result.header.borehole_label.block_ids == ["p1.b10"]
+
+
+def test_a_unique_depth_row_names_a_sheet_but_never_a_taken_or_shared_id() -> None:
+    group, out = pair("Driller AS", (7,), [block(7, 1, "Br Drlr")])
+    out = replace(out, blocks={**out.blocks, **{b.id: b for b in TABLE}})
+    sheet = _with_header((group, out), total_depth=("43 m", "p7.b1"))
+    (item,) = reconcile([sheet], Tables(LISTED, frozenset({1})))
+    assert item.group.label_raw == "704"
+    other = _with_header(pair("Other AS", (8,), [block(8, 1, "x")]), total_depth=("43", "p8.b1"))
+    labels = sorted(
+        i.group.label_raw or "" for i in reconcile([sheet, other], Tables(LISTED, frozenset({1})))
+    )
+    assert labels == ["Driller AS", "Other AS"]  # two sheets with the row's depth: neither takes its ID
+    taken = pair("704", (5,), [block(5, 1, "Hull nr 704")])
+    items = reconcile([taken, sheet], Tables(LISTED, frozenset({1})))
+    assert sorted(i.group.label_raw or "" for i in items) == ["704", "Driller AS"]

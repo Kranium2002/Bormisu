@@ -300,8 +300,8 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     errors = [r for r in results if isinstance(r, BaseException)]
     # Stored only when every group was read: a part stored alone would become a second borehole once the
     # rest is merged on the retry (which reuses the stored extraction runs and bh3's cache, so it is free).
-    listed = await identity.listed_ids(document_id) if not errors else {}
-    for item in identity.reconcile(ready, listed) if not errors else []:
+    tables = await identity.document_tables(document_id) if not errors else identity.Tables({})
+    for item in identity.reconcile(ready, tables) if not errors else []:
         if item.group.key in finished:
             continue
         uid = await finalize_module.finalize_group(document_id, item.group, item.outcome)

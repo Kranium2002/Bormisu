@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
@@ -23,6 +24,7 @@ from sqlalchemy import select
 
 from app.db.models import Page
 from app.db.session import get_sessionmaker
+from app.normalize.numbers import parse_number
 from app.pipeline.extract import merge_results
 from app.pipeline.group import clean_label, group_key, label_prefix_words
 from app.pipeline.provenance import printed
@@ -48,17 +50,26 @@ class Reconciled:
     aliases: list[str]
 
 
-async def listed_ids(document_id: str) -> dict[str, str]:
-    """Canonical ID -> ID as listed, from the labels the classifier read on the document's table pages."""
+@dataclass(frozen=True)
+class Tables:
+    """The IDs a document's summary and coordinate tables list (canonical -> as listed) and their pages."""
+
+    ids: dict[str, str]
+    pages: frozenset[int] = frozenset()
+
+
+async def document_tables(document_id: str) -> Tables:
+    """The IDs the classifier read on the document's table pages, and those pages."""
     async with get_sessionmaker()() as session:
         rows = (
-            await session.scalars(
-                select(Page.borehole_labels).where(
+            await session.execute(
+                select(Page.n, Page.borehole_labels).where(
                     Page.document_id == document_id, Page.role.in_(TABLE_ROLES)
                 )
             )
         ).all()
-    return ids_from_labels(label for labels in rows for label in (labels or []))
+    labels = (label for _, labels in rows for label in (labels or []))
+    return Tables(ids_from_labels(labels), frozenset(int(n) for n, _ in rows))
 
 
 def ids_from_labels(labels: Iterable[str]) -> dict[str, str]:
@@ -124,21 +135,123 @@ def find_listed(blocks: Iterable[BlockRef], pages: Iterable[int], listed: dict[s
     return None
 
 
+# Header values whose printed text may carry the borehole's ID (a remark "Hull nr 506" on a handwritten form
+# is often only in the extractor's reading, not in the scan's text layer).
+HEADER_TEXTS = ("borehole_label", "notes", "location", "project", "client", "contractor", "method")
+
+
+def _own_texts(item: Reconciled) -> list[BlockRef]:
+    """The blocks of the group's own pages, plus the header values read there (each placed at the first block
+    it cites, so a match cites that block)."""
+    pages = set(item.group.pages)
+    blocks = item.outcome.blocks
+    out = [b for b in blocks.values() if b.page in pages]
+    header = item.outcome.result.header
+    for name in HEADER_TEXTS:
+        value: RawValue = getattr(header, name)
+        text = printed(value)
+        cited = [blocks[b] for b in value.block_ids if b in blocks and blocks[b].page in pages]
+        if text is not None and cited:
+            out.append(replace(cited[0], text=text))
+    return out
+
+
+Row = tuple[BlockRef, ...]
+
+
+def _rows(blocks: Iterable[BlockRef]) -> list[Row]:
+    """Blocks of one page in printed rows: vertical centres within half a line height, left to right."""
+    rows: list[tuple[float, float, list[BlockRef]]] = []
+    for b in sorted(blocks, key=lambda b: b.box[1] + b.box[3] / 2 if b.box else 0.0):
+        if b.box is None:
+            continue
+        centre, height = b.box[1] + b.box[3] / 2, b.box[3]
+        if rows and abs(centre - rows[-1][0]) <= max(rows[-1][1], height) / 2:
+            rows[-1][2].append(b)
+        else:
+            rows.append((centre, height, [b]))
+    return [tuple(sorted(row, key=lambda b: b.box[0] if b.box else 0.0)) for _, _, row in rows]
+
+
+def table_rows(items: Sequence[Reconciled], pages: frozenset[int]) -> list[Row]:
+    """The rows of the document's table pages, from every block the outcomes carry of those pages."""
+    unique: dict[tuple[int, str], BlockRef] = {}
+    for item in items:
+        for block in item.outcome.blocks.values():
+            if block.page in pages:
+                unique.setdefault((block.page, block.id), block)
+    return [row for n in sorted(pages) for row in _rows(b for (page, _), b in unique.items() if page == n)]
+
+
+def _row_id(row: Row, listed: dict[str, str]) -> Hit | None:
+    """The one listed ID a table row prints (anchored at the row's first block)."""
+    joined = replace(row[0], text="  ".join(b.text for b in row))
+    return find_listed([joined], [row[0].page], listed)
+
+
+def _cited_ids(result: ExtractionResult) -> set[str]:
+    cited: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if isinstance(node.get("block_ids"), list) and node.get("state") == "ok":
+                cited.update(str(b) for b in node["block_ids"])
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(result.model_dump(mode="json"))
+    return cited
+
+
+def _cited_row(item: Reconciled, listed: dict[str, str], rows: Sequence[Row]) -> Hit | None:
+    """The listed ID of the table row(s) the extractor took this borehole's values from, when they agree."""
+    cited = _cited_ids(item.outcome.result)
+    found: dict[str, Hit] = {}
+    for row in rows:
+        if any(b.id in cited for b in row) and (hit := _row_id(row, listed)) is not None:
+            found.setdefault(hit.canonical, hit)
+    return next(iter(found.values())) if len(found) == 1 else None
+
+
+_NUMBER = re.compile(r"(?<![\d.,])\d+(?:[.,]\d+)?(?![\d.,])")
+
+
+def _depth_row(item: Reconciled, listed: dict[str, str], rows: Sequence[Row]) -> Hit | None:
+    """The listed ID of the one table row that prints this borehole's total depth."""
+    depth = parse_number(printed(item.outcome.result.header.total_depth)).value
+    if depth is None or depth <= 0:
+        return None
+    found: dict[str, Hit] = {}
+    for row in rows:
+        hit = _row_id(row, listed)
+        numbers = [float(n.replace(",", ".")) for b in row for n in _NUMBER.findall(b.text)]
+        if hit is not None and any(abs(n - depth) < 1e-6 for n in numbers):
+            found.setdefault(hit.canonical, hit)
+    return next(iter(found.values())) if len(found) == 1 else None
+
+
 def _label_of(item: Reconciled) -> str | None:
     return printed(item.outcome.result.header.borehole_label) or (item.group.label_raw or "").strip() or None
 
 
-def _relabel(item: Reconciled, listed: dict[str, str]) -> Reconciled:
+def _relabel(item: Reconciled, listed: dict[str, str], rows: Sequence[Row]) -> Reconciled:
+    """The listed ID the borehole's own pages print, else the one of the table rows its values come from."""
     label = _label_of(item)
     cleaned = clean_label(label) if label else None
     if cleaned is not None and canonical_label(cleaned) in listed:
         if cleaned != label:  # "Holl nr 502" -> "502", cited where it was printed
             item = _with_label(item, cleaned, item.outcome.result.header.borehole_label.block_ids, label)
         return item
-    hit = find_listed(item.outcome.blocks.values(), item.group.pages, listed)
+    hit = find_listed(_own_texts(item), item.group.pages, listed)
+    how = "printed on page"
+    if hit is None:
+        hit, how = _cited_row(item, listed, rows), "of the table row its values come from, page"
     if hit is None:
         return item
-    logger.info("borehole %r takes the listed ID %r printed on page %s", label, hit.text, hit.block.page)
+    logger.info("borehole %r takes the listed ID %r %s %s", label, hit.text, how, hit.block.page)
     return _with_label(item, clean_label(hit.text), [hit.block.id], label)
 
 
@@ -233,13 +346,32 @@ def _same_hole(parts: Sequence[Reconciled], listed: dict[str, str]) -> bool:
 
 
 def reconcile(
-    pairs: Sequence[tuple[PageGroup, ExtractionOutcome]], listed: dict[str, str]
+    pairs: Sequence[tuple[PageGroup, ExtractionOutcome]], tables: Tables | dict[str, str]
 ) -> list[Reconciled]:
     """Relabel to the IDs the document's tables list, then merge the parts that share a label and are one
-    borehole (`_same_hole`). Parts without a label are never merged."""
+    borehole (`_same_hole`). Parts without a label are never merged.
+
+    A borehole takes, in this order: the listed ID its own pages print; the ID of the table row its values
+    were taken from; the ID of the one table row printing its total depth, when no other borehole has it."""
+    tables = tables if isinstance(tables, Tables) else Tables(tables)
+    listed = tables.ids
     items = [Reconciled(group, outcome, []) for group, outcome in pairs]
     if len(listed) >= MIN_LISTED:
-        items = [_relabel(item, listed) for item in items]
+        rows = table_rows(items, tables.pages)
+        items = [_relabel(item, listed, rows) for item in items]
+        held = {item.group.label_canonical for item in items if item.group.label_canonical in listed}
+        guesses = {
+            i: hit
+            for i, item in enumerate(items)
+            if item.group.label_canonical not in listed
+            and (hit := _depth_row(item, listed, rows)) is not None
+        }
+        per_id = Counter(hit.canonical for hit in guesses.values())
+        for i, hit in guesses.items():
+            if per_id[hit.canonical] == 1 and hit.canonical not in held:
+                before = _label_of(items[i])
+                logger.info("borehole %r takes the listed ID %r of the row with its depth", before, hit.text)
+                items[i] = _with_label(items[i], clean_label(hit.text), [hit.block.id], before)
     by_id: dict[str, list[Reconciled]] = {}
     order: list[str | Reconciled] = []
     for item in sorted(items, key=lambda i: (min(i.group.pages, default=0), i.group.key)):
