@@ -42,8 +42,11 @@ function routePatch(s: AppState, route: AppRoute, entering: boolean): Partial<Ap
   const find = (uid: string) => s.boreholes.find((b) => b.uid === uid);
   switch (route.kind) {
     case 'map': {
-      const sel = route.sel && find(route.sel) ? route.sel : null;
-      return { screen: 'map', mapView: route.at, selectedUid: sel, resultSetId: route.rs };
+      // The selected pin: a plotted borehole the map knows (or a cached record).
+      const sel = route.sel && (s.features.some((f) => f.uid === route.sel) || find(route.sel)) ? route.sel : null;
+      // A result set the URL no longer names (Back, a link) stops being shown; the route sync shows the one it names.
+      const dropSet = s.resultSet && s.resultSet.id !== route.rs ? { resultSet: null, resultSetFeatures: null, resultSetError: null } : {};
+      return { screen: 'map', mapView: route.at, selectedUid: sel, resultSetId: route.rs, ...dropSet };
     }
     case 'queue':
       return { screen: 'queue' };
@@ -209,11 +212,19 @@ export const createPanelSlice: SliceCreator<PanelSlice> = ({ set, get, find }) =
 
   async exportFile(kind) {
     const s = get();
-    const b = find(s.selectedUid);
+    const selected = find(s.selectedUid);
     set({ exportOpen: false });
-    if (!b) return;
-    const group = exportScope(s.boreholes, b);
-    const doc = s.documents.find((d) => d.id === b.documentId) ?? null;
+    if (!selected) return;
+    // An export covers the whole document: its full records first (fetched once, then cached).
+    try {
+      if (selected.documentId) await s.ensureDocumentBoreholes(selected.documentId);
+    } catch (e) {
+      s.showToast(`Export failed: ${errorText(e)}`);
+      return;
+    }
+    const b = find(selected.uid) ?? selected;
+    const group = exportScope(get().boreholes, b);
+    const doc = get().documents.find((d) => d.id === b.documentId) ?? null;
     const o = { includeUnreviewed: s.includeUnreviewed };
     const draft = o.includeUnreviewed ? '_DRAFT' : '';
     const prefix = exportPrefix(doc?.name ?? b.sourceFile);

@@ -6,7 +6,7 @@
 import type { DataSource, UploadHandle } from '../data/DataSource';
 import { errorCode, errorText, UploadCancelledError } from '../data/errors';
 import type { DocumentSummary, UploadResult } from '../domain/types';
-import { isProcessing, nextNonce, withReviewTarget, type SliceCreator } from './context';
+import { isProcessing, nextNonce, replaceDocumentFeatures, withReviewTarget, type SliceCreator } from './context';
 import type { UploadSlice } from './types';
 import {
   checkUploads,
@@ -44,8 +44,8 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
   const files = new Map<string, File>();
   /** Running uploads by item id. */
   const handles = new Map<string, UploadHandle>();
-  /** Documents whose boreholes are being loaded, with the source asked: one load per document at a time. */
-  const loadingBoreholes = new Map<string, DataSource>();
+  /** Documents whose map data is being loaded, with the source asked: one load per document at a time. */
+  const loadingMaps = new Map<string, DataSource>();
 
   const item = (id: string) => get().uploads.find((i) => i.id === id);
   const patch = (id: string, change: Partial<UploadItem>) =>
@@ -127,28 +127,47 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
     }
   }
 
-  /** Loads a document's boreholes after extraction and points its card at one of them (F7). */
-  function loadBoreholes(doc: DocumentSummary, source: DataSource): void {
-    if (loadingBoreholes.get(doc.id) === source) return;
-    loadingBoreholes.set(doc.id, source);
-    Promise.all([source.documentBoreholes(doc.id), source.getDocument(doc.id).catch(() => null)])
+  /**
+   * After extraction: the document's pins, the NOT ON MAP list (it may now hold some of its
+   * boreholes) and the document's checks; then its card points at one of its boreholes (F7). Full
+   * records are fetched when Review, Detail or an export needs them; records of the document the
+   * store already fetched on demand (e.g. Review was open before a retry) are reloaded with it.
+   */
+  function loadDocumentMap(doc: DocumentSummary, source: DataSource): void {
+    if (loadingMaps.get(doc.id) === source) return;
+    loadingMaps.set(doc.id, source);
+    const now = get();
+    const offMap = new Set(now.unplottedUids);
+    const fetched = now.boreholes.some((b) => b.documentId === doc.id && !offMap.has(b.uid));
+    // Started inside a promise, so a source that throws at once fails like one that rejects.
+    Promise.resolve()
+      .then(() =>
+        Promise.all([
+          source.mapFeatures(doc.id),
+          source.unplotted(),
+          source.getDocument(doc.id).catch(() => null),
+          fetched ? source.documentBoreholes(doc.id) : null,
+        ]),
+      )
       .then(
-        ([fresh, checked]) => {
+        ([pins, unplotted, checked, records]) => {
           if (get().source !== source || isDeleted(doc.id)) return;
-          takeBoreholes(fresh, doc.id);
+          const live = unplotted.filter((b) => !isDeleted(b.documentId));
+          set((s) => ({ features: replaceDocumentFeatures(s.features, doc.id, pins) }));
+          if (records) takeBoreholes(records, doc.id);
+          takeBoreholes(live);
+          set({ unplottedUids: live.map((b) => b.uid) });
           // The document as the source checks it now that its boreholes are known (completeness, lint).
           set((s) => ({
             documents: s.documents.map((d) =>
-              d.id === doc.id
-                ? withReviewTarget({ ...d, completeness: checked?.completeness ?? d.completeness }, undefined, s.boreholes)
-                : d,
+              d.id === doc.id ? withReviewTarget({ ...d, completeness: checked?.completeness ?? d.completeness }, undefined, s) : d,
             ),
           }));
         },
         (e: unknown) => get().showToast(errorText(e)),
       )
       .finally(() => {
-        if (loadingBoreholes.get(doc.id) === source) loadingBoreholes.delete(doc.id);
+        if (loadingMaps.get(doc.id) === source) loadingMaps.delete(doc.id);
       });
   }
 
@@ -230,9 +249,10 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
 
     /**
      * Replaces or adds the document's card (keeping its review target, project and upload flags).
-     * Once it reaches needs_review or done, its boreholes are loaded when it just got there or none
-     * are loaded yet, so the card's OPEN REVIEW, the map and Review work without a reload. Other
-     * documents' boreholes are left alone (they may have newer local edits).
+     * Once it reaches needs_review or done, its pins and the NOT ON MAP list are loaded when it just
+     * got there or the store knows none of its boreholes yet, so the card's OPEN REVIEW, the map and
+     * Review work without a reload. Other documents' boreholes are left alone (they may have newer
+     * local edits).
      */
     documentUpdated(update) {
       if (isDeleted(update.id)) return;
@@ -241,7 +261,7 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
       const doc = withReviewTarget(
         { ...update, ...carriedFlags(update, prev), project: update.project || prev?.project || '' },
         prev,
-        get().boreholes,
+        get(),
       );
       const runsAgain = doc.status !== 'failed' && !doc.error;
       set((s) => ({
@@ -250,8 +270,9 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
       }));
       if (!source || doc.step < 2 || doc.error) return;
       const reached = !prev || prev.step < 2;
-      const loaded = get().boreholes.some((b) => b.documentId === doc.id);
-      if (reached || !loaded) loadBoreholes(doc, source);
+      const s = get();
+      const known = s.features.some((f) => f.documentId === doc.id) || s.boreholes.some((b) => b.documentId === doc.id);
+      if (reached || !known) loadDocumentMap(doc, source);
     },
 
     async retryDocument(documentId) {

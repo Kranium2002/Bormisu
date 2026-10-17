@@ -11,7 +11,7 @@ import { applyValuePatch } from '../domain/review';
 import type { Borehole, CrsCandidate, DocumentSummary } from '../domain/types';
 import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { CONFLICT_TEXT } from './reviewSlice';
-import { fakeSource, makeHealth, manualLive, readyStore, settle } from './testing';
+import { fakeSource, featureOf, makeHealth, manualLive, readyStore, settle } from './testing';
 
 /** init() asks createDataSource once; it gets a proxy that forwards to the current fake source. */
 let current: DataSource;
@@ -229,7 +229,9 @@ describe('init and health', () => {
     await st().init();
     await settle();
     expect(st()).toMatchObject({ loadState: 'ready', health: null });
-    expect(st().boreholes).toHaveLength(1);
+    // The plotted borehole is a pin; its full record is not loaded at boot.
+    expect(st().features.map((f) => f.uid)).toEqual([UID]);
+    expect(st().boreholes).toHaveLength(0);
   });
 
   it('a failed load keeps the error state with its message', async () => {
@@ -242,10 +244,12 @@ describe('init and health', () => {
     const extracting = makeDocument({ id: 'doc_TEST_EX', name: 'ex.pdf', status: 'extracting', step: 1, reviewBoreholeUid: null });
     const later = makeBorehole({ uid: 'bh_TEST_EX_31', id: 'TB-31', documentId: extracting.id });
     const live = manualLive();
-    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc, extracting] }, { subscribe: live.subscribe });
+    const fake = fakeSource({ boreholes: [makeBorehole()], documents: [doc, extracting] }, { subscribe: live.subscribe });
+    current = fake;
     await st().init();
     expect(live.subscriptions).toHaveLength(1);
-    current.documentBoreholes = async () => [later];
+    // Extraction finished on the server after the load.
+    fake.held.set(later.uid, later);
     live.emit({ type: 'document.updated', document: { ...extracting, project: '', status: 'needs_review', step: 2 } });
     await vi.waitFor(() => expect(st().documents.find((d) => d.id === extracting.id)?.reviewBoreholeUid).toBe(later.uid));
     expect(st().documents.find((d) => d.id === extracting.id)?.project).toBe('Test Project (fictional)');
@@ -259,23 +263,31 @@ describe('document updates', () => {
     const lint = [{ severity: 'warning' as const, boreholeId: 'TB-21', message: 'Gap between layers' }];
     let answer: (b: Borehole[]) => void = () => undefined;
     const live = manualLive();
-    const fake = await ready({
-      upload: () => ({ done: Promise.resolve({ document: upDoc, duplicate: false }), cancel: () => undefined }),
-      subscribe: live.subscribe,
-    });
+    // The borehole under review is off the map, so the NOT ON MAP reload brings its (older) record too.
+    const off = makeBorehole({ onMap: false, lat: null, lng: null, unplottedReason: 'no_coordinates' });
+    const fake = await ready(
+      {
+        upload: () => ({ done: Promise.resolve({ document: upDoc, duplicate: false }), cancel: () => undefined }),
+        subscribe: live.subscribe,
+      },
+      [off],
+    );
     st().startLive();
     const push = (d: DocumentSummary) => live.emit({ type: 'document.updated', document: d });
-    fake.documentBoreholes = () => new Promise((r) => (answer = r));
+    fake.unplotted = () => new Promise((r) => (answer = r));
+    fake.mapFeatures = async (id) => (id === upDoc.id ? [featureOf(extracted)!] : []);
     fake.getDocument = async () => ({ ...upDoc, step: 2, completeness: { listed: 1, idPrefix: '', missing: [], unexpected: [], lint } });
     st().addFiles([new File(['x'], 'up.pdf')]);
     await settle();
     push(upDoc);
     push({ ...upDoc, status: 'needs_review', step: 2 });
+    await settle();
     // The reviewer saves an edit of another document's borehole while the reload is on its way.
     editFinalDepth('6.50');
-    answer([extracted]);
-    await vi.waitFor(() => expect(bh(extracted.uid)).toBeDefined());
+    answer([structuredClone(off)]);
+    await vi.waitFor(() => expect(st().features.map((f) => f.uid)).toContain(extracted.uid));
     expect(value(K.finalDepth)).toMatchObject({ value: '6.50', method: 'Edited' });
+    expect(st().unplottedUids).toEqual([UID]);
     expect(st().documents.find((d) => d.id === upDoc.id)).toMatchObject({ reviewBoreholeUid: extracted.uid, completeness: { lint } });
   });
 

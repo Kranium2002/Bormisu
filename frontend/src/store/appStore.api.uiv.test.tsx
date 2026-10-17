@@ -32,6 +32,7 @@ describe('uiv-12: uploading bytes that were uploaded before', () => {
       const path = url.replace('/api/v1', '');
       if (path === '/health') return json(fixture<WireHealth>('health-live'));
       if (path.startsWith('/boreholes')) return json({ count: 0, boreholes: [], next_cursor: null });
+      if (path.startsWith('/map/boreholes.geojson')) return json({ type: 'FeatureCollection', features: [] });
       if (path === '/documents') return json({ documents: [existing] } satisfies WireDocumentList);
       if (path === `/documents/${existing.document_id}`) return json(existing);
       return json({ detail: 'No such route.', code: 'route_not_found' }, 404);

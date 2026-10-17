@@ -130,7 +130,7 @@ test('unknown boreholes and pages say so, with a link to the map', async ({ page
   await page.getByRole('link', { name: 'OPEN MAP' }).click();
   await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
 
-  await openUrl(page, '/inbox');
+  await openUrl(page, '/no-such-page');
   await expect(page.getByRole('heading', { name: 'PAGE NOT FOUND' })).toBeVisible();
   for (const name of ['MAP', 'UPLOAD & QUEUE', 'REVIEW'] as const) {
     await expect(navLink(page, name)).not.toHaveAttribute('aria-current', 'page');

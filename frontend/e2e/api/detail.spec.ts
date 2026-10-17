@@ -5,10 +5,10 @@
  * Seed state needed: the fictional seed (`python -m app.seed`): boreholes with layers whose
  * din4023_code is a key of din_codes.json (one starts with fill `A`), and printed coordinates.
  * The seed has no layer with an unknown or missing code, so that case patches one record of the
- * real list answer in the browser (route) and checks the drawing. Read-only: changes nothing.
+ * real answers in the browser (route) and checks the drawing. Read-only: changes nothing.
  */
 import { readFileSync } from 'node:fs';
-import { DIN_CODES, COLOR, expect, openApp, openDetail, records, test, UNPLOTTED_LABEL, type WireRecord } from './fixtures';
+import { DIN_CODES, COLOR, editRecords, expect, openApp, openDetail, records, test, UNPLOTTED_LABEL, type WireRecord } from './fixtures';
 
 const profile = (page: import('@playwright/test').Page, id: string) =>
   page.getByRole('group', { name: new RegExp(`^DIN 4023 profile of ${id.replace(/[-]/g, '\\-')},`) });
@@ -71,14 +71,12 @@ test('the legend lists the codes used with their English names and says "nach DI
 test('unknown or missing DIN codes are plain #E0E0E0, named in the legend, never a guessed pattern', async ({ page, request }) => {
   const [target] = (await records(request)).filter((x) => x.stratigraphy.length >= 3);
   const id = target.metadata.borehole_id;
-  // The seed has none: blank the first layer's code and give the second a code that is not a DIN key.
-  await page.route(/\/api\/v1\/boreholes\?limit=/, async (route) => {
-    const res = await route.fetch();
-    const body = (await res.json()) as { boreholes: WireRecord[] };
-    const rec = body.boreholes.find((b) => b.uid === target.uid)!;
+  // The seed has none: blank the first layer's code and give the second a code that is not a DIN key
+  // (in the browser's copy of the record, whether it comes at boot or on demand).
+  await editRecords(page, (rec: WireRecord) => {
+    if (rec.uid !== target.uid) return;
     rec.stratigraphy[0].din4023_code = null;
     rec.stratigraphy[1].din4023_code = 'Qx';
-    await route.fulfill({ response: res, json: body });
   });
   await openApp(page);
   await openDetail(page, id);

@@ -256,6 +256,68 @@ export function knownBug(id: string, why: string): void {
   test.fail(!process.env.E2E_SHOW_KNOWN, `${id}: ${why}`);
 }
 
+/**
+ * Takes the console errors a test expects out of the collected ones (e.g. Chrome's "Failed to load
+ * resource … 404" for a deep link to a borehole that does not exist, which the app has to ask for).
+ * Returns how many were taken; every other error still fails the test.
+ */
+export function expectConsoleErrors(errors: string[], expected: (error: string) => boolean): number {
+  const keep = errors.filter((e) => !expected(e));
+  const taken = errors.length - keep.length;
+  errors.splice(0, errors.length, ...keep);
+  return taken;
+}
+
+/** True for a record answer of the backend: the lists, one record, or a document's records. */
+const RECORD_ANSWER = /^\/api\/v1\/(boreholes(\/[^/]+)?|documents\/[^/]+\/boreholes)$/;
+
+/**
+ * Changes the browser's copy of every borehole record the app loads (the NOT ON MAP list at boot,
+ * records fetched on demand for Detail and Review, a document's records) with `edit`. The backend
+ * is not changed.
+ */
+export async function editRecords(page: Page, edit: (r: WireRecord) => void): Promise<void> {
+  await page.route(
+    (url) => RECORD_ANSWER.test(url.pathname),
+    async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback();
+        return;
+      }
+      const res = await route.fetch();
+      if (res.status() !== 200) {
+        await route.fulfill({ response: res });
+        return;
+      }
+      const body = (await res.json()) as unknown;
+      const list = Array.isArray(body)
+        ? (body as WireRecord[])
+        : body && typeof body === 'object' && Array.isArray((body as { boreholes?: unknown }).boreholes)
+          ? (body as { boreholes: WireRecord[] }).boreholes
+          : body && typeof body === 'object' && 'uid' in body
+            ? [body as WireRecord]
+            : [];
+      list.forEach(edit);
+      await route.fulfill({ response: res, json: body });
+    },
+  );
+}
+
+/**
+ * Loads every seeded record into the app the way a user would: one Review per document (its route
+ * loads the document's records on demand), after the boot loaded the NOT ON MAP list.
+ */
+export async function loadEveryRecord(page: Page, all: WireRecord[]): Promise<void> {
+  const firstOfDocument = new Map<string, string>();
+  for (const r of all) if (!firstOfDocument.has(r.document_id)) firstOfDocument.set(r.document_id, r.uid);
+  for (const [documentId, uid] of firstOfDocument) {
+    const answered = page.waitForResponse((res) => new URL(res.url()).pathname === `${API}/documents/${documentId}/boreholes`);
+    await page.goto(`/review/${encodeURIComponent(uid)}`);
+    expect((await answered).status(), `records of ${documentId}`).toBe(200);
+    await loaded(page);
+  }
+}
+
 /* ---------- UI helpers ---------- */
 
 /** Opens the app and waits until boreholes and documents are loaded (map screen). */

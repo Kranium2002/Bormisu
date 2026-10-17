@@ -5,7 +5,7 @@
  * and the fictional seed is loaded (`python -m app.seed`). Read-only: changes nothing.
  */
 import type { Page } from '@playwright/test';
-import { API, expect, getJson, nav, navLink, openApp, records, test, type WireRecord } from './fixtures';
+import { API, editRecords, expect, getJson, loadEveryRecord, nav, navLink, openApp, records, test, type WireRecord } from './fixtures';
 
 interface Health {
   mode: string;
@@ -37,12 +37,12 @@ test('health at boot: demo banner, upload off with the reason, accept list from 
   await expect(input).toHaveAttribute('accept', health.upload.extensions.join(','));
 });
 
-test('header: product name from config, three screens as links with their URLs, no console errors on any screen', async ({ page }) => {
+test('header: product name from config, the screens as links with their URLs, no console errors on any screen', async ({ page }) => {
   await openApp(page);
   await expect(page).toHaveTitle('Bormisu');
   await expect(page.getByRole('banner')).toContainText('Bormisu');
-  // No inbox before M2.
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveCount(3);
+  // MAP, UPLOAD & QUEUE and REVIEW are links (M2 adds the inbox next to them).
+  for (const screen of ['MAP', 'UPLOAD & QUEUE', 'REVIEW'] as const) await expect(navLink(page, screen)).toHaveCount(1);
   const paths = { 'UPLOAD & QUEUE': /^\/queue$/, REVIEW: /^\/review\/[^/]+$/, MAP: /^\/map$/ };
   for (const screen of ['UPLOAD & QUEUE', 'REVIEW', 'MAP'] as const) {
     await nav(page, screen);
@@ -54,37 +54,48 @@ test('header: product name from config, three screens as links with their URLs, 
 
 test('no frontend-only API calls fail: every request the app makes at boot answers 200', async ({ page, apiLog }) => {
   await openApp(page);
+  const boot = [...apiLog];
   await nav(page, 'UPLOAD & QUEUE');
   await nav(page, 'REVIEW');
   await expect(page.getByRole('heading', { level: 1, name: /^REVIEW · / })).toBeVisible();
   const failed = apiLog.filter((c) => c.status >= 400);
   expect(failed, 'API calls answered with an error').toEqual([]);
-  // The list is loaded once, with the contract's maximum page size, and the documents once.
-  expect(apiLog.filter((c) => c.method === 'GET' && /\/api\/v1\/boreholes\?limit=5000$/.test(c.url))).toHaveLength(1);
-  expect(apiLog.filter((c) => c.method === 'GET' && c.url.endsWith('/api/v1/documents'))).toHaveLength(1);
+  const gets = (calls: typeof apiLog, re: RegExp) => calls.filter((c) => c.method === 'GET' && re.test(new URL(c.url).pathname + new URL(c.url).search));
+  // The boot loads the documents, the light map layer and the NOT ON MAP records once each …
+  expect(gets(boot, /^\/api\/v1\/documents$/)).toHaveLength(1);
+  expect(gets(boot, /^\/api\/v1\/map\/boreholes\.geojson$/)).toHaveLength(1);
+  expect(gets(boot, /^\/api\/v1\/boreholes\?(.*&)?plotted=false(&|$)/)).toHaveLength(1);
+  // … and never the full records of every borehole (the backend asked for this: records are large).
+  expect(gets(apiLog, /^\/api\/v1\/boreholes\?/).filter((c) => !/[?&]plotted=false(&|$)/.test(c.url))).toEqual([]);
+  // The questions for the inbox, asked once after the load: the unresolved ones (open and skipped).
+  expect(gets(apiLog, /^\/api\/v1\/clarifications\?(.*&)?status=open(&|$)/)).toHaveLength(1);
+  expect(gets(apiLog, /^\/api\/v1\/clarifications\?(.*&)?status=skipped(&|$)/)).toHaveLength(1);
+  // Review loads its borehole's document on demand (its answer may land after the heading shows).
+  await expect.poll(() => gets(apiLog, /^\/api\/v1\/documents\/[^/]+\/boreholes$/).length).toBeGreaterThan(0);
+  expect(apiLog.filter((c) => c.status >= 400), 'API calls answered with an error').toEqual([]);
 });
 
 /**
- * The API source's one console.info per load about values it shows without a provenance entry
- * (src/data/apiSource.ts reportUnsourced): "<n> values in <m> boreholes have no provenance entry … E.g.
- * <uid> <path>, …". The contract allows sparse provenance, so it is no warning (PROV-SPARSE).
+ * The API source's one console.info per batch of records it loads about values it shows without a
+ * provenance entry (src/data/apiSource.ts reportUnsourced): "<n> values in <m> boreholes have no
+ * provenance entry … E.g. <uid> <path>, …". The contract allows sparse provenance, so it is no
+ * warning (PROV-SPARSE).
  */
 const UNSOURCED = /^\d+ values? in \d+ boreholes? (?:has|have) no provenance entry/;
 
-/** The borehole list request of the app (one per load). */
-const LIST = /\/api\/v1\/boreholes\?limit=/;
-
 /**
- * Opens the app, waits until every borehole is listed in RESULTS, and returns the summaries the app
- * logged about values without a provenance entry. No warning may mention provenance.
+ * Opens the app, waits until every borehole is listed in RESULTS, loads every full record (the boot
+ * loads only the NOT ON MAP ones; the rest come on demand: one Review per document), and returns the
+ * summaries the app logged about values without a provenance entry. No warning may mention provenance.
  */
-async function unsourcedSummaries(page: Page, warnings: string[], boreholes: number): Promise<string[]> {
+async function unsourcedSummaries(page: Page, warnings: string[], all: WireRecord[]): Promise<string[]> {
   const infos: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'info' && UNSOURCED.test(m.text())) infos.push(m.text());
   });
   await openApp(page);
-  await expect(page.locator('[role="table"] [role="row"][data-uid]')).toHaveCount(boreholes);
+  await expect(page.locator('[role="table"] [role="row"][data-uid]')).toHaveCount(all.length);
+  await loadEveryRecord(page, all);
   // A round trip after the render, so a console message logged before it has arrived.
   await page.evaluate(() => undefined);
   expect(warnings.filter((w) => /provenance/i.test(w)), 'warnings about provenance').toEqual([]);
@@ -129,20 +140,15 @@ test('FE-PROV-1: every layer’s Lithology row has a source, also when the backe
     r.stratigraphy.flatMap((l, i) => (l.english_lithology && r.provenance[`stratigraphy[${i}].original_description`] ? [i] : [])),
   );
   expect(onDescription.length, 'seeded layers with an English lithology and a described source').toBeGreaterThan(0);
-  // Every other value gets an entry in the browser's copy of the list, so only a Lithology row could
+  // Every other value gets an entry in the browser's copy of each record, so only a Lithology row could
   // be left without a source (it would be reported at stratigraphy[i].english_lithology).
-  await page.route(LIST, async (route) => {
-    const res = await route.fetch();
-    const body = (await res.json()) as { boreholes: WireRecord[] };
-    for (const r of body.boreholes) {
-      r.stratigraphy.forEach((_, i) => {
-        if (r.provenance[`stratigraphy[${i}].original_description`]) delete r.provenance[`stratigraphy[${i}].english_lithology`];
-      });
-      sourceAllBut(r, /^stratigraphy\[\d+\]\.english_lithology$/);
-    }
-    await route.fulfill({ response: res, json: body });
+  await editRecords(page, (r) => {
+    r.stratigraphy.forEach((_, i) => {
+      if (r.provenance[`stratigraphy[${i}].original_description`]) delete r.provenance[`stratigraphy[${i}].english_lithology`];
+    });
+    sourceAllBut(r, /^stratigraphy\[\d+\]\.english_lithology$/);
   });
-  expect(await unsourcedSummaries(page, warnings, all.length), 'values shown without a provenance entry').toEqual([]);
+  expect(await unsourcedSummaries(page, warnings, all), 'values shown without a provenance entry').toEqual([]);
 });
 
 test('BE-PROV-1: every value the seed states has a provenance entry', async ({ page, request, warnings }) => {
@@ -150,5 +156,5 @@ test('BE-PROV-1: every value the seed states has a provenance entry', async ({ p
   // server-computed ones. The app shows such a value read-only and logs one summary per load.
   // (Fixed by the backend in contract 1.1.0; the 1.0.0 seed left location_name, country, client … without one.)
   const all = await records(request);
-  expect(await unsourcedSummaries(page, warnings, all.length), 'values shown without a provenance entry').toEqual([]);
+  expect(await unsourcedSummaries(page, warnings, all), 'values shown without a provenance entry').toEqual([]);
 });

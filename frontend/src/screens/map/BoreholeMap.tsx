@@ -2,8 +2,8 @@
  * The Leaflet map of the Map screen (prototype initMap / fly). Leaflet is driven directly through
  * refs: React owns the container, Leaflet owns everything inside it.
  *
- * - One circle marker per plotted borehole, coloured by review status and restyled in place when a
- *   status, a position or the highlighted borehole changes.
+ * - One circle marker per plotted borehole (a map feature), coloured by review status and restyled
+ *   in place when a status, a position or the highlighted borehole changes.
  * - Clicking a pin opens a popup with OPEN DETAIL ›.
  * - URL state: the map starts at `view` (the URL's `at`); without one it shows the selected pin, else
  *   fits the pins clear of the REVIEW STATUS legend, or shows the whole world while nothing is
@@ -16,7 +16,7 @@
 import * as L from 'leaflet';
 import { useEffect, useRef, type RefObject } from 'react';
 import { osmTileLayer, removeMap } from '../../components/leaflet';
-import type { Borehole, BoreholeStatus } from '../../domain/types';
+import type { BoreholeStatus } from '../../domain/types';
 import { formatMapView, type MapView } from '../../routing/urlState';
 import type { MapFocus } from '../../store/appStore';
 import { pinColor } from '../../theme';
@@ -25,13 +25,13 @@ import {
   depthText,
   fitPadding,
   initialBounds,
-  isPlotted,
   legendExtent,
   PIN_RADIUS,
   popupCrsWarning,
   WORLD_BOUNDS,
   WORLD_CENTER,
   WORLD_ZOOM,
+  type PinRow,
 } from './mapModel';
 import { buildPopup } from './mapPopup';
 
@@ -46,8 +46,8 @@ const SELECTED_ZOOM = 13;
 let handledFocusNonce: number | null = null;
 
 interface Props {
-  boreholes: Borehole[];
-  statuses: Map<string, BoreholeStatus>;
+  /** The plotted boreholes, each with its status (mapRows). */
+  pins: PinRow[];
   /** Drawn with the larger radius and on top (the borehole open in Review). */
   highlightUid: string | null;
   focus: MapFocus | null;
@@ -82,7 +82,7 @@ const viewOf = (map: L.Map): MapView => {
 /** True while a search focus for this borehole waits for its flight (which opens the popup itself). */
 const flying = (focus: MapFocus | null, uid: string | null) => !!focus && focus.uid === uid && focus.nonce !== handledFocusNonce;
 
-export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, selectedUid, legendRef, onOpen, onViewChange, onSelect }: Props) {
+export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, legendRef, onOpen, onViewChange, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef(new Map<string, L.CircleMarker>());
@@ -91,9 +91,9 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, se
   /** Set when the map is being removed: its last events are not reported. */
   const disposed = useRef(false);
   /** Latest props for Leaflet callbacks, which outlive a render. */
-  const latest = useRef({ boreholes, statuses, onOpen, onViewChange, onSelect, view, selectedUid });
+  const latest = useRef({ pins, onOpen, onViewChange, onSelect, view, selectedUid });
   useEffect(() => {
-    latest.current = { boreholes, statuses, onOpen, onViewChange, onSelect, view, selectedUid };
+    latest.current = { pins, onOpen, onViewChange, onSelect, view, selectedUid };
   });
 
   // Create the map once, at the URL's view.
@@ -102,13 +102,13 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, se
     if (!el) return;
     disposed.current = false;
     const map = L.map(el, { scrollWheelZoom: true, zoomSnap: 0.25 });
-    const { view: at, selectedUid: sel, boreholes: all } = latest.current;
-    const selected = sel ? all.find((b) => b.uid === sel) : undefined;
+    const { view: at, selectedUid: sel, pins: all } = latest.current;
+    const selected = sel ? all.find((p) => p.uid === sel) : undefined;
     // The pins' bounds, or the whole world while nothing is plotted: no country is built in.
     const bounds = initialBounds(all);
     const world = bounds === WORLD_BOUNDS;
     if (at) map.setView([at.lat, at.lng], at.zoom);
-    else if (selected && isPlotted(selected)) map.setView([selected.lat, selected.lng], SELECTED_ZOOM);
+    else if (selected) map.setView([selected.pin.lat, selected.pin.lng], SELECTED_ZOOM);
     else if (el.clientWidth > 0 && el.clientHeight > 0) {
       // No pin may start under the legend in the bottom-left corner (measured, else its CSS size).
       const box = el.getBoundingClientRect();
@@ -148,16 +148,16 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, se
 
     /** Popup content, built from the latest data each time the popup opens. */
     const popupFor = (uid: string): HTMLElement => {
-      const { boreholes: all, statuses: st, onOpen: open } = latest.current;
-      const b = all.find((x) => x.uid === uid);
-      if (!b) return document.createElement('div');
+      const { pins: all, onOpen: open } = latest.current;
+      const p = all.find((x) => x.uid === uid);
+      if (!p) return document.createElement('div');
       return buildPopup(
         {
-          id: b.id,
-          project: b.project,
-          depth: depthText(b),
-          status: st.get(uid) ?? 'unreviewed',
-          crsWarning: popupCrsWarning(b.crs),
+          id: p.id,
+          project: p.project,
+          depth: depthText(p.depth),
+          status: p.status,
+          crsWarning: popupCrsWarning(p.crs),
         },
         // The popup stays selected in the URL, so Back to the map reopens it.
         () => open(uid),
@@ -166,18 +166,17 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, se
 
     const markers = markersRef.current;
     const seen = new Set<string>();
-    for (const b of boreholes) {
-      if (!isPlotted(b)) continue;
-      seen.add(b.uid);
-      const style = pinStyle(statuses.get(b.uid) ?? 'unreviewed', b.uid === highlightUid);
-      const existing = markers.get(b.uid);
+    for (const p of pins) {
+      seen.add(p.uid);
+      const style = pinStyle(p.status, p.uid === highlightUid);
+      const existing = markers.get(p.uid);
       if (existing) {
-        existing.setLatLng([b.lat, b.lng]);
+        existing.setLatLng([p.pin.lat, p.pin.lng]);
         existing.setStyle(style);
-        if (existing.isPopupOpen()) existing.setPopupContent(popupFor(b.uid));
+        if (existing.isPopupOpen()) existing.setPopupContent(popupFor(p.uid));
       } else {
-        const uid = b.uid;
-        const m = L.circleMarker([b.lat, b.lng], style).addTo(map);
+        const uid = p.uid;
+        const m = L.circleMarker([p.pin.lat, p.pin.lng], style).addTo(map);
         m.bindPopup(() => popupFor(uid));
         m.on('popupopen', () => {
           openUid.current = uid;
@@ -197,7 +196,7 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, se
       }
     }
     if (highlightUid) markers.get(highlightUid)?.bringToFront();
-  }, [boreholes, statuses, highlightUid]);
+  }, [pins, highlightUid]);
 
   // A view from outside (Back, an edited URL) moves the map; the map's own reports come back equal.
   useEffect(() => {
@@ -212,13 +211,13 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, se
     if (!map || selectedUid === openUid.current || flying(focus, selectedUid)) return;
     if (!selectedUid) map.closePopup();
     else markersRef.current.get(selectedUid)?.openPopup();
-  }, [selectedUid, focus, boreholes]);
+  }, [selectedUid, focus, pins]);
 
   // Fly to a searched borehole and open its popup (prototype fly()).
   useEffect(() => {
     if (!focus || focus.nonce === handledFocusNonce) return;
-    const b = latest.current.boreholes.find((x) => x.uid === focus.uid);
-    if (!b || !isPlotted(b)) {
+    const b = latest.current.pins.find((x) => x.uid === focus.uid);
+    if (!b) {
       handledFocusNonce = focus.nonce;
       return;
     }
@@ -231,7 +230,7 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, focus, view, se
         handledFocusNonce = focus.nonce;
         map.closePopup();
         map.invalidateSize();
-        map.flyTo([b.lat, b.lng], focus.zoom, { duration: FLY_DURATION_S });
+        map.flyTo([b.pin.lat, b.pin.lng], focus.zoom, { duration: FLY_DURATION_S });
         timers.push(setTimeout(() => markersRef.current.get(b.uid)?.openPopup(), POPUP_DELAY_MS));
       }, FLY_DELAY_MS),
     );

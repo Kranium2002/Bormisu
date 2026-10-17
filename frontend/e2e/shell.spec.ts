@@ -8,10 +8,10 @@ test('shell renders in sample mode without console errors', async ({ page }) => 
   await expect(banner.getByText(APP_NAME, { exact: true })).toBeVisible();
   await expect(banner.getByText('Borehole Intelligence', { exact: true })).toBeVisible();
   await expect(page.getByText('Demo mode: fictional sample loaded. Live extraction needs an API key.')).toBeVisible();
-  // The navigation is links; no inbox before M2.
-  await expect(mainNav(page).getByRole('link')).toHaveText(['MAP', /^UPLOAD & QUEUE/, 'REVIEW']);
+  // The navigation is links (M2 adds the inbox next to these).
+  for (const name of ['MAP', 'UPLOAD & QUEUE', 'REVIEW'] as const) await expect(navLink(page, name)).toHaveCount(1);
+  await expect(mainNav(page).getByRole('link').first()).toHaveText('MAP');
   await expect(navLink(page, 'UPLOAD & QUEUE')).toContainText('1');
-  await expect(mainNav(page).getByText(/inbox/i)).toHaveCount(0);
 
   await nav(page, 'REVIEW');
   await expect(navLink(page, 'REVIEW')).toHaveAttribute('aria-current', 'page');

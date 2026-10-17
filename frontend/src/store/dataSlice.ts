@@ -1,12 +1,13 @@
 /**
- * Data slice: picks the data source, asks its health, loads boreholes and documents, starts live
- * updates (events slice), caches pages.
+ * Data slice: picks the data source, asks its health, loads the documents, the map features and the
+ * unplotted records, starts live updates (events slice) and loads the questions (clarifications
+ * slice), caches pages. Full records of plotted boreholes are fetched on demand (map data slice).
  */
 import { createDataSource } from '../data/createDataSource';
 import type { DataSource } from '../data/DataSource';
 import { errorText } from '../data/errors';
 import { initialFocusKey } from '../domain/review';
-import { defaultLayer, pageFor, pageKey, type SliceCreator } from './context';
+import { pageFor, pageKey, withReviewTarget, type SliceCreator } from './context';
 import type { DataSlice } from './types';
 
 let initRun = 0;
@@ -40,25 +41,32 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
           if (run === initRun) set({ health: null });
         },
       );
-      const { boreholes, documents } = await source.load();
+      const { documents, features, unplotted } = await source.load();
       if (run !== initRun) return;
-      const reviewUid = documents.find((d) => d.reviewBoreholeUid)?.reviewBoreholeUid ?? null;
-      const rb = boreholes.find((b) => b.uid === reviewUid);
+      // The boreholes cache starts with the unplotted records (the NOT ON MAP list); every plotted
+      // borehole is a map feature until Review, Detail or an export needs its full record.
+      const known = { boreholes: unplotted, features, unplottedUids: unplotted.map((b) => b.uid) };
+      const docs = documents.map((d) => withReviewTarget(d, undefined, known));
+      // Review starts on the first document's target when its record is at hand; else its route loads it.
+      const target = docs.find((d) => d.reviewBoreholeUid)?.reviewBoreholeUid;
+      const rb = unplotted.find((b) => b.uid === target);
       const focusKey = rb ? initialFocusKey(rb) : null;
-      const selected = rb ?? boreholes.find((b) => b.onMap) ?? boreholes[0];
       set({
         loadState: 'ready',
-        boreholes,
-        documents,
-        reviewUid,
+        ...known,
+        recordLoads: {},
+        documents: docs,
+        reviewUid: rb?.uid ?? null,
         focusKey,
         reviewPage: rb ? pageFor(rb, rb.values.find((v) => v.key === focusKey), rb.primaryPage) : null,
-        selectedUid: selected?.uid ?? null,
-        selectedLayer: defaultLayer(selected),
+        selectedUid: null,
+        selectedLayer: 1,
       });
       // Live updates from now on. The source itself follows the documents it loaded that are still
       // being worked on (e.g. after a reload during extraction), for the polling fallback.
       get().startLive();
+      // The questions for the inbox and the badge; a failure never blocks the app.
+      void get().loadClarifications();
     } catch (e) {
       if (!get().source) sourcePromise = null;
       // Load failures (backend unreachable, endpoint missing …) keep the error state with its message.
