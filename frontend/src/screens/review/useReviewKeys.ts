@@ -19,7 +19,8 @@ export function useReviewKeys(keys: string[]) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target instanceof Element && e.target.closest(TYPING)) return;
       const s = useAppStore.getState();
-      if (s.screen !== 'review' || s.editing || s.crsDialogOpen || s.panel || s.confirmCleanOpen) return;
+      // An open question dialog or menu takes the keys: an A there must not approve the value behind it.
+      if (s.screen !== 'review' || s.editing || s.crsDialogOpen || s.panel || s.confirmCleanOpen || s.activeClarificationId || s.exportOpen) return;
       if (move) {
         const i = s.focusKey ? keys.indexOf(s.focusKey) : -1;
         const next = keys[k === 'j' ? Math.min(keys.length - 1, i + 1) : Math.max(0, i - 1)];

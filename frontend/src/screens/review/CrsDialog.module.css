@@ -250,3 +250,64 @@
   font-size: 12px;
   color: var(--c-muted);
 }
+
+/* Narrower than 1280 px: candidates and map share the dialog's width. */
+@media (max-width: 1279px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/*
+ * Phones: the dialog fills the screen (header included); candidates and then the map stack in its
+ * scrolling body, head and foot stay in view.
+ */
+@media (max-width: 767px) {
+  .scrim {
+    position: fixed;
+  }
+
+  .dialog {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .head {
+    padding: 12px 16px;
+  }
+
+  .close {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .left {
+    padding: 14px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  .candRow {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+
+  .mapCell {
+    min-height: 280px;
+  }
+
+  .question,
+  .foot {
+    padding: 10px 16px;
+  }
+
+  .foot {
+    flex-wrap: wrap;
+  }
+}

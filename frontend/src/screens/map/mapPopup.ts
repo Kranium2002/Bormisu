@@ -1,6 +1,7 @@
 /**
  * Content of a map pin popup (FRONTEND.md F9): borehole ID, project, final depth (or "Depth not
- * stated"), status chip, CRS warning, and DETAIL, REVIEW and SOURCE. A button that can't act is
+ * stated"), status chip, the CRS (its label, amber when inferred or unknown), and DETAIL, REVIEW
+ * and SOURCE. A button that can't act is
  * disabled and the reason is printed under the buttons (and tied to the button with
  * aria-describedby). Leaflet measures popup content when it opens, so it is built synchronously as
  * DOM. Text goes in via textContent, never innerHTML: borehole IDs and project names come from
@@ -61,7 +62,10 @@ export function buildPopup(view: PopupView, actions: PopupActions): HTMLElement 
   chipRow.append(chip);
   root.append(chipRow);
 
-  if (view.crsWarning) root.append(el('div', styles.crs, view.crsWarning));
+  // The system's label (else its code, else the status); amber when it is inferred or unknown.
+  const crs = el('div', view.crs.warn ? styles.crs : styles.crsOk, view.crs.text);
+  crs.dataset.crs = '';
+  root.append(crs);
 
   popupIds += 1;
   const reviewWhy = `map-popup-${popupIds}-review`;

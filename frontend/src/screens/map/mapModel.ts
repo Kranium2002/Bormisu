@@ -83,6 +83,11 @@ function newerRecord(b: Borehole | undefined, f: MapFeature): b is Borehole {
   return !!b && (f.revision == null || b.revision >= f.revision);
 }
 
+/** The CRS a map feature carries: its status, and its system's code and label when the server sends them (1.2.0). */
+export function featureCrs(f: Pick<MapFeature, 'crsStatus' | 'crsCode' | 'crsLabel'>): Borehole['crs'] {
+  return { name: null, code: f.crsCode ?? null, label: f.crsLabel ?? null, status: f.crsStatus };
+}
+
 /** RESULTS row and pin of a plotted feature; its full record, when loaded and as new, gives the status. */
 export function featureRow(f: MapFeature, record?: Borehole): PinRow {
   const b = newerRecord(record, f) ? record : undefined;
@@ -92,7 +97,8 @@ export function featureRow(f: MapFeature, record?: Borehole): PinRow {
     project: b?.project ?? f.project ?? '',
     depth: b ? b.finalDepth : f.depth,
     status: b ? displayStatus(b) : featureStatus(f),
-    crs: b?.crs ?? { name: null, code: null, status: f.crsStatus },
+    // The light layer names the stated or confirmed system since 1.2.0 (code and label).
+    crs: b?.crs ?? featureCrs(f),
     pin: { lat: f.lat, lng: f.lng },
   };
 }
@@ -471,9 +477,13 @@ export interface PopupView {
   depth: string;
   status: BoreholeStatus;
   crsWarning: string | null;
+  /** The CRS line: the system's label (else its code, else the status) and whether it is a warning. */
+  crs: PopupCrs;
   review: PopupAction;
   source: PopupAction;
 }
+
+export interface PopupCrs { text: string; warn: boolean }
 
 export const POPUP_LOADING = 'Loading the borehole record…';
 export const POPUP_MISSING = 'The server no longer has this borehole';
@@ -498,7 +508,10 @@ const off = (reason: string): PopupAction => ({ enabled: false, reason });
  * SOURCE when the final depth has no source to open.
  */
 export function popupView(row: PinRow, record: Borehole | undefined, load: 'loading' | 'missing' | 'error' | undefined): PopupView {
-  const base = { uid: row.uid, id: row.id, project: row.project, depth: popupDepthText(row.depth), status: row.status, crsWarning: popupCrsWarning(row.crs) };
+  const base = {
+    uid: row.uid, id: row.id, project: row.project, depth: popupDepthText(row.depth), status: row.status,
+    crsWarning: popupCrsWarning(row.crs), crs: popupCrs(row.crs),
+  };
   if (!record) {
     const why = off(load === 'missing' ? POPUP_MISSING : load === 'error' ? POPUP_LOAD_FAILED : POPUP_LOADING);
     return { ...base, review: why, source: why };
@@ -528,7 +541,8 @@ export interface CrsCell {
  */
 export function crsCell(crs: Borehole['crs']): CrsCell {
   const label = crsLabel(crs);
-  const full = crs.name?.trim() ? `${crs.name.trim()}${crs.code ? ` (${crs.code})` : ''}` : (label ?? 'No coordinate system');
+  const named = crs.label?.trim() || crs.name?.trim();
+  const full = named ? `${named}${crs.code ? ` (${crs.code})` : ''}` : (label ?? 'No coordinate system');
   switch (crs.status) {
     case 'inferred':
       return { text: label ? `inferred · ${label}` : 'inferred', warn: true, title: `Inferred, not stated in the source: ${full}` };
@@ -546,6 +560,24 @@ export function popupCrsWarning(crs: Borehole['crs']): string | null {
   if (crs.status === 'inferred') return 'CRS inferred, not stated';
   if (crs.status === 'unknown') return 'CRS unknown';
   return null;
+}
+
+/**
+ * The popup's CRS line: the system's label (else the code; crsLabel), else only what the status
+ * says. Amber for an inferred or unknown system (the pin's position is not confirmed).
+ */
+export function popupCrs(crs: Borehole['crs']): PopupCrs {
+  const label = crsLabel(crs);
+  switch (crs.status) {
+    case 'inferred':
+      return { text: label ? `CRS inferred, not stated: ${label}` : 'CRS inferred, not stated', warn: true };
+    case 'unknown':
+      return { text: 'CRS unknown', warn: true };
+    case 'confirmed':
+      return { text: label ? `CRS confirmed: ${label}` : 'CRS confirmed', warn: false };
+    case 'stated':
+      return { text: label ? `CRS: ${label}` : 'CRS stated', warn: false };
+  }
 }
 
 export interface NotOnMapReason {

@@ -283,3 +283,89 @@
 .onMap:focus-visible {
   background: var(--c-green-bg);
 }
+
+/* The next step to the map (CONFIRM a coordinate system, PLACE a borehole): amber, it waits for you. */
+.nextStep {
+  border: 1px solid var(--c-amber);
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nextStep:hover,
+.nextStep:focus-visible {
+  background: #fff;
+}
+
+/* "N not on the map · WHY": neutral, it explains. */
+.whyStep {
+  border: 1px solid var(--c-border-strong);
+  background: #fff;
+  color: var(--c-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.whyStep:hover,
+.whyStep:focus-visible {
+  background: var(--c-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progressFill {
+    transition: none;
+  }
+}
+
+/* Phones: the columns (from QueueScreen's --queue-cols) stack; checks and the hint start on the left. */
+@media (max-width: 767px) {
+  .card {
+    padding: 14px;
+  }
+
+  .top {
+    gap: 12px;
+  }
+
+  .checks {
+    justify-content: flex-start;
+  }
+
+  .comp {
+    text-align: left;
+  }
+
+  .bottom {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .hint {
+    white-space: normal;
+  }
+
+  .errorBlock {
+    flex-wrap: wrap;
+  }
+
+  .hintError {
+    text-align: left;
+  }
+
+  .questions {
+    white-space: normal;
+  }
+}

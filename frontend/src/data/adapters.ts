@@ -84,7 +84,8 @@ export interface WireEventData {
   'borehole.created': { uid: string; document_id: string; revision: number; plotted: boolean };
   'borehole.updated': { uid: string; revision: number };
   'clarification.created': WireClarification;
-  'clarification.resolved': { clarification_id: string; status: 'answered' | 'skipped' };
+  /** document_id and borehole_uids since 1.2.0. */
+  'clarification.resolved': { clarification_id: string; status: 'answered' | 'skipped'; document_id?: string; borehole_uids?: string[] };
   'job.failed': { document_id: string; stage: string; detail: string; retryable: boolean };
 }
 
@@ -487,7 +488,7 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
       // Unknown stays unknown: the log bottom only bounds the drawing, it is not the final depth.
       finalDepth,
       logBottom: layers.length ? layers[layers.length - 1].to : (finalDepth ?? 0),
-      crs: { name: co.coordinate_system ?? null, code: co.crs_code ?? null, status: rec.crs_status },
+      crs: { name: co.coordinate_system ?? null, code: co.crs_code ?? null, status: rec.crs_status, label: co.crs_label ?? null },
       meta: boreholeMeta,
       layers,
       groundwater,
@@ -706,12 +707,28 @@ export function stepOf(status: DocumentStatus): DocumentStep {
 }
 
 /**
- * The UI step of a document. The Document has no failed stage, so a failed one is placed by its
- * progress only: failed during extraction (step 1) once every page was classified, else during
- * classification (step 0).
+ * The UI step each pipeline stage belongs to (contract 1.2.0 `failed_stage`, the same names as the
+ * job.failed event's `stage`): triage and page classification are "classifying", everything after
+ * them (OCR, extraction, the second reading and the spreadsheet stages) is "extracting".
+ */
+const STAGE_STEP: Record<string, DocumentStep> = {
+  triage: 0, classify: 0, ocr: 1, extract: 1, reread: 1, sheet_read: 1, sheet_map: 1, sheet_extract: 1,
+};
+
+/** The UI step a failed pipeline stage belongs to; null for a stage this client does not know. */
+export function stageStep(stage: string | null | undefined): DocumentStep | null {
+  return stage != null && Object.hasOwn(STAGE_STEP, stage) ? STAGE_STEP[stage] : null;
+}
+
+/**
+ * The UI step of a document. A failed one is placed by its failed stage (1.2.0); without a known
+ * stage by its progress: failed during extraction (step 1) once every page was classified, else
+ * during classification (step 0).
  */
 function documentStep(d: WireDocument): DocumentStep {
   if (d.status !== 'failed') return stepOf(d.status);
+  const byStage = stageStep(d.failed_stage);
+  if (byStage !== null) return byStage;
   const pr = d.progress;
   return pr && pr.pages_total > 0 && pr.pages_classified >= pr.pages_total ? 1 : 0;
 }
@@ -777,6 +794,7 @@ export function adaptDocument(d: WireDocument): DocumentSummary {
     openClarifications: d.open_clarifications ?? 0,
     duplicateOf: d.duplicate_of ?? null,
     error: d.status === 'failed' ? d.error || 'Extraction failed' : null,
+    failedStage: d.status === 'failed' && isText(d.failed_stage) ? d.failed_stage : null,
   };
 }
 
@@ -813,6 +831,8 @@ const DOCUMENT_STATUSES = new Set<string>(Object.keys(STEP));
 type Fields = Record<string, unknown>;
 const isFields = (x: unknown): x is Fields => x != null && typeof x === 'object' && !Array.isArray(x);
 const isText = (x: unknown): x is string => typeof x === 'string' && x !== '';
+/** A text without its outer blanks; null for a blank or a non-text. */
+const trimmed = (x: unknown): string | null => (typeof x === 'string' && x.trim() ? x.trim() : null);
 const isRevision = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x);
 
 /**
@@ -843,9 +863,15 @@ export function adaptLiveEvent(
       const clarification = adaptClarification(data);
       return clarification ? { type, clarification } : null;
     }
-    case 'clarification.resolved':
+    case 'clarification.resolved': {
       if (!isText(data.clarification_id) || (data.status !== 'answered' && data.status !== 'skipped')) return null;
-      return { type, clarificationId: data.clarification_id, status: data.status };
+      // 1.2.0 names the question's document and boreholes; an older server sends only the id.
+      const uids = Array.isArray(data.borehole_uids) ? data.borehole_uids.filter(isText) : null;
+      return {
+        type, clarificationId: data.clarification_id, status: data.status,
+        ...(isText(data.document_id) ? { documentId: data.document_id, boreholeUids: uids ?? [] } : {}),
+      };
+    }
     case 'job.failed':
       if (!isText(data.document_id) || typeof data.stage !== 'string' || typeof data.detail !== 'string' || typeof data.retryable !== 'boolean') {
         return null;
@@ -904,6 +930,9 @@ function adaptFeature(f: WireFeature): MapFeature | string {
     depth: isNumber(p.borehole_depth_m) ? p.borehole_depth_m : null,
     reviewStatus: p.review_status,
     crsStatus: p.crs_status,
+    // 1.2.0: the stated or confirmed system; null (or absent from an older server) when there is none.
+    crsCode: trimmed(p.crs_code),
+    crsLabel: trimmed(p.crs_label),
     revision: isRevision(p.revision) ? p.revision : null,
     // The contract's attention covers flags, lint errors and unresolved questions; without the flag
     // only the questions are known.

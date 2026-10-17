@@ -107,3 +107,51 @@
   gap: 20px;
   min-width: 0;
 }
+
+/* Narrower than 1280 px: the header wraps; the profile sits above metadata, layers and groundwater. */
+@media (max-width: 1279px) {
+  .header {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    row-gap: 10px;
+  }
+
+  .titleBlock {
+    min-width: 0;
+  }
+
+  .titleRow {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .crumbs {
+    flex-wrap: wrap;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px 16px 32px;
+    gap: 16px;
+  }
+
+  .right {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 767px) {
+  .titleBlock {
+    flex: 1 1 100%;
+  }
+
+  .id {
+    font-size: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .profileHead {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+}

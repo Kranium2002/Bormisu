@@ -37,19 +37,29 @@ export function CrsDialog() {
   const reviewerName = useAppStore((s) => s.reviewerName);
   const clarifications = useAppStore((s) => s.clarifications);
   const openClarification = useAppStore((s) => s.openClarification);
-  const b = useReviewBorehole();
+  const crsDocumentId = useAppStore((s) => s.crsDocumentId);
+  const features = useAppStore((s) => s.features);
+  const reviewBorehole = useReviewBorehole();
   const [busy, setBusy] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
   /** A click closes the dialog only if it started on the scrim too (not a map drag released outside). */
   const downOnScrim = useRef(false);
 
-  const labels = useMemo(() => Object.fromEntries(boreholes.map((x) => [x.uid, x.id])), [boreholes]);
-  const documentId = b?.documentId ?? null;
+  const labels = useMemo(
+    () => Object.fromEntries([...features, ...boreholes].map((x) => [x.uid, x.id])),
+    [features, boreholes],
+  );
+  const documentId = crsDocumentId ?? reviewBorehole?.documentId ?? null;
+  // The intro describes the review borehole when it is of this document (else one of its boreholes, e.g. from a queue card).
+  const b =
+    reviewBorehole && reviewBorehole.documentId === documentId
+      ? reviewBorehole
+      : (boreholes.find((x) => x.documentId === documentId && x.meta.xRaw) ?? boreholes.find((x) => x.documentId === documentId));
   const question = useMemo(() => {
     if (!documentId) return null;
-    const uids = boreholes.filter((x) => x.documentId === documentId).map((x) => x.uid);
+    const uids = [...features, ...boreholes].filter((x) => x.documentId === documentId).map((x) => x.uid);
     return crsQuestionFor(clarifications, documentId, uids);
-  }, [clarifications, boreholes, documentId]);
+  }, [clarifications, boreholes, features, documentId]);
   const current = candidates[pick];
   const outOfRange = current?.verdict === 'out_of_range';
   const canConfirm = !!current && !outOfRange && !busy;

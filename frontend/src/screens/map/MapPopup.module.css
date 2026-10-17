@@ -28,6 +28,12 @@
   color: var(--c-amber-text);
 }
 
+.crsOk {
+  margin-top: 2px;
+  color: var(--c-muted);
+  overflow-wrap: anywhere;
+}
+
 .actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

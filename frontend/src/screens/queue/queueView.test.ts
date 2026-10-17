@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { DocumentSummary } from '../../domain/types';
+import { makeClarification } from '../../components/clarify/clarifyFixtures';
+import type { Borehole, Clarification, DocumentSummary } from '../../domain/types';
 import { makeDocument, makePage } from '../../test/fixtures';
 import { placeholderPage } from '../../domain/pages';
 import {
@@ -9,10 +10,17 @@ import {
   docHint,
   docMeta,
   duplicateText,
+  mapSteps,
+  mapStepText,
+  mapStepTitle,
+  NO_BOREHOLES_FOUND,
   pageTitle,
   progressView,
   questionsText,
+  stageText,
   stepViews,
+  type MapStep,
+  type MapStepInput,
 } from './queueView';
 
 const doc = (over: Partial<DocumentSummary> = {}): DocumentSummary =>
@@ -61,6 +69,97 @@ describe('docHint', () => {
 
   it('shows failures in red', () => {
     expect(docHint(doc({ step: 1, error: 'OCR timeout' }))).toEqual({ text: 'Extraction failed: OCR timeout', tone: 'error' });
+  });
+
+  it('1.2.0: names the failed stage (the document’s failed_stage, or the stage reported live)', () => {
+    expect(docHint(doc({ step: 1, error: 'OCR timeout', failedStage: 'ocr' }))?.text).toBe('Extraction failed at text recognition (OCR): OCR timeout');
+    expect(docHint(doc({ step: 1, error: 'x', failedStage: 'sheet_map' }), { stage: 'reread', detail: 'Model busy.', retryable: true })?.text).toBe(
+      'Extraction failed at second reading: Model busy.',
+    );
+    // A stage this client does not know yet is named as the server names it.
+    expect(docHint(doc({ step: 1, error: 'x', failedStage: 'new_stage' }))?.text).toBe('Extraction failed at new stage: x');
+    expect(stageText(null)).toBe('');
+  });
+
+  it('says so when extraction is through and the server found no borehole', () => {
+    expect(docHint(doc({ step: 2, counts: { boreholes: 0, layers: 0, spt: 0, groundwater: 0 } }))?.text).toBe(NO_BOREHOLES_FOUND);
+  });
+});
+
+describe('upload → map: the map steps of a processed card', () => {
+  const D = 'doc_TEST_Q1';
+  const off = (uid: string, unplottedReason: Borehole['unplottedReason']) => ({ uid, unplottedReason });
+  const q = (o: Partial<Clarification>) => makeClarification({ documentId: D, ...o });
+  const steps = (input: Partial<MapStepInput>, over: Partial<DocumentSummary> = {}) =>
+    mapSteps(doc(over), { pinned: 0, offMap: [], questions: [], uids: [], ...input });
+
+  it('"N on the map · SHOW" for the pinned boreholes', () => {
+    expect(steps({ pinned: 3 })).toEqual([{ kind: 'onMap', n: 3 }]);
+    expect(mapStepText({ kind: 'onMap', n: 3 })).toBe('3 on the map · SHOW');
+  });
+
+  it('nothing before extraction is through or after a failure', () => {
+    expect(steps({ pinned: 3 }, { step: 1 })).toEqual([]);
+    expect(steps({ pinned: 3 }, { error: 'boom', status: 'failed' })).toEqual([]);
+  });
+
+  it('an unresolved crs_confirm question: CONFIRM opens it; without a question the CRS dialog (questionId null)', () => {
+    const crs = q({ id: 'cl_crs', kind: 'crs_confirm', boreholeUids: ['a', 'b', 'x_other_doc'] });
+    const offCrs = [off('a', 'crs_unconfirmed'), off('b', 'crs_unknown')];
+    expect(steps({ pinned: 1, offMap: offCrs, questions: [crs], uids: ['p', 'a', 'b'] })).toEqual([
+      { kind: 'onMap', n: 1 },
+      { kind: 'crs', n: 2, questionId: 'cl_crs' },
+    ]);
+    expect(steps({ offMap: offCrs })).toEqual([{ kind: 'crs', n: 2, questionId: null }]);
+    expect(mapStepText({ kind: 'crs', n: 2, questionId: null })).toBe('2 boreholes need a coordinate system · CONFIRM');
+    // An answered question is no next step.
+    expect(steps({ questions: [{ ...crs, status: 'answered' }] })).toEqual([]);
+    // A question about another document's boreholes only is not this card's.
+    expect(steps({ questions: [q({ id: 'cl_x', kind: 'crs_confirm', documentId: 'doc_OTHER', boreholeUids: ['x'] })] })).toEqual([]);
+  });
+
+  it('pinned boreholes with an inferred system that the CRS question covers need it too; settled ones do not', () => {
+    const crs = q({ id: 'cl_crs', kind: 'crs_confirm', boreholeUids: ['p1', 'p2', 'p3', 'w3_other_doc'] });
+    // p1 and p2 are pinned with an inferred system, p3 is confirmed already.
+    expect(steps({ pinned: 3, questions: [crs], uids: ['p1', 'p2', 'p3'], unsettled: ['p1', 'p2'] })).toEqual([
+      { kind: 'onMap', n: 3 },
+      { kind: 'crs', n: 2, questionId: 'cl_crs' },
+    ]);
+    // Every borehole of this report is settled: the project-wide question is no step here.
+    expect(steps({ pinned: 3, questions: [crs], uids: ['p1', 'p2', 'p3'], unsettled: [] })).toEqual([{ kind: 'onMap', n: 3 }]);
+    // One without coordinates is not placed by a coordinate system: it is behind WHY, not CONFIRM.
+    const withNoXy = { ...crs, boreholeUids: ['p1', 'n1'] };
+    expect(steps({ pinned: 1, offMap: [off('n1', 'no_coordinates')], questions: [withNoXy], uids: ['p1', 'n1'], unsettled: ['p1', 'n1'] })).toEqual([
+      { kind: 'onMap', n: 1 },
+      { kind: 'crs', n: 1, questionId: 'cl_crs' },
+      { kind: 'notOnMap', n: 1 },
+    ]);
+  });
+
+  it('a locate_borehole question: PLACE opens it (click the map), and explains its boreholes', () => {
+    const locate = q({ id: 'cl_loc', kind: 'locate_borehole', boreholeUids: ['c'] });
+    expect(steps({ offMap: [off('c', 'no_coordinates')], questions: [locate], uids: ['c'] })).toEqual([
+      { kind: 'locate', n: 1, questionId: 'cl_loc' },
+    ]);
+    expect(mapStepText({ kind: 'locate', n: 1, questionId: 'cl_loc' })).toBe('1 borehole needs a position · PLACE');
+  });
+
+  it('"N not on the map · WHY" for boreholes no question places', () => {
+    expect(steps({ offMap: [off('c', 'no_coordinates'), off('d', 'implausible')], uids: ['c', 'd'] })).toEqual([{ kind: 'notOnMap', n: 2 }]);
+    expect(mapStepText({ kind: 'notOnMap', n: 2 })).toBe('2 not on the map · WHY');
+    // Other questions (e.g. a unit) keep the open-questions badge; they are no map step.
+    expect(steps({ offMap: [off('c', 'no_coordinates')], questions: [q({ id: 'cl_u', kind: 'unit_ambiguous', boreholeUids: ['c'] })], uids: ['c'] })).toEqual([
+      { kind: 'notOnMap', n: 1 },
+    ]);
+  });
+
+  it('every step has a hover text', () => {
+    for (const s of [
+      { kind: 'onMap', n: 1 }, { kind: 'crs', n: 1, questionId: 'q' }, { kind: 'crs', n: 1, questionId: null },
+      { kind: 'locate', n: 1, questionId: 'q' }, { kind: 'notOnMap', n: 1 },
+    ] as MapStep[]) {
+      expect(mapStepTitle(s)).not.toBe('');
+    }
   });
 });
 

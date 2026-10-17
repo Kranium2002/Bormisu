@@ -18,6 +18,9 @@
  *   (instant under prefers-reduced-motion) and draws the dashed outline when asked; a new search or
  *   a reset removes the outline;
  * - drawing a rectangle, polygon or circle calls the store's selectArea with the contract's Area;
+ *   while the chat asks for an area (chatAreaRequest, request_area) the shape goes to the chat
+ *   instead (setChatArea: context.map_view of the next message): the map shows the chat's prompt
+ *   as a hint and starts the rectangle tool, and shows the area drawn until the message is sent;
  * - the popup's REVIEW (openReview) and SOURCE (the final depth's Source panel, after ensureBorehole)
  *   with the reasons when they are off.
  *
@@ -34,6 +37,7 @@
 import * as L from 'leaflet';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { osmTileLayer, removeMap } from '../../components/leaflet';
+import { ChatAreaHint } from '../../components/chat/ChatAreaHint';
 import { K } from '../../domain/keys';
 import { formatMapView, type MapView } from '../../routing/urlState';
 import { useAppStore, type AppState, type MapFocus } from '../../store/appStore';
@@ -137,9 +141,12 @@ export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, lege
   const resultSetBusy = useAppStore((s) => s.resultSetBusy);
   const filterArea = useAppStore((s) => s.filter.area);
   const mapOutline = useAppStore((s) => s.mapOutline);
+  const chatAreaRequest = useAppStore((s) => s.chatAreaRequest);
+  const chatArea = useAppStore((s) => s.chatArea);
   const members = useMemo(() => (resultSet ? new Set(resultSet.uids) : null), [resultSet]);
-  // The area being selected while its request runs, else the active result set's (none after a reset).
-  const areaShown = resultSetBusy && filterArea ? filterArea : (resultSet?.area ?? null);
+  // An area drawn for the chat (until its message is sent), else the area being selected while its
+  // request runs, else the active result set's (none after a reset).
+  const areaShown = chatArea ?? (resultSetBusy && filterArea ? filterArea : (resultSet?.area ?? null));
 
   // Create the map once, at the URL's view.
   useEffect(() => {
@@ -251,7 +258,16 @@ export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, lege
     });
     const shapes = new MapShapes(map);
     const draw = new DrawTools(map, {
-      onArea: (area) => void useAppStore.getState().selectArea(area),
+      onArea: (area) => {
+        const s = useAppStore.getState();
+        // request_area: the shape is the chat's (context.map_view of the next message), not a selection.
+        if (s.chatAreaRequest) {
+          s.setChatArea(area);
+          s.openChat();
+          return;
+        }
+        void s.selectArea(area);
+      },
       onMode: (shape) => {
         if (!disposed.current) setDrawMode(shape);
       },
@@ -340,6 +356,14 @@ export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, lege
     shapesRef.current?.setArea(areaShown);
   }, [areaShown]);
 
+  // request_area: the rectangle tool starts with the chat's hint; a cancelled request ends the drawing.
+  useEffect(() => {
+    const draw = drawRef.current;
+    if (!draw) return;
+    if (chatAreaRequest) draw.start('rectangle');
+    else draw.cancel();
+  }, [chatAreaRequest]);
+
   // A bbox to fly to (a result set's fit, a place), with its dashed outline when asked.
   useEffect(() => {
     const map = mapRef.current;
@@ -409,6 +433,11 @@ export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, lege
   const removeArea = () => {
     drawRef.current?.cancel();
     const s = useAppStore.getState();
+    // The area drawn for the chat goes alone (the selection, if any, stays).
+    if (s.chatArea) {
+      s.setChatArea(null);
+      return;
+    }
     // Only an area selected: that is a reset. With other filters, the selection runs again without the area.
     if (onlyArea(s.filter)) s.clearResultSet();
     else {
@@ -427,6 +456,14 @@ export function BoreholeMap({ pins, highlightUid, focus, view, selectedUid, lege
         onCancel={() => drawRef.current?.cancel()}
         onRemoveArea={removeArea}
       />
+      {chatAreaRequest && (
+        <ChatAreaHint
+          prompt={chatAreaRequest.prompt}
+          drawing={drawMode !== null}
+          onDraw={() => drawRef.current?.start('rectangle')}
+          onCancel={() => useAppStore.getState().cancelChatAreaRequest()}
+        />
+      )}
     </div>
   );
 }

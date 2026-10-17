@@ -71,6 +71,10 @@ export function featureOf(b: Borehole): MapFeature | null {
     depth: b.finalDepth,
     reviewStatus: b.reviewStatus,
     crsStatus: b.crs.status,
+    // 1.2.0: the record's stated or confirmed system (none for an inferred or unknown one).
+    ...(b.crs.status === 'stated' || b.crs.status === 'confirmed'
+      ? { crsCode: b.crs.code, crsLabel: b.crs.label ?? null }
+      : { crsCode: null, crsLabel: null }),
     revision: b.revision,
     attention: displayStatus(b) === 'attention',
     openClarifications: b.openClarifications,

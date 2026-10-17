@@ -51,6 +51,19 @@ export function insideBbox(p: { lat: number; lng: number }, [minLon, minLat, max
   return minLon <= maxLon ? p.lng >= minLon && p.lng <= maxLon : p.lng >= minLon || p.lng <= maxLon;
 }
 
+/** The bbox [min_lon, min_lat, max_lon, max_lat] of some pins; null without pins. */
+export function pinsBbox(pins: readonly Pick<MapFeature, 'lat' | 'lng'>[]): Bbox | null {
+  if (!pins.length) return null;
+  const lons = pins.map((f) => f.lng);
+  const lats = pins.map((f) => f.lat);
+  return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)];
+}
+
+/** "3 boreholes placed" (the toast after a CRS confirmation or an answered position question). */
+export const placedText = (n: number) => `${n} borehole${n === 1 ? '' : 's'} placed`;
+/** The toast button that opens the map on placed boreholes. */
+export const SHOW_ON_MAP = 'SHOW ON MAP';
+
 /** Where to fly for a place: its bbox, else its point as a box of no size. */
 export function placeBbox(c: PlaceCandidate): Bbox {
   return c.bbox ?? [c.lng, c.lat, c.lng, c.lat];
@@ -169,6 +182,7 @@ export const createMapDataSlice: SliceCreator<MapDataSlice> = (ctx) => {
     placeError: null,
     recordLoads: {},
     mapOutline: null,
+    notOnMapFocus: null,
 
     ensureBorehole(uid) {
       const cached = find(uid);
@@ -357,6 +371,36 @@ export const createMapDataSlice: SliceCreator<MapDataSlice> = (ctx) => {
     choosePlace(index) {
       const c = get().places?.[index];
       if (c) set({ mapOutline: outlineFor(c) });
+    },
+
+    showNotOnMap(documentId) {
+      set({ notOnMapFocus: { documentId, nonce: nextNonce() } });
+      if (get().screen !== 'map') get().go('map');
+    },
+
+    revealPlaced(target, lead) {
+      const uids = target.uids ? new Set(target.uids) : null;
+      const pins = get().features.filter(
+        (f) => (uids !== null && uids.has(f.uid)) || (!!target.documentId && f.documentId === target.documentId),
+      );
+      const bbox = pinsBbox(pins);
+      if (!bbox) return 0;
+      // The map flies there now, or when it opens next (no dashed outline: these are pins, not an area).
+      const fly = () => set({ mapOutline: { bbox, outline: false, nonce: nextNonce() } });
+      fly();
+      const text = `${lead ? `${lead} · ` : ''}${placedText(pins.length)}`;
+      if (get().screen === 'map') {
+        get().showToast(text);
+      } else {
+        get().showToast(text, {
+          label: SHOW_ON_MAP,
+          run: () => {
+            fly();
+            get().go('map');
+          },
+        });
+      }
+      return pins.length;
     },
   };
 };

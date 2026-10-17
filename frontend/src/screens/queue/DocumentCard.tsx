@@ -1,8 +1,9 @@
-import { useState, type MouseEvent } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { firstQuestionOf } from '../../components/clarify/clarifyModel';
 import { QuestionsButton } from '../../components/clarify/QuestionsButton';
+import { stageStep } from '../../data/adapters';
 import { completenessSummary } from '../../domain/review';
-import type { DocumentProgress, DocumentSummary } from '../../domain/types';
+import type { Borehole, DocumentProgress, DocumentSummary } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import styles from './DocumentCard.module.css';
 import { PageStrip, type ThumbnailUrl } from './PageStrip';
@@ -13,10 +14,15 @@ import {
   docMeta,
   duplicateText,
   isSelfDuplicate,
+  mapSteps,
+  mapStepText,
+  mapStepTitle,
   NOT_RETRYABLE,
   progressView,
   questionsText,
+  stageText,
   type JobFailure,
+  type MapStep,
 } from './queueView';
 import { StatusSteps } from './StatusSteps';
 
@@ -83,6 +89,70 @@ function Progress({ progress }: { progress: DocumentProgress }) {
   );
 }
 
+/** The map steps of a processed document (queueView.mapSteps) from what the store holds. */
+function useMapSteps(doc: DocumentSummary): MapStep[] {
+  const features = useAppStore((s) => s.features);
+  const boreholes = useAppStore((s) => s.boreholes);
+  const unplottedUids = useAppStore((s) => s.unplottedUids);
+  const clarifications = useAppStore((s) => s.clarifications);
+  return useMemo(() => {
+    if (doc.step < 2 || doc.error) return [];
+    const pins = features.filter((f) => f.documentId === doc.id);
+    const pinned = new Set(pins.map((f) => f.uid));
+    // As the map's NOT ON MAP list: listed by the server and not (any more) pinned.
+    const offList = new Set(unplottedUids.filter((uid) => !pinned.has(uid)));
+    const records = boreholes.filter((b) => b.documentId === doc.id);
+    // The CRS status per borehole: its pin's, else (newer) its cached record's.
+    const crs = new Map<string, Borehole['crs']['status']>([
+      ...pins.map((f) => [f.uid, f.crsStatus] as const),
+      ...records.map((b) => [b.uid, b.crs.status] as const),
+    ]);
+    return mapSteps(doc, {
+      pinned: pins.length,
+      offMap: records.filter((b) => offList.has(b.uid)),
+      questions: clarifications,
+      uids: [...crs.keys()],
+      unsettled: [...crs].filter(([, s]) => s === 'inferred' || s === 'unknown').map(([uid]) => uid),
+    });
+  }, [doc, features, boreholes, unplottedUids, clarifications]);
+}
+
+/**
+ * One map step of a card: SHOW flies the map to the pins, CONFIRM opens the CRS question (or the CRS
+ * dialog), PLACE opens the position question, WHY opens the NOT ON MAP list. The click doesn't reach
+ * the card behind it.
+ */
+function MapStepButton({ step, documentId }: { step: MapStep; documentId: string }) {
+  const showOnMap = useAppStore((s) => s.showDocumentOnMap);
+  const openClarification = useAppStore((s) => s.openClarification);
+  const openCrsDialog = useAppStore((s) => s.openCrsDialog);
+  const showNotOnMap = useAppStore((s) => s.showNotOnMap);
+  const onClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    switch (step.kind) {
+      case 'onMap':
+        showOnMap(documentId);
+        return;
+      case 'crs':
+        if (step.questionId) openClarification(step.questionId);
+        else void openCrsDialog(documentId);
+        return;
+      case 'locate':
+        openClarification(step.questionId);
+        return;
+      case 'notOnMap':
+        showNotOnMap(documentId);
+        return;
+    }
+  };
+  const tone = step.kind === 'onMap' ? styles.onMap : step.kind === 'notOnMap' ? styles.whyStep : styles.nextStep;
+  return (
+    <button type="button" className={tone} data-map-step={step.kind} title={mapStepTitle(step)} onClick={onClick}>
+      {mapStepText(step)}
+    </button>
+  );
+}
+
 interface Props {
   doc: DocumentSummary;
   /** Briefly highlighted (e.g. after "Same file as …" pointed here). */
@@ -100,9 +170,11 @@ interface Props {
 /**
  * One document of the queue. When it has a reviewable borehole, the card (and its hint) opens Review.
  * It shows progress while the backend works, open questions (a badge that opens the first one in the
- * question dialog, or the inbox), a duplicate link and, after a failure,
- * the error (with the stage when the server reported it live) and RETRY: disabled with the reason in
- * demo mode or when the server says a retry cannot fix it.
+ * question dialog, or the inbox), a duplicate link and, after processing, the way to the map: "N on
+ * the map · SHOW", or the next step (CONFIRM a coordinate system, PLACE a borehole, WHY it is not on
+ * the map). After a failure: the failed step marked, the error with its stage (live, else the
+ * document's failed_stage) and RETRY: disabled with the reason in demo mode or when the server says a
+ * retry cannot fix it.
  */
 export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = null, thumbnailUrl = null, onShowDocument }: Props) {
   const openReview = useAppStore((s) => s.openReview);
@@ -118,8 +190,7 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
   const questions = questionsText(doc);
   // The badge opens this document's first unresolved question (or the inbox while none is loaded).
   const firstQuestion = useAppStore((s) => firstQuestionOf(s.clarifications, doc.id));
-  const showOnMap = useAppStore((s) => s.showDocumentOnMap);
-  const pinned = useAppStore((s) => s.features.reduce((n, f) => (f.documentId === doc.id ? n + 1 : n), 0));
+  const steps = useMapSteps(doc);
 
   const open = () => {
     if (reviewable && doc.reviewBoreholeUid) openReview(doc.reviewBoreholeUid);
@@ -143,6 +214,9 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
   };
 
   const failed = !!doc.error || !!failure;
+  // The failed step: the stage reported live (job.failed) wins over the document's failed_stage.
+  const failedStage = failure?.stage ?? doc.failedStage ?? null;
+  const step = failed ? (stageStep(failedStage) ?? doc.step) : doc.step;
   const cardClass = [
     styles.card,
     reviewable ? styles.openable : '',
@@ -174,20 +248,11 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
               <span className={styles.meta}>{duplicate}</span>
             ))}
         </div>
-        <StatusSteps step={doc.step} failed={failed} />
+        <StatusSteps step={step} failed={failed} failedStage={failed ? stageText(failedStage) : ''} />
         <div className={styles.checks}>
-          {pinned > 0 && (
-            <button
-              type="button"
-              className={styles.onMap}
-              onClick={(e) => {
-                e.stopPropagation();
-                showOnMap(doc.id);
-              }}
-            >
-              {pinned} on the map · SHOW
-            </button>
-          )}
+          {steps.map((step) => (
+            <MapStepButton key={step.kind} step={step} documentId={doc.id} />
+          ))}
           {questions && <QuestionsButton text={questions} questionId={firstQuestion} about="this document" />}
           <CompletenessChip doc={doc} />
         </div>

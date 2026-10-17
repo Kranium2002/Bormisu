@@ -190,6 +190,7 @@ describe('CRS confirmation', () => {
     const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [placed, { ...makeBorehole(), revision: 2 }]);
     fake.documentBoreholes = documentBoreholes;
     st().setReviewerName('  A. Reviewer ');
+    useAppStore.setState({ screen: 'review' });
     await st().openCrsDialog();
     await st().confirmCrs();
     expect(confirmCrs).toHaveBeenCalledWith(doc.id, { code: 'EPSG:0002', swapAxes: true, confirmedBy: 'A. Reviewer' } satisfies CrsConfirmation);
@@ -197,8 +198,37 @@ describe('CRS confirmation', () => {
     expect(st().crsDialogOpen).toBe(false);
     // The pins come from the server's records, not from the candidate's points.
     expect(bh(TB05)).toMatchObject({ crs: { status: 'confirmed' }, onMap: true, lat: 1.8, lng: 2.2, revision: 2 });
-    expect(st().toast?.text).toBe('CRS confirmed for 2 boreholes in this report: Fictional grid B');
+    // The map flies to the document's pins; off the map the toast offers SHOW ON MAP.
+    const pins = st().features.filter((f) => f.documentId === doc.id);
+    expect(pins.length).toBeGreaterThan(0);
+    expect(st().toast?.text).toBe(
+      `CRS confirmed for 2 boreholes in this report: Fictional grid B · ${pins.length} borehole${pins.length === 1 ? '' : 's'} placed`,
+    );
+    expect(st().toast?.action?.label).toBe('SHOW ON MAP');
+    expect(st().mapOutline).toMatchObject({ outline: false });
     st().setReviewerName('');
+  });
+
+  it('1.2.0: reloads the questions (the confirmation resolves its crs_confirm questions on the server)', async () => {
+    const clarifications = vi.fn<DataSource['clarifications']>(async () => []);
+    await openFor({ confirmCrs: async () => 1, clarifications });
+    await st().openCrsDialog();
+    clarifications.mockClear();
+    await st().confirmCrs();
+    expect(clarifications).toHaveBeenCalled();
+  });
+
+  it('a queue card opens the dialog for its own document (no review borehole needed)', async () => {
+    const crsCandidates = vi.fn<DataSource['crsCandidates']>(async () => structuredClone(CANDIDATES));
+    const confirmCrs = vi.fn<DataSource['confirmCrs']>(async () => 1);
+    await openFor({ crsCandidates, confirmCrs });
+    useAppStore.setState({ reviewUid: null, screen: 'queue' });
+    await st().openCrsDialog(doc.id);
+    expect(crsCandidates).toHaveBeenCalledWith(doc.id);
+    expect(st()).toMatchObject({ crsDialogOpen: true, crsDocumentId: doc.id });
+    await st().confirmCrs();
+    expect(confirmCrs).toHaveBeenCalledWith(doc.id, expect.objectContaining({ code: 'EPSG:0002' }));
+    expect(st()).toMatchObject({ crsDialogOpen: false, crsDocumentId: null });
   });
 
   it('sends no name when none is set', async () => {

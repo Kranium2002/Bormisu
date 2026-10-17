@@ -105,6 +105,7 @@ function DepthInput({ field, label, text, error, disabled, describedBy, onText }
         autoComplete="off"
         value={text}
         disabled={disabled}
+        title={disabled ? 'Choose DIN codes first' : undefined}
         aria-invalid={!!error}
         aria-describedby={described}
         onChange={(e) => onText(field, e.target.value)}
@@ -341,7 +342,13 @@ export function FilterPanelView(p: FilterPanelViewProps) {
       )}
 
       <div className={styles.actions}>
-        <button type="submit" className={styles.apply} disabled={busy} aria-describedby={p.error && !busy ? 'filter-apply-error' : undefined}>
+        <button
+          type="submit"
+          className={styles.apply}
+          disabled={busy}
+          title={busy ? 'The filter is being applied' : undefined}
+          aria-describedby={p.error && !busy ? 'filter-apply-error' : undefined}
+        >
           {busy ? 'APPLYING…' : 'APPLY'}
         </button>
         <button type="button" className={styles.reset} onClick={p.onReset}>
