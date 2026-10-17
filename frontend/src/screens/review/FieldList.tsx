@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { fromOtherDocument } from '../../domain/review';
 import type { Borehole } from '../../domain/types';
+import { useLang, useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import { FieldRow } from './FieldRow';
 import styles from './ReviewScreen.module.css';
@@ -9,20 +10,26 @@ import { crsActionKey, fieldNote, normalisedText, questionKeys, reviewRows } fro
 /** Space kept above a row scrolled into view (prototype: offsetTop - 60), clears the sticky column header. */
 const ROW_OFFSET = 60;
 
-/** Scrolls a row into view unless it is already fully visible below the sticky header. */
+/** Scrolls a row into view unless it is already fully visible between the sticky header and the key hint. */
 function reveal(list: HTMLElement, key: string | null | undefined, behavior: ScrollBehavior) {
   if (!key) return;
   const row = list.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
   if (!row) return;
   const head = (list.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
+  const foot = (list.lastElementChild as HTMLElement | null)?.offsetHeight ?? 0;
   const top = row.offsetTop;
   const bottom = top + row.offsetHeight;
-  if (top >= list.scrollTop + head && bottom <= list.scrollTop + list.clientHeight) return;
+  if (top >= list.scrollTop + head && bottom <= list.scrollTop + list.clientHeight - foot) return;
   list.scrollTo({ top: Math.max(0, top - ROW_OFFSET), behavior });
 }
 
-/** Right half of the Review screen: sticky column header and the grouped field rows. */
+/**
+ * Right half of the Review screen: sticky column header, the grouped field rows (a click on a row
+ * shows its source box on the scan) and a sticky key hint (frontend_din).
+ */
 export function FieldList({ b }: { b: Borehole }) {
+  const t = useT();
+  const lang = useLang((s) => s.lang);
   const focusKey = useAppStore((s) => s.focusKey);
   const editing = useAppStore((s) => s.editing);
   const listScroll = useAppStore((s) => s.listScroll);
@@ -32,12 +39,13 @@ export function FieldList({ b }: { b: Borehole }) {
 
   const rows = useMemo(
     () =>
-      reviewRows(b).map((r) =>
+      reviewRows(b, t).map((r) =>
         r.kind === 'head'
           ? r
-          : { ...r, normText: normalisedText(b, r.value), note: fieldNote(b, r.value), elsewhere: fromOtherDocument(b, r.value) },
+          : { ...r, normText: normalisedText(b, r.value), note: fieldNote(b, r.value, t), elsewhere: fromOtherDocument(b, r.value) },
       ),
-    [b],
+    // t follows the language
+    [b, lang],
   );
   // CHOOSE CRS… sits on the CRS value, or on X / Y when the log printed no system.
   const crsKey = useMemo(() => crsActionKey(b), [b]);
@@ -56,16 +64,16 @@ export function FieldList({ b }: { b: Borehole }) {
   }, [b.uid, listScroll]);
 
   return (
-    <div ref={ref} className={styles.list} aria-label="Extracted values">
+    <div ref={ref} className={styles.list} aria-label={t('Extracted values')}>
       <div className={styles.colHead}>
-        <div>FIELD</div>
-        <div>AS PRINTED → NORMALISED</div>
-        <div>METHOD</div>
-        <div className={styles.colRight} title="Keys: J / K move · A approve · E edit · F flag · Esc cancel">
-          ACTIONS
+        <div>{t('FIELD')}</div>
+        <div>{t('AS PRINTED → NORMALISED')}</div>
+        <div title={t('✓ sure · ? unsure · ! flagged · – not in source; hover a dot for how the value was read')}>{t('METHOD')}</div>
+        <div className={styles.colRight} title={t('Keys: J / K move · A approve · E edit · F flag · Esc cancel')}>
+          {t('ACTIONS')}
         </div>
       </div>
-      {rows.length === 0 && <div className={styles.emptyList}>No values were extracted for this borehole.</div>}
+      {rows.length === 0 && <div className={styles.emptyList}>{t('No values were extracted for this borehole.')}</div>}
       {rows.map((r) =>
         r.kind === 'head' ? (
           <div key={r.id} className={styles.groupHead}>
@@ -86,6 +94,23 @@ export function FieldList({ b }: { b: Borehole }) {
           />
         ),
       )}
+      <div className={styles.keys}>
+        <span>
+          <kbd>J</kbd>/<kbd>K</kbd> {t('move')}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd>A</kbd> {t('approve')}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd>E</kbd> {t('edit')}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd>F</kbd> {t('flag')}
+        </span>
+      </div>
     </div>
   );
 }

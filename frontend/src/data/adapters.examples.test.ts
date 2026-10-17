@@ -558,3 +558,19 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
     });
   });
 });
+
+describe('1.2.1: Document.warnings', () => {
+  const base = example<WireDocument>('Document.done.json');
+  const note = 'Page 1 was not read; boreholes on it are missing. Retry the document to read it.';
+
+  it('keeps the warnings of a document in review or done as they are', () => {
+    expect(adaptDocument({ ...base, status: 'done', warnings: [note] }).warnings).toEqual([note]);
+    expect(adaptDocument({ ...base, status: 'needs_review', warnings: [note, ''] }).warnings).toEqual([note]);
+  });
+
+  it('absent or on another status: none', () => {
+    const { warnings: _omit, ...without } = base;
+    expect(adaptDocument(without as WireDocument).warnings).toEqual([]);
+    expect(adaptDocument({ ...base, status: 'extracting', warnings: [note] }).warnings).toEqual([]);
+  });
+});

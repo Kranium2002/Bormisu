@@ -24,8 +24,8 @@
 .title {
   margin: 0;
   font-weight: 900;
-  font-size: 22px;
-  letter-spacing: 0.03em;
+  font-size: var(--fs-title);
+  letter-spacing: var(--ls-title);
 }
 
 .count {
@@ -68,16 +68,10 @@
   font-weight: 700;
 }
 
+/* TRY AGAIN after a failed load: the shared secondary button, red because it answers an error */
 .retry {
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 7px 12px;
-  border: 1px solid var(--c-red);
-  border-radius: 4px;
-  background: var(--c-surface);
+  composes: secondary small from '../../styles/buttons.module.css';
+  border-color: var(--c-red);
   color: var(--c-red);
 }
 
@@ -135,7 +129,7 @@
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: -2px;
 }
 

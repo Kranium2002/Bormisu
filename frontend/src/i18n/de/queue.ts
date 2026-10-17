@@ -1,2 +1,128 @@
-/** German texts of the queue area, keyed by the English wording (see src/i18n/index.ts). */
-export const queue: Record<string, string> = {};
+/** German texts of the queue area (Upload & queue, document warnings), keyed by the English wording (see src/i18n/index.ts). */
+export const queue: Record<string, string> = {
+  // screen
+  'Page types': 'Seitentypen',
+  log: 'Schichtenverzeichnis',
+  'lab table': 'Labortabelle',
+  text: 'Text',
+  drawing: 'Zeichnung',
+  photo: 'Foto',
+  'type unknown': 'Typ unbekannt',
+  'not classified yet': 'noch nicht klassifiziert',
+  DOCUMENT: 'DOKUMENT',
+  CHECKS: 'PRÜFUNGEN',
+  'Document queue': 'Dokumente in Bearbeitung',
+  'No documents yet. Drop a report above to extract its boreholes.':
+    'Noch keine Dokumente. Lege oben einen Bericht ab, um seine Bohrungen auszulesen.',
+
+  // drop zone
+  'DROP REPORTS HERE': 'BERICHTE HIER ABLEGEN',
+  'or click to choose files': 'oder klicken, um Dateien zu wählen',
+  'or click to choose files · {types} · up to {mb} MB each': 'oder klicken, um Dateien zu wählen · {types} · bis {mb} MB je Datei',
+  'Uploading is off: {reason}.': 'Hochladen ist aus: {reason}.',
+  'Live extraction needs API keys': 'Die Live-Auslesung braucht API-Schlüssel',
+  'Could not read the dropped folder': 'Der abgelegte Ordner konnte nicht gelesen werden',
+  'Reading the dropped folder…': 'Der abgelegte Ordner wird gelesen…',
+  'Project (optional)': 'Projekt (optional)',
+  'Sent with the files you add next. Left empty, a dropped folder’s name is used.':
+    'Wird mit den nächsten Dateien gesendet. Leer gelassen, gilt der Name eines abgelegten Ordners.',
+  'Upload every file of a folder': 'Alle Dateien eines Ordners hochladen',
+  'Choose a folder to upload': 'Ordner zum Hochladen wählen',
+  'CHOOSE A FOLDER': 'ORDNER WÄHLEN',
+
+  // uploads
+  UPLOADS: 'UPLOADS',
+  'CLEAR FINISHED': 'FERTIGE ENTFERNEN',
+  Waiting: 'Wartet',
+  'Uploading {pct}%': 'Wird hochgeladen {pct} %',
+  'Already uploaded': 'Bereits hochgeladen',
+  Uploaded: 'Hochgeladen',
+  Failed: 'Fehlgeschlagen',
+  'unknown error': 'unbekannter Fehler',
+  Cancelled: 'Abgebrochen',
+  'SHOW DOCUMENT': 'DOKUMENT ZEIGEN',
+  'Send this file again': 'Diese Datei erneut senden',
+  REMOVE: 'ENTFERNEN',
+
+  // status track
+  'Processing status': 'Bearbeitungsstand',
+  classifying: 'klassifizieren',
+  extracting: 'auslesen',
+  'needs review': 'Prüfung nötig',
+  done: 'fertig',
+  'in progress': 'läuft',
+  'waiting for review': 'wartet auf Prüfung',
+  failed: 'fehlgeschlagen',
+  'not started': 'nicht begonnen',
+  at: 'bei',
+
+  // card
+  '{n} page': '{n} Seite',
+  '{n} pages': '{n} Seiten',
+  'Uploaded, waiting for page count': 'Hochgeladen, Seitenzahl folgt',
+  'OPEN IN REVIEW ›': 'IN PRÜFUNG ÖFFNEN ›',
+  'All boreholes reviewed': 'Alle Bohrungen geprüft',
+  'Simulated: live extraction needs an API key': 'Simuliert: Die Live-Auslesung braucht einen API-Schlüssel',
+  'Processing…': 'Wird bearbeitet…',
+  'No boreholes found in this report': 'In diesem Bericht wurden keine Bohrungen gefunden',
+  'Extraction failed at {stage}: {detail}': 'Auslesung fehlgeschlagen bei {stage}: {detail}',
+  'Extraction failed: {detail}': 'Auslesung fehlgeschlagen: {detail}',
+  triage: 'Vorprüfung',
+  'page classification': 'Seitenklassifizierung',
+  'text recognition (OCR)': 'Texterkennung (OCR)',
+  extraction: 'Auslesung',
+  'second reading': 'zweite Lesung',
+  'reading the spreadsheet': 'Lesen der Tabelle',
+  'mapping the spreadsheet columns': 'Zuordnen der Tabellenspalten',
+  'spreadsheet extraction': 'Tabellenauslesung',
+  'The server reports that retrying cannot fix this failure': 'Laut Server behebt ein erneuter Versuch diesen Fehler nicht',
+  'Re-queuing…': 'Wird neu eingereiht…',
+  'Re-queue this document from its last successful step': 'Dokument ab dem letzten erfolgreichen Schritt neu einreihen',
+  RETRY: 'ERNEUT VERSUCHEN',
+  'RETRYING…': 'WIRD WIEDERHOLT…',
+  'Retry failed': 'Erneuter Versuch fehlgeschlagen',
+  'nothing to read again: the document has not failed and has no unread pages':
+    'nichts erneut zu lesen: Das Dokument ist nicht fehlgeschlagen und hat keine ungelesenen Seiten',
+  'Already uploaded: same bytes as this document': 'Bereits hochgeladen: gleiche Datei wie dieses Dokument',
+  'Same file as {name}': 'Gleiche Datei wie {name}',
+  'Same file as an earlier upload': 'Gleiche Datei wie ein früherer Upload',
+  'this document': 'dieses Dokument',
+  'Checks run after extraction': 'Prüfungen laufen nach der Auslesung',
+  'Borehole IDs named in the report vs extracted, plus lint findings':
+    'Im Bericht genannte Bohrungs-IDs gegenüber ausgelesenen, dazu Prüfhinweise',
+  'Report lists {listed} · extracted {extracted}': 'Bericht nennt {listed} · ausgelesen {extracted}',
+  '⚠ {n} missing': '⚠ {n} fehlt',
+  'not processed yet': 'noch nicht bearbeitet',
+  Found: 'Gefunden',
+  BH: 'BH',
+  layer: 'Schicht',
+  layers: 'Schichten',
+  'GW reading': 'GW-Messung',
+  'GW readings': 'GW-Messungen',
+  'pages classified': 'Seiten klassifiziert',
+  '{n} borehole extracted': '{n} Bohrung ausgelesen',
+  '{n} boreholes extracted': '{n} Bohrungen ausgelesen',
+
+  // map steps
+  '{n} on the map · SHOW': '{n} auf der Karte · ZEIGEN',
+  '1 borehole needs a coordinate system · CONFIRM': '1 Bohrung braucht ein Koordinatensystem · BESTÄTIGEN',
+  '{n} boreholes need a coordinate system · CONFIRM': '{n} Bohrungen brauchen ein Koordinatensystem · BESTÄTIGEN',
+  'Coordinate system needed · CONFIRM': 'Koordinatensystem nötig · BESTÄTIGEN',
+  '1 borehole needs a position · PLACE': '1 Bohrung braucht eine Lage · SETZEN',
+  '{n} boreholes need a position · PLACE': '{n} Bohrungen brauchen eine Lage · SETZEN',
+  'Position needed · PLACE': 'Lage nötig · SETZEN',
+  '{n} not on the map · WHY': '{n} nicht auf der Karte · WARUM',
+  'Open the map on the boreholes of this report': 'Karte bei den Bohrungen dieses Berichts öffnen',
+  'Answer the coordinate-system question: the server then places these boreholes on the map':
+    'Die Frage zum Koordinatensystem beantworten: Der Server setzt diese Bohrungen dann auf die Karte',
+  'Choose the coordinate system of this report: the server then places its boreholes on the map':
+    'Das Koordinatensystem dieses Berichts wählen: Der Server setzt seine Bohrungen dann auf die Karte',
+  'Answer the position question: click the map where the borehole was drilled':
+    'Die Frage zur Lage beantworten: Auf der Karte klicken, wo gebohrt wurde',
+  'Open the NOT ON MAP list under the map: it says why each borehole has no position':
+    'Die Liste NICHT AUF KARTE unter der Karte öffnen: Sie nennt, warum eine Bohrung keine Lage hat',
+
+  // document warnings (contract 1.2.1)
+  'Document warnings': 'Hinweise zum Dokument',
+  'Read the missing pages again': 'Die fehlenden Seiten erneut lesen',
+};

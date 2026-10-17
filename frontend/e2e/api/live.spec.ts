@@ -133,7 +133,7 @@ test('an uploaded document updates live from the event stream and becomes review
   const card = page.locator(`article[data-doc-id="${LIVE_DOC}"]`);
   await expect(card.getByRole('list', { name: 'Processing status' }).locator('li[aria-current="step"]')).toHaveText('extracting');
   await expect(card.getByRole('progressbar', { name: 'OCR' })).toHaveAttribute('aria-valuenow', '1');
-  await expect(card.getByRole('button', { name: 'OPEN REVIEW ›' })).toHaveCount(0);
+  await expect(card.getByRole('button', { name: 'OPEN IN REVIEW ›' })).toHaveCount(0);
   // Live, not polled: apart from the one resync when the stream opens (a new EventSource has no
   // Last-Event-ID, so the source refetches what it follows once), the document was never fetched.
   expect(documentGets.length, 'GETs of the document while it advanced').toBeLessThanOrEqual(1);
@@ -154,7 +154,7 @@ test('an uploaded document updates live from the event stream and becomes review
   await page.waitForTimeout(3_000);
   expect(documentGets).toHaveLength(fetchedOnce);
 
-  await card.getByRole('button', { name: 'OPEN REVIEW ›' }).click();
+  await card.getByRole('button', { name: 'OPEN IN REVIEW ›' }).click();
   await expect(page.getByRole('heading', { level: 1, name: `REVIEW · ${LIVE_BOREHOLE_ID}` })).toBeVisible();
   await nav(page, 'MAP');
   await expect(resultRow(page, LIVE_BOREHOLE_ID)).toHaveCount(1);

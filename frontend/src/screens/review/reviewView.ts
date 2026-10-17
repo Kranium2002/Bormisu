@@ -4,11 +4,17 @@
  */
 import { questionsOfBorehole, valueKeyForPath } from '../../components/clarify/clarifyModel';
 import type { ScanBox, ScanBoxVariant } from '../../components/ScanPage';
+import { certaintyOf, type Certainty } from '../../domain/certainty';
 import { crsLabel, printedCoordinates } from '../../domain/format';
 import { K } from '../../domain/keys';
 import { fromOtherDocument } from '../../domain/review';
 import { sptDepthText } from '../../domain/spt';
-import type { Borehole, Box, Clarification, CrsCandidate, ExtractedValue, Reading } from '../../domain/types';
+import { cleanKeys } from '../../domain/status';
+import { PAGE_W, type Borehole, type Box, type Clarification, type CrsCandidate, type ExtractedValue, type Reading } from '../../domain/types';
+import { EN, fill, type Tr } from './fill';
+
+/** DOM id of the scan pane, the panel the sheet tabs control (aria-controls). */
+export const SCAN_PANE_ID = 'review-scan';
 
 /** One line of the field list: a group heading or a value. */
 export type ReviewRow =
@@ -31,23 +37,23 @@ export function orderedValues(b: Borehole): ExtractedValue[] {
     .map((x) => x.v);
 }
 
-/** Heading of a layer group: "LAYER 5 · 8.20–11.20 M · P.8" (a page of the borehole's own document). */
-export function layerTitle(b: Borehole, n: number): string {
+/** Heading of a layer group: "LAYER 5 · 8.20–11.20 m · p.8" (a page of the borehole's own document; units and page refs stay lowercase). */
+export function layerTitle(b: Borehole, n: number, t: Tr = EN): string {
   const l = b.layers.find((x) => x.n === n);
   const page = b.values.find((v) => v.layer === n && v.page != null && !fromOtherDocument(b, v))?.page;
-  const range = l ? ` · ${l.from.toFixed(2)}–${l.to.toFixed(2)} M` : '';
-  return `LAYER ${n}${range}${page ? ` · P.${page}` : ''}`;
+  const range = l ? ` · ${l.from.toFixed(2)}–${l.to.toFixed(2)} m` : '';
+  return `${t('LAYER')} ${n}${range}${page ? ` · p.${page}` : ''}`;
 }
 
 /** Field list rows with BOREHOLE / GROUNDWATER / LAYER n / SAMPLES / TEST RESULTS headings (prototype `rows`). */
-export function reviewRows(b: Borehole): ReviewRow[] {
+export function reviewRows(b: Borehole, t: Tr = EN): ReviewRow[] {
   const rows: ReviewRow[] = [];
   let last = '';
   for (const v of orderedValues(b)) {
     const group = v.group === 'layer' ? `layer:${v.layer ?? 0}` : v.group;
     if (group !== last) {
       last = group;
-      const title = v.group === 'layer' ? layerTitle(b, v.layer ?? 0) : GROUP_TITLE[v.group];
+      const title = v.group === 'layer' ? layerTitle(b, v.layer ?? 0, t) : t(GROUP_TITLE[v.group]);
       rows.push({ kind: 'head', id: `head:${group}`, title });
     }
     rows.push({ kind: 'field', value: v });
@@ -136,9 +142,10 @@ export function scanBoxes(
 export interface Caption { text: string; tone: 'normal' | 'warn' }
 
 /** Why a value with a source entry has no page: guessed or derived values are not printed. */
-export function noPageText(v: Pick<ExtractedValue, 'method'>): string {
-  if (v.method === 'Guessed' || v.method === 'Derived') return `${v.method.toLowerCase()}, not printed on a page`;
-  return 'no page reference from the backend';
+export function noPageText(v: Pick<ExtractedValue, 'method'>, t: Tr = EN): string {
+  if (v.method === 'Guessed') return t('guessed, not printed on a page');
+  if (v.method === 'Derived') return t('derived, not printed on a page');
+  return t('no page reference from the backend');
 }
 
 /**
@@ -146,34 +153,48 @@ export function noPageText(v: Pick<ExtractedValue, 'method'>): string {
  * box; the cell for a spreadsheet value; "no source reference" for a value without provenance; where
  * a value from another document is (`elsewhere`); "no source page" for a borehole without pages.
  */
-export function scanCaption(page: number | null, sheets: number[], focused: ExtractedValue | undefined, elsewhere = false): Caption {
+export function scanCaption(
+  page: number | null,
+  sheets: number[],
+  focused: ExtractedValue | undefined,
+  elsewhere = false,
+  t: Tr = EN,
+): Caption {
+  const label = focused?.label ?? '';
   if (focused && !focused.hasProvenance) {
-    return { text: `${focused.label}: no source reference from the backend`, tone: 'warn' };
+    return { text: fill(t('{label}: no source reference from the backend'), { label }), tone: 'warn' };
   }
   if (focused && elsewhere) {
-    const where = focused.cell ? `spreadsheet cell ${focused.cell} in` : focused.page != null ? `page ${focused.page} of` : 'source in';
-    return { text: `${focused.label}: ${where} another document · Larger source view shows it`, tone: 'normal' };
+    const text = focused.cell
+      ? fill(t('{label}: spreadsheet cell {cell} in another document · Larger source view shows it'), { label, cell: focused.cell })
+      : focused.page != null
+        ? fill(t('{label}: page {page} of another document · Larger source view shows it'), { label, page: focused.page })
+        : fill(t('{label}: source in another document · Larger source view shows it'), { label });
+    return { text, tone: 'normal' };
   }
-  if (focused?.cell) return { text: `${focused.label}: spreadsheet cell ${focused.cell}, no page image`, tone: 'normal' };
+  if (focused?.cell) return { text: fill(t('{label}: spreadsheet cell {cell}, no page image'), { label, cell: focused.cell }), tone: 'normal' };
   // A value whose source entry names no page: the page shown is not its source.
-  if (focused && focused.page == null && focused.state === 'ok') return { text: `${focused.label}: ${noPageText(focused)}`, tone: 'warn' };
-  if (page == null) return { text: 'no source page for this borehole', tone: 'normal' };
+  if (focused && focused.page == null && focused.state === 'ok') return { text: `${label}: ${noPageText(focused, t)}`, tone: 'warn' };
+  if (page == null) return { text: t('no source page for this borehole'), tone: 'normal' };
   if (focused && !focused.box && focused.state === 'ok') {
-    return { text: `${focused.label}: box not found, page shown`, tone: 'warn' };
+    return { text: fill(t('{label}: box not found, page shown'), { label }), tone: 'warn' };
   }
   const i = sheets.indexOf(page);
-  const sheet = i >= 0 ? ` · sheet ${i + 1} of ${sheets.length}` : '';
-  return { text: `page ${page}${sheet} · click a box to jump to its field`, tone: 'normal' };
+  const text =
+    i >= 0
+      ? fill(t('page {page} · sheet {i} of {n} · click a box to jump to its field'), { page, i: i + 1, n: sheets.length })
+      : fill(t('page {page} · click a box to jump to its field'), { page });
+  return { text, tone: 'normal' };
 }
 
 /**
  * "p.7", "p.7 · no box", the spreadsheet cell ("Logdata!C5"), "no source reference" or "" (prototype
  * pageTxt). A value from another document (`elsewhere`) says so: its page is not one of this report's.
  */
-export function pageText(v: ExtractedValue, elsewhere = false): string {
-  if (!v.hasProvenance) return 'no source reference';
-  const where = v.cell ? v.cell : v.page == null ? '' : v.box || elsewhere ? `p.${v.page}` : `p.${v.page} · no box`;
-  return elsewhere ? [where, 'other document'].filter(Boolean).join(' · ') : where;
+export function pageText(v: ExtractedValue, elsewhere = false, t: Tr = EN): string {
+  if (!v.hasProvenance) return t('no source reference');
+  const where = v.cell ? v.cell : v.page == null ? '' : v.box || elsewhere ? `p.${v.page}` : `p.${v.page} · ${t('no box')}`;
+  return elsewhere ? [where, t('other document')].filter(Boolean).join(' · ') : where;
 }
 
 /** Raw text as printed, in quotes, or an em dash. */
@@ -194,21 +215,21 @@ export interface Note { text: string; tone: 'faint' | 'ok' | 'warn' }
  * Note under a value. The CRS row says where the CRS came from (the backend's own note when it sent
  * one); the X / Y row shows the coordinates exactly as printed next to the converted values.
  */
-export function fieldNote(b: Borehole, v: ExtractedValue): Note | null {
+export function fieldNote(b: Borehole, v: ExtractedValue, t: Tr = EN): Note | null {
   if (v.kind === 'crs') {
-    if (b.crs.status === 'confirmed') return { text: 'confirmed for the whole document', tone: 'ok' };
+    if (b.crs.status === 'confirmed') return { text: t('confirmed for the whole document'), tone: 'ok' };
     if (b.crs.status === 'inferred') {
-      return { text: `not stated in source · inferred${v.note ? `: ${v.note}` : ', confirm it for the document'}`, tone: 'warn' };
+      return { text: `${t('not stated in source · inferred')}${v.note ? `: ${v.note}` : `, ${t('confirm it for the document')}`}`, tone: 'warn' };
     }
     if (b.crs.status === 'unknown') {
-      return { text: v.note || 'not known, so this borehole is not on the map', tone: 'warn' };
+      return { text: v.note || t('not known, so this borehole is not on the map'), tone: 'warn' };
     }
   }
   if (v.key === K.xy) {
     const printed = printedCoordinates(b.meta);
     // Without a CRS row the X / Y row offers CHOOSE CRS…, so it names the CRS the server has (FE-CRS-1/2).
     const crs = b.values.some((x) => x.kind === 'crs') ? '' : xyCrsText(b);
-    const text = [printed ? `as printed: ${printed}` : '', crs, v.note ?? ''].filter(Boolean).join(' · ');
+    const text = [printed ? `${t('as printed')}: ${printed}` : '', crs, v.note ?? ''].filter(Boolean).join(' · ');
     const tone = crs && b.crs.status !== 'confirmed' ? 'warn' : 'faint';
     return text ? { text, tone } : null;
   }
@@ -288,4 +309,70 @@ export function siblings(all: Borehole[], b: Borehole): Borehole[] {
   return all
     .filter((x) => x.documentId === b.documentId && x.values.some((v) => v.page != null || v.cell != null))
     .sort((x, y) => x.id.localeCompare(y.id, undefined, { numeric: true }));
+}
+
+/* ---------- certainty dot (frontend_din): one mark per value instead of the method badge ---------- */
+
+/** How a value was obtained, in words, with its confidence and formula when known. */
+export function methodText(v: Pick<ExtractedValue, 'method' | 'confidence' | 'formula'>, t: Tr = EN): string {
+  const pct = v.confidence != null ? ` · ${fill(t('{pct} % confidence'), { pct: Math.round(v.confidence * 100) })}` : '';
+  switch (v.method) {
+    case 'Read':
+      return `${t('read from the text layer')}${pct}`;
+    case 'OCR':
+      return `OCR${pct}`;
+    case 'Derived':
+      return `${t('derived')}${v.formula ? `: ${v.formula}` : ''}${pct}`;
+    case 'Guessed':
+      return `${t('guessed, not printed')}${pct}`;
+    case 'Edited':
+      return t('edited by a reviewer');
+    default:
+      return t('the backend sent no method for this value');
+  }
+}
+
+/**
+ * The value's mark: ✓ sure · ? unsure · ! flagged · – not in source (domain/certainty), its tooltip
+ * extended by how the value was read, so the method and confidence stay one hover away.
+ */
+export function valueMark(v: ExtractedValue, t: Tr = EN): Certainty {
+  const c = certaintyOf(v);
+  return { kind: c.kind, title: `${t(c.title)} · ${methodText(v, t)}` };
+}
+
+/* ---------- scan scale ---------- */
+
+/** Smallest and largest scale of the scan page in a wide Review pane. */
+export const SCAN_SCALE = { min: 0.95, max: 1.45 } as const;
+/** Below this pane width (px, phones and the stacked layout's narrow end) the page shrinks to fit. */
+const NARROW_PANE = 700;
+
+/**
+ * Scale of the scan page in a pane `paneWidth` px wide (its clientWidth): the page fills the pane less
+ * 50 px each side, within SCAN_SCALE. A narrow pane fits the page with a 16 px gutter (at least half
+ * size), so a phone shows the whole width. Rounded, so a 1 px resize doesn't re-render the page.
+ */
+export function scanScale(paneWidth: number): number {
+  const s =
+    paneWidth < NARROW_PANE
+      ? Math.min(1, Math.max(0.5, (paneWidth - 32) / PAGE_W))
+      : Math.min(SCAN_SCALE.max, Math.max(SCAN_SCALE.min, (paneWidth - 100) / PAGE_W));
+  return Math.round(s * 1000) / 1000;
+}
+
+/* ---------- header ---------- */
+
+/**
+ * Clean values of the document's loaded boreholes (domain/status isClean), for the count on
+ * APPROVE ALL CLEAN (n). The server's dry run counts the whole document before anything is approved.
+ */
+export function cleanCountOf(all: readonly Borehole[], b: Borehole): number {
+  if (!b.documentId) return cleanKeys(b).length;
+  return all.filter((x) => x.documentId === b.documentId).reduce((n, x) => n + cleanKeys(x).length, 0);
+}
+
+/** "SHEET 1 · p.7": units and page references stay lowercase. */
+export function sheetTabText(i: number, page: number, t: Tr = EN): string {
+  return fill(t('SHEET {i} · p.{page}'), { i: i + 1, page });
 }

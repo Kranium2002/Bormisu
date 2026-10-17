@@ -6,6 +6,7 @@
 import type { DataSource, UploadHandle } from '../data/DataSource';
 import { errorCode, errorText, UploadCancelledError } from '../data/errors';
 import type { DocumentSummary, UploadResult } from '../domain/types';
+import { tr } from '../i18n';
 import { isProcessing, nextNonce, replaceDocumentFeatures, withReviewTarget, type SliceCreator } from './context';
 import { pinsBbox } from './mapDataSlice';
 import type { UploadSlice } from './types';
@@ -51,7 +52,12 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
   const item = (id: string) => get().uploads.find((i) => i.id === id);
   const patch = (id: string, change: Partial<UploadItem>) =>
     set((s) => ({ uploads: s.uploads.map((i) => (i.id === id ? { ...i, ...change } : i)) }));
-  const failure = (e: unknown) => (errorCode(e) === 'demo_mode' ? DEMO_UPLOAD_REASON : errorText(e));
+  const failure = (e: unknown) =>
+    errorCode(e) === 'demo_mode'
+      ? DEMO_UPLOAD_REASON
+      : errorCode(e) === 'not_failed'
+        ? tr('nothing to read again: the document has not failed and has no unread pages')
+        : errorText(e);
 
   /**
    * The server answered: the item points at the document, whose card is added or updated (a
@@ -288,7 +294,7 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
         await source.retry(documentId);
       } catch (e) {
         // 1.2.0: a demo-mode server answers 409 demo_mode and leaves the document as it is.
-        get().showToast(`Retry failed: ${failure(e)}`);
+        get().showToast(`${tr('Retry failed')}: ${failure(e)}`);
         return;
       }
       set((s) => ({ jobFailures: without(s.jobFailures, documentId) }));
