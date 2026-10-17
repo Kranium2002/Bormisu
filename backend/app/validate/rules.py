@@ -200,18 +200,27 @@ RULES: tuple[Rule, ...] = (
 )
 
 
+def rule_config(rule_id: str) -> dict[str, Any]:
+    """The data of one rule in data/lint_rules.yaml (severity, message, thresholds)."""
+    return _rule(rule_id)
+
+
+def lint_item(path: str, rule_id: str, params: dict[str, Any]) -> dict[str, Any]:
+    """One finding as a contract `Lint` object, worded by data/lint_rules.yaml."""
+    spec = _rule(rule_id)
+    return {
+        "path": path,
+        "rule": rule_id,
+        "severity": spec["severity"],
+        "message": str(spec["message"]).format(**params),
+    }
+
+
+def unplot_rules() -> frozenset[str]:
+    """Rules whose errors keep a borehole off the map (`unplot: true`, unplotted_reason implausible)."""
+    return frozenset(rule_id for rule_id, spec in _config()["rules"].items() if spec.get("unplot") is True)
+
+
 def lint_body(body: dict[str, Any]) -> list[dict[str, Any]]:
     """All findings for a record body, as contract `Lint` objects."""
-    findings: list[dict[str, Any]] = []
-    for rule in RULES:
-        for path, rule_id, params in rule(body):
-            spec = _rule(rule_id)
-            findings.append(
-                {
-                    "path": path,
-                    "rule": rule_id,
-                    "severity": spec["severity"],
-                    "message": str(spec["message"]).format(**params),
-                }
-            )
-    return findings
+    return [lint_item(path, rule_id, params) for rule in RULES for path, rule_id, params in rule(body)]

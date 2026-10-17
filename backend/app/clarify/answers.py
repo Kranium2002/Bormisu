@@ -10,6 +10,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clarify.checks import apply_conflict_answer, apply_datum_answer
+from app.clarify.duplicates import apply_duplicate_answer
 from app.clarify.service import resolve_clarification
 from app.db.models import Borehole, Clarification
 from app.errors import ApiError
@@ -96,6 +98,10 @@ async def _apply(session: AsyncSession, row: Clarification, values: dict[str, An
         point = next((v for v in values.values() if isinstance(v, dict) and "lat" in v and "lon" in v), None)
         if point is None:
             return
+        source_note = values.get("source_note")
+        note = f"clarification {row.id}" + (
+            f": {source_note.strip()[:200]}" if isinstance(source_note, str) and source_note.strip() else ""
+        )
         for uid in row.borehole_uids:
             if await session.get(Borehole, uid) is None:
                 continue
@@ -105,8 +111,17 @@ async def _apply(session: AsyncSession, row: Clarification, values: dict[str, An
                 lat=float(point["lat"]),
                 lon=float(point["lon"]),
                 actor=actor,
-                note=f"clarification {row.id}",
+                note=note,
             )
+        return
+    if row.kind == "duplicate":
+        await apply_duplicate_answer(session, row, values, actor)
+        return
+    if row.kind == "datum_convention":
+        await apply_datum_answer(session, row, values, actor)
+        return
+    if row.kind == "conflicting_sources":
+        await apply_conflict_answer(session, row, values, actor)
 
 
 async def answer_clarification(

@@ -2,6 +2,10 @@
 
 Each page is labelled and committed on its own, so a retry resumes with the pages still unlabelled and never
 pays twice. Labels below CLASSIFIER_MIN_CONFIDENCE are asked again with the extractor model.
+
+Duplicate thresholds live in data/document_checks.yaml (`page_duplicates`). Once every page is labelled, a
+document whose borehole pages all copy pages of one other document gets `documents.duplicate_of`
+(app.clarify.duplicates; finalisation asks the `duplicate` question).
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ from typing import Protocol
 from PIL import Image
 from sqlalchemy import select
 
+from app.clarify.duplicates import refresh_duplicate_of
 from app.config import get_settings
 from app.db.models import Document, Page
 from app.db.session import get_sessionmaker
@@ -25,16 +30,13 @@ from app.pipeline.triage import hamming
 from app.providers.llm_openrouter import image_part, text_part
 from app.services.documents import emit_document_updated, page_type_for, unused_reason_for
 from app.storage import get_storage
+from app.validate.document import section
 
 logger = logging.getLogger("geomemory.pipeline.classify")
 
 CLASSIFIER_IMAGE_EDGE = 1024
 TEXT_LAYER_MIN_QUALITY = 0.8
 TEXT_LAYER_CHARS = 1500
-DUPLICATE_MAX_DISTANCE = 8  # of 256 bits
-DUPLICATE_ASPECT_TOLERANCE = 0.02
-# Near-uniform renders (blank pages) hash to few set bits; they are never called duplicates.
-MIN_HASH_BITS = 16
 PROGRESS_EVERY = 5
 
 PROMPT_VERSION = "1"
@@ -126,10 +128,19 @@ def is_important(page: Page) -> bool:
     )
 
 
+def _duplicate_thresholds() -> tuple[int, float, int]:
+    """(max Hamming distance of 256 bits, aspect tolerance, min set bits) from data/document_checks.yaml.
+
+    Near-uniform renders (blank pages) hash to few set bits; they are never called duplicates."""
+    cfg = section("page_duplicates")
+    return int(cfg["max_hamming"]), float(cfg["aspect_tolerance"]), int(cfg["min_hash_bits"])
+
+
 async def _find_duplicate(page: Page) -> tuple[str, int] | None:
+    max_distance, aspect_tolerance, min_hash_bits = _duplicate_thresholds()
     if (
         not page.phash
-        or int(page.phash, 16).bit_count() < MIN_HASH_BITS
+        or int(page.phash, 16).bit_count() < min_hash_bits
         or not page.width_px
         or not page.height_px
     ):
@@ -159,10 +170,10 @@ async def _find_duplicate(page: Page) -> tuple[str, int] | None:
     for doc_id, n, phash, width, height, text_key, text_quality in rows:
         if phash is None or not width or not height:
             continue
-        if abs(width / height - aspect) > DUPLICATE_ASPECT_TOLERANCE * aspect:
+        if abs(width / height - aspect) > aspect_tolerance * aspect:
             continue
         distance = hamming(page.phash, phash)
-        if distance > DUPLICATE_MAX_DISTANCE:
+        if distance > max_distance:
             continue
         # Same printed form, other values: with trustworthy text layers on both pages the text must match too.
         other_text = _normalised_text_of(text_key, text_quality)
@@ -245,6 +256,18 @@ async def stage_classify(document_id: str, classifier: Classifier | None = None)
     errors = [r for r in results if isinstance(r, BaseException)]
     if errors:
         raise errors[0]
+    await mark_document_duplicate(document_id)
+
+
+async def mark_document_duplicate(document_id: str) -> None:
+    """Set `documents.duplicate_of` when every borehole page copies a page of one other document."""
+    async with get_sessionmaker()() as session:
+        doc = await session.get(Document, document_id, with_for_update={"key_share": True})
+        if doc is None:
+            return
+        if await refresh_duplicate_of(session, doc):
+            await emit_document_updated(session, doc)
+        await session.commit()
 
 
 async def update_progress(document_id: str, *, emit: bool) -> None:

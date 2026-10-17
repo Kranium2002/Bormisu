@@ -1,5 +1,7 @@
 # Lint rules: severity and message per rule id. Detection lives in app/validate/rules.py (one function
-# per rule, unit-tested). Messages may use {placeholders} filled by the rule.
+# per rule, unit-tested) and, for rules that compare the boreholes of one document, in
+# app/validate/document.py. Messages may use {placeholders} filled by the rule. An error with
+# `unplot: true` keeps the borehole off the map with unplotted_reason `implausible`.
 tolerance_m: 0.005
 rules:
   layer_inverted:
@@ -47,10 +49,35 @@ rules:
     message: "SPT is marked as refusal but has an N value of {value}."
   coordinates_out_of_range:
     severity: error
+    unplot: true
     message: "Latitude {lat} / longitude {lon} is outside WGS84 bounds."
   coordinates_zero:
     severity: error
+    unplot: true
     message: "Latitude 0 / longitude 0 is a placeholder, not a position."
   sample_below_total_depth:
     severity: warning
     message: "Sample {name} at {value} m lies below the total depth of {depth} m."
+  # Rules across the boreholes of one document. Stored in boreholes.document_lint and recomputed for the
+  # whole document whenever one of its boreholes changes and when the document is finalised.
+  coordinates_far_from_cluster:
+    severity: error
+    unplot: true
+    # A document has a cluster once this many of its boreholes have a WGS84 position.
+    min_points: 3
+    # A position is implausible when it lies farther than max(min_distance_km, median_factor x the median
+    # distance of the document's positions to their robust centre) from that centre AND from every other
+    # position, so a second site with several boreholes is never an outlier.
+    min_distance_km: 25
+    median_factor: 20
+    # More outliers than this share of the positions: no clear cluster, nothing is flagged.
+    max_outlier_share: 0.34
+    message: "This position lies {distance} km from the other boreholes of the document (typical spread {spread} km); check the printed coordinates and the coordinate system."
+  coordinates_shared:
+    severity: warning
+    # Coordinates are identical when equal after rounding to this many decimals (in the printed system).
+    decimals: 6
+    message: "Borehole {others} of the same document has identical coordinates."
+  duplicate_borehole:
+    severity: warning
+    message: "Same borehole as {label} in {file} (a person confirmed the duplicate)."

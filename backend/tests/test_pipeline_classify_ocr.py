@@ -164,3 +164,8 @@ async def test_duplicate_pages_skip_the_classifier(db: None, fakes: Any) -> None
     assert pages[2].used is False and pages[2].ocr_status == "skipped"
     assert pages[2].unused_reason == "duplicate of fictional.pdf p. 2"
     assert classifier.calls == calls  # every page of the copy matched a stored page
+    async with get_sessionmaker()() as session:
+        copy, original = await session.get(Document, second), await session.get(Document, first)
+        # Every borehole page copies the first upload: the copy is marked once its pages are labelled.
+        assert copy is not None and copy.duplicate_of == first
+        assert original is not None and original.duplicate_of is None

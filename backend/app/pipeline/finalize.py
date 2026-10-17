@@ -7,11 +7,15 @@ finalize_group(document_id, group, outcome)
     coordinate-system status and creates the borehole through app.review.service.create_borehole.
     Idempotent per (document, group key). Depths printed without any unit are stored as metres with
     method `guessed` and one `unit_ambiguous` question per document; uncertain page groups get a
-    `borehole_boundary` question.
+    `borehole_boundary` question; a printed depth sign or origin note that the printed layer depths
+    contradict gets one `datum_convention` question per document and kind (app.validate.datum).
 
 finalize_document(document_id)
-    Completeness against the labels printed on summary and coordinate tables, one `crs_confirm` question
-    per project (or per document without a project label) for boreholes whose system was not stated, the
+    Completeness against the labels printed on summary and coordinate tables, `documents.duplicate_of` and
+    one `duplicate` question per earlier document the document repeats (app.clarify.duplicates), one
+    `crs_confirm` question per project (or per document without a project label) for boreholes whose
+    system was not stated, a `locate_borehole` question for each borehole without coordinates but with a
+    printed place, the lint across the document's boreholes (cluster outliers, shared coordinates), the
     `boreholes_extracted` progress counter and the document status (needs_review, or done when every
     borehole is approved).
 
@@ -34,6 +38,8 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clarify.checks import EvidenceEntry, ask_datum_convention, ask_locate_boreholes
+from app.clarify.duplicates import ask_duplicates, refresh_duplicate_of
 from app.clarify.service import clarification_out, create_clarification
 from app.db.models import Borehole, Clarification, Document, FieldValue, Page
 from app.db.session import get_sessionmaker
@@ -50,11 +56,18 @@ from app.pipeline.provenance import Citations, MethodLiteral, method_of, printed
 from app.pipeline.schemas import ExtractedLayer, ExtractionResult, RawValue
 from app.pipeline.textlayer import PageText
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
-from app.review.service import canonical_label, create_borehole, refresh_document_status
+from app.review.service import (
+    canonical_label,
+    create_borehole,
+    refresh_document_checks,
+    refresh_document_status,
+)
 from app.schemas.boreholes import ProvenanceIn
 from app.schemas.documents import Completeness
 from app.services.documents import emit_document_updated
 from app.storage import StorageKeyError, get_storage
+from app.validate.datum import DatumFinding, check_datum_convention
+from app.validate.document import section as document_checks_section
 
 logger = logging.getLogger("geomemory.pipeline.finalize")
 
@@ -175,6 +188,11 @@ class RecordDraft:
     guessed_depths: list[GuessedDepth] = field(default_factory=list)
     crs_note: str | None = None
     warnings: list[str] = field(default_factory=list)
+    # A depth sign or origin note that the printed layer depths contradict, with the depth origin the note
+    # states (if any) and where the note and the first depths are printed.
+    datum_finding: DatumFinding | None = None
+    datum_origin: str | None = None
+    datum_evidence: list[EvidenceEntry] = field(default_factory=list)
 
 
 def _inside_area(code: str, x: float, y: float) -> bool:
@@ -301,8 +319,8 @@ class _Builder:
             )
         return None
 
-    def depth(self, value: RawValue | None) -> tuple[float | None, bool]:
-        """Metres from a printed depth, and whether its unit was guessed (no unit printed anywhere)."""
+    def signed_depth(self, value: RawValue | None) -> tuple[float | None, bool]:
+        """Metres from a printed depth with its printed sign, and whether its unit was guessed."""
         raw = printed(value)
         if raw is None:
             return None, False
@@ -310,8 +328,12 @@ class _Builder:
         guessed = False
         if default is None and self._glued_unit(raw) is None:
             default, guessed = "m", True
-        parsed = units.parse_length(raw, default_unit=default, style=self.style)
-        metres = parsed.metres
+        metres = units.parse_length(raw, default_unit=default, style=self.style).metres
+        return (None, False) if metres is None else (metres, guessed)
+
+    def depth(self, value: RawValue | None) -> tuple[float | None, bool]:
+        """Metres from a printed depth, and whether its unit was guessed (no unit printed anywhere)."""
+        metres, guessed = self.signed_depth(value)
         if metres is None:
             return None, False
         if self.negative_down and metres < 0:
@@ -824,6 +846,7 @@ class _Builder:
             for i, item in enumerate(items):
                 for key, entry in item.prov.items():
                     self.prov[f"{section}[{i}].{key}"] = entry
+        finding, origin, evidence = self.datum_check()
         return RecordDraft(
             body=body,
             provenance=self.prov,
@@ -835,7 +858,40 @@ class _Builder:
             guessed_depths=self.guessed,
             crs_note=crs_note,
             warnings=self.warnings,
+            datum_finding=finding,
+            datum_origin=origin,
+            datum_evidence=evidence,
         )
+
+    def datum_check(self) -> tuple[DatumFinding | None, str | None, list[EvidenceEntry]]:
+        """Does the printed depth note contradict the printed layer depths (sign kept, printed order)?"""
+        h = self.result.header
+        note, datum = printed(h.depth_origin_note), printed(h.elevation_datum)
+        origin = datums.parse_depth_origin(note, datum)
+        intervals = [
+            (self.signed_depth(layer.from_raw)[0], self.signed_depth(layer.to_raw)[0])
+            for layer in self.result.layers
+        ]
+        finding = check_datum_convention(origin, intervals)
+        if finding is None:
+            return None, None, []
+        evidence: list[EvidenceEntry] = []
+        sources: list[RawValue] = [h.depth_origin_note, h.elevation_datum]
+        for layer in self.result.layers:
+            sources += [layer.from_raw, layer.to_raw]
+        limit = int(document_checks_section("datum_convention")["evidence_max"])
+        for value in sources:
+            text_value = printed(value)
+            if text_value is None or len(evidence) >= limit:
+                continue
+            entry = self.cite.entry(value)
+            if entry.page is not None and not any(
+                (e.page, e.box) == (entry.page, entry.box) for e in evidence
+            ):
+                evidence.append(
+                    EvidenceEntry(entry.document_id or self.document_id, entry.page, entry.box, text_value)
+                )
+        return finding, origin.origin, evidence
 
 
 def build_record(
@@ -1079,6 +1135,16 @@ async def finalize_group(document_id: str, group: PageGroup, outcome: Extraction
             await _ask_depth_unit(session, doc, bh.uid, draft)
         if group.uncertain:
             await _ask_boundary(session, doc, bh.uid, group, draft)
+        if draft.datum_finding is not None:
+            await ask_datum_convention(
+                session,
+                doc,
+                uid=bh.uid,
+                label=draft.label or bh.label_raw,
+                finding=draft.datum_finding,
+                origin=draft.datum_origin,
+                evidence=draft.datum_evidence,
+            )
         await _set_boreholes_extracted(session, doc)
         await emit_document_updated(session, doc)
         await session.commit()
@@ -1265,13 +1331,18 @@ async def _ask_crs(session: AsyncSession, doc: Document) -> None:
 
 
 async def finalize_document(document_id: str) -> None:
-    """Completeness, coordinate-system questions, progress and status after every group is finalised."""
+    """Completeness, duplicates of earlier documents, coordinate-system and location questions, the lint
+    across the document's boreholes, progress and status after every group is finalised."""
     async with get_sessionmaker()() as session:
         doc = await _lock_document(session, document_id)
         if doc is None:
             return
         doc.completeness = await _completeness(session, doc)
+        await refresh_duplicate_of(session, doc)
+        await ask_duplicates(session, doc)
         await _ask_crs(session, doc)
+        await ask_locate_boreholes(session, doc)
+        await refresh_document_checks(session, doc.id, actor=ACTOR)
         await _set_boreholes_extracted(session, doc)
         doc.status = "needs_review"
         await session.flush()

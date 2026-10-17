@@ -79,6 +79,29 @@ async def create_clarification(
     return row
 
 
+async def reemit_clarification(session: AsyncSession, row: Clarification) -> None:
+    """A changed question is sent again in full (the inbox replaces it by id)."""
+    await session.flush()
+    await emit(
+        session,
+        "clarification.created",
+        clarification_out(row).model_dump(mode="json"),
+        document_id=row.document_id,
+    )
+
+
+async def add_boreholes(session: AsyncSession, row: Clarification, uids: Sequence[str]) -> bool:
+    """An unanswered question of a document grows to cover more of its boreholes (re-sent when it does)."""
+    if row.status == "answered":
+        return False
+    new = [uid for uid in uids if uid not in (row.borehole_uids or [])]
+    if not new:
+        return False
+    row.borehole_uids = [*(row.borehole_uids or []), *new]
+    await reemit_clarification(session, row)
+    return True
+
+
 async def resolve_clarification(
     session: AsyncSession,
     row: Clarification,

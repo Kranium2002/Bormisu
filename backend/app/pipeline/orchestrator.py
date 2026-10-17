@@ -14,6 +14,10 @@ and rewind it to before OCR, so a retry reads the missing pages again (finished 
 
 The `reread` stage (app.pipeline.reread) reads handwritten and low-confidence values a second time. It does
 nothing when there are none, never fails the document and leaves its status and progress as they are.
+
+Spreadsheets (.xlsx, .csv) take their own stages instead (app.pipeline.spreadsheet, BACKEND.md 7.10):
+`sheet_read` opens the file (no pages, page_count null), `sheet_map` asks the extractor model once for a
+declarative column mapping (cached), `sheet_extract` applies it to every row and creates the boreholes.
 """
 
 from __future__ import annotations
@@ -54,6 +58,7 @@ SPREADSHEET_EXTENSIONS = frozenset({".xlsx", ".csv"})
 
 # Stage order; `documents.stage` holds the last finished one.
 STAGES = ("triage", "classify", "ocr", "extract", "reread")
+SPREADSHEET_STAGES = ("sheet_read", "sheet_map", "sheet_extract")
 # Statuses a finished document can have; the last stage never moves a document out of them.
 REVIEW_STATUSES = frozenset({"needs_review", "done"})
 
@@ -68,6 +73,11 @@ class StageError(RuntimeError):
         super().__init__(message)
         self.retryable = retryable
         self.rewind_to = rewind_to
+
+
+def stages_for(storage_key: str) -> tuple[str, ...]:
+    """The stage order of a document, by the stored original's extension."""
+    return SPREADSHEET_STAGES if Path(storage_key).suffix.lower() in SPREADSHEET_EXTENSIONS else STAGES
 
 
 def text_layer_key(document_id: str, n: int) -> str:
@@ -111,8 +121,8 @@ async def stage_triage(session: AsyncSession, doc: Document) -> None:
     storage = get_storage()
     original = storage.path(doc.storage_key)
     extension = original.suffix.lower()
-    if extension in SPREADSHEET_EXTENSIONS:
-        raise StageError("Spreadsheets are not processed by this build yet.", retryable=False)
+    if extension in SPREADSHEET_EXTENSIONS:  # run_pipeline sends these to SPREADSHEET_STAGES instead
+        raise StageError("Spreadsheets are read by the spreadsheet stages, not as pages.", retryable=False)
     source, kind = original, "pdf"
     if extension in OFFICE_EXTENSIONS:
         try:
@@ -159,7 +169,8 @@ async def _fail(
         doc.status = "failed"
         doc.error = message
         doc.updated_at = _now()
-        if rewind_to in STAGES and doc.stage in STAGES and STAGES.index(doc.stage) > STAGES.index(rewind_to):
+        stages = stages_for(doc.storage_key)
+        if rewind_to in stages and doc.stage in stages and stages.index(doc.stage) > stages.index(rewind_to):
             doc.stage = rewind_to
         await emit_document_updated(session, doc)
         payload = {"document_id": document_id, "stage": stage, "detail": message, "retryable": retryable}
@@ -284,6 +295,24 @@ async def _reread(document_id: str) -> None:
     await stage_reread(document_id)  # logs and swallows its own failures: the document stays as it is
 
 
+async def _sheet_read(document_id: str) -> None:
+    from app.pipeline.spreadsheet import stage_sheet_read
+
+    await stage_sheet_read(document_id)
+
+
+async def _sheet_map(document_id: str) -> None:
+    from app.pipeline.spreadsheet import stage_sheet_map
+
+    await stage_sheet_map(document_id)
+
+
+async def _sheet_extract(document_id: str) -> None:
+    from app.pipeline.spreadsheet import stage_sheet_extract
+
+    await stage_sheet_extract(document_id)
+
+
 StageFn = Callable[[str], Awaitable[None]]
 STAGE_FUNCTIONS: dict[str, StageFn] = {
     "triage": _triage,
@@ -291,6 +320,9 @@ STAGE_FUNCTIONS: dict[str, StageFn] = {
     "ocr": _ocr,
     "extract": _extract,
     "reread": _reread,
+    "sheet_read": _sheet_read,
+    "sheet_map": _sheet_map,
+    "sheet_extract": _sheet_extract,
 }
 # Document status once a stage has finished (the UI maps classifying=0, extracting=1, needs_review=2).
 STATUS_AFTER: dict[str, str] = {
@@ -299,20 +331,30 @@ STATUS_AFTER: dict[str, str] = {
     "ocr": "extracting",
     "extract": "needs_review",
     "reread": "needs_review",
+    "sheet_read": "extracting",
+    "sheet_map": "extracting",
+    "sheet_extract": "needs_review",
 }
 
 
 async def run_pipeline(document_id: str) -> None:
     """Run every unfinished stage of one document. Stages manage their own transactions; the Procrastinate
-    job lock (one job per document) keeps two workers off the same document."""
-    for stage in STAGES:
+    job lock (one job per document) keeps two workers off the same document. Spreadsheets take
+    SPREADSHEET_STAGES instead of the page stages."""
+    async with get_sessionmaker()() as session:
+        doc = await session.get(Document, document_id)
+        if doc is None:
+            logger.info("document %s is gone; nothing to do", document_id)
+            return
+        stages = stages_for(doc.storage_key)
+    for stage in stages:
         async with get_sessionmaker()() as session:
             doc = await session.get(Document, document_id)
             if doc is None:
                 logger.info("document %s is gone; nothing to do", document_id)
                 return
-            done = STAGES.index(doc.stage) if doc.stage in STAGES else -1
-            if STAGES.index(stage) <= done:
+            done = stages.index(doc.stage) if doc.stage in stages else -1
+            if stages.index(stage) <= done:
                 continue
             if doc.status in ("queued", "failed"):
                 doc.status = "classifying" if doc.stage in (None, "triage") else "extracting"

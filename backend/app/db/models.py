@@ -211,6 +211,13 @@ class Borehole(Base):
     )
     record: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     lint: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    # Lint that depends on the other boreholes of the document (cluster, shared coordinates, duplicates);
+    # recomputed for the whole document by app.review.service and merged into `lint` on every recompute.
+    document_lint: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    # uid of the borehole this one repeats (a person answered a `duplicate` question); null otherwise.
+    duplicate_of: Mapped[str | None] = mapped_column(String(40))
     # A value is flagged or a lint error exists (open clarifications are counted separately).
     needs_attention: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = _now_column()

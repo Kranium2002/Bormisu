@@ -1,0 +1,20 @@
+# Settings of the evaluation harness (python -m app.eval). The app itself never reads this file.
+# A copy at backend/data/eval.yaml, when present, is used instead.
+
+# Cost estimate checked before each file starts: pages x USD per page. Until a file of the run has been
+# processed, the prior below is used; afterwards the mean observed cost per page of the run.
+# `--estimate-usd-per-page` overrides both. Prices come from backend/data/prices.yaml.
+estimate:
+  # Worst case per page: labelled by the classifier, read by OCR and sent to the extractor.
+  classify_usd_per_page: 0.002 # the classifier stage's own per-call estimate
+  extract_input_tokens_per_page: 4000
+  extract_output_tokens_per_page: 1500
+  # Pages assumed for files whose page count is unknown before conversion (Word files, spreadsheets).
+  pages_if_unknown: 20
+
+# Comparison tolerances.
+compare:
+  # Total depths agree when they differ by at most this many metres (printed rounding).
+  total_depth_tolerance_m: 0.005
+  # Longest page range read from an expected entry; longer ranges are treated as unreadable.
+  max_pages_in_range: 5000

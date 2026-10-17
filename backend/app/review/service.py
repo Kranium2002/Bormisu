@@ -4,13 +4,20 @@ Every change (pipeline creation, review PATCH, approve-clean, CRS confirmation, 
 goes through here: it updates `field_values`, recomputes the record body and the query columns, writes
 a `revisions` row, increments `revision` and writes a `borehole.*` event — all in the caller's
 transaction. Callers commit.
+
+Lint that compares the boreholes of one document (app.validate.document: positions far from the
+document's cluster, identical coordinates, confirmed duplicates) is kept in `boreholes.document_lint`,
+merged into `lint` on every recompute and refreshed for the whole document whenever a value of one of its
+boreholes changes and when the document is finalised. A borehole whose document lint changes because of
+another borehole gets a revision of its own (action `checks`).
 """
 
 from __future__ import annotations
 
 import copy
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -52,19 +59,28 @@ from app.schemas.boreholes import (
     ProvenanceIn,
     ValuePatch,
 )
-from app.validate.rules import lint_body
+from app.validate.document import Member, document_lint
+from app.validate.rules import lint_body, unplot_rules
 
 LAT = "metadata.coordinates.latitude"
 LON = "metadata.coordinates.longitude"
 LOCAL_X = "metadata.coordinates.local_x"
 LOCAL_Y = "metadata.coordinates.local_y"
+X_RAW = "metadata.coordinates.x_raw"
 ROCK_HEAD = "rock_head_m"
 CRS_CODE = "metadata.coordinates.crs_code"
 CRS_LABEL = "metadata.coordinates.crs_label"
 # Values the server writes itself; they are never edited through PATCH.
 SERVER_MANAGED_PATHS = frozenset({CRS_CODE, CRS_LABEL})
-# Lint rules after which a position is not plotted.
-IMPLAUSIBLE_RULES = frozenset({"coordinates_out_of_range", "coordinates_zero"})
+# Patch actions that never change a value (so the lint across the document cannot change either).
+REVIEW_ONLY_ACTIONS = frozenset({"approve", "flag", "reset", "set_state"})
+# Depth values a sign convention applies to (metadata.borehole_depth_m is never stored negative).
+_DEPTH_FIELDS = {
+    "stratigraphy": ("depth_from_m", "depth_to_m", "spt_depth_m"),
+    "groundwater": ("depth_m",),
+    "samples": ("depth_from_m", "depth_to_m"),
+}
+_STRATIGRAPHY_PATH = re.compile(r"^stratigraphy\[(\d+)\]\.(.+)$")
 
 _CANON_STRIP = re.compile(r"[\s\-_]+")
 _LEADING_ZEROS = re.compile(r"(?<![0-9])0+(?=[0-9])")
@@ -270,8 +286,9 @@ def recompute(bh: Borehole, fvs: dict[str, FieldValue]) -> tuple[list[FieldValue
 
     meta = body["metadata"]
     coords = meta["coordinates"]
-    lint = lint_body(body)
-    has_lint_error = any(item["severity"] == "error" and item["rule"] in IMPLAUSIBLE_RULES for item in lint)
+    lint = lint_body(body) + [dict(item) for item in (bh.document_lint or [])]
+    unplot = unplot_rules()
+    has_lint_error = any(item["severity"] == "error" and item["rule"] in unplot for item in lint)
     person_placed = all(fvs.get(p) is not None and fvs[p].method == "edited" for p in (LAT, LON))
     place = placement(coords, bh.crs_status, implausible=has_lint_error, person_placed=person_placed)
 
@@ -412,6 +429,8 @@ async def create_borehole(
         pages=sorted(set(pages)),
         record=data,
         lint=[],
+        document_lint=[],
+        duplicate_of=None,
         needs_attention=False,
     )
     session.add(bh)
@@ -459,9 +478,19 @@ async def commit_change(
     actor: str,
     action: str,
     changes: dict[str, Any],
+    document_checks: bool = True,
 ) -> None:
-    """Recompute, bump the revision, write the revision row and the `borehole.updated` event."""
+    """Recompute, bump the revision, write the revision row and the `borehole.updated` event.
+
+    `document_checks` also refreshes the lint across the boreholes of the document; callers whose change
+    cannot touch a value or a label (approve, flag, reset, set_state, aliases) leave it out.
+    """
     await _apply_recompute(session, bh, fvs)
+    if document_checks:
+        own = await _document_checks(session, bh.document_id, actor=actor, current=bh)
+        if own is not None and own != list(bh.document_lint or []):
+            bh.document_lint = own
+            await _apply_recompute(session, bh, fvs)
     bh.revision += 1
     session.add(Revision(uid=bh.uid, revision=bh.revision, actor=actor, action=action, changes=changes))
     await emit(
@@ -476,14 +505,43 @@ def _snapshot(fv: FieldValue) -> dict[str, Any]:
 
 
 async def apply_patch(session: AsyncSession, uid: str, patch: ValuePatch, *, actor: str) -> Borehole:
+    return await apply_patches(session, uid, [patch], actor=actor)
+
+
+async def apply_patches(
+    session: AsyncSession,
+    uid: str,
+    patches: Sequence[ValuePatch],
+    *,
+    actor: str,
+    action: str | None = None,
+    note: str | None = None,
+) -> Borehole:
+    """Apply review patches to one record as one revision (a single patch keeps its own action name)."""
     bh = await get_borehole_for_update(session, uid)
-    if patch.if_revision is not None and patch.if_revision != bh.revision:
-        raise ApiError(
-            409,
-            "revision_conflict",
-            f"The record is at revision {bh.revision}, not {patch.if_revision}. Reload and try again.",
-        )
+    for patch in patches:
+        if patch.if_revision is not None and patch.if_revision != bh.revision:
+            raise ApiError(
+                409,
+                "revision_conflict",
+                f"The record is at revision {bh.revision}, not {patch.if_revision}. Reload and try again.",
+            )
     fvs = await load_field_values(session, uid)
+    applied = [_patch_one(bh, fvs, patch) for patch in patches]
+    name: str
+    changes: dict[str, Any]
+    if len(applied) == 1 and action is None and note is None:
+        name, changes = patches[0].action, applied[0]
+    else:
+        name = action or "batch"
+        changes = {"action": name, "patches": applied, "note": note}
+    checks = any(patch.action not in REVIEW_ONLY_ACTIONS for patch in patches)
+    await commit_change(session, bh, fvs, actor=actor, action=name, changes=changes, document_checks=checks)
+    return bh
+
+
+def _patch_one(bh: Borehole, fvs: dict[str, FieldValue], patch: ValuePatch) -> dict[str, Any]:
+    """Apply one patch to the loaded record and its provenance; returns the revision's change entry."""
     fv = fvs.get(patch.path)
     if fv is None:
         raise ApiError(404, "path_not_found", "This record has no value at that path.")
@@ -527,9 +585,7 @@ async def apply_patch(session: AsyncSession, uid: str, patch: ValuePatch, *, act
         if value is not None:
             fv.state = "ok"
     fv.updated_at = _now()
-    changes = {"path": patch.path, "action": patch.action, "before": before, "after": _snapshot(fv)}
-    await commit_change(session, bh, fvs, actor=actor, action=patch.action, changes=changes)
-    return bh
+    return {"path": patch.path, "action": patch.action, "before": before, "after": _snapshot(fv)}
 
 
 def _lint_paths(bh: Borehole) -> set[str]:
@@ -562,7 +618,9 @@ async def approve_clean(session: AsyncSession, document_id: str, *, dry_run: boo
             fv.status = "approved"
             fv.updated_at = _now()
         changes = {"action": "approve_clean", "paths": sorted(fv.path for fv in clean)}
-        await commit_change(session, bh, fvs, actor=actor, action="approve_clean", changes=changes)
+        await commit_change(
+            session, bh, fvs, actor=actor, action="approve_clean", changes=changes, document_checks=False
+        )
     return total
 
 
@@ -644,6 +702,349 @@ async def set_manual_location(
     }
     await commit_change(session, bh, fvs, actor=actor, action="locate", changes=changes)
     return bh
+
+
+@dataclass(frozen=True)
+class SourceRef:
+    """Where a value chosen by a person is printed (a clarification option's evidence)."""
+
+    document_id: str | None
+    page: int | None
+    box: list[float] | None
+    raw: str | None
+
+
+async def set_values(
+    session: AsyncSession,
+    uid: str,
+    values: Mapping[str, Any],
+    *,
+    actor: str,
+    action: str,
+    note: str | None = None,
+    sources: Mapping[str, SourceRef] | None = None,
+) -> Borehole:
+    """A person decided these values (clarification answers): one revision, every value approved.
+
+    A value without provenance gets an entry with method `edited`. With a source, the entry points at the
+    page and box the person chose; a changed value is `edited`, an unchanged one keeps its method.
+    """
+    bh = await get_borehole_for_update(session, uid)
+    fvs = await load_field_values(session, uid)
+    body = copy.deepcopy(bh.record)
+    applied: list[dict[str, Any]] = []
+    for path, raw_value in values.items():
+        if path in SERVER_MANAGED_PATHS or not path_exists(body, path):
+            raise ApiError(422, "unparseable_value", f"{path} cannot be set on this record.")
+        try:
+            value = coerce_value(body, path, raw_value)
+        except ValueParseError as exc:
+            raise ApiError(422, "unparseable_value", f"The value cannot be used for {path}: {exc}") from exc
+        set_value(body, path, value)
+        source = (sources or {}).get(path)
+        fv = fvs.get(path)
+        before = _snapshot(fv) if fv is not None else None
+        if fv is None:
+            fv = FieldValue(
+                uid=uid,
+                path=path,
+                value=value,
+                raw=source.raw if source else None,
+                document_id=(source.document_id if source else None) or bh.document_id,
+                page=source.page if source else None,
+                box=source.box if source else None,
+                cell=None,
+                method="edited",
+                confidence=None,
+                status="approved",
+                state="ok",
+                ai_value=None,
+                flag=None,
+                readings=[],
+            )
+            session.add(fv)
+            fvs[path] = fv
+        else:
+            if fv.value != value:
+                fv.value, fv.method = value, "edited"
+            if source is not None:
+                fv.document_id = source.document_id or fv.document_id
+                fv.page, fv.box, fv.raw = source.page, source.box, source.raw
+            fv.status, fv.state, fv.flag = "approved", "ok", None
+            fv.updated_at = _now()
+        applied.append({"path": path, "before": before, "after": _snapshot(fv)})
+    bh.record = body
+    changes = {"action": action, "values": applied, "note": note}
+    await commit_change(session, bh, fvs, actor=actor, action=action, changes=changes)
+    return bh
+
+
+async def add_aliases(
+    session: AsyncSession, uid: str, aliases: Iterable[str], *, actor: str, note: str | None = None
+) -> list[str]:
+    """Add labels as printed elsewhere to metadata.aliases (server-managed, no provenance). Returns the new
+    ones; nothing is written when every label is already the label or an alias."""
+    bh = await get_borehole_for_update(session, uid)
+    body = copy.deepcopy(bh.record)
+    meta = body["metadata"]
+    current = list(meta.get("aliases") or [])
+    known = {str(meta.get("borehole_id") or "").strip(), *(a.strip() for a in current)}
+    added: list[str] = []
+    for alias in aliases:
+        text = (alias or "").strip()
+        if text and text not in known:
+            known.add(text)
+            added.append(text)
+    if not added:
+        return []
+    meta["aliases"] = [*current, *added]
+    bh.record = body
+    fvs = await load_field_values(session, uid)
+    changes = {"action": "aliases", "added": added, "note": note}
+    await commit_change(
+        session, bh, fvs, actor=actor, action="aliases", changes=changes, document_checks=False
+    )
+    return added
+
+
+async def mark_duplicate(
+    session: AsyncSession, uid: str, original_uid: str, *, actor: str, note: str | None = None
+) -> bool:
+    """A person confirmed that `uid` repeats `original_uid` (an earlier document's borehole)."""
+    bh = await get_borehole_for_update(session, uid)
+    if bh.duplicate_of == original_uid:
+        return False
+    before = bh.duplicate_of
+    bh.duplicate_of = original_uid
+    fvs = await load_field_values(session, uid)
+    changes = {"action": "duplicate", "before": before, "after": original_uid, "note": note}
+    await commit_change(session, bh, fvs, actor=actor, action="duplicate", changes=changes)
+    return True
+
+
+def _depth_paths(body: dict[str, Any]) -> list[str]:
+    paths: list[str] = []
+    for section, fields in _DEPTH_FIELDS.items():
+        for i, _ in enumerate(body.get(section) or []):
+            paths.extend(f"{section}[{i}].{name}" for name in fields)
+    return paths
+
+
+def depth_paths_with_provenance(bh: Borehole, fvs: Mapping[str, FieldValue]) -> list[str]:
+    """Layer, SPT, groundwater and sample depth paths of the record that have a provenance entry."""
+    return [path for path in _depth_paths(bh.record) if path in fvs]
+
+
+async def negate_negative_depths(
+    session: AsyncSession, uid: str, *, actor: str, note: str | None = None
+) -> list[str]:
+    """Negative values denote depth (a person said so): store them as positive depths, method `edited`.
+
+    The layers are then put back in depth order; their provenance moves with them. Returns the changed
+    paths (empty when nothing was negative; nothing is written then).
+    """
+    bh = await get_borehole_for_update(session, uid)
+    fvs = await load_field_values(session, uid)
+    body = copy.deepcopy(bh.record)
+    changed: list[dict[str, Any]] = []
+    for path in _depth_paths(body):
+        value = get_value(body, path)
+        if isinstance(value, bool) or not isinstance(value, int | float) or value >= 0:
+            continue
+        set_value(body, path, -value)
+        fv = fvs.get(path)
+        if fv is not None:
+            before = _snapshot(fv)
+            fv.value, fv.method, fv.state = -value, "edited", "ok"
+            fv.updated_at = _now()
+            changed.append({"path": path, "before": before, "after": _snapshot(fv)})
+        else:
+            changed.append({"path": path, "before": {"value": value}, "after": {"value": -value}})
+    if not changed:
+        return []
+    layers = list(body.get("stratigraphy") or [])
+    order = sorted(
+        range(len(layers)),
+        key=lambda k: (layers[k].get("depth_from_m") or 0.0, layers[k].get("depth_to_m") or 0.0, k),
+    )
+    reordered = order != list(range(len(layers)))
+    if reordered:
+        body["stratigraphy"] = [layers[k] for k in order]
+        await _move_layer_provenance(session, fvs, {old: new for new, old in enumerate(order)})
+    bh.record = body
+    changes = {"action": "datum", "values": changed, "reordered": reordered, "note": note}
+    await commit_change(session, bh, fvs, actor=actor, action="datum", changes=changes)
+    return [entry["path"] for entry in changed]
+
+
+async def _move_layer_provenance(
+    session: AsyncSession, fvs: dict[str, FieldValue], new_index: Mapping[int, int]
+) -> None:
+    """Rename `stratigraphy[i].*` provenance rows after the layers were reordered (old index -> new)."""
+    moves: dict[str, str] = {}
+    for path in fvs:
+        match = _STRATIGRAPHY_PATH.match(path)
+        if match is None:
+            continue
+        old = int(match.group(1))
+        new = new_index.get(old, old)
+        if new != old:
+            moves[path] = f"stratigraphy[{new}].{match.group(2)}"
+    if not moves:
+        return
+    moved = {path: fvs.pop(path) for path in moves}
+    for fv in moved.values():
+        await session.delete(fv)
+    await session.flush()
+    for old_path, fv in moved.items():
+        copy_fv = FieldValue(
+            uid=fv.uid,
+            path=moves[old_path],
+            value=fv.value,
+            raw=fv.raw,
+            document_id=fv.document_id,
+            page=fv.page,
+            box=fv.box,
+            cell=fv.cell,
+            method=fv.method,
+            confidence=fv.confidence,
+            status=fv.status,
+            state=fv.state,
+            ai_value=fv.ai_value,
+            flag=fv.flag,
+            readings=fv.readings,
+            updated_at=_now(),
+        )
+        session.add(copy_fv)
+        fvs[copy_fv.path] = copy_fv
+    await session.flush()
+
+
+# ----------------------------------------------------------------------------------------------
+# Lint across the boreholes of one document
+# ----------------------------------------------------------------------------------------------
+
+
+async def _document_members(session: AsyncSession, document_id: str) -> tuple[list[Member], dict[str, Any]]:
+    """What app.validate.document needs about every borehole of the document, and their stored lint."""
+    coords_col = Borehole.record["metadata"]["coordinates"]
+    rows = (
+        await session.execute(
+            select(
+                Borehole.uid,
+                Borehole.label_raw,
+                Borehole.label_canonical,
+                coords_col,
+                Borehole.duplicate_of,
+                Borehole.document_lint,
+            )
+            .where(Borehole.document_id == document_id)
+            .order_by(Borehole.uid)
+        )
+    ).all()
+    uids = [row[0] for row in rows]
+    placed: set[str] = set()
+    if uids:
+        placed = set(
+            (
+                await session.scalars(
+                    select(FieldValue.uid)
+                    .where(
+                        FieldValue.uid.in_(uids),
+                        FieldValue.path.in_((LAT, LON)),
+                        FieldValue.method == "edited",
+                    )
+                    .group_by(FieldValue.uid)
+                    .having(func.count() == 2)
+                )
+            ).all()
+        )
+    originals = {row[4] for row in rows if row[4]}
+    names: dict[str, tuple[str, str]] = {}
+    if originals:
+        found = await session.execute(
+            select(Borehole.uid, Borehole.label_raw, Document.file_name)
+            .join(Document, Document.id == Borehole.document_id)
+            .where(Borehole.uid.in_(originals))
+        )
+        names = {str(uid): (str(label), str(name)) for uid, label, name in found.all()}
+
+    def number(value: Any) -> float | None:
+        return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
+
+    members: list[Member] = []
+    stored: dict[str, Any] = {}
+    for uid, label, canonical, coords, duplicate_of, lint in rows:
+        point = coords if isinstance(coords, dict) else {}
+        members.append(
+            Member(
+                uid=uid,
+                label=label,
+                label_canonical=canonical,
+                latitude=number(point.get("latitude")),
+                longitude=number(point.get("longitude")),
+                local_x=number(point.get("local_x")),
+                local_y=number(point.get("local_y")),
+                position_path=X_RAW if point.get("x_raw") else LAT,
+                person_placed=uid in placed,
+                duplicate_of=names.get(duplicate_of) if duplicate_of else None,
+            )
+        )
+        stored[uid] = list(lint or [])
+    return members, stored
+
+
+async def _document_checks(
+    session: AsyncSession, document_id: str, *, actor: str, current: Borehole | None
+) -> list[dict[str, Any]] | None:
+    """Recompute the lint across the document; returns the new document lint of `current`.
+
+    Every other borehole whose document lint changes is recomputed with a revision of its own. Passes of
+    one document are serialised by its row lock. A borehole locked by another transaction is skipped
+    (SKIP LOCKED, so this never waits and never deadlocks): a value change in that transaction runs this
+    pass again once it holds the document lock; otherwise the document's next pass catches up.
+    """
+    await session.flush()
+    await session.execute(
+        select(Document.id).where(Document.id == document_id).with_for_update(key_share=True)
+    )
+    members, stored = await _document_members(session, document_id)
+    computed = document_lint(members)
+    own: list[dict[str, Any]] | None = None
+    for uid in sorted(computed):
+        items = computed[uid]
+        if current is not None and uid == current.uid:
+            own = items
+            continue
+        if items == stored.get(uid, []):
+            continue
+        other = await session.scalar(
+            select(Borehole)
+            .where(Borehole.uid == uid)
+            .with_for_update(skip_locked=True)
+            .execution_options(populate_existing=True)
+        )
+        if other is None:
+            continue
+        before = [item["rule"] for item in (other.document_lint or [])]
+        other.document_lint = items
+        fvs = await load_field_values(session, uid)
+        await _apply_recompute(session, other, fvs)
+        other.revision += 1
+        changes = {"action": "checks", "before": before, "after": [item["rule"] for item in items]}
+        session.add(Revision(uid=uid, revision=other.revision, actor=actor, action="checks", changes=changes))
+        await emit(
+            session, "borehole.updated", {"uid": uid, "revision": other.revision}, document_id=document_id
+        )
+    await session.flush()
+    return own
+
+
+async def refresh_document_checks(
+    session: AsyncSession, document_id: str, *, actor: str = "pipeline"
+) -> None:
+    """Recompute the lint across every borehole of a document (finalisation; callers commit)."""
+    await _document_checks(session, document_id, actor=actor, current=None)
 
 
 async def refresh_document_status(session: AsyncSession, document_id: str) -> None:
