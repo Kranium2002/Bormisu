@@ -137,8 +137,12 @@
   .tile.out { display: none; }
   /* small tiles: icon in the top half, the feature in the bottom half */
   .tile .half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 14px; }
-  .tile .half.top { background: var(--line); }
-  .tile .si { width: 60px; height: 60px; color: var(--cocoa); }
+  .tile .half.top { background: var(--line); flex: 0 0 40%; }
+  /* the text half of an icon tile gets the remaining 60%, with room below the caption */
+  .tile:not(.word) .half:not(.top) { padding: 10px 14px 18px; gap: 2px; }
+  .tile:not(.word) .v { font-size: 30px; }
+  .tile:not(.word) .c { font-size: 17px; line-height: 1.2; }
+  .tile .si { width: 52px; height: 52px; color: var(--cocoa); }
   .tile .v { font: 700 34px/1.05 var(--display); letter-spacing: -0.02em; color: var(--espresso); }
   .tile .c { font-size: 18px; line-height: 1.25; color: var(--muted); margin-top: 4px; }
   /* word tiles: just the feature, big, with a brown fade running through the letters */
