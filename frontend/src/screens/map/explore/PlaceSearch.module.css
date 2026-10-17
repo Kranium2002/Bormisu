@@ -1,0 +1,184 @@
+/* PLACE SEARCH: field + SEARCH, the status line and the candidates (LGRB "Ortssuche", Bormisu tokens). */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: 14px var(--font-sans);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 1px;
+  border-color: var(--c-dark);
+}
+
+.submit {
+  flex: none;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 2px;
+  background: var(--c-green);
+  color: var(--c-on-green);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+
+.submit:hover {
+  background: var(--c-dark);
+  color: #fff;
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--c-dark);
+  outline-offset: 2px;
+}
+
+.submit:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--c-muted);
+  line-height: 1.4;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Always rendered and never display:none (empty when there is nothing to say), so its text is announced. */
+.status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--c-muted);
+}
+
+.error {
+  color: var(--c-amber-text);
+  font-weight: 700;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.place {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 2px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.place:hover {
+  background: var(--c-hover);
+}
+
+.place:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 1px;
+}
+
+.picked {
+  border-color: var(--c-dark);
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-green);
+}
+
+.placeLabel {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.source {
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.uploaded {
+  background: var(--c-green-bg);
+  color: var(--c-green-text);
+}
+
+.geocoder {
+  background: var(--c-line);
+  color: var(--c-muted);
+}
+
+.none {
+  margin: 0 0 2px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--c-amber);
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  font-size: 12px;
+  font-weight: 700;
+}

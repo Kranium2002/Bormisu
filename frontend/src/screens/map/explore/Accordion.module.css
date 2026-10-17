@@ -1,0 +1,59 @@
+/* Accordion sections of the explore panel: a heading button with a chevron, the body below. */
+.section {
+  border-bottom: 1px solid var(--c-border);
+}
+
+.heading {
+  margin: 0;
+}
+
+.trigger {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 13px 18px;
+  border: 0;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The chevron is drawn, not text, so the heading's name stays exactly its title. */
+.trigger::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.trigger[aria-expanded='true']::after {
+  transform: translateY(2px) rotate(-135deg);
+}
+
+.trigger:hover {
+  background: var(--c-hover);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: -2px;
+}
+
+.body {
+  padding: 2px 18px 18px;
+}
+
+.body[hidden] {
+  display: none;
+}
