@@ -181,7 +181,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UploadAccepted" }
         "409":
-          description: Document is not in status failed.
+          description: |
+            Document is not in status failed (code not_failed), or the server is in demo mode (code and
+            detail both exactly "demo_mode"; the document is not touched).
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1005,7 +1007,13 @@ components:
         rqd_pct: { type: [number, "null"], minimum: 0, description: 'Values above 100 are kept and linted.' }
         core_recovery_pct: { type: [number, "null"], minimum: 0 }
         spt_n_value: { type: [integer, "null"], minimum: 0, description: 'Never set on refusal.' }
-        spt_raw: { type: [string, "null"] }
+        spt_raw:
+          type: [string, "null"]
+          description: |
+            The SPT as printed. To correct an SPT (also a refusal such as "50/120"), edit this path: the
+            server parses the text again and updates spt_refusal, spt_n_value (null on refusal),
+            spt_increments, spt_increment_mm and spt_penetration_cm in the same revision. An edit of
+            spt_n_value accepts whole numbers only.
         spt_refusal: { type: [boolean, "null"] }
         spt_increments: { type: [array, "null"], items: { type: integer } }
         spt_increment_mm: { type: [integer, "null"], description: 'Length of one increment, e.g. 150 or 75.' }
@@ -1271,6 +1279,8 @@ components:
                   borehole_depth_m: { type: [number, "null"] }
                   review_status: { type: string }
                   crs_status: { type: string }
+                  crs_code: { type: [string, "null"], description: 'Stated or confirmed system, e.g. EPSG:2193 (1.2.0).' }
+                  crs_label: { type: [string, "null"], description: 'Readable name of crs_code, as in Coordinates.crs_label (1.2.0).' }
                   revision: { type: integer }
                   attention:
                     type: boolean
