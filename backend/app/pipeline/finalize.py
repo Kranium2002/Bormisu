@@ -46,7 +46,7 @@ from app.clarify.service import clarification_out, create_clarification
 from app.db.models import Borehole, Clarification, Document, FieldValue, Page
 from app.db.session import get_sessionmaker
 from app.events.writer import emit
-from app.geo.crs_candidates import area_of_use, candidates_for_boreholes, ranking_config
+from app.geo.crs_candidates import area_of_use, candidates_for_boreholes, offerable, ranking_config
 from app.geo.land import near_land
 from app.geo.plotting import to_wgs84
 from app.normalize import coordinates as coordinates_parser
@@ -508,6 +508,13 @@ class _Builder:
         for key, number in (("local_x", point[0]), ("local_y", point[1])):
             self.prov[f"metadata.coordinates.{key}"] = self._axis_entry(number, c.x_raw, c.y_raw)
         system = coords["coordinate_system"]
+        grid = crs_parser.local_grid(system, parsed)
+        if grid is not None:
+            # A local or site grid: no world system can place it, so none is ranked; the borehole is asked
+            # to be placed on the map (app.clarify.checks.ask_locate_boreholes).
+            grid_note = f"local grid '{grid}': not a map coordinate system; to be placed on the map"
+            self.warnings.append(grid_note)
+            return "unknown", None, grid_note, False
         resolved = crs_parser.resolve_printed_system(system, parsed)
         code = resolved.code
         order_doubtful = parsed.order_assumed and code is not None and _swap_on_land(code, *point)
@@ -1266,7 +1273,7 @@ async def _crs_question_parts(
         evidence.append(
             {"document_id": x.document_id or bh.document_id, "page": x.page, "box": x.box, "snippet": snippet}
         )
-    candidates = await candidates_for_boreholes(session, boreholes)
+    candidates = [c for c in await candidates_for_boreholes(session, boreholes) if offerable(c)]
     options: list[dict[str, Any]] = []
     for candidate in candidates:
         if any(option["value"] == candidate.crs for option in options):
@@ -1340,34 +1347,60 @@ async def _ask_crs(session: AsyncSession, doc: Document) -> None:
     questions = (
         await session.scalars(questions_query.order_by(Clarification.created_at, Clarification.id))
     ).all()
-    open_question = next((q for q in questions if q.status == "open"), None)
-    asked = {uid for q in questions if q is not open_question for uid in (q.borehole_uids or [])}
-    targets = [bh for bh in boreholes if bh.uid not in asked]
-    if not targets:
-        return
-    target_uids = [bh.uid for bh in targets]
-    if open_question is not None and set(target_uids) <= set(open_question.borehole_uids or []):
-        return
-    parts = await _crs_question_parts(session, doc, targets, project)
-    if open_question is not None:
-        open_question.borehole_uids = target_uids
-        open_question.question = parts["question"]
-        open_question.fields = parts["fields"]
-        open_question.evidence = parts["evidence"]
-        await _reemit(session, open_question)
-        return
-    documents = sorted({bh.document_id for bh in targets})
-    await create_clarification(
-        session,
-        kind="crs_confirm",
-        document_id=doc.id,
-        question=parts["question"],
-        fields=parts["fields"],
-        evidence=parts["evidence"],
-        borehole_uids=target_uids,
-        project=project,
-        dedupe_key=f"crs_confirm:{_digest(scope + '|' + ','.join(documents) + '|' + ','.join(target_uids))}",
-    )
+    # One question per printed system: boreholes printing different systems are never ranked as one set.
+    groups: dict[str, list[Borehole]] = {}
+    for bh in boreholes:
+        groups.setdefault(_system_group(bh.record), []).append(bh)
+    asked_uids = {uid for q in questions for uid in (q.borehole_uids or [])}
+    known = {bh.uid: bh for bh in boreholes}
+    missing = asked_uids - set(known)
+    if missing:
+        for bh in (await session.scalars(select(Borehole).where(Borehole.uid.in_(missing)))).all():
+            known[bh.uid] = bh
+
+    def group_of(question: Clarification) -> str | None:
+        uid = next((u for u in question.borehole_uids or [] if u in known), None)
+        return None if uid is None else _system_group(known[uid].record)
+
+    for key, members in groups.items():
+        open_question = next((q for q in questions if q.status == "open" and group_of(q) == key), None)
+        asked = {uid for q in questions if q is not open_question for uid in (q.borehole_uids or [])}
+        targets = [bh for bh in members if bh.uid not in asked]
+        if not targets:
+            continue
+        target_uids = [bh.uid for bh in targets]
+        if open_question is not None and set(target_uids) <= set(open_question.borehole_uids or []):
+            continue
+        parts = await _crs_question_parts(session, doc, targets, project)
+        if not parts["fields"][0]["options"]:
+            continue  # no system places these values: the borehole is asked to be placed on the map instead
+        if open_question is not None:
+            open_question.borehole_uids = target_uids
+            open_question.question = parts["question"]
+            open_question.fields = parts["fields"]
+            open_question.evidence = parts["evidence"]
+            await _reemit(session, open_question)
+            continue
+        documents = sorted({bh.document_id for bh in targets})
+        digest = _digest(scope + "|" + key + "|" + ",".join(documents) + "|" + ",".join(target_uids))
+        await create_clarification(
+            session,
+            kind="crs_confirm",
+            document_id=doc.id,
+            question=parts["question"],
+            fields=parts["fields"],
+            evidence=parts["evidence"],
+            borehole_uids=target_uids,
+            project=project,
+            dedupe_key=f"crs_confirm:{digest}",
+        )
+
+
+def _system_group(record: dict[str, Any]) -> str:
+    """The printed coordinate system of a record, normalised (letters and digits, lower case; "" if none)."""
+    coords = (record.get("metadata") or {}).get("coordinates") or {}
+    system = coords.get("coordinate_system")
+    return "".join(ch for ch in system.casefold() if ch.isalnum()) if isinstance(system, str) else ""
 
 
 async def finalize_document(document_id: str) -> None:

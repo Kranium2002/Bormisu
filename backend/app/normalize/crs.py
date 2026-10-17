@@ -476,6 +476,32 @@ def _check_against(result: CrsResult, coords: CoordinateResult | None) -> CrsRes
     return CrsResult(result.code, label=result.label or name, reason="; ".join(notes) or None)
 
 
+@lru_cache(maxsize=1)
+def _local_grid_rule() -> tuple[re.Pattern[str] | None, float]:
+    data = (load_data("crs_patterns.yaml") or {}).get("local_grid") or {}
+    words = sorted((str(w) for w in data.get("words") or []), key=len, reverse=True)
+    pattern = (
+        re.compile(r"(?<![^\W_])(?:" + "|".join(re.escape(w) for w in words) + r")(?![^\W_])", re.IGNORECASE)
+        if words
+        else None
+    )
+    return pattern, float(data.get("max_abs_value") or 0.0)
+
+
+def local_grid(system_raw: str | None, coords: CoordinateResult | None) -> str | None:
+    """The name of a local grid the coordinates are printed in ("Oslo lokal"; "unnamed local grid" for small
+    unlabelled grid values), else None. Data: crs_patterns.yaml local_grid."""
+    pattern, max_value = _local_grid_rule()
+    system = (system_raw or "").strip()
+    if system:
+        return system if pattern is not None and pattern.search(system) else None
+    if coords is None or coords.kind != "projected" or coords.local_x is None or coords.local_y is None:
+        return None
+    if max_value > 0 and abs(coords.local_x) < max_value and abs(coords.local_y) < max_value:
+        return "unnamed local grid"
+    return None
+
+
 def resolve_printed_system(system_raw: str | None, coords: CoordinateResult | None = None) -> CrsResult:
     """The EPSG code a printed system name states, or None with a reason when it states none."""
     if system_raw is None or not system_raw.strip():

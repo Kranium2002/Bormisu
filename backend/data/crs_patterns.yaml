@@ -156,3 +156,11 @@ swap_checks:
 # Plain numbers within degree range are read as decimal degrees only with a geographic marker
 # (hemisphere, degree sign, lat/long label) or when both carry at least this many decimals.
 decimal_degree_min_decimals: 4
+
+# Local grids: a printed system naming a local or site grid, or a pair of grid values that are both small
+# (below max_abs_value) with no system printed, is a local grid. No world system is ranked for it; the
+# borehole is asked to be placed on the map instead. Words are matched as whole words, case-insensitively.
+local_grid:
+  words: [lokal, local, site grid, site, baustelle, grille locale, locale, lokales, lokaler, örtlich, ortsnetz,
+          lokalt, lokala, paikallinen, local grid, site coordinates, project grid, arbitrary]
+  max_abs_value: 100000
