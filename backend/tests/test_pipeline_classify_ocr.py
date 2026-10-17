@@ -21,6 +21,14 @@ from tests.pdf_factory import TextItem, make_pdf
 pytestmark = pytest.mark.db
 
 
+@pytest.fixture(autouse=True)
+def stages_until_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests stop after OCR; extraction has its own tests."""
+    from app.pipeline import orchestrator
+
+    monkeypatch.setattr(orchestrator, "STAGES", ("triage", "classify", "ocr"))
+
+
 def fictional_report() -> bytes:
     return make_pdf(
         [

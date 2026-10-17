@@ -67,6 +67,7 @@ class OcrBlock(StrictModel):
     )
     confidence: float | None = Field(description="Average content confidence 0-1, None when not scored.")
     min_confidence: float | None
+    table_id: str | None = Field(default=None, description="Id of the page table this block shows, if any.")
 
 
 class OcrPageResult(StrictModel):

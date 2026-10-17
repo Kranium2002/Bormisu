@@ -2,11 +2,14 @@
 
 FakeOcrEngine answers like Mistral OCR from the text layer of the (fictional) PDF it is sent, so its blocks
 carry exact boxes. FakeClassifier labels pages from their text with simple keyword rules supplied by the test.
+FakeExtractor answers like the extractor model for the fictional log layout the tests generate (one OCR block
+per printed line), citing the block ids it read.
 """
 
 from __future__ import annotations
 
 import io
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -14,7 +17,17 @@ from typing import Any
 import pypdfium2 as pdfium
 
 from app.db.models import Page
-from app.pipeline.schemas import PageLabel
+from app.pipeline.schemas import (
+    ExtractedGroundwater,
+    ExtractedHeader,
+    ExtractedLayer,
+    ExtractionResult,
+    PageLabel,
+    RawCoordinates,
+    RawValue,
+)
+from app.pipeline.types import ExtractionInput
+from app.providers.base import Usage, check_budget, record_usage
 from app.providers.ocr_mistral import OcrResponse
 
 FAKE_DPI = 200
@@ -138,3 +151,132 @@ def label(role: str, **fields: Any) -> PageLabel:
     }
     base.update(fields)
     return PageLabel.model_validate(base)
+
+
+# ----------------------------------------------------------------------------------------------
+# Extraction
+# ----------------------------------------------------------------------------------------------
+
+# The fictional layout of the test PDFs, one printed line per OCR block:
+#   BOREHOLE LOG FX-1
+#   Project: Fictional Depot Extension
+#   Easting 413 210,5  Northing 5 316 044,2  (ETRS89 / UTM 32N)     the system in brackets is optional
+#   Depth (m)
+#   0,00 - 1,20  Sand, schluffig
+#   Groundwater at 2,10
+#   Final depth 6,00 m
+_BLOCK_LINE = re.compile(r"^\[\[(?P<id>p\d+\.b\d+)\]\] ")
+_LABEL = re.compile(r"^BOREHOLE LOG\s+(?P<value>\S+)$")
+_PROJECT = re.compile(r"^Project:\s*(?P<value>\S.*)$")
+_COORDINATES = re.compile(
+    r"^(?P<x_label>Easting)\s+(?P<x>\d[\d ,.]*\d)\s+(?P<y_label>Northing)\s+(?P<y>\d[\d ,.]*\d)"
+    r"(?:\s+\((?P<system>[^)]+)\))?$"
+)
+_DEPTH_UNIT = re.compile(r"^Depth\s*[(\[][^)\]]+[)\]]$")
+_LAYER = re.compile(r"^(?P<top>\d+(?:[.,]\d+)?)\s*-\s*(?P<base>\d+(?:[.,]\d+)?)\s+(?P<description>\D.*)$")
+_GROUNDWATER = re.compile(r"^Groundwater at\s+(?P<value>\d+(?:[.,]\d+)?)$")
+_TOTAL_DEPTH = re.compile(r"^Final depth\s+(?P<value>\S.*)$")
+
+
+def _printed(raw: str, block_id: str) -> RawValue:
+    return RawValue(raw=raw, block_ids=[block_id], state="ok")
+
+
+def _absent() -> RawValue:
+    return RawValue(raw=None, block_ids=[], state="not_in_source")
+
+
+def _log_lines(inp: ExtractionInput) -> list[tuple[str, str]]:
+    """(block id, printed text) of the group's log pages in reading order; context pages are not read."""
+    lines: list[tuple[str, str]] = []
+    for line in inp.text.splitlines():
+        match = _BLOCK_LINE.match(line)
+        if match is None:
+            continue
+        block = inp.blocks.get(match.group("id"))
+        text = block.text if block is not None else line[match.end() :]
+        lines.append((match.group("id"), " ".join(text.split())))
+    return lines
+
+
+def fake_extraction(inp: ExtractionInput) -> ExtractionResult:
+    """What a careful model would return for the fictional layout above: raw text plus cited block ids."""
+    head: dict[str, RawValue] = {}
+    coordinates: dict[str, RawValue] = {}
+    layers: list[ExtractedLayer] = []
+    groundwater: list[ExtractedGroundwater] = []
+    for block_id, text in _log_lines(inp):
+        if (m := _LABEL.match(text)) is not None:
+            head.setdefault("borehole_label", _printed(m.group("value"), block_id))
+        elif (m := _PROJECT.match(text)) is not None:
+            head.setdefault("project", _printed(m.group("value"), block_id))
+        elif (m := _COORDINATES.match(text)) is not None and not coordinates:
+            system = m.group("system")
+            coordinates = {
+                "x_raw": _printed(m.group("x"), block_id),
+                "y_raw": _printed(m.group("y"), block_id),
+                "labels_raw": _printed(f"{m.group('x_label')}, {m.group('y_label')}", block_id),
+                "system_raw": _printed(system, block_id) if system else _absent(),
+            }
+        elif _DEPTH_UNIT.match(text) is not None:
+            head.setdefault("depth_unit", _printed(text, block_id))
+        elif (m := _TOTAL_DEPTH.match(text)) is not None:
+            head.setdefault("total_depth", _printed(m.group("value"), block_id))
+        elif (m := _GROUNDWATER.match(text)) is not None:
+            groundwater.append(
+                ExtractedGroundwater(
+                    type="strike", depth_raw=_printed(m.group("value"), block_id), date_raw=_absent()
+                )
+            )
+        elif (m := _LAYER.match(text)) is not None:
+            layers.append(
+                ExtractedLayer(
+                    from_raw=_printed(m.group("top"), block_id),
+                    to_raw=_printed(m.group("base"), block_id),
+                    description_raw=_printed(m.group("description"), block_id),
+                    description_language=None,
+                    english_lithology=None,
+                    din4023_code=None,
+                    din4023_notation=None,
+                    uscs_raw=_absent(),
+                    colour_raw=_absent(),
+                    consistency_raw=_absent(),
+                    moisture_raw=_absent(),
+                    weathering_raw=_absent(),
+                    stratigraphic_name_raw=_absent(),
+                )
+            )
+    header = ExtractedHeader(
+        coordinates=RawCoordinates(
+            **{key: coordinates.get(key, _absent()) for key in ("x_raw", "y_raw", "labels_raw", "system_raw")}
+        ),
+        **{name: head.get(name, _absent()) for name in ExtractedHeader.model_fields if name != "coordinates"},
+    )
+    return ExtractionResult(
+        header=header, layers=layers, spt=[], core_runs=[], groundwater=groundwater, samples=[], tests=[]
+    )
+
+
+@dataclass
+class FakeExtractor:
+    """The extractor model for tests: `fake_extraction` of the input; counts calls.
+
+    Like the real client it checks PROVIDER_BUDGET_USD before every call and, when `cost_usd` is set,
+    records the call in the provider ledger.
+    """
+
+    cost_usd: float = 0.0
+    model: str = "fake-extractor"
+    calls: int = 0
+    inputs: list[ExtractionInput] = field(default_factory=list)
+
+    async def extract(
+        self, inp: ExtractionInput, *, document_id: str
+    ) -> tuple[ExtractionResult, str | None, float]:
+        await check_budget(self.cost_usd)
+        self.calls += 1
+        self.inputs.append(inp)
+        if self.cost_usd > 0:
+            usage = Usage("fake", "extract", self.model, inp.estimated_tokens, None, None, self.cost_usd)
+            await record_usage(usage, document_id)
+        return fake_extraction(inp), self.model, self.cost_usd

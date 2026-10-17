@@ -120,6 +120,7 @@ def normalise_page(raw_page: dict[str, Any], document_page: int) -> OcrPageResul
                 box=_box(block, width, height),
                 confidence=scores.get("average_content_confidence_score"),
                 min_confidence=scores.get("minimum_content_confidence_score"),
+                table_id=block.get("table_id"),
             )
         )
     tables = [str(t.get("content") or "") for t in raw_page.get("tables") or []]
