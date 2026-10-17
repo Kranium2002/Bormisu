@@ -376,7 +376,6 @@ export interface AuthSlice {
   register(registration: import('../domain/types').Registration): Promise<boolean>;
   /** Signs out, stops live updates and forgets every loaded record. */
   signOut(): Promise<void>;
-  changePassword(currentPassword: string, newPassword: string): Promise<boolean>;
   /** The session ended (any 401 not_authenticated): stop live updates, keep the route, show the sign-in. */
   sessionEnded(): void;
   /** Clears authError and authFieldErrors (a form opens or changes mode). */

@@ -1195,7 +1195,6 @@ export interface WireUser {
 export interface WireUserAnswer { user: WireUser }
 export interface WireLogin { email: string; password: string }
 export interface WireRegister { email: string; password: string; display_name?: string }
-export interface WirePasswordChange { current_password: string; new_password: string }
 
 /**
  * Maps the server's user. A user this client can't show (no id or email, a role it doesn't know)

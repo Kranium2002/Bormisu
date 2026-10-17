@@ -50,7 +50,7 @@ function backend(route: Route = () => undefined) {
     if (method === 'GET' && path === '/auth/me') return json(200, { user: WIRE_USER });
     if (method === 'POST' && path === '/auth/login') return json(200, { user: WIRE_USER });
     if (method === 'POST' && path === '/auth/register') return json(201, { user: WIRE_USER });
-    if (method === 'POST' && (path === '/auth/logout' || path === '/auth/password')) return noContent();
+    if (method === 'POST' && path === '/auth/logout') return noContent();
     if (method === 'GET' && path === '/map/boreholes.geojson') return json(200, fixture('map-features'));
     if (method === 'GET' && path.startsWith('/boreholes?plotted=false')) return json(200, { count: 0, boreholes: [], next_cursor: null });
     if (method === 'GET' && path === '/documents') return json(200, fixture('documents'));
@@ -182,21 +182,6 @@ describe('the sign-in endpoints', () => {
     await source().api.signOut();
     expect(calls.at(-1)).toMatchObject({ method: 'POST', path: '/auth/logout' });
   });
-
-  it('changePassword: POST /auth/password; 401 invalid_credentials is an answer, not an ended session', async () => {
-    const { calls } = backend();
-    const { api, ended } = source();
-    await api.changePassword('fictional-old-phrase', 'fictional-new-phrase');
-    expect(calls.at(-1)).toEqual({
-      method: 'POST', path: '/auth/password', body: { current_password: 'fictional-old-phrase', new_password: 'fictional-new-phrase' },
-    });
-    backend((c) => (c.path === '/auth/password' ? error(401, 'invalid_credentials') : undefined));
-    await expect(api.changePassword('wrong', 'fictional-new-phrase')).rejects.toMatchObject({ code: 'invalid_credentials' });
-    const fields = [{ loc: ['body', 'new_password'], msg: 'Too short.' }];
-    backend((c) => (c.path === '/auth/password' ? error(422, 'validation_error', 'Invalid request.', fields) : undefined));
-    await expect(api.changePassword('fictional-old-phrase', 'short')).rejects.toMatchObject({ errors: fields });
-    expect(ended).not.toHaveBeenCalled();
-  });
 });
 
 describe('the session listener', () => {
@@ -219,10 +204,9 @@ describe('the session listener', () => {
     expect(await api.currentUser()).toBeNull();
     await expect(api.signIn('a@example.test', 'x')).rejects.toBeInstanceOf(ApiError);
     await expect(api.register({ email: 'a@example.test', password: 'fictional-long-passphrase', displayName: null })).rejects.toBeInstanceOf(ApiError);
-    await expect(api.changePassword('a', 'fictional-long-passphrase')).rejects.toBeInstanceOf(ApiError);
     await expect(api.signOut()).rejects.toBeInstanceOf(ApiError);
     expect(ended).not.toHaveBeenCalled();
-    expect(['/auth/login', '/auth/register', '/auth/password', '/auth/me'].map((p) => endsSession(p, new ApiError(401, 'not_authenticated', '')))).toEqual([
+    expect(['/auth/login', '/auth/register', '/auth/me', '/auth/logout'].map((p) => endsSession(p, new ApiError(401, 'not_authenticated', '')))).toEqual([
       false, false, false, false,
     ]);
     expect(endsSession('/documents?x=1', new ApiError(401, 'not_authenticated', ''))).toBe(true);

@@ -16,11 +16,9 @@ import { AuthGate } from './AuthGate';
 import {
   PASSWORD_RULES,
   normaliseEmail,
-  validatePasswordChange,
   validateRegister,
   validateSignIn,
 } from './authRules';
-import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { SignInScreen } from './SignInScreen';
 
 vi.mock('leaflet', () => ({}));
@@ -49,30 +47,16 @@ describe('form rules', () => {
     expect(validateSignIn(`${'a'.repeat(250)}@example.test`, 'x').email).toBe('At most 254 characters.');
   });
 
-  it('a new password: 10 to 128 characters, not the email (as the server stores it), repeated', () => {
+  it('a new password: 8 to 128 characters, repeated', () => {
     const ok = { email: 'new@example.test', displayName: '', password: 'fictional-long-passphrase', repeat: 'fictional-long-passphrase' };
     expect(validateRegister(ok)).toEqual({});
-    expect(validateRegister({ ...ok, password: 'short', repeat: 'short' }).password).toBe('Use at least 10 characters.');
+    expect(validateRegister({ ...ok, password: 'short', repeat: 'short' }).password).toBe('Use at least 8 characters.');
+    expect(validateRegister({ ...ok, password: '8chars!!', repeat: '8chars!!' })).toEqual({});
     expect(validateRegister({ ...ok, password: 'x'.repeat(129), repeat: 'x'.repeat(129) }).password).toBe('Use at most 128 characters.');
-    expect(validateRegister({ ...ok, email: 'Long.Name@Example.test', password: ' long.name@example.TEST', repeat: ' long.name@example.TEST' }).password).toBe(
-      'The password must not be your email.',
-    );
     expect(validateRegister({ ...ok, repeat: 'something else' })).toEqual({ repeat: 'The passwords do not match.' });
     expect(validateRegister({ ...ok, displayName: 'n'.repeat(81) })).toEqual({ display_name: 'At most 80 characters.' });
     expect(validateRegister({ ...ok, displayName: 'n'.repeat(80) })).toEqual({});
     expect(normaliseEmail('  Ada.Reviewer@Example.TEST ')).toBe('ada.reviewer@example.test');
-  });
-
-  it('a password change needs the current password and a valid, repeated new one', () => {
-    expect(validatePasswordChange({ current: '', next: 'short', repeat: 'other' }, USER.email)).toEqual({
-      current_password: 'Enter your current password.',
-      new_password: 'Use at least 10 characters.',
-      repeat: 'The passwords do not match.',
-    });
-    expect(validatePasswordChange({ current: 'x', next: USER.email, repeat: USER.email }, USER.email)).toEqual({
-      new_password: 'The password must not be your email.',
-    });
-    expect(validatePasswordChange({ current: 'x', next: 'fictional-new-phrase', repeat: 'fictional-new-phrase' }, USER.email)).toEqual({});
   });
 });
 
@@ -196,35 +180,6 @@ describe('UserMenu', () => {
     expect(renderToStaticMarkup(<UserMenu />)).toContain('>YOUR NAME</button>');
     resetTestStore({ authState: 'unknown' });
     expect(renderToStaticMarkup(<UserMenu />)).toBe('');
-  });
-});
-
-describe('ChangePasswordDialog', () => {
-  const render = () => renderToStaticMarkup(<ChangePasswordDialog onClose={() => undefined} onChanged={() => undefined} />);
-
-  it('is a labelled modal with current, new and repeated password and the rules', () => {
-    resetTestStore({ authState: 'signedIn', user: USER });
-    const html = render();
-    expect(html).toMatch(/role="dialog" aria-modal="true" aria-labelledby="change-password-title"/);
-    expect(html).toContain('>CHANGE PASSWORD</h2>');
-    expect(inputTag(html, 'current_password')).toMatch(/autoComplete="current-password"/);
-    expect(inputTag(html, 'new_password')).toMatch(/autoComplete="new-password"/);
-    expect(inputTag(html, 'repeat')).toMatch(/autoComplete="new-password"/);
-    for (const rule of PASSWORD_RULES) expect(html).toContain(`<li>${rule}</li>`);
-    expect(html).toContain('aria-label="Close"');
-    expect(html).toContain('Your other sessions are signed out; this one stays signed in.');
-  });
-
-  it("shows the server's errors", () => {
-    resetTestStore({
-      authState: 'signedIn',
-      user: USER,
-      authError: 'The current password is wrong.',
-      authFieldErrors: { current_password: 'The current password is wrong.' },
-    });
-    const html = render();
-    expect(html).toMatch(/role="alert"[^>]*>The current password is wrong.<\/div>/);
-    expect(inputTag(html, 'current_password')).toContain('aria-invalid="true"');
   });
 });
 

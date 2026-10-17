@@ -65,7 +65,7 @@ const bodyOf = (req: Request): Record<string, unknown> | null => {
 
 async function fakeAuth(page: Page, signedIn: boolean): Promise<FakeAuth> {
   const state: FakeAuth = { user: signedIn ? USER : null, calls: [], nextLogin: null, expireOn: null };
-  let password = PASSWORD;
+  const password = PASSWORD;
   const taken = new Set([USER.email]);
   await page.route(
     (url) => url.pathname.startsWith(`${API}/`),
@@ -106,12 +106,6 @@ async function fakeAuth(page: Page, signedIn: boolean): Promise<FakeAuth> {
         }
         if (method === 'POST' && path === '/auth/logout') {
           state.user = null;
-          return fulfill(route, 204);
-        }
-        if (method === 'POST' && path === '/auth/password') {
-          if (!state.user) return fulfill(route, 401, error('not_authenticated', 'Sign in first.'));
-          if (body?.current_password !== password) return fulfill(route, 401, error('invalid_credentials', 'Invalid email or password.'));
-          password = String(body?.new_password);
           return fulfill(route, 204);
         }
         return fulfill(route, 404, error('route_not_found', 'Not found.'));
@@ -189,9 +183,7 @@ test('create account: the rules, client checks, 409 email_taken, then 201 signs 
   await expect(signInHeading(page)).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Create an account' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'CREATE ACCOUNT' })).toBeVisible();
-  for (const rule of ['10 to 128 characters', 'Not the same as your email', 'Not a common password']) {
-    await expect(page.getByRole('listitem').filter({ hasText: rule })).toBeVisible();
-  }
+  await expect(page.getByRole('listitem').filter({ hasText: '8 to 128 characters' })).toBeVisible();
   await expect(field(page, 'PASSWORD')).toHaveAttribute('autocomplete', 'new-password');
   await expect(field(page, 'REPEAT PASSWORD')).toHaveAttribute('autocomplete', 'new-password');
 
@@ -200,13 +192,9 @@ test('create account: the rules, client checks, 409 email_taken, then 201 signs 
   await field(page, 'PASSWORD').fill('short');
   await field(page, 'REPEAT PASSWORD').fill('other');
   await page.getByRole('button', { name: 'CREATE ACCOUNT', exact: true }).click();
-  await expect(page.getByText('Use at least 10 characters.')).toBeVisible();
+  await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
   await expect(page.getByText('The passwords do not match.')).toBeVisible();
   await expect(field(page, 'PASSWORD')).toBeFocused();
-  await field(page, 'PASSWORD').fill(USER.email.toUpperCase());
-  await field(page, 'REPEAT PASSWORD').fill(USER.email.toUpperCase());
-  await field(page, 'REPEAT PASSWORD').press('Enter');
-  await expect(page.getByText('The password must not be your email.')).toBeVisible();
   expect(auth.calls.filter((c) => c.path === '/auth/register')).toHaveLength(0);
 
   await field(page, 'PASSWORD').fill(NEW_PASSWORD);
@@ -288,43 +276,6 @@ test('a 401 on a data request mid-session: the sign-in on the same URL, and back
   await expect(page.getByRole('heading', { level: 1, name: id, exact: true })).toBeVisible({ timeout: 15_000 });
   expect(new URL(page.url()).pathname).toBe(`/boreholes/${uid}`);
   expect(expectConsoleErrors(errors, AUTH_ANSWER)).toBeGreaterThan(0);
-});
-
-test('change password: client checks, a wrong current password, then success with a toast', async ({ page, errors }) => {
-  const auth = await fakeAuth(page, true);
-  await page.goto('/map');
-  await loaded(page);
-  await userButton(page, 'Ada Reviewer').click();
-  await page.getByRole('dialog', { name: 'Account' }).getByRole('button', { name: 'CHANGE PASSWORD' }).click();
-  const dialog = page.getByRole('dialog', { name: 'CHANGE PASSWORD' });
-  await expect(dialog).toBeVisible();
-  await expect(field(page, 'CURRENT PASSWORD')).toBeFocused();
-  // Escape closes it; the focus goes back to the user button.
-  await page.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
-  await expect(userButton(page, 'Ada Reviewer')).toBeFocused();
-
-  await userButton(page, 'Ada Reviewer').click();
-  await page.getByRole('dialog', { name: 'Account' }).getByRole('button', { name: 'CHANGE PASSWORD' }).click();
-  await dialog.getByRole('button', { name: 'CHANGE PASSWORD', exact: true }).click();
-  await expect(dialog.getByText('Enter your current password.')).toBeVisible();
-  await expect(field(page, 'CURRENT PASSWORD')).toBeFocused();
-
-  await field(page, 'CURRENT PASSWORD').fill('fictional-wrong-pass');
-  await field(page, 'NEW PASSWORD').fill(NEW_PASSWORD);
-  await field(page, 'REPEAT NEW PASSWORD').fill(NEW_PASSWORD);
-  await field(page, 'REPEAT NEW PASSWORD').press('Enter');
-  await expect(dialog.getByRole('alert')).toHaveText('The current password is wrong.');
-  await expect(field(page, 'CURRENT PASSWORD')).toBeFocused();
-
-  await field(page, 'CURRENT PASSWORD').fill(PASSWORD);
-  await field(page, 'REPEAT NEW PASSWORD').press('Enter');
-  await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'Password changed. Your other sessions were signed out.' })).toBeVisible();
-  expect(auth.calls.filter((c) => c.path === '/auth/password').at(-1)?.body).toEqual({ current_password: PASSWORD, new_password: NEW_PASSWORD });
-  // Still signed in.
-  await expect(userButton(page, 'Ada Reviewer')).toBeVisible();
-  expectConsoleErrors(errors, AUTH_ANSWER);
 });
 
 test('the sign-in screen fits a 390 px phone without sideways scrolling', async ({ page, errors }) => {

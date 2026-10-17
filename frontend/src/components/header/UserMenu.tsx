@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { createPortal } from 'react-dom';
 import type { User } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import styles from '../auth/Auth.module.css';
-import { ChangePasswordDialog, PASSWORD_CHANGED } from '../auth/ChangePasswordDialog';
 import { Popover } from '../Popover';
 import { ReviewerName } from '../ReviewerName';
 
@@ -14,7 +12,7 @@ export const userLabel = (u: Pick<User, 'displayName' | 'email'>) => u.displayNa
 
 /**
  * The header's identity control. Signed in (contract 1.3.0): a button with the user's name opening
- * a small menu with the email, the role, CHANGE PASSWORD and SIGN OUT. Without sign-in on the server
+ * a small menu with the email, the role and SIGN OUT. Without sign-in on the server
  * (and in sample mode): the optional "Your name" setting, as before. Nothing while it is unknown.
  */
 export function UserMenu() {
@@ -28,14 +26,10 @@ export function UserMenu() {
 /** The signed-in user's button and menu. Escape or a click outside closes the menu. */
 export function SignedInMenu({ user }: { user: User }) {
   const signOut = useAppStore((s) => s.signOut);
-  const showToast = useAppStore((s) => s.showToast);
   const busy = useAppStore((s) => s.authBusy);
   const [open, setOpen] = useState(false);
-  const [dialog, setDialog] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  /** The password dialog closed: the focus goes back to the button (its opener, the menu, is gone). */
-  const refocus = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -46,16 +40,6 @@ export function SignedInMenu({ user }: { user: User }) {
     return () => document.removeEventListener('pointerdown', onDown);
   }, [open]);
 
-  useEffect(() => {
-    if (dialog || !refocus.current) return;
-    refocus.current = false;
-    button.current?.focus();
-  }, [dialog]);
-
-  const closeDialog = () => {
-    refocus.current = true;
-    setDialog(false);
-  };
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape' || !open) return;
     // Closes only this menu, not the overlays behind it.
@@ -86,33 +70,12 @@ export function SignedInMenu({ user }: { user: User }) {
               <div className={styles.menuEmail}>{user.email}</div>
               <div className={styles.menuRole}>{ROLE_TEXT[user.role]}</div>
             </div>
-            <button
-              type="button"
-              className={styles.menuItem}
-              onClick={() => {
-                setOpen(false);
-                setDialog(true);
-              }}
-            >
-              CHANGE PASSWORD
-            </button>
             <button type="button" className={styles.menuItem} disabled={busy} onClick={() => void signOut()}>
               {busy ? 'SIGNING OUT…' : 'SIGN OUT'}
             </button>
           </div>
         </Popover>
       )}
-      {dialog &&
-        createPortal(
-          <ChangePasswordDialog
-            onClose={closeDialog}
-            onChanged={() => {
-              closeDialog();
-              showToast(PASSWORD_CHANGED);
-            }}
-          />,
-          document.body,
-        )}
     </div>
   );
 }

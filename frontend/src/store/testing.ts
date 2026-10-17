@@ -268,7 +268,6 @@ export function fakeSource(data: FakeData, over: Partial<DataSource> = {}): Fake
       throw new Error('The fake source has no sign-in');
     },
     signOut: async () => undefined,
-    changePassword: async () => undefined,
     setSessionListener: () => undefined,
     ...over,
   };

@@ -54,7 +54,6 @@ import {
   type WireValuePatch,
   adaptUser,
   type WireLogin,
-  type WirePasswordChange,
   type WireRegister,
   type WireUserAnswer,
 } from './adapters';
@@ -182,7 +181,7 @@ interface Answer {
  * Sign-in requests whose 401 is an answer (wrong password, no session yet), not a session that ended:
  * they never call the session listener.
  */
-const AUTH_ANSWER_PATHS = new Set(['/auth/login', '/auth/register', '/auth/password', '/auth/me', '/auth/logout']);
+const AUTH_ANSWER_PATHS = new Set(['/auth/login', '/auth/register', '/auth/me', '/auth/logout']);
 
 /** True for the answer of a request that needs a session and has none (any more). */
 export function endsSession(path: string, e: unknown): boolean {
@@ -792,11 +791,6 @@ export function createApiSource(base: string): DataSource {
       // Idempotent on the server; this side is signed out either way (later 401s stay quiet).
       sessionLost = true;
       await request<void>('POST', '/auth/logout');
-    },
-
-    async changePassword(currentPassword, newPassword) {
-      const body: WirePasswordChange = { current_password: currentPassword, new_password: newPassword };
-      await request<void>('POST', '/auth/password', body);
     },
 
     setSessionListener(listener) {

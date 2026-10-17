@@ -12,7 +12,6 @@ import type { AppState, AuthSlice } from './types';
 export const INVALID_CREDENTIALS = 'Email or password is wrong.';
 export const EMAIL_TAKEN = 'An account with this email exists. Sign in instead.';
 export const SESSION_ENDED = 'Your session ended. Sign in again.';
-export const WRONG_CURRENT_PASSWORD = 'The current password is wrong.';
 export const CHECK_FIELDS = 'Check the fields marked below.';
 
 /** "Too many attempts. Try again in N minutes." with the server's wait when it sent one. */
@@ -101,31 +100,6 @@ export const createAuthSlice: SliceCreator<AuthSlice> = ({ set, get }) => {
       }
       get().resetData();
       set({ authState: 'signedOut', user: null, authBusy: false, authError: null, authFieldErrors: {} });
-    },
-
-    async changePassword(currentPassword, newPassword) {
-      const source = get().source;
-      if (!source || get().authBusy) return false;
-      set({ authBusy: true, authError: null, authFieldErrors: {} });
-      try {
-        await source.changePassword(currentPassword, newPassword);
-        set({ authBusy: false });
-        return true;
-      } catch (e) {
-        // The source never reports this endpoint's 401s (invalid_credentials is an answer here), so an
-        // ended session is handled like any other.
-        if (isApiError(e, 'not_authenticated')) {
-          get().sessionEnded();
-          return false;
-        }
-        // Here a 401 invalid_credentials means the current password, not the sign-in.
-        if (isApiError(e, 'invalid_credentials')) {
-          set({ authBusy: false, authError: WRONG_CURRENT_PASSWORD, authFieldErrors: { current_password: WRONG_CURRENT_PASSWORD } });
-        } else {
-          set({ authBusy: false, ...authErrorOf(e) });
-        }
-        return false;
-      }
     },
 
     sessionEnded() {

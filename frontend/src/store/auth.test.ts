@@ -27,7 +27,7 @@ vi.mock('../data/createDataSource', () => ({
   apiBase: () => '/api/v1',
 }));
 const { useAppStore } = await import('./appStore');
-const { EMAIL_TAKEN, INVALID_CREDENTIALS, SESSION_ENDED, WRONG_CURRENT_PASSWORD, rateLimitText, fieldErrorsOf, signatureOf } = await import('./authSlice');
+const { EMAIL_TAKEN, INVALID_CREDENTIALS, SESSION_ENDED, rateLimitText, fieldErrorsOf, signatureOf } = await import('./authSlice');
 
 const st = () => useAppStore.getState();
 const initial = useAppStore.getState();
@@ -338,41 +338,6 @@ describe('signOut and an ended session', () => {
     await booting;
     expect(st().documents).toEqual([]);
     expect(st().authState).toBe('signedOut');
-  });
-});
-
-describe('changePassword', () => {
-  beforeEach(() => signedInStore());
-
-  it('sends both passwords and stays signed in', async () => {
-    const change = vi.spyOn(current, 'changePassword');
-    expect(await st().changePassword('fictional-old-phrase', 'fictional-new-phrase')).toBe(true);
-    expect(change).toHaveBeenCalledWith('fictional-old-phrase', 'fictional-new-phrase');
-    expect(st()).toMatchObject({ authState: 'signedIn', authBusy: false, authError: null });
-  });
-
-  it('a wrong current password is shown at that field', async () => {
-    (current as FakeSource).changePassword = async () => {
-      throw new ApiError(401, 'invalid_credentials', 'x');
-    };
-    expect(await st().changePassword('wrong', 'fictional-new-phrase')).toBe(false);
-    expect(st()).toMatchObject({ authState: 'signedIn', authError: WRONG_CURRENT_PASSWORD, authFieldErrors: { current_password: WRONG_CURRENT_PASSWORD } });
-  });
-
-  it('field errors of a 422 go to their fields', async () => {
-    (current as FakeSource).changePassword = async () => {
-      throw new ApiError(422, 'validation_error', 'x', [{ loc: ['body', 'new_password'], msg: 'This password is too common.' }]);
-    };
-    await st().changePassword('fictional-old-phrase', 'password1234');
-    expect(st().authFieldErrors).toEqual({ new_password: 'This password is too common.' });
-  });
-
-  it('an ended session (401 not_authenticated) shows the sign-in', async () => {
-    (current as FakeSource).changePassword = async () => {
-      throw new ApiError(401, 'not_authenticated', 'x');
-    };
-    expect(await st().changePassword('a', 'fictional-new-phrase')).toBe(false);
-    expect(st()).toMatchObject({ authState: 'signedOut', authError: SESSION_ENDED });
   });
 });
 
