@@ -15,12 +15,19 @@ x-backend-environment: &backend-environment
   DATABASE_URL: postgresql+asyncpg://geomemory:geomemory@db:5432/geomemory
   STORAGE_DIR: /data/storage
   GOTENBERG_URL: http://gotenberg:3000
-  # OCR: Mistral direct when MISTRAL_API_KEY works, else (or on a refused key) through OpenRouter,
-  # else with OpenAI; set OCR_PROVIDER=mistral, openrouter or openai in .env to force one route.
+  # Every document model call goes to Gemini 3.5 Flash on OpenRouter (OPENROUTER_API_KEY); the chat
+  # assistant stays on OpenAI (OPENAI_API_KEY). Mistral is only an optional fallback.
+  # OCR of scanned pages: openrouter_vision (Gemini reads the page render, text with boxes), else (or on a
+  # refused key) Mistral direct, the OpenRouter file parser, OpenAI; set OCR_PROVIDER in .env to force one.
   OCR_PROVIDER: ${OCR_PROVIDER:-auto}
-  # Classifier, extractor, second reads, sheet mapping: OpenRouter when OPENROUTER_API_KEY works, else
-  # (or on a refused key) OpenAI; set LLM_PROVIDER=openrouter or openai in .env to force one provider.
+  # Classifier, extractor, bh3 page reading, second reads, sheet mapping: OpenRouter, else (or on a refused
+  # key) OpenAI, else Mistral; set LLM_PROVIDER=openrouter, openai or mistral in .env to force one.
   LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+  # OpenRouter model ids (default google/gemini-3.5-flash for all four)
+  CLASSIFIER_MODEL: ${CLASSIFIER_MODEL:-google/gemini-3.5-flash}
+  EXTRACTOR_MODEL: ${EXTRACTOR_MODEL:-google/gemini-3.5-flash}
+  BH3_MODEL: ${BH3_MODEL:-google/gemini-3.5-flash}
+  OPENROUTER_OCR_MODEL: ${OPENROUTER_OCR_MODEL:-google/gemini-3.5-flash}
 
 services:
   db:

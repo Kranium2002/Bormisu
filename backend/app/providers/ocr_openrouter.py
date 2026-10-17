@@ -23,7 +23,9 @@ import httpx
 from PIL import Image
 
 from app.config import get_settings
-from app.providers.base import ProviderError, Usage, check_budget, post_with_retries, record_usage, token_cost
+from app.providers import reasoning
+from app.providers.base import ProviderError, Usage, check_budget, record_usage, token_cost
+from app.providers.llm import post_openrouter_chat
 from app.providers.ocr_mistral import OcrResponse
 
 logger = logging.getLogger("geomemory.providers.ocr_openrouter")
@@ -68,15 +70,6 @@ class OpenRouterOcrClient:
             raise ProviderError("OpenRouter is not configured.", retryable=False)
         self._http = http
 
-    def _headers(self) -> dict[str, str]:
-        key = self.settings.openrouter_api_key
-        assert key is not None
-        return {
-            "Authorization": f"Bearer {key.get_secret_value()}",
-            "HTTP-Referer": self.settings.openrouter_app_url,
-            "X-Title": self.settings.openrouter_app_title,
-        }
-
     async def ocr(self, data: bytes, mime: str, *, document_id: str | None, page_count: int) -> OcrResponse:
         if page_count != 1:
             raise ProviderError("OCR through OpenRouter takes one page per request.", retryable=False)
@@ -84,6 +77,8 @@ class OpenRouterOcrClient:
         per_page = float(settings.openrouter_ocr_usd_per_page)
         await check_budget(per_page)
         pdf = data if mime == "application/pdf" else image_to_pdf(data)
+        # The acknowledging model is CLASSIFIER_MODEL: reasoning off unless it requires it (then room for it).
+        thinking = reasoning.openrouter_reasoning(settings.classifier_model, "off")
         body = {
             "model": settings.classifier_model,
             "messages": [
@@ -103,26 +98,13 @@ class OpenRouterOcrClient:
                 }
             ],
             "plugins": [{"id": "file-parser", "pdf": {"engine": "mistral-ocr"}}],
-            "max_tokens": ACK_MAX_TOKENS,
+            "max_tokens": reasoning.output_tokens(ACK_MAX_TOKENS, thinking),
             "temperature": 0,
             "provider": {"data_collection": settings.openrouter_data_collection},
             "usage": {"include": True},
-            "reasoning": {"enabled": False},
+            "reasoning": thinking,
         }
-        url = settings.openrouter_base_url.rstrip("/") + "/chat/completions"
-        if self._http is not None:
-            response = await post_with_retries(
-                self._http, url, json=body, headers=self._headers(), provider="OpenRouter OCR"
-            )
-        else:
-            async with httpx.AsyncClient(timeout=TIMEOUT_S) as http:
-                response = await post_with_retries(
-                    http, url, json=body, headers=self._headers(), provider="OpenRouter OCR"
-                )
-        try:
-            payload: dict[str, Any] = response.json()
-        except ValueError as exc:
-            raise ProviderError("OpenRouter OCR sent an unreadable answer.", retryable=True) from exc
+        payload = await post_openrouter_chat(self._http, body, label="OpenRouter OCR", timeout_s=TIMEOUT_S)
         usage = payload.get("usage") or {}
         in_tok, out_tok = usage.get("prompt_tokens"), usage.get("completion_tokens")
         reported = usage.get("cost")

@@ -32,7 +32,7 @@ from app.pipeline.group import plan_groups
 from app.pipeline.orchestrator import run_pipeline
 from app.pipeline.schemas import EXTRACTION_SCHEMA_VERSION, ExtractedHeader, ExtractionResult, PageLabel
 from app.pipeline.types import ExtractionInput, PageGroup
-from app.providers import ocr_mistral
+from app.providers import ocr_mistral, reasoning
 from app.providers.base import ProviderError
 from app.providers.fakes import FakeClassifier, FakeOcrEngine, label
 from app.storage import get_storage, original_key, page_render_key
@@ -347,7 +347,8 @@ async def test_openrouter_extraction_is_stored_and_reused(db: None, keys: Any) -
     assert body["model"] == get_settings().extractor_model
     assert body["response_format"]["json_schema"]["name"] == "ExtractionResult"
     assert body["response_format"]["json_schema"]["strict"] is True
-    assert 6000 <= body["max_tokens"] <= 16000
+    # Gemini 3.5 needs reasoning on: its thinking gets extra room on top of the answer budget.
+    assert 6000 <= body["max_tokens"] - reasoning.config().extra_output_tokens <= 16000
     system = body["messages"][0]["content"]
     assert "mG: Medium gravel (soil)" in system and "Mg: " in system  # case-sensitive DIN keys
     assert "Watercontent [%]:" in system and "{{" not in system

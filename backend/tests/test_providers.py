@@ -199,7 +199,7 @@ async def test_mistral_ocr_request_and_normalisation(db: None, keys: Any) -> Non
     assert already.blocks[0].box == [0.1, 0.2, 0.2, 0.05]
 
 
-async def test_mistral_is_the_default_route_and_a_refused_key_moves_on(
+async def test_openrouter_is_the_default_route_and_a_refused_key_moves_to_mistral(
     db: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.db.models import ProviderCall
@@ -211,11 +211,9 @@ async def test_mistral_is_the_default_route_and_a_refused_key_moves_on(
     monkeypatch.setattr(llm, "_REFUSED", set())
     get_settings.cache_clear()
     answer = json.dumps(label("log_sheet", borehole_labels=["FX-1"]).model_dump(mode="json"))
-    with respx.mock() as mock:
-        mistral = mock.post("https://api.mistral.ai/v1/chat/completions").mock(
-            return_value=httpx.Response(200, json=_completion(answer, cost=None))
-        )
-        result = await OpenRouterClient().structured(
+
+    async def classify() -> Any:
+        return await OpenRouterClient().structured(
             output=PageLabel,
             system="s",
             content=[text_part("FICTIONAL")],
@@ -223,27 +221,26 @@ async def test_mistral_is_the_default_route_and_a_refused_key_moves_on(
             document_id=None,
             role="classifier",
         )
+
+    with respx.mock() as mock:
+        openrouter = mock.post("https://openrouter.ai/api/v1/chat/completions").mock(
+            return_value=httpx.Response(200, json=_completion(answer))
+        )
+        await classify()
+    assert json.loads(openrouter.calls[0].request.content)["model"] == "google/gemini-3.5-flash"
+
+    with respx.mock() as mock:
+        mock.post("https://openrouter.ai/api/v1/chat/completions").mock(return_value=httpx.Response(401))
+        mistral = mock.post("https://api.mistral.ai/v1/chat/completions").mock(
+            return_value=httpx.Response(200, json=_completion(answer, cost=None))
+        )
+        result = await classify()
     body = json.loads(mistral.calls[0].request.content)
     assert body["model"] == "mistral-small-latest" and body["response_format"]["type"] == "json_schema"
     assert "provider" not in body and "usage" not in body and "reasoning" not in body  # OpenRouter-only
     assert mistral.calls[0].request.headers["authorization"] == "Bearer mistral-test-not-real"
     # Mistral reports no cost: priced from data/prices.yaml (900 in, 120 out at 0.15 / 0.60 per million)
     assert result.data.borehole_labels == ["FX-1"] and result.cost_usd == pytest.approx(0.000207)
-
-    with respx.mock() as mock:
-        mock.post("https://api.mistral.ai/v1/chat/completions").mock(return_value=httpx.Response(401))
-        openrouter = mock.post("https://openrouter.ai/api/v1/chat/completions").mock(
-            return_value=httpx.Response(200, json=_completion(answer))
-        )
-        await OpenRouterClient().structured(
-            output=PageLabel,
-            system="s",
-            content=[text_part("FICTIONAL")],
-            purpose="classify",
-            document_id=None,
-            role="classifier",
-        )
-    assert json.loads(openrouter.calls[0].request.content)["model"] == "mistralai/mistral-small-2603"
     async with get_sessionmaker()() as session:
         providers = [row.provider for row in (await session.scalars(select(ProviderCall))).all()]
     assert providers.count("mistral") == 1 and providers.count("openrouter") == 1

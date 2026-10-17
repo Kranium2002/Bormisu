@@ -21,6 +21,9 @@ questions, lint, second reads and word-level evidence boxes work exactly as for 
 - bh3's text model (CLASSIFIER_MODEL) normalises layer descriptions for the DIN code; its output (lithology
   class, colour, consistency) feeds the DIN code and the English lithology only and is never cited as
   printed text.
+- Reasoning on OpenRouter (Gemini 3.5 Flash by default): off unless LLM_REASONING asks for it or the model
+  requires it (data/reasoning.yaml, `openrouter_options`); bh3 itself retries a "Reasoning is mandatory" 400
+  with reasoning on and leaves room for it in the answer.
 """
 
 from __future__ import annotations
@@ -56,6 +59,7 @@ from app.pipeline.schemas import (
     RawValue,
 )
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
+from app.providers import reasoning
 from app.providers.base import BudgetExceededError, Usage, record_usage, spent_usd, token_cost
 from app.storage import get_storage
 
@@ -100,7 +104,8 @@ class VisionRoute:
 
 
 def vision_route(settings: Settings) -> VisionRoute | None:
-    """Provider, key and models bh3 runs on: the first configured LLM route."""
+    """Provider, key and models bh3 runs on: the first configured LLM route (OpenRouter first in auto
+    mode)."""
     for route in settings.llm_routes:
         if route == "mistral" and settings.mistral_api_key is not None:
             key = settings.mistral_api_key.get_secret_value()
@@ -116,6 +121,19 @@ def vision_route(settings: Settings) -> VisionRoute | None:
             text_model = settings.llm_model("classifier", route)
             return VisionRoute(route, settings.openai_base_url, key, model, text_model)
     return None
+
+
+def openrouter_options(bridge: ModuleType, route: VisionRoute, model: str) -> dict[str, Any]:
+    """bh3's request options for one model: on OpenRouter the reasoning field per model
+    (app.providers.reasoning) and what bh3 does when a model refuses reasoning off; none elsewhere."""
+    if route.provider != "openrouter":
+        return {}
+    cfg = reasoning.config()
+    return {
+        "extra_body": bridge.openrouter_body(reasoning.openrouter_reasoning(model)),
+        "reasoning_effort": cfg.effort,
+        "reasoning_extra_tokens": cfg.extra_output_tokens,
+    }
 
 
 # ----------------------------------------------------------------------------------------------
@@ -215,8 +233,23 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
     workdir = get_storage().path(f"pages/{document_id}/bh3")
     workdir.mkdir(parents=True, exist_ok=True)
     cache = workdir / "llm"
-    vlm = bridge.make_vlm(route.base_url, route.api_key, route.model, on_call, cache_dir=cache, guard=guard)
-    llm = bridge.make_llm(route.base_url, route.api_key, route.text_model, cache_dir=cache, on_call=on_call)
+    vlm = bridge.make_vlm(
+        route.base_url,
+        route.api_key,
+        route.model,
+        on_call,
+        cache_dir=cache,
+        guard=guard,
+        **openrouter_options(bridge, route, route.model),
+    )
+    llm = bridge.make_llm(
+        route.base_url,
+        route.api_key,
+        route.text_model,
+        cache_dir=cache,
+        on_call=on_call,
+        **openrouter_options(bridge, route, route.text_model),
+    )
     source = str(pdf_path if pdf_path is not None else file_name)
 
     async def stopped(exc: BaseException) -> BudgetExceededError:

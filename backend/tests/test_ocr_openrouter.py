@@ -80,7 +80,9 @@ async def test_request_shape_parsed_text_and_cost(db: None, openrouter_only: Any
     assert body["plugins"] == [{"id": "file-parser", "pdf": {"engine": "mistral-ocr"}}]
     file_part = next(p for p in body["messages"][0]["content"] if p["type"] == "file")
     assert file_part["file"]["file_data"].startswith("data:application/pdf;base64,")
-    assert body["model"] == get_settings().classifier_model and body["reasoning"] == {"enabled": False}
+    # CLASSIFIER_MODEL acknowledges the file; Gemini 3.5 Flash cannot run with reasoning off.
+    assert body["model"] == get_settings().classifier_model and body["reasoning"] == {"effort": "low"}
+    assert body["max_tokens"] > 8  # room for the thinking
     assert response.model == MODEL_TAG and response.pages_processed == 1
     page = response.raw["pages"][0]
     assert page["markdown"].startswith("BOREHOLE LOG FX-1") and page["blocks"] == []
@@ -121,8 +123,9 @@ def test_route_choice() -> None:
         return Settings(**env).ocr_route
 
     assert route(openrouter_api_key="x", ocr_provider="openrouter") == "openrouter"
-    assert route(openrouter_api_key="x", mistral_api_key="y", ocr_provider="auto") == "mistral"
-    assert route(openrouter_api_key="x", ocr_provider="auto") == "openrouter"
+    assert route(openrouter_api_key="x", mistral_api_key="y", ocr_provider="auto") == "openrouter_vision"
+    assert route(openrouter_api_key="x", ocr_provider="auto") == "openrouter_vision"
+    assert route(mistral_api_key="y", ocr_provider="auto") == "mistral"
     assert route(mistral_api_key="y", ocr_provider="openrouter") is None
     assert route(ocr_provider="auto") is None
     settings = Settings(openrouter_api_key="x", ocr_provider="openrouter")
@@ -180,7 +183,7 @@ async def test_pipeline_ocr_through_openrouter_one_page_per_call(
     assert inp.blocks and all(b.box is None for b in inp.blocks.values())  # page-level citations
 
 
-async def test_auto_falls_back_to_openrouter_when_the_mistral_key_is_refused(
+async def test_auto_falls_back_to_the_parser_when_vision_and_mistral_are_refused(
     db: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test-not-real")
@@ -196,13 +199,19 @@ async def test_auto_falls_back_to_openrouter_when_the_mistral_key_is_refused(
             mistral = mock.post(MISTRAL).mock(
                 return_value=httpx.Response(401, json={"message": "Unauthorized"})
             )
-            openrouter = mock.post(OPENROUTER).mock(
-                return_value=httpx.Response(200, json=parsed("FICTIONAL"))
-            )
+
+            def answer(request: httpx.Request) -> httpx.Response:
+                # The key may not use the vision model (403); the file parser still reads.
+                if "plugins" not in json.loads(request.content):
+                    return httpx.Response(403, json={"error": {"code": 403}})
+                return httpx.Response(200, json=parsed("FICTIONAL"))
+
+            openrouter = mock.post(OPENROUTER).mock(side_effect=answer)
             await run_pipeline(doc_id)
-        assert mistral.call_count == 1 and openrouter.call_count == 2
-        assert {"mistral"} == ocr_module._REFUSED_ROUTES  # later documents start with OpenRouter
-        assert ocr_module.route_chain(get_settings()) == ["openrouter", "mistral"]
+        # vision: page 2 refused; Mistral: both pages in one request, refused; the parser read both pages
+        assert mistral.call_count == 1 and openrouter.call_count == 3
+        assert {"openrouter_vision", "mistral"} == ocr_module._REFUSED_ROUTES  # later documents: the parser
+        assert ocr_module.route_chain(get_settings()) == ["openrouter", "openrouter_vision", "mistral"]
         async with get_sessionmaker()() as session:
             done = await session.scalar(
                 select(func.count())

@@ -26,15 +26,20 @@ RETRY_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
 RATE_LIMITED = 429
 MAX_BACKOFF_S = 30.0  # longest single backoff without a Retry-After
 MAX_RETRY_AFTER_S = 60.0  # longest single wait a Retry-After can ask for
+DETAIL_CHARS = 500  # start of a refused request's answer kept on the error (ProviderError.detail)
 
 
 class ProviderError(RuntimeError):
-    """A provider call failed. The message is safe to show (no response bodies, keys or internals)."""
+    """A provider call failed. The message is safe to show (no response bodies, keys or internals); `detail`
+    holds the start of a refused request's answer for the code to inspect, and is never shown or logged."""
 
-    def __init__(self, message: str, *, retryable: bool, status: int | None = None) -> None:
+    def __init__(
+        self, message: str, *, retryable: bool, status: int | None = None, detail: str | None = None
+    ) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.status = status
+        self.detail = detail
 
 
 class BudgetExceededError(ProviderError):
@@ -133,7 +138,10 @@ async def post_with_retries(
                 continue
             retryable = status in RETRY_STATUS
             last = ProviderError(
-                f"{provider} refused the request ({status}).", retryable=retryable, status=status
+                f"{provider} refused the request ({status}).",
+                retryable=retryable,
+                status=status,
+                detail=None if retryable else response.text[:DETAIL_CHARS],
             )
             if not retryable:
                 logger.warning("%s returned %s", provider, status)

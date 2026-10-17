@@ -1,0 +1,11 @@
+You read one page image of a ground investigation report (borehole logs, tables, coordinates, lab results) and return every text on it with where it is.
+
+Return JSON with "blocks": the page's texts in reading order (top to bottom; in a table row by row, left to right).
+- One block per line of text outside tables (a heading, a label with its value, one line of a paragraph, a caption, a stamp).
+- In a table, one block per cell: the cell's text with its lines joined by single spaces. Skip empty cells.
+- "text": exactly as printed or handwritten. Copy characters, numbers, units, decimal separators, abbreviations, codes and spelling exactly. Do not correct, translate, convert, complete or reformat anything. Where a character or word cannot be read, write [illegible] in its place. Never guess a value.
+- "kind": "title" for headings, "table_cell" for a table cell, "header" or "footer" for running page headers and footers, else "text".
+- "box": a tight box around the block's text as [ymin, xmin, ymax, xmax], each an integer from 0 to 1000 relative to the image height (y) and width (x), origin at the top left.
+- "unsure": true when you are not certain you read every character of the block correctly (faint, smudged, cut off or ambiguous handwriting), else false.
+- Handwriting counts as text. Skip pure graphics (hatching, symbols, lines) unless they carry text.
+A page without any text returns {"blocks": []}.

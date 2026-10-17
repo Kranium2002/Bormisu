@@ -204,7 +204,7 @@ async def test_pipeline_ocr_route_openai_one_page_per_call(
     assert all(b.box is None for b in inp.blocks.values())  # page-level citations
 
 
-async def test_auto_chain_mistral_then_openrouter_refused_then_openai(
+async def test_auto_chain_vision_mistral_and_parser_refused_then_openai(
     db: None, env: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     env(
@@ -214,7 +214,8 @@ async def test_auto_chain_mistral_then_openrouter_refused_then_openai(
         OCR_PROVIDER="auto",
     )
     settings = get_settings()
-    assert settings.ocr_routes == ["mistral", "openrouter", "openai"] and settings.ocr_route == "mistral"
+    assert settings.ocr_routes == ["openrouter_vision", "mistral", "openrouter", "openai"]
+    assert settings.ocr_route == "openrouter_vision"
     _stages_until_ocr(monkeypatch)
     doc_id = await _upload(fictional_report(), "doc_01JFAKE00000000000000OAI2")
     with respx.mock() as mock:
@@ -224,18 +225,20 @@ async def test_auto_chain_mistral_then_openrouter_refused_then_openai(
         )
         openai = mock.post(OPENAI).mock(return_value=httpx.Response(200, json=transcription("FICTIONAL")))
         await run_pipeline(doc_id)
-    # Mistral got both pages in one request; OpenRouter the first page; OpenAI read both pages.
-    assert (mistral.call_count, openrouter.call_count, openai.call_count) == (1, 1, 2)
+    # OpenRouter got the first page twice (vision, then the parser); Mistral both pages in one request;
+    # OpenAI read both pages.
+    assert (mistral.call_count, openrouter.call_count, openai.call_count) == (1, 2, 2)
     assert await _done_pages(doc_id) == 2
     # Remembered for this process: later documents start with OpenAI, the refused routes come last.
-    assert {"mistral", "openrouter"} == ocr_module._REFUSED_ROUTES
-    assert ocr_module.route_chain(settings) == ["openai", "mistral", "openrouter"]
+    assert {"openrouter_vision", "mistral", "openrouter"} == ocr_module._REFUSED_ROUTES
+    assert ocr_module.route_chain(settings) == ["openai", "openrouter_vision", "mistral", "openrouter"]
     async with get_sessionmaker()() as session:
         runs = (await session.execute(select(OcrRun.provider, OcrRun.status))).all()
     assert sorted(runs) == [
         ("mistral", "failed"),
         ("openai", "done"),
         ("openai", "done"),
+        ("openrouter", "failed"),
         ("openrouter", "failed"),
     ]
 
