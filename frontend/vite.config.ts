@@ -27,7 +27,9 @@ export default defineConfig(({ mode }) => {
       fs: { allow: [searchForWorkspaceRoot(process.cwd()), DIN_DIR] },
       proxy: {
         // SSE (/api/v1/events) and the chat stream pass through unbuffered: the proxy streams by default.
-        '/api': { target: apiTarget, changeOrigin: true },
+        // changeOrigin false keeps the browser's Host, so the backend's CSRF check (Origin must match the
+        // request's own host, as behind nginx) accepts a dev server on any port.
+        '/api': { target: apiTarget, changeOrigin: false },
       },
     },
     test: {
