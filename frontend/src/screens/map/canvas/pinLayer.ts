@@ -9,7 +9,9 @@
  *   pins; with a result set active, clusters without a member are dimmed.
  * - Adding thousands of pins is chunked by markercluster; until it is done (`loading`) new data waits
  *   and reveals are queued, and the layer is disposed only after it (a chunk running on a removed
- *   map would throw).
+ *   map would throw). The markers are made at once (so `has`, `row` and reveals know them), but
+ *   handed to the cluster group in a task of its own: a layer disposed before that (React StrictMode's
+ *   second mount, leaving the map at once) never clusters them.
  * - Cluster icons are not in the tab order: the results table under the map is the keyboard path to
  *   every borehole (FRONTEND.md section 6).
  */
@@ -104,6 +106,8 @@ export class PinLayer {
   private idle: (() => void)[] = [];
   /** The newest pins handed over while a load was running. */
   private queued: PinRow[] | null = null;
+  /** The task that hands new markers to the cluster group, while it is pending. */
+  private addTimer: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
   /** Bumped by every reveal and by a drag: an older reveal's pending steps then do nothing. */
   private revealToken = 0;
@@ -118,7 +122,9 @@ export class PinLayer {
     this.group = L.markerClusterGroup({
       ...clusterOptions(o.reducedMotion),
       chunkProgress: (done, total) => {
-        if (done >= total) this.loaded();
+        // markercluster reports the last chunk before it puts the new clusters on the map: what waits
+        // for the load (a dispose that removes the map, the next sync) runs after that.
+        if (done >= total) queueMicrotask(() => this.loaded());
       },
       iconCreateFunction: (cluster) => this.clusterIcon(cluster),
     });
@@ -187,9 +193,12 @@ export class PinLayer {
     // markercluster takes any pins here (its typings say Marker): it only walks their parent clusters.
     if (restyled.length) this.group.refreshClusters(restyled as unknown as L.Marker[]);
     if (add.length) {
-      // Chunked: loaded() runs when the last chunk is in (at once for a small batch).
+      // Chunked: loaded() runs when the last chunk is in (right after it for a small batch).
       this.loads += 1;
-      this.group.addLayers(add, true);
+      this.addTimer = setTimeout(() => {
+        this.addTimer = undefined;
+        this.group.addLayers(add, true);
+      }, 0);
     } else {
       this.o.onChange();
     }
@@ -321,6 +330,12 @@ export class PinLayer {
     this.idle = [];
     this.cancelReveal();
     this.map.off('dragstart', this.cancelReveal);
+    if (this.addTimer !== undefined) {
+      // Markers never handed to the cluster group: nothing to wait for.
+      clearTimeout(this.addTimer);
+      this.addTimer = undefined;
+      this.loads = Math.max(0, this.loads - 1);
+    }
     this.whenIdle(() => {
       const group = this.group as unknown as GroupInternals;
       // The end of a running cluster animation, now instead of on its timer.

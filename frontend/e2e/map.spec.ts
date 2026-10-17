@@ -61,12 +61,16 @@ async function canvasColours(page: Page, min = 12): Promise<string[]> {
     }, min);
 }
 
-/** Pixels drawn on the pins' canvas inside a screen rectangle. */
+/**
+ * Pixels drawn on the pins' canvas inside a screen rectangle. Leaflet adds the canvas with the first
+ * pin drawn on its own: while every pin is inside a cluster there is none, and nothing is drawn.
+ */
 async function canvasPixelsIn(page: Page, box: { x: number; y: number; width: number; height: number }): Promise<number> {
   return mapRegion(page)
     .locator('.leaflet-pins-pane canvas')
-    .evaluate((c, b) => {
-      const canvas = c as HTMLCanvasElement;
+    .evaluateAll((cs, b) => {
+      const canvas = cs[0] as HTMLCanvasElement | undefined;
+      if (!canvas) return 0;
       const r = canvas.getBoundingClientRect();
       const scale = canvas.width / r.width;
       const x0 = Math.max(0, Math.floor((b.x - r.left) * scale));
@@ -142,9 +146,9 @@ test.describe('map canvas', () => {
   test('F9: pins are drawn on a canvas and clustered; every pin is counted once in the clusters or on its own', async ({ page }) => {
     const stats = await mapStats(page);
     expect(stats).toMatchObject({ pins: SAMPLE_PINS, inView: SAMPLE_PINS, ready: true, colourBy: 'status' });
-    // No SVG pin elements: the pins are canvas drawings.
+    // No SVG pin elements: the pins are canvas drawings (the canvas comes with the first pin drawn on its own).
     await expect(mapRegion(page).locator('.leaflet-overlay-pane path.leaflet-interactive')).toHaveCount(0);
-    await expect(mapRegion(page).locator('.leaflet-pins-pane canvas')).toHaveCount(1);
+    await expect(mapRegion(page).locator('.leaflet-pins-pane canvas')).toHaveCount(stats.drawn > 0 ? 1 : 0);
     const counts = await clusterCounts(page);
     expect(counts.length, 'clusters at the first view').toBeGreaterThan(0);
     expect(counts.reduce((a, b) => a + b, 0) + stats.drawn).toBe(SAMPLE_PINS);
@@ -158,6 +162,13 @@ test.describe('map canvas', () => {
     expect(rows.map(([label]) => label)).toEqual(['Approved', 'In review', 'Unreviewed', 'Needs attention']);
     expect(rows.reduce((a, [, n]) => a + n, 0)).toBe(SAMPLE_PINS);
     await expect(legend(page).locator('ul')).toHaveAttribute('aria-live', 'polite');
+
+    // A click on a cluster zooms into it; every pin is still counted once.
+    const zoomOf = () => Number(new URL(page.url()).searchParams.get('at')?.split(',')[2]);
+    const before = zoomOf();
+    await clusters(page).first().click();
+    await expect.poll(zoomOf).toBeGreaterThan(before);
+    await expect(mapRegion(page)).toHaveAttribute('data-pins', String(SAMPLE_PINS));
   });
 
   test('FE-MAP-1: the first view shows every pin inside the map, none under the legend', async ({ page }) => {
