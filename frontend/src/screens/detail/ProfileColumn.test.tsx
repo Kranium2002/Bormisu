@@ -53,6 +53,18 @@ describe('ProfileColumn', () => {
     expect(render(b).match(/no pattern assigned/g)).toHaveLength(1);
   });
 
+  it('draws DIN 4023 secondary components, Table 6 symbols and cored sections', () => {
+    const b = makeBorehole({ layers: [
+      makeLayer({ n: 1, from: 0, to: 3, din: 'T, u', props: { consistencyDensity: 'steif' } }),
+      makeLayer({ n: 2, from: 3, to: 6, din: 'Sst', props: { weathering: 'w2_3', core: true } }),
+    ] });
+    const html = render(b);
+    for (const id of ['din-sym-soil_U', 'din-prop-consistency_firm', 'din-prop-weathering_w2_3', 'din-cored']) {
+      expect(html).toContain(`id="${id}"`);
+      expect(html).toContain(`url(#${id})`);
+    }
+  });
+
   it('says "ET not stated" when the final depth is unknown', () => {
     expect(render({ ...borehole(), finalDepth: null })).toContain('ET not stated');
   });
@@ -63,8 +75,8 @@ describe('ProfileColumn', () => {
     expect(html).toContain('ET 18.00 m');
     expect(html).toContain('final depth 18.00 m');
     expect(html).toContain('log ends 6.00 ≠ ET 18.00');
-    // DIN pattern path data ("C7.3,164.4") isn't a depth.
-    expect(html.replace(/<pattern[\s\S]*?<\/pattern>/g, '')).not.toMatch(/\d,\d\d/);
+    // DIN symbol path data ("C7.3,164.4", "L36,60.5") isn't a depth.
+    expect(html.replace(/<pattern[\s\S]*?<\/pattern>/g, '').replace(/ d="[^"]*"/g, '')).not.toMatch(/\d,\d\d/);
   });
 });
 

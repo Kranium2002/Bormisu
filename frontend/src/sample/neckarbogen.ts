@@ -6,7 +6,7 @@
 import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
 import { formatSpt, sptLint } from '../domain/spt';
-import type { Borehole, ExtractedValue, Layer, Method, PageItem, PatternId, Spt } from '../domain/types';
+import type { Borehole, ExtractedValue, Layer, LayerProps, Method, PageItem, PatternId, Spt } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
 import { Ln, sampleValue, T, textWidth } from './helpers';
 
@@ -25,15 +25,17 @@ interface LayRow {
   pat: PatternId; fill: string; st: string; m: Method; c: number;
   spt?: { raw: string; at: number } & ({ inc: number[]; n: number } | { refusal: true; blows: number; pen: number });
   rem?: string[];
+  /** DIN 4023 extras, only where the printed description states them ("weich bis steif" picks none). */
+  props?: LayerProps;
 }
 
 const LAY: LayRow[] = [
   { n: 1, from: 0, to: 0.4, dr: '0,40', raw: ['Mutterboden: Schluff,', 'humos, dunkelbraun'], en: 'Topsoil: silt, humic, dark brown', din: 'Mu', pat: 'topsoil', fill: '#E8D9C4', st: 'qh', m: 'Read', c: 0.96 },
   { n: 2, from: 0.4, to: 2.1, dr: '2,10', raw: ['Auffüllung: Schluff,', 'kiesig, Ziegelreste,', 'braun'], en: 'Fill: silt, gravelly, brick fragments, brown', din: 'A', pat: 'fill', fill: '#EFEFEF', st: 'y', m: 'OCR', c: 0.84, spt: { raw: '3,4,5 = 8', inc: [3, 4, 5], n: 8, at: 1.5 } },
-  { n: 3, from: 2.1, to: 4.8, dr: '4,80', raw: ['Ton, schluffig, steif,', 'grau'], en: 'Clay, silty, stiff, grey', din: 'T, u', pat: 'clay', fill: '#DCD2EA', st: 'qh', m: 'Read', c: 0.95, spt: { raw: '4,5,5 = 10', inc: [4, 5, 5], n: 10, at: 3.5 }, rem: ['GW 3,10', 'RWS 2,40'] },
+  { n: 3, from: 2.1, to: 4.8, dr: '4,80', raw: ['Ton, schluffig, steif,', 'grau'], en: 'Clay, silty, stiff, grey', din: 'T, u', pat: 'clay', fill: '#DCD2EA', st: 'qh', m: 'Read', c: 0.95, spt: { raw: '4,5,5 = 10', inc: [4, 5, 5], n: 10, at: 3.5 }, rem: ['GW 3,10', 'RWS 2,40'], props: { consistencyDensity: 'steif' } },
   { n: 4, from: 4.8, to: 8.2, dr: '8,20', raw: ['Schluff, sandig, weich', 'bis steif, graubraun'], en: 'Silt, sandy, soft to stiff, grey-brown', din: 'U, s', pat: 'silt', fill: '#E1EAB8', st: 'qh', m: 'OCR', c: 0.81, spt: { raw: '2,3,4 = 7', inc: [2, 3, 4], n: 7, at: 6 } },
-  { n: 5, from: 8.2, to: 11.2, dr: '11,20', raw: ['Kies, sandig, dicht,', 'gerundet, grau'], en: 'Gravel, sandy, dense, rounded, grey', din: 'G, s', pat: 'gravel', fill: '#FFFACD', st: 'qp', m: 'Read', c: 0.93, spt: { raw: '50/30', refusal: true, blows: 50, pen: 30, at: 10.5 } },
-  { n: 6, from: 11.2, to: 14.5, dr: '14,50', raw: ['Sandstein, verwittert,', 'mürbe, rotbraun', '(Stubensandstein)'], en: 'Sandstone, weathered, friable, red-brown', din: 'Sst', pat: 'sst', fill: '#FFD08A', st: 'kmS', m: 'OCR', c: 0.79, rem: ['TCR 74', 'RQD 18'] },
+  { n: 5, from: 8.2, to: 11.2, dr: '11,20', raw: ['Kies, sandig, dicht,', 'gerundet, grau'], en: 'Gravel, sandy, dense, rounded, grey', din: 'G, s', pat: 'gravel', fill: '#FFFACD', st: 'qp', m: 'Read', c: 0.93, spt: { raw: '50/30', refusal: true, blows: 50, pen: 30, at: 10.5 }, props: { consistencyDensity: 'dicht' } },
+  { n: 6, from: 11.2, to: 14.5, dr: '14,50', raw: ['Sandstein, verwittert,', 'mürbe, rotbraun', '(Stubensandstein)'], en: 'Sandstone, weathered, friable, red-brown', din: 'Sst', pat: 'sst', fill: '#FFD08A', st: 'kmS', m: 'OCR', c: 0.79, rem: ['TCR 74', 'RQD 18'], props: { weathering: 'w2_3', jointing: 'highly_jointed', core: true } },
 ];
 
 /** Page of a layer: layers 1–4 on sheet 1 (p.7), 5–6 on sheet 2 (p.8). */
@@ -94,6 +96,7 @@ function bk07Layers(): Layer[] {
     pattern: l.pat, fill: l.fill, strat: l.st, method: l.m, confidence: l.c,
     ...(l.spt ? { spt: toSpt(l.spt) } : {}),
     ...(l.n === 6 ? { tcr: 74, rqd: 18 } : {}),
+    ...(l.props ? { props: l.props } : {}),
   }));
 }
 

@@ -23,12 +23,15 @@ export const X = {
   layerX: 104,
   layerW: 100,
   layerMid: 154,
-  bottomTickTo: 212,
-  bottomLabel: 215,
-  code: 250,
+  /** DIN 4023 Table 6 strip right of the column (consistency, density, weathering, jointing, wet). */
+  propX: 207,
+  propW: 44,
+  bottomTickTo: 256,
+  bottomLabel: 259,
+  code: 294,
   rockFrom: 100,
-  rockTo: 300,
-  refusalX: 288,
+  rockTo: 344,
+  refusalX: 332,
 } as const;
 
 export interface DepthScale {
@@ -82,9 +85,6 @@ export function notLogged(b: Pick<Borehole, 'finalDepth' | 'logBottom' | 'layers
     label: `log ends ${b.logBottom.toFixed(2)} ≠ ET ${b.finalDepth.toFixed(2)}`,
   };
 }
-
-/** Path of a groundwater triangle (point down) whose tip sits just above the level line at y. */
-export const gwTriangle = (y: number) => `M90 ${y - 11} L102 ${y - 11} L96 ${y - 1} Z`;
 
 /**
  * True unless the reviewer marked the value "not in source" or "illegible": the profile draws only

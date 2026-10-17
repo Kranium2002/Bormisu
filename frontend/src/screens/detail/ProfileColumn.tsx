@@ -1,14 +1,13 @@
 import type { KeyboardEvent } from 'react';
 import { K } from '../../domain/keys';
-import type { Borehole, Layer } from '../../domain/types';
+import type { Borehole, GroundwaterReading, Layer } from '../../domain/types';
 import { COL, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
 import { GW_LABEL } from './detailModel';
-import { dinPatternId, MISSING_PATTERN, patternDefs } from './dinPatterns';
+import { CORED_PATTERN, CORED_W, GW_SYMBOL, layerFill, MISSING_PATTERN, patternDefs, PROP_K, propertySymbols } from './dinPatterns';
 import {
   depthScale,
   depthTicks,
   drawnMarks,
-  gwTriangle,
   notLogged,
   PROFILE_H,
   PROFILE_TOP,
@@ -29,6 +28,16 @@ interface Props {
 const INK = COL.text;
 /** Hatching of the "not logged" band; the layers use the DIN 4023 patterns (dinPatterns.ts). */
 const NL_PATTERN = 'bp-nl';
+
+/** DIN 4023 groundwater symbol (Table 5), 12 px wide, tip on the water level, in the groundwater blue. */
+function GwSymbol({ type, x, tipY }: { type: GroundwaterReading['type']; x: number; tipY: number }) {
+  const sym = GW_SYMBOL[type];
+  const h = (sym.h * 12) / sym.w;
+  return (
+    <svg x={x} y={tipY - h} width={12} height={h} viewBox={`0 0 ${sym.w} ${sym.h}`}
+      dangerouslySetInnerHTML={{ __html: sym.inner.replaceAll('#000', COL.gw) }} />
+  );
+}
 
 /** Enter / Space on a focusable SVG group acts like a click. */
 const onKeyActivate = (fn: () => void) => (e: KeyboardEvent) => {
@@ -52,7 +61,9 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
   // Measurements the reviewer marked "not in source" / "illegible" aren't drawn.
   const { refusal, groundwater, rockHead } = drawnMarks(b);
   const etY = y(depth) + 18;
-  const dinIds = b.layers.map(dinPatternId);
+  const fills = b.layers.map(layerFill);
+  const props = b.layers.map((l) => propertySymbols(l.props));
+  const defIds = [...fills.flat().map((f) => f.patternId), ...props.flat().map((p) => p.patternId), CORED_PATTERN];
   // The rock head line and its label already give that depth; a bottom label there would be crossed out.
   const onRockHead = (d: number) => rockHead != null && Math.abs(d - rockHead) < 0.005;
   /** Baseline of a layer's DIN code: mid-layer, or just above the R marker's line when that would cross it. */
@@ -74,7 +85,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       role="group"
       aria-label={`DIN 4023 profile of ${b.id}, ${b.layers.length} layers, final depth ${b.finalDepth != null ? `${b.finalDepth.toFixed(2)} m` : 'not stated'}`}
     >
-      <defs dangerouslySetInnerHTML={{ __html: patternDefs(dinIds) }} />
+      <defs dangerouslySetInnerHTML={{ __html: patternDefs(defIds) }} />
       <defs>
         <pattern id={NL_PATTERN} width="8" height="8" patternUnits="userSpaceOnUse">
           <path d="M0 8 L8 0" stroke={COL.border} strokeWidth="1" />
@@ -112,7 +123,9 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       {/* lithology */}
       {b.layers.map((l, i) => {
         const h = (l.to - l.from) * s;
-        const dinId = dinIds[i];
+        const missing = fills[i].some((f) => f.patternId === MISSING_PATTERN);
+        const top = y(l.from);
+        let px = X.propX;  // next free x in the Table 6 strip
         const select = () => onSelectLayer(l.n);
         return (
           <g
@@ -125,12 +138,39 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             onClick={select}
             onKeyDown={onKeyActivate(select)}
           >
-            <title>{`Layer ${l.n} · ${l.din} · ${l.lithology}${dinId === MISSING_PATTERN ? ` · no DIN 4023 pattern for "${l.din}"` : ''}`}</title>
-            {/* white under the tile: "A" (fill) has no DIN colour; unknown code: plain #E0E0E0 (README) */}
-            <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={dinId ? '#fff' : '#E0E0E0'} />
-            {dinId && <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={`url(#${dinId})`} />}
-            <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill="none" stroke={INK} />
-            {dinId === MISSING_PATTERN && h > 12 && (
+            <title>{`Layer ${l.n} · ${l.din} · ${l.lithology}${missing ? ` · no DIN 4023 pattern for "${l.din}"` : ''}`}</title>
+            {/* white under the tile: "A" (fill) has no DIN colour; nothing named: plain #E0E0E0 (README) */}
+            <rect x={X.layerX} y={top} width={X.layerW} height={h} fill={fills[i].length ? '#fff' : '#E0E0E0'} />
+            {fills[i].map((f, j) => (
+              <rect key={j} x={X.layerX + f.x0 * X.layerW} y={top} width={(f.x1 - f.x0) * X.layerW} height={h} fill={f.fill} />
+            ))}
+            <rect x={X.layerX} y={top} width={X.layerW} height={h} fill="none" stroke={INK} />
+            {/* cored section: double line left of the column (Table 5) */}
+            {l.props?.core && (
+              <g transform={`translate(${X.layerX - CORED_W - 2},${top})`}>
+                <title>Cored</title>
+                <rect width={CORED_W} height={h} fill={`url(#${CORED_PATTERN})`} />
+              </g>
+            )}
+            {/* Table 6 symbols side by side right of the column, each repeated over the layer's height */}
+            {props[i].map((p) => {
+              const x = px;
+              px += p.w + 2;
+              return (
+                <g key={p.key} transform={`translate(${x},${top})`}>
+                  <title>{p.label}</title>
+                  {p.patternId ? <rect width={p.w} height={h} fill={`url(#${p.patternId})`} />
+                    : <svg width={p.w} height={Math.min(p.h, h)} viewBox={`0 0 ${p.w / PROP_K} ${p.h / PROP_K}`} dangerouslySetInnerHTML={{ __html: p.markup! }} />}
+                  {p.frame != null && (
+                    <>
+                      <rect width={p.w} height={p.frame} fill={INK} />
+                      <rect y={h - p.frame} width={p.w} height={p.frame} fill={INK} />
+                    </>
+                  )}
+                </g>
+              );
+            })}
+            {missing && h > 12 && (
               <text x={X.layerMid} y={y((l.from + l.to) / 2) + 3} fontSize="9" fontWeight="700" textAnchor="middle" fill="#fff">
                 no pattern assigned
               </text>
@@ -216,7 +256,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
           >
             <title>{label}</title>
             <line x1={X.gwFrom} y1={gy} x2={X.layerX} y2={gy} stroke={COL.gw} strokeWidth="1.5" />
-            <path d={gwTriangle(gy)} fill={g.type === 'strike' ? COL.gw : '#fff'} stroke={COL.gw} strokeWidth="1.5" />
+            <GwSymbol type={g.type} x={90} tipY={gy} />
           </g>
         );
       })}
@@ -252,28 +292,34 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
 /** Legend under the profile: only the symbols this profile draws. Nothing drawn, no legend. */
 export function ProfileLegend({ borehole }: { borehole: Borehole }) {
   const { groundwater, refusal } = drawnMarks(borehole);
-  const strike = groundwater.some((g) => g.type === 'strike');
-  // Rest levels and other readings share the hollow triangle.
-  const hollow = [...new Set(groundwater.filter((g) => g.type !== 'strike').map((g) => g.type))];
-  if (!strike && hollow.length === 0 && !refusal) return null;
+  const gwTypes = [...new Set(groundwater.map((g) => g.type))];
+  // DIN 4023 §5.10: every symbol drawn is explained. Table 6 symbols once each, in first-seen order.
+  const props = [...new Map(borehole.layers.flatMap((l) => propertySymbols(l.props)).map((p) => [p.key, p])).values()];
+  const cored = borehole.layers.some((l) => l.props?.core);
+  if (!gwTypes.length && !props.length && !cored && !refusal) return null;
   return (
     <div className={styles.legend}>
-      {strike && (
+      {gwTypes.map((t) => (
+        <span key={t} className={styles.legendItem}>
+          <svg width="12" height="11" aria-hidden="true"><GwSymbol type={t} x={0} tipY={11} /></svg>
+          {`GW ${GW_LABEL[t].toLowerCase()}`}
+        </span>
+      ))}
+      {cored && (
         <span className={styles.legendItem}>
-          <svg width="12" height="10" aria-hidden="true">
-            <path d="M1 1 L11 1 L6 9 Z" fill={COL.gw} />
-          </svg>
-          GW strike
+          <svg width={CORED_W} height="12" aria-hidden="true"><rect width={CORED_W} height="12" fill={`url(#${CORED_PATTERN})`} /></svg>
+          cored
         </span>
       )}
-      {hollow.length > 0 && (
-        <span className={styles.legendItem}>
-          <svg width="12" height="10" aria-hidden="true">
-            <path d="M1 1 L11 1 L6 9 Z" fill="#fff" stroke={COL.gw} strokeWidth="1.5" />
+      {props.map((p) => (
+        <span key={p.key} className={styles.legendItem}>
+          <svg width={p.w} height="12" aria-hidden="true">
+            {p.patternId ? <rect width={p.w} height="12" fill={`url(#${p.patternId})`} />
+              : <svg width={p.w} height={p.h} viewBox={`0 0 ${p.w / PROP_K} ${p.h / PROP_K}`} dangerouslySetInnerHTML={{ __html: p.markup! }} />}
           </svg>
-          {`GW ${hollow.map((t) => GW_LABEL[t].toLowerCase()).join(', ')}`}
+          {p.label}
         </span>
-      )}
+      ))}
       {refusal && (
         <span className={styles.legendItem}>
           <span className={styles.rBadge} aria-hidden="true">R</span>SPT refusal: click for source

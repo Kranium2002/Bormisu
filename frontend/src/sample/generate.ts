@@ -6,7 +6,7 @@
 import { decimalComma as cm } from '../domain/format';
 import { K } from '../domain/keys';
 import { formatSpt } from '../domain/spt';
-import type { Borehole, ExtractedValue, Layer, Method, PageItem, PatternId, Spt } from '../domain/types';
+import type { Borehole, ExtractedValue, Layer, LayerProps, Method, PageItem, PatternId, Spt } from '../domain/types';
 import { EXTRA_FIELDS, multiField } from '../schema/targetFormat';
 import { Ln, sampleValue, T, textWidth, type SampleValueInput } from './helpers';
 import { NB_CRS, NB_PROJECT } from './neckarbogen';
@@ -108,29 +108,30 @@ export function makeSeeds(): Seed[] {
 
 /* ---------- geology per project (prototype GEO) ---------- */
 
-interface Unit { en: string; de: string; din: string; pat: PatternId; fill: string; st: string; th: number[]; rock: boolean }
-const U = (en: string, de: string, din: string, pat: PatternId, fill: string, st: string, th: number[], rock = false): Unit =>
-  ({ en, de, din, pat, fill, st, th, rock });
+interface Unit { en: string; de: string; din: string; pat: PatternId; fill: string; st: string; th: number[]; rock: boolean; props?: LayerProps }
+/** `props`: DIN 4023 extras as the German description states them ("steif", "dicht", "verwittert"). */
+const U = (en: string, de: string, din: string, pat: PatternId, fill: string, st: string, th: number[], rock = false, props?: LayerProps): Unit =>
+  ({ en, de, din, pat, fill, st, th, rock, ...(props ? { props } : {}) });
 
 const FILL = U('Fill: sand, gravelly, rubble', 'Auffüllung: Sand, kiesig, Bauschutt', 'A', 'fill', '#EFEFEF', 'y', [0.8, 2.5]);
 const TOP = U('Topsoil: silt, humic', 'Mutterboden: Schluff, humos', 'Mu', 'topsoil', '#E8D9C4', 'qh', [0.2, 0.5]);
-const SAND = U('Sand, fine to medium, medium dense', 'Sand, fein- bis mittelkörnig, mitteldicht', 'S', 'sand', '#FFF5B0', 'qh', [2, 5]);
-const GRAV = U('Gravel, sandy, dense', 'Kies, sandig, dicht', 'G, s', 'gravel', '#FFFACD', 'qp', [2, 4.5]);
-const LOESS = U('Silt, fine sandy (loess), stiff', 'Schluff, feinsandig (Löss), steif', 'U, fs', 'silt', '#E1EAB8', 'qw', [2, 4]);
-const TILL = U('Boulder clay, stiff, with stones', 'Geschiebemergel, steif, steinig', 'Mg', 'marl', '#E5D6B8', 'qp', [3, 6]);
-const CLAY = U('Clay, silty, stiff, grey', 'Ton, schluffig, steif, grau', 'T, u', 'clay', '#DCD2EA', 'qh', [2, 4]);
+const SAND = U('Sand, fine to medium, medium dense', 'Sand, fein- bis mittelkörnig, mitteldicht', 'S', 'sand', '#FFF5B0', 'qh', [2, 5], false, { consistencyDensity: 'mitteldicht' });
+const GRAV = U('Gravel, sandy, dense', 'Kies, sandig, dicht', 'G, s', 'gravel', '#FFFACD', 'qp', [2, 4.5], false, { consistencyDensity: 'dicht' });
+const LOESS = U('Silt, fine sandy (loess), stiff', 'Schluff, feinsandig (Löss), steif', 'U, fs', 'silt', '#E1EAB8', 'qw', [2, 4], false, { consistencyDensity: 'steif' });
+const TILL = U('Boulder clay, stiff, with stones', 'Geschiebemergel, steif, steinig', 'Mg', 'marl', '#E5D6B8', 'qp', [3, 6], false, { consistencyDensity: 'steif' });
+const CLAY = U('Clay, silty, stiff, grey', 'Ton, schluffig, steif, grau', 'T, u', 'clay', '#DCD2EA', 'qh', [2, 4], false, { consistencyDensity: 'steif' });
 
 const GEO: Record<string, Unit[]> = {
-  [NB_PROJECT]: [TOP, FILL, CLAY, GRAV, U('Sandstone, weathered, friable', 'Sandstein, verwittert, mürbe', 'Sst', 'sst', '#FFD08A', 'kmS', [0], true)],
+  [NB_PROJECT]: [TOP, FILL, CLAY, GRAV, U('Sandstone, weathered, friable', 'Sandstein, verwittert, mürbe', 'Sst', 'sst', '#FFD08A', 'kmS', [0], true, { weathering: 'w2_3', core: true })],
   'Elbquerung Ost': [FILL, SAND, TILL, U('Clay, fat, dark grey (Lauenburg clay)', 'Ton, fett, dunkelgrau (Lauenburger Ton)', 'T', 'clay', '#C9C1E0', 'qp', [0])],
-  'Mainufer-Sammler': [FILL, { ...GRAV, en: 'Gravel, sandy (Main terrace)', de: 'Kies, sandig (Mainterrasse)' }, U('Clay, calcareous, stiff (Frankfurt clay)', 'Ton, kalkig, steif (Frankfurter Ton)', 'T, k', 'clay', '#DCD2EA', 'tm', [3, 6]), U('Limestone, jointed', 'Kalkstein, klüftig', 'Kst', 'lst', '#B7D7F0', 'tm', [0], true)],
-  'Emscher-Kanal Ost': [FILL, LOESS, SAND, U('Marlstone, slightly weathered', 'Mergelstein, angewittert', 'Mst', 'marl', '#D9E3C4', 'kro', [0], true)],
+  'Mainufer-Sammler': [FILL, { ...GRAV, en: 'Gravel, sandy (Main terrace)', de: 'Kies, sandig (Mainterrasse)' }, U('Clay, calcareous, stiff (Frankfurt clay)', 'Ton, kalkig, steif (Frankfurter Ton)', 'T, k', 'clay', '#DCD2EA', 'tm', [3, 6], false, { consistencyDensity: 'steif' }), U('Limestone, jointed', 'Kalkstein, klüftig', 'Kst', 'lst', '#B7D7F0', 'tm', [0], true, { jointing: 'jointed', core: true })],
+  'Emscher-Kanal Ost': [FILL, LOESS, SAND, U('Marlstone, slightly weathered', 'Mergelstein, angewittert', 'Mst', 'marl', '#D9E3C4', 'kro', [0], true, { weathering: 'w1', core: true })],
   'Spree-Kabeltunnel': [FILL, SAND, TILL, { ...SAND, th: [0] }],
   'Rheinbogen-Fernwärme': [FILL, SAND, { ...GRAV, en: 'Gravel, sandy, cobbly (Rhine terrace)', de: 'Kies, sandig, steinig (Rheinterrasse)' }, { ...SAND, th: [0] }],
   'City-Ring Leipzig': [FILL, LOESS, GRAV, { ...CLAY, st: 'tm', th: [0] }],
-  'Limmattal-Abwasserstollen': [FILL, { ...GRAV, en: 'Gravel, sandy (Limmat valley gravel)', de: 'Kies, sandig (Limmattalschotter)' }, { ...TILL, en: 'Moraine, silty, with stones, stiff', de: 'Moräne, schluffig, steinig, steif' }, U('Sandstone, marly (Upper Freshwater Molasse)', 'Sandstein, mergelig (Obere Süsswassermolasse)', 'Sst', 'sst', '#FFD08A', 'tm', [0], true)],
-  'Alna-Overvannstunnel': [FILL, U('Clay, marine, soft to firm', 'Ton, marin, weich bis steif', 'T', 'clay', '#C9C1E0', 'qh', [3, 6]), { ...TILL, en: 'Moraine, sandy, dense', de: 'Moräne, sandig, dicht' }, U('Shale and limestone, interbedded', 'Tonschiefer und Kalkstein, wechsellagernd', 'Kst', 'lst', '#B7D7F0', 'S', [0], true)],
-  'Kallang Cable Tunnel': [FILL, U('Clay, marine, very soft (Kallang Formation)', 'Ton, marin, sehr weich (Kallang-Formation)', 'T', 'clay', '#C9C1E0', 'qh', [3, 6]), U('Sand, clayey, very dense (Old Alluvium)', 'Sand, tonig, sehr dicht (Old Alluvium)', 'S, t', 'sand', '#FFF5B0', 'qp', [3, 5]), U('Sandstone, weathered (Jurong Formation)', 'Sandstein, verwittert (Jurong-Formation)', 'Sst', 'sst', '#FFD08A', 'T', [0], true)],
+  'Limmattal-Abwasserstollen': [FILL, { ...GRAV, en: 'Gravel, sandy (Limmat valley gravel)', de: 'Kies, sandig (Limmattalschotter)' }, { ...TILL, en: 'Moraine, silty, with stones, stiff', de: 'Moräne, schluffig, steinig, steif' }, U('Sandstone, marly (Upper Freshwater Molasse)', 'Sandstein, mergelig (Obere Süsswassermolasse)', 'Sst', 'sst', '#FFD08A', 'tm', [0], true, { core: true })],
+  'Alna-Overvannstunnel': [FILL, U('Clay, marine, soft to firm', 'Ton, marin, weich bis steif', 'T', 'clay', '#C9C1E0', 'qh', [3, 6]), { ...TILL, en: 'Moraine, sandy, dense', de: 'Moräne, sandig, dicht' }, U('Shale and limestone, interbedded', 'Tonschiefer und Kalkstein, wechsellagernd', 'Kst', 'lst', '#B7D7F0', 'S', [0], true, { core: true })],
+  'Kallang Cable Tunnel': [FILL, U('Clay, marine, very soft (Kallang Formation)', 'Ton, marin, sehr weich (Kallang-Formation)', 'T', 'clay', '#C9C1E0', 'qh', [3, 6], false, { consistencyDensity: 'sehr weich' }), U('Sand, clayey, very dense (Old Alluvium)', 'Sand, tonig, sehr dicht (Old Alluvium)', 'S, t', 'sand', '#FFF5B0', 'qp', [3, 5], false, { consistencyDensity: 'sehr dicht' }), U('Sandstone, weathered (Jurong Formation)', 'Sandstein, verwittert (Jurong-Formation)', 'Sst', 'sst', '#FFD08A', 'T', [0], true, { weathering: 'w2_3', core: true })],
 };
 
 /* ---------- deterministic helpers ---------- */
@@ -370,6 +371,7 @@ function toLayer(l: GenLayer): Layer {
     ...(l.spt ? { spt: l.spt } : {}),
     ...(l.tcr != null ? { tcr: l.tcr } : {}),
     ...(l.rqd != null ? { rqd: l.rqd } : {}),
+    ...(l.props ? { props: l.props } : {}),
   };
 }
 

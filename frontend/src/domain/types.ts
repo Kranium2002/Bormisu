@@ -41,12 +41,26 @@ export interface ExtractedValue {
 }
 
 export type PatternId = 'topsoil' | 'fill' | 'clay' | 'silt' | 'gravel' | 'sst' | 'sand' | 'lst' | 'marl';
+/** DIN 4023 extras of a layer, as the source states them (absent = not stated, never a default). */
+export interface LayerProps {
+  /** Consistency or density as printed ("steif", "dense"); Table 6 symbol right of the column. */
+  consistencyDensity?: string;
+  /** Weathering grade w0 · w1 · w2_3 · w4 · w5 (Table 6). */
+  weathering?: string;
+  /** jointed · highly_jointed (Table 6). */
+  jointing?: string;
+  /** Wet although above the groundwater (Table 6). */
+  wet?: boolean;
+  /** A core was taken: double line left of the column (Table 5). */
+  core?: boolean;
+}
 export interface Layer {
   n: number; from: number; to: number;
   lithology: string; lithologyAsPrinted: string; din: string;
   pattern: PatternId; fill: string; strat: string;   // stratigraphy code for the Strat. column (STRAT_COLORS)
   method: Method; confidence: number;
   spt?: Spt; tcr?: number; rqd?: number;
+  props?: LayerProps;
 }
 /** strike = first water struck, rest = rest level; the API also reports standpipe and other readings. */
 export type GroundwaterType = 'strike' | 'rest' | 'standpipe' | 'other';

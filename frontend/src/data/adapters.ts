@@ -16,6 +16,7 @@ import type {
   GroundwaterReading,
   GroundwaterType,
   Layer,
+  LayerProps,
   Lint,
   LintFinding,
   Method,
@@ -55,6 +56,11 @@ export interface ApiLayer {
   spt_increments?: number[] | null;
   spt_penetration_cm?: number | null;
   spt_depth_m?: number | null;
+  consistency_density?: string | null;
+  weathering?: string | null;
+  jointing?: string | null;
+  wet?: boolean | null;
+  core?: boolean | null;
 }
 
 export interface ApiBoreholeRecord {
@@ -418,6 +424,7 @@ function adaptLayer(l: ApiLayer, i: number, add: (s: ValueSpec) => ExtractedValu
     add({ key: K.rqd(n), path: `${base}.rqd_pct`, field: 'RQD', label: 'RQD', group: 'layer', layer: n,
       value: l.rqd_pct, unit: '%', type: 'number' });
   }
+  const props = layerProps(l);
   return {
     n,
     from: l.depth_from_m,
@@ -433,7 +440,19 @@ function adaptLayer(l: ApiLayer, i: number, add: (s: ValueSpec) => ExtractedValu
     ...(spt ? { spt } : {}),
     ...(l.core_recovery_pct != null ? { tcr: l.core_recovery_pct } : {}),
     ...(l.rqd_pct != null ? { rqd: l.rqd_pct } : {}),
+    ...(props ? { props } : {}),
   };
+}
+
+/** The layer's DIN 4023 extras; only what the backend states (null / missing fields are left out). */
+function layerProps(l: ApiLayer): LayerProps | null {
+  const p: LayerProps = {};
+  if (l.consistency_density) p.consistencyDensity = l.consistency_density;
+  if (l.weathering) p.weathering = l.weathering;
+  if (l.jointing) p.jointing = l.jointing;
+  if (l.wet != null) p.wet = l.wet;
+  if (l.core != null) p.core = l.core;
+  return Object.keys(p).length ? p : null;
 }
 
 function adaptSpt(l: ApiLayer): Spt | null {
