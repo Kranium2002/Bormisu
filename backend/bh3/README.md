@@ -254,6 +254,17 @@ is 296 MB, of which the 18 page-image folders are nearly all; `--no-pages` build
 Low confidence rows are driven by multi-sheet holes where every sheet break still raises a flag (EUR01,
 EUR02, NAM02, SEA01) and by handwriting (ToughOne2), where low confidence is the intended behaviour.
 
+## API for the frontend
+
+`python -m bh3 api --store api_data --port 8000` serves bh3's output in the shape the Bormisu frontend expects
+(`docs/design/api-contract.md`, as `frontend/src/data/apiSource.ts` calls it): borehole records with `uid`,
+`din4023_code`, WGS84 coordinates and `crs_status`, provenance per value with page and row box, lint,
+groundwater, documents with status and page map, page images, review actions (`PATCH …/values`), CRS
+candidates and confirmation, async upload that runs the pipeline in a background thread. `--import
+<boreholes.json> --data-root <source folder>` seeds the store from an existing result (one document per source
+file). Code: `bh3/api/` (`store.py` on-disk store, `mapping.py` bh3 → BoreholeRecord, `app.py` routes);
+`docs/INTEGRATION.md` §0 on the integration branch says what each screen gets.
+
 ## Cost / time
 
 Per page: 1 classify call (~0.8k tokens at 72 dpi) and, for log pages, 1–3 tile calls (~2.4k tokens each) +

@@ -97,6 +97,20 @@ def _build_site(result_json: Path, out_dir: Path, workdir: Path, copy_pages: boo
     return index
 
 
+def cmd_api(args) -> int:
+    from .api.store import Store
+    store = Store(args.store, workdir=args.workdir, data_root=args.data_root)
+    for j in args.import_json:
+        ids = store.import_result(j)
+        print(f"imported {len(ids)} documents from {j}: {', '.join(ids)}")
+    if args.no_serve:
+        return 0
+    from .api.app import serve
+    print(f"bh3 API on http://{args.host}:{args.port}  (docs: /docs, health: /api/health; store {store.root})")
+    serve(store, args.host, args.port)
+    return 0
+
+
 def cmd_site(args) -> int:
     """Rebuild the website data product from an existing boreholes.json (no model calls)."""
     _build_site(Path(args.result), Path(args.out), Path(args.workdir), copy_pages=not args.no_pages)
@@ -239,6 +253,15 @@ def add_commands(sub, common) -> None:
     g.add_argument("page", type=int)
     g.add_argument("--raw", action="store_true", help="also print the stored raw model answers")
     g.set_defaults(func=cmd_page)
+
+    a = sub.add_parser("api", help="serve the frontend API (docs/design/api-contract.md) from a store of bh3 results", parents=[common])
+    a.add_argument("--store", default="api_data", help="folder for documents, results, review overlays, uploads")
+    a.add_argument("--import", dest="import_json", action="append", default=[], help="seed the store from a boreholes.json (one document per source file)")
+    a.add_argument("--data-root", default=None, help="folder that holds the source documents of imported results (for page images)")
+    a.add_argument("--host", default="127.0.0.1")
+    a.add_argument("--port", type=int, default=8000)
+    a.add_argument("--no-serve", action="store_true", help="import only, do not start the server")
+    a.set_defaults(func=cmd_api)
 
     st = sub.add_parser("site", help="website data product (geojson, profiles, page images) from a boreholes.json", parents=[common])
     st.add_argument("result")

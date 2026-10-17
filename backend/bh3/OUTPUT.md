@@ -1,5 +1,10 @@
 # bh3 output format (for the demo / review UI)
 
+> The Bormisu frontend does not read these files directly: `python -m bh3 api` serves them as the API contract
+> (`BoreholeRecord` with `din4023_code`, provenance, lint; documents; page images; review actions). See the
+> "API for the frontend" section of `README.md` and `docs/INTEGRATION.md` §0. The files below are the
+> complete record behind that API.
+
 Every run writes into the `-o` folder: `boreholes.json` (complete, with provenance per value),
 `boreholes.xlsx` (five sheets, flat) and `site/` (the website data product: map layer, one profile file per
 hole, source page images, an index). **Build the demo on `site/`**; the JSON is the full record, the xlsx is

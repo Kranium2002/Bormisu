@@ -9,6 +9,49 @@ The agreed API is in `docs/design/api-contract.md` on branch `prada/design` (PR 
 
 ---
 
+## 0. The bh3 backend (branch `felix-integration`): the contract, served
+
+`backend/` on this branch is the bh3 extraction pipeline ([backend/bh3/README.md](../backend/bh3/README.md))
+plus a FastAPI service that answers every call in §2 the way `frontend/src/data/apiSource.ts` makes it. It
+replaces the §1–§3 steps below for this branch; they stay as the record of the `arav/dev` run.
+
+```bash
+cd backend
+py -3.10 -m venv .venv && .venv/Scripts/activate            # Windows (Linux/macOS: python3 -m venv .venv && . .venv/bin/activate)
+pip install -r requirements.txt
+cp .env.example .env                                        # LLM_API_KEY=... for live extraction (Mistral), or LLM_BASE_URL for a local model
+python -m bh3 api --store api_data --port 8000              # http://127.0.0.1:8000/api/health → {"mode": "live" | "demo", ...}
+# seed the store from an existing bh3 result (one document per source file; page images need the source files):
+python -m bh3 api --store api_data --import out3/boreholes.json --data-root <folder with the source documents> --port 8000
+```
+
+```bash
+cd frontend && npm install && npm run dev                   # proxies /api → http://127.0.0.1:8000
+```
+
+What each screen gets from bh3:
+
+| Screen | Served by bh3 | Notes |
+|---|---|---|
+| Map | `GET /api/v1/boreholes` with `uid`, `document_id`, `plotted`, `unplotted_reason`, `crs_status`, WGS84 `latitude`/`longitude` | pins only for holes whose coordinate system is printed (`stated`), recorded per document with evidence (`inferred`) or confirmed by a reviewer; the rest are listed under *Not on map* with the reason |
+| Upload & queue | `GET /api/v1/documents`, `POST /api/v1/documents` → `202 {document_id, status: queued}`, `GET /api/v1/documents/{id}` polled | statuses `queued → classifying → extracting → needs_review` (or `failed` with the error); `found` counts, `pages[] {n, type, used, unused_reason}`, `completeness` from the borehole names the classifier saw on the pages; `409 {"detail": "demo_mode"}` without a model key |
+| Review | `provenance[path]` per value with `page`, `box` (the row the value sits in, normalised `[0, y, 1, h]`), `raw`, `method` (`read` = text layer / header aliases, `ocr` = vision model, `derived`, `guessed` = text-model fallback, `edited`), `confidence`, `status`, `state`, `flag`, `ai_value`; `GET /api/v1/documents/{id}/pages/{n}.png?w=1400`; `PATCH /api/v1/boreholes/{uid}/values` with `approve` / `edit` / `flag` / `set_state` / `reset`; `POST …/approve-clean?dry_run=` | the overlay is kept per document under a lock, so *Approve all clean* can fire many PATCHes at once; `uid` may contain `/` (route is `{uid:path}`) |
+| Detail | `stratigraphy[] {depth_from_m, depth_to_m, din4023_code, english_lithology, original_description, uscs_group, spt_*, rqd_pct, core_recovery_pct, core}`, `groundwater[] {type, depth_m}`, `rock_head_m`, `lint[]` | `din4023_code` is the DIN 4023 short form bh3 derived (`"S, u"`, `"Kst"`) — exactly what `assets/din4023_patterns` draws; also `din_source` says where the code came from, `din_pattern` / `din_color` the DIN names |
+| CRS dialog | `GET /api/v1/documents/{id}/crs-candidates`, `POST /api/v1/documents/{id}/crs` | candidates: the printed system, the one recorded for the document, then common systems and (for UTM-sized numbers with no system named) the UTM zones, each with the points it places; confirming sets `crs_status: confirmed` on the whole document |
+
+Also served: `GET /api/v1/boreholes/{uid}` (exact match), `GET /api/v1/documents/{id}/boreholes`, `GET /api/v1/stats`,
+`/api/health` with `mode`. Every route is mounted under `/api/v1` and `/api`. Errors carry `detail`.
+
+Not in the contract and not needed by the UI: document-level export (the UI exports in the browser).
+Known limits: boxes are row boxes (the full row width), not word boxes; a reviewer's edits live in the
+store's overlay, the bh3 result file is never changed; the store is JSON on disk (`backend/api_data/`,
+gitignored) — fine for a demo, not a database.
+
+Measured on 17 Oct with the challenge corpus imported (18 documents, 382 boreholes, 148 with pins):
+`GET /api/v1/boreholes` 2.8 s / 6 MB, a page image at `w=1400` 1.7 MB, PATCH round trip persisted across a restart.
+
+---
+
 ## 1. Run backend + frontend together
 
 ### Backend (branch `arav/dev`)
