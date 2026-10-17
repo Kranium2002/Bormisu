@@ -13,7 +13,7 @@
 Order agreed with the supervisor: bh3 first, auth after. `feat/bh3-adapter` has no auth; `feat/backend` carries auth.
 
 ## Next steps (in order)
-1. Merge `feat/bh3` at `66d302c` into `feat/bh3-adapter` (the supervisor owns `backend/pyproject.toml` and `uv.lock` for that change; take theirs). `uv sync` the venv for numpy/opencv.
+1. Merge `feat/bh3` at `a944bf0` (not 66d302c) into `feat/bh3-adapter` (the supervisor owns `backend/pyproject.toml` and `uv.lock` for that change; take theirs). `uv sync` the venv for numpy/opencv.
 2. Merge `feat/d2-textlayer` and `feat/d6-crs` into `feat/bh3-adapter` (read each agent's commit note first; a "wip:" commit is not green). Resolve conflicts in `finalize.py` (D6 touches `_Builder.coordinates`), `ocr.py` (D2).
 3. Run ruff, mypy, the full suite (alone: one pytest session per test database; agents used `geomemory_test_d2` / `geomemory_test_d6`). Then run `tests/test_bh3_adapter.py` against the REAL `app.bh3` too: the adapter must pick it up with `EXTRACTOR=bh3` (tests force `EXTRACTOR=classic` in `tests/conftest.py`).
 4. Live check, approved by the user: **at most 1 USD for this session on OpenRouter, stop at about 0.90 USD**, Mistral direct off, OpenAI only for chat. Small excerpts first (AF01, an AUS01 excerpt) through `python -m app.eval` (`docs/eval/README.md`, `--max-usd`, a separate `geomemory_eval` database). Keep a running total from `provider_calls`. The supervisor's numbers: AUS01 and AF01 p1–2 come from the text layer with zero model calls; AF01 p3 goes to vision; two scanned pages cost about 0.017 USD with mistral-large-4-0.
