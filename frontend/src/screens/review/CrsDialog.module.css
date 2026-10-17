@@ -109,9 +109,25 @@
 
 .noteMatch,
 .noteShifted,
-.noteOut {
+.noteOut,
+.noteNeutral {
   font-size: 12px;
   line-height: 1.3;
+}
+
+.noteNeutral {
+  color: var(--c-muted);
+}
+
+/* The candidate reads the printed X as the northing. */
+.swap {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: var(--c-line);
+  color: var(--c-text);
 }
 
 .noteMatch {

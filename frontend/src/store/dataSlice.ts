@@ -1,8 +1,9 @@
-/** Data slice: picks the data source, loads boreholes and documents, caches pages. */
+/** Data slice: picks the data source, asks its health, loads boreholes and documents, caches pages. */
 import { createDataSource } from '../data/createDataSource';
 import type { DataSource } from '../data/DataSource';
+import { errorText } from '../data/errors';
 import { initialFocusKey } from '../domain/review';
-import { defaultLayer, errorText, pageFor, pageKey, type SliceCreator } from './context';
+import { defaultLayer, pageFor, pageKey, type SliceCreator } from './context';
 import type { DataSlice } from './types';
 
 let initRun = 0;
@@ -11,6 +12,7 @@ let sourcePromise: Promise<DataSource> | null = null;
 
 export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
   source: null,
+  health: null,
   loadState: 'loading',
   loadError: null,
   boreholes: [],
@@ -24,6 +26,15 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
       sourcePromise ??= createDataSource();
       const source = await sourcePromise;
       set({ source });
+      // Health first, without waiting for it: a failed check never blocks loading (mode and limits stay unknown).
+      source.health().then(
+        (health) => {
+          if (run === initRun) set({ health });
+        },
+        () => {
+          if (run === initRun) set({ health: null });
+        },
+      );
       const { boreholes, documents } = await source.load();
       if (run !== initRun) return;
       const reviewUid = documents.find((d) => d.reviewBoreholeUid)?.reviewBoreholeUid ?? null;
@@ -46,6 +57,7 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
       }
     } catch (e) {
       if (!get().source) sourcePromise = null;
+      // Load failures (backend unreachable, endpoint missing …) keep the error state with its message.
       if (run === initRun) set({ loadState: 'error', loadError: errorText(e) });
     }
   },

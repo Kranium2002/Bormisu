@@ -3,8 +3,9 @@ import { MethodBadge } from '../../components/MethodBadge';
 import { refusalTitle } from '../../domain/spt';
 import type { ExtractedValue, FieldState } from '../../domain/types';
 import { useAppStore, type EditingState } from '../../store/appStore';
+import { NO_SOURCE_REFERENCE } from '../../store/reviewSlice';
 import styles from './FieldRow.module.css';
-import { pageText, rawText, sptTitle, type Note } from './reviewView';
+import { pageText, rawText, readingText, sptTitle, type Note } from './reviewView';
 
 interface Props {
   uid: string;
@@ -24,9 +25,11 @@ const stop = (e: MouseEvent) => e.stopPropagation();
 const NOTE_CLASS: Record<Note['tone'], string> = { faint: styles.noteFaint, ok: styles.noteOk, warn: styles.noteWarn };
 
 /**
- * One value in the Review list (prototype field row): label + page, raw → normalised (or the
- * 3-line lithology, or the state), AI value struck through after an edit, note, lint, flag,
- * inline edit / flag input, more actions while focused, method badge and ✓ ✎ ⚑.
+ * One value in the Review list (prototype field row): label + page (or spreadsheet cell), raw →
+ * normalised (or the 3-line lithology, or the state), readings side by side when readers disagreed,
+ * AI value struck through after an edit, note, lint, flag, inline edit / flag input, more actions
+ * while focused, method badge and ✓ ✎ ⚑. A value without a provenance entry can't be reviewed:
+ * its actions are disabled with the reason.
  */
 function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChooseCrs }: Props) {
   const focusValue = useAppStore((s) => s.focusValue);
@@ -46,6 +49,8 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
   const flagged = v.status === 'flagged';
   const valueIsError = !!v.lint && v.kind === 'spt';
   const showAi = v.method === 'Edited' && v.aiValue !== v.value;
+  const locked = !v.hasProvenance;
+  const lockedTitle = locked ? NO_SOURCE_REFERENCE : undefined;
 
   const onEditKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -62,6 +67,8 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
       type="button"
       className={`${styles.more} ${v.state === state ? styles.morePressed : ''}`}
       aria-pressed={v.state === state}
+      disabled={locked}
+      title={lockedTitle}
       onClick={() => setState(v.key, state)}
     >
       {label}
@@ -77,7 +84,7 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
     >
       <div className={styles.labelCell}>
         <span className={styles.label}>{v.label}</span>
-        <span className={styles.page}>{pageText(v)}</span>
+        <span className={`${styles.page} ${locked ? styles.pageMissing : ''}`}>{pageText(v)}</span>
       </div>
 
       <div className={styles.valueCell}>
@@ -106,6 +113,16 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
           </div>
         )}
         {isState && <span className={styles.state}>{v.state}</span>}
+        {v.readings && v.readings.length > 0 && (
+          <div className={styles.readings} aria-label={`Readings of ${v.label}`}>
+            <span className={styles.lithKey}>READINGS</span>
+            {v.readings.map((r, i) => (
+              <span key={i} className={styles.reading}>
+                {readingText(r)}
+              </span>
+            ))}
+          </div>
+        )}
         {showAi && (
           <span className={styles.ai}>
             <s>{v.aiValue || '—'}</s> (AI value)
@@ -149,7 +166,13 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
             )}
             {stateButton('not in source', 'Not in source')}
             {stateButton('illegible', 'Illegible')}
-            <button type="button" className={styles.more} onClick={() => openSource(uid, v.key)}>
+            <button
+              type="button"
+              className={styles.more}
+              disabled={locked}
+              title={lockedTitle}
+              onClick={() => openSource(uid, v.key)}
+            >
               Larger source view
             </button>
           </div>
@@ -157,16 +180,23 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
       </div>
 
       <div>
-        <MethodBadge method={v.method} confidence={v.confidence} formula={v.formula} />
+        {v.method ? (
+          <MethodBadge method={v.method} confidence={v.confidence} formula={v.formula} />
+        ) : (
+          <span className={styles.noMethod} title="The backend sent no method for this value">
+            —
+          </span>
+        )}
       </div>
 
       <div className={styles.actions} onClick={stop}>
         <button
           type="button"
           className={`${styles.act} ${styles.actApprove} ${approved ? styles.actApproved : ''}`}
-          title={approved ? 'Approved: click to undo' : 'Approve'}
+          title={lockedTitle ?? (approved ? 'Approved: click to undo' : 'Approve')}
           aria-label={`Approve ${v.label}`}
           aria-pressed={approved}
+          disabled={locked}
           onClick={() => toggleApprove(v.key)}
         >
           ✓
@@ -174,8 +204,9 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
         <button
           type="button"
           className={styles.act}
-          title="Edit"
+          title={lockedTitle ?? 'Edit'}
           aria-label={`Edit ${v.label}`}
+          disabled={locked}
           onClick={() => startEdit(v.key, 'edit')}
         >
           ✎
@@ -183,9 +214,10 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
         <button
           type="button"
           className={`${styles.act} ${flagged ? styles.actFlagged : ''}`}
-          title={flagged ? 'Flagged: click to remove the flag' : 'Flag'}
+          title={lockedTitle ?? (flagged ? 'Flagged: click to remove the flag' : 'Flag')}
           aria-label={`Flag ${v.label}`}
           aria-pressed={flagged}
+          disabled={locked}
           onClick={() => toggleFlag(v.key)}
         >
           ⚑

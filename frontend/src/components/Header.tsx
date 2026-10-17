@@ -1,6 +1,8 @@
+import { APP_NAME } from '../config';
 import type { Screen } from '../domain/types';
 import { useAppStore } from '../store/appStore';
 import styles from './Header.module.css';
+import { ReviewerName } from './ReviewerName';
 
 const NAV: { screen: Screen; label: string }[] = [
   { screen: 'map', label: 'MAP' },
@@ -8,7 +10,7 @@ const NAV: { screen: Screen; label: string }[] = [
   { screen: 'review', label: 'REVIEW' },
 ];
 
-/** App bar: brand, navigation (amber badge = documents waiting for review), search with a message popover. */
+/** App bar: brand, navigation (amber badge = documents waiting for review), search with a message popover, your name. */
 export function Header() {
   const screen = useAppStore((s) => s.screen);
   const go = useAppStore((s) => s.go);
@@ -21,9 +23,9 @@ export function Header() {
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
-        <div className={styles.logo} aria-hidden="true">H</div>
-        <div className={styles.name}>BORMISU</div>
-        <div className={styles.tagline}>Borehole Intelligence for Herrenknecht</div>
+        <div className={styles.logo} aria-hidden="true">{APP_NAME.charAt(0)}</div>
+        <div className={styles.name}>{APP_NAME}</div>
+        <div className={styles.tagline}>Borehole Intelligence</div>
       </div>
       <nav className={styles.nav} aria-label="Main">
         {NAV.map((n) => {
@@ -61,6 +63,7 @@ export function Header() {
           </div>
         )}
       </div>
+      <ReviewerName />
     </header>
   );
 }

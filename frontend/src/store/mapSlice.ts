@@ -1,4 +1,5 @@
 /** Map slice: the selected borehole of the Detail screen, header search and the map's fly-to signal. */
+import { unplottedText } from '../domain/format';
 import { defaultLayer, LEAVE_REVIEW, nextNonce, type SliceCreator } from './context';
 import type { MapSlice } from './types';
 
@@ -52,7 +53,7 @@ export const createMapSlice: SliceCreator<MapSlice> = ({ set, get, find }) => {
       }
       if (!b.onMap) {
         set({ ...LEAVE_REVIEW, screen: 'map' });
-        flashSearch(`${b.id}: ${b.unplottedReason ?? 'No usable coordinates'}. Listed under Not on map.`, SEARCH_NOT_ON_MAP_MS);
+        flashSearch(`${b.id}: ${unplottedText(b)}. Listed under Not on map.`, SEARCH_NOT_ON_MAP_MS);
         return;
       }
       clearTimeout(searchTimer);

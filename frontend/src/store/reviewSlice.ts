@@ -1,81 +1,73 @@
 /**
- * Review slice: focus, inline edit, optimistic saves, approve all clean and the CRS dialog.
- * Review edits are optimistic: the store updates first, then the data source; on failure the value
- * rolls back and a toast explains.
+ * Review slice: focus, inline edit, saves, approve all clean and the CRS dialog.
+ *
+ * Saves are optimistic: the value changes at once, then the source saves it and answers with the
+ * borehole as it now holds it. While saves of a borehole are pending the optimistic state stays;
+ * when the last one settles, the newest record the source reported replaces the borehole (see
+ * saves.ts). A failure explains itself in a toast.
  */
-import { PartialSaveError, type DataSource } from '../data/DataSource';
-import {
-  applyValuePatch,
-  cleanKeys,
-  confirmCrsOn,
-  editPatch,
-  flagPatch,
-  initialFocusKey,
-  patchOf,
-  statePatch,
-  UNFLAG_PATCH,
-} from '../domain/review';
-import type { ExtractedValue, ValuePatch } from '../domain/types';
-import { errorText, nextNonce, pageFor, type SliceCreator } from './context';
+import { errorCode, errorText, SaveError } from '../data/errors';
+import { applyValuePatch, editPatch, flagPatch, initialFocusKey, statePatch, UNFLAG_PATCH } from '../domain/review';
+import type { Borehole, ValuePatch } from '../domain/types';
+import { nextNonce, pageFor, type SliceCreator } from './context';
 import type { ReviewSlice } from './types';
+
+/** Why a value without a provenance entry can't be reviewed. */
+export const NO_SOURCE_REFERENCE = 'No source reference from the backend';
+/** Toast after a revision conflict: the store already shows the record the source refetched. */
+export const CONFLICT_TEXT = 'This borehole was changed elsewhere. The latest version is loaded; your change was not saved.';
+
+/** Toast text of a failed save. */
+export function saveFailureText(e: unknown): string {
+  return errorCode(e) === 'revision_conflict' ? CONFLICT_TEXT : `Not saved: ${errorText(e)}`;
+}
+
+const boreholes = (n: number) => `${n} borehole${n === 1 ? '' : 's'}`;
 
 /** The nonce of the latest openCrsDialog call; -1 once the dialog is closed. */
 let lastCrsRun = -1;
+/** The latest "approve all clean" count request; answers of older ones are ignored. */
+let cleanRun = 0;
 
-/** Pending saves of one value: the queue tail, the newest save's number, what the source holds, any failure. */
-interface ValueSaves { tail: Promise<void>; latest: number; confirmed: ValuePatch; failed: boolean }
-/** Keyed `${uid}\n${key}`; an entry lives while saves of that value are pending. */
-const saves = new Map<string, ValueSaves>();
-
-export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, replaceBorehole }) => {
+export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, replaceBorehole, takeBoreholes, saves }) => {
   const reviewValue = (key: string) => find(get().reviewUid)?.values.find((v) => v.key === key);
 
-  /**
-   * Saves one value patch after the earlier saves of the same value, so the source applies them in
-   * order. `confirmed` follows what the source holds. When the newest save of a value settles after a
-   * failure in its chain, the value is set back to `confirmed`: an older failure never undoes a newer
-   * successful edit, and a partly saved patch rolls back only the part that wasn't saved.
-   */
-  function saveValue(source: DataSource, uid: string, before: ExtractedValue, patch: ValuePatch): Promise<void> {
-    const id = `${uid}\n${before.key}`;
-    const q = saves.get(id) ?? { tail: Promise.resolve(), latest: 0, confirmed: patchOf(before), failed: false };
-    saves.set(id, q);
-    const seq = ++q.latest;
-    const run = q.tail.then(() => source.updateValue(uid, before.key, patch)).then(() => undefined);
-    q.tail = run
+  /** The value when it can be reviewed; otherwise explains why not and returns undefined. */
+  const reviewable = (key: string) => {
+    const v = reviewValue(key);
+    if (v && !v.hasProvenance) {
+      get().showToast(NO_SOURCE_REFERENCE);
+      return undefined;
+    }
+    return v;
+  };
+
+  /** Applies a patch to a value of the review borehole at once and saves it (see the file comment). */
+  function save(key: string, patch: ValuePatch): void {
+    const source = get().source;
+    const b = find(get().reviewUid);
+    if (!source || !b) return;
+    const order = saves.begin(b);
+    replaceBorehole(b.uid, (x) => applyValuePatch(x, key, patch));
+    let request: Promise<Borehole>;
+    try {
+      request = source.updateValue(b.uid, key, patch);
+    } catch (e) {
+      request = Promise.reject(e);
+    }
+    void request
       .then(
-        () => {
-          q.confirmed = { ...q.confirmed, ...patch };
-        },
+        (record) => saves.observe(record, order),
         (e: unknown) => {
-          if (e instanceof PartialSaveError) q.confirmed = { ...q.confirmed, ...e.applied };
-          q.failed = true;
+          if (e instanceof SaveError && e.current) saves.observe(e.current, order);
+          get().showToast(saveFailureText(e));
         },
       )
-      .then(() => {
-        if (seq !== q.latest) return;
-        saves.delete(id);
-        if (q.failed) replaceBorehole(uid, (b) => applyValuePatch(b, before.key, q.confirmed));
+      .finally(() => {
+        const shown = saves.end(b.uid);
+        if (shown) replaceBorehole(b.uid, () => shown);
       });
-    return run;
   }
-
-  /** Optimistically patches several values of one borehole; failed saves roll back (see saveValue). */
-  async function patchValues(uid: string, keys: string[], patch: ValuePatch): Promise<void> {
-    const source = get().source;
-    const before = find(uid);
-    if (!source || !before) return;
-    const targets = before.values.filter((v) => keys.includes(v.key));
-    replaceBorehole(uid, (b) => keys.reduce((acc, k) => applyValuePatch(acc, k, patch), b));
-    const results = await Promise.allSettled(targets.map((v) => saveValue(source, uid, v, patch)));
-    const failure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
-    if (failure) get().showToast(`Not saved: ${errorText(failure.reason)}`);
-  }
-
-  const patchReview = (key: string, patch: ValuePatch) => {
-    const uid = get().reviewUid;
-    if (uid) void patchValues(uid, [key], patch);
-  };
 
   return {
     reviewUid: null,
@@ -83,6 +75,8 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
     reviewPage: 1,
     editing: null,
     confirmCleanOpen: false,
+    cleanCount: null,
+    cleanBusy: false,
     listScroll: null,
     crsDialogOpen: false,
     crsLoading: false,
@@ -125,7 +119,9 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
 
     startEdit(key, mode) {
       get().focusValue(key);
-      set({ editing: { key, mode, text: mode === 'edit' ? reviewValue(key)?.value ?? '' : '' } });
+      const v = reviewable(key);
+      if (!v) return;
+      set({ editing: { key, mode, text: mode === 'edit' ? v.value : '' } });
     },
 
     setEditText(text) {
@@ -136,8 +132,8 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       const e = get().editing;
       const v = e && reviewValue(e.key);
       set({ editing: null });
-      if (!e || !v) return;
-      patchReview(e.key, e.mode === 'edit' ? editPatch(v, e.text) : flagPatch(e.text));
+      if (!e || !v?.hasProvenance) return;
+      save(e.key, e.mode === 'edit' ? editPatch(v, e.text) : flagPatch(e.text));
     },
 
     cancelEdit() {
@@ -145,42 +141,72 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
     },
 
     toggleApprove(key) {
-      const v = reviewValue(key);
+      const v = reviewable(key);
       if (!v) return;
-      patchReview(key, { status: v.status === 'approved' ? 'unreviewed' : 'approved' });
+      // Undo of an approval is status "unreviewed" (the API's reset action).
+      save(key, { status: v.status === 'approved' ? 'unreviewed' : 'approved' });
       get().focusValue(key);
     },
 
     toggleFlag(key) {
-      const v = reviewValue(key);
+      const v = reviewable(key);
       if (!v) return;
       get().focusValue(key);
-      if (v.status === 'flagged') patchReview(key, UNFLAG_PATCH);
+      if (v.status === 'flagged') save(key, UNFLAG_PATCH);
       else get().startEdit(key, 'flag');
     },
 
     setState(key, state) {
-      const v = reviewValue(key);
+      const v = reviewable(key);
       if (!v) return;
       get().focusValue(key);
-      patchReview(key, statePatch(v, state));
+      save(key, statePatch(v, state));
     },
 
-    askClean() {
-      const b = find(get().reviewUid);
-      if (b && cleanKeys(b).length) set((s) => ({ confirmCleanOpen: !s.confirmCleanOpen }));
+    async askClean() {
+      const s = get();
+      if (s.confirmCleanOpen) {
+        s.cancelClean();
+        return;
+      }
+      const documentId = find(s.reviewUid)?.documentId;
+      if (!s.source || !documentId) return;
+      const run = ++cleanRun;
+      set({ confirmCleanOpen: true, cleanCount: null, editing: null });
+      try {
+        const count = await s.source.approveClean(documentId, true);
+        if (run === cleanRun) set({ cleanCount: count });
+      } catch (e) {
+        if (run !== cleanRun) return;
+        set({ confirmCleanOpen: false });
+        get().showToast(`Could not count the clean values: ${errorText(e)}`);
+      }
     },
 
-    approveClean() {
-      const b = find(get().reviewUid);
-      set({ confirmCleanOpen: false });
-      if (!b) return;
-      const keys = cleanKeys(b);
-      void patchValues(b.uid, keys, { status: 'approved' });
-      get().showToast(`${keys.length} clean values approved`);
+    async approveClean() {
+      const s = get();
+      const documentId = find(s.reviewUid)?.documentId;
+      if (!s.source || !documentId || !s.confirmCleanOpen || !s.cleanCount) return;
+      cleanRun += 1;
+      set({ confirmCleanOpen: false, cleanBusy: true });
+      try {
+        const count = await s.source.approveClean(documentId, false);
+        const approved = `${count} clean value${count === 1 ? '' : 's'} approved`;
+        try {
+          takeBoreholes(await s.source.documentBoreholes(documentId), documentId);
+          get().showToast(approved);
+        } catch (e) {
+          get().showToast(`${approved}. Reloading the boreholes failed: ${errorText(e)}`);
+        }
+      } catch (e) {
+        get().showToast(`Not saved: ${errorText(e)}`);
+      } finally {
+        set({ cleanBusy: false });
+      }
     },
 
     cancelClean() {
+      cleanRun += 1;
       set({ confirmCleanOpen: false });
     },
 
@@ -190,6 +216,7 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       if (!source || !documentId) return;
       const run = nextNonce();
       lastCrsRun = run;
+      cleanRun += 1;
       set({ crsDialogOpen: true, crsLoading: true, crsCandidates: [], crsPick: 0, editing: null, confirmCleanOpen: false });
       try {
         const crsCandidates = await source.crsCandidates(documentId);
@@ -210,21 +237,26 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
     },
 
     async confirmCrs() {
-      const { source, crsCandidates, crsPick } = get();
+      const { source, crsCandidates, crsPick, reviewerName } = get();
       const c = crsCandidates[crsPick];
       const documentId = find(get().reviewUid)?.documentId;
       if (!source || !c || !documentId || c.verdict === 'out_of_range') return;
       const run = lastCrsRun;
+      let updated: number;
       try {
-        await source.confirmCrs(documentId, c.code as never);
-        set((s) => ({
-          // The answer closes only the dialog it came from, not one opened meanwhile.
-          ...(run === lastCrsRun ? { crsDialogOpen: false, crsLoading: false } : {}),
-          boreholes: s.boreholes.map((b) => (b.documentId === documentId ? confirmCrsOn(b, c) : b)),
-        }));
-        get().showToast(`CRS confirmed for all boreholes in this report: ${c.code}`);
+        updated = await source.confirmCrs(documentId, { code: c.code, swapAxes: c.swapAxes, confirmedBy: reviewerName });
       } catch (e) {
         get().showToast(`Not saved: ${errorText(e)}`);
+        return;
+      }
+      // The answer closes only the dialog it came from, not one opened meanwhile.
+      if (run === lastCrsRun) set({ crsDialogOpen: false, crsLoading: false });
+      // The server placed the boreholes; reload them instead of moving pins here.
+      try {
+        takeBoreholes(await source.documentBoreholes(documentId), documentId);
+        get().showToast(`CRS confirmed for ${boreholes(updated)} in this report: ${c.name}`);
+      } catch (e) {
+        get().showToast(`CRS confirmed (${c.name}). Reloading the boreholes failed: ${errorText(e)}`);
       }
     },
 

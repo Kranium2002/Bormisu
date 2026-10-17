@@ -1,11 +1,15 @@
-/** Store flows with non-trivial transitions: approve all clean, edit vs flag, states, CRS confirmation, search, uploads, export. */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+/**
+ * Store flows with non-trivial transitions, against fake sources with fictional data: approve all
+ * clean, edit vs flag, states, CRS confirmation, search, uploads, export, the reviewer's name.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DataSource } from '../data/DataSource';
 import { K } from '../domain/keys';
-import { boreholeStatus } from '../domain/review';
-import type { Borehole, CrsCandidate, DocumentSummary } from '../domain/types';
+import type { Borehole, CrsCandidate, CrsConfirmation, DocumentSummary } from '../domain/types';
 import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { useAppStore } from './appStore';
+import { readReviewerName, REVIEWER_NAME_KEY } from './settingsSlice';
+import { fakeSource, readyStore, settle } from './testing';
 
 vi.mock('../export/download', async (orig) => ({
   ...(await orig<typeof import('../export/download')>()),
@@ -14,62 +18,25 @@ vi.mock('../export/download', async (orig) => ({
 const { downloadBlob } = await import('../export/download');
 
 const UID = makeBorehole().uid;
-const doc: DocumentSummary = makeDocument({ reviewBoreholeUid: UID });
-
-function fakeSource(over: Partial<DataSource> = {}): DataSource {
-  return {
-    kind: 'sample',
-    load: async () => ({ boreholes: [makeBorehole()], documents: [doc] }),
-    getPage: async (documentId, page) => ({ documentId, page, type: 'log', usage: 'used', label: `page ${page}`, items: [] }),
-    upload: async () => undefined,
-    updateValue: async () => undefined,
-    crsCandidates: async () => [],
-    confirmCrs: async () => undefined,
-    ...over,
-  };
-}
+const doc = makeDocument({ reviewBoreholeUid: UID });
 
 const st = () => useAppStore.getState();
 const bh = (uid = UID) => st().boreholes.find((b) => b.uid === uid);
 const value = (key: string, uid = UID) => bh(uid)?.values.find((v) => v.key === key);
 
-async function ready(source: DataSource = fakeSource(), reviewUid = UID) {
-  useAppStore.setState({
-    source, boreholes: [], documents: [], pages: {}, panel: null, editing: null, toast: null,
-    crsDialogOpen: false, crsLoading: false, crsCandidates: [], crsPick: 0, confirmCleanOpen: false,
-    mapFocus: null, searchMessage: '', includeUnreviewed: false, exportOpen: false,
-  });
-  // Bypass init(), which would create the configured data source instead of the fake one.
-  const { boreholes, documents } = await source.load();
-  useAppStore.setState({ loadState: 'ready', boreholes, documents, reviewUid, selectedUid: reviewUid, focusKey: null, screen: 'map' });
+async function ready(over: Partial<DataSource> = {}, boreholes: Borehole[] = [makeBorehole()], reviewUid = UID) {
+  const fake = fakeSource({ boreholes, documents: [doc] }, over);
+  await readyStore(fake, reviewUid);
+  return fake;
 }
 
-const withBoreholes = (...boreholes: Borehole[]) =>
-  fakeSource({ load: async () => ({ boreholes: structuredClone(boreholes), documents: [doc] }) });
-
-/** TB-05: a borehole with an inferred CRS, as in a report that prints Gauss-Krüger coordinates without naming the CRS. */
-const inferred = (): Borehole =>
-  makeBorehole({
-    uid: 'doc:TB-05', id: 'TB-05', crs: { name: 'DHDN / GK zone 3', code: 'EPSG:31467', status: 'inferred' },
-    values: [
-      makeValue({ key: K.boreholeId, value: 'TB-05', raw: 'TB 5' }),
-      makeValue({ key: K.xy, value: '3513420 / 5405870', raw: 'R 3513420 H 5405870' }),
-      makeValue({ key: K.crs, value: 'DHDN / GK zone 3', method: 'Guessed', kind: 'crs', box: { x: 0, y: 0, w: 0.1, h: 0.1 } }),
-    ],
-  });
-
-const CANDIDATES: CrsCandidate[] = [
-  { name: 'ETRS89 / UTM zone 32N', code: 'EPSG:25832', note: 'shifted 2 km', verdict: 'shifted', points: [{ uid: 'doc:TB-05', lat: 48.1, lng: 9.1 }] },
-  { name: 'DHDN / 3-degree Gauss-Krüger zone 3', code: 'EPSG:31467', note: 'pins on site', verdict: 'match', points: [{ uid: 'doc:TB-05', lat: 48.8, lng: 9.2 }] },
-  { name: 'WGS 84', code: 'EPSG:4326', note: 'out of range', verdict: 'out_of_range', points: [] },
-];
-
 describe('approve all clean', () => {
-  it('approves only unreviewed Read values without lint, flag or state, and counts them', async () => {
-    const b = makeBorehole({
+  /** Two clean values (a, g); the others are not clean for one reason each. */
+  const mixed = () =>
+    makeBorehole({
       values: [
         makeValue({ key: 'a', value: '1' }),
-        makeValue({ key: 'b', value: '2', method: 'OCR' }),
+        makeValue({ key: 'b', value: '2', method: 'OCR', confidence: 0.5 }),
         makeValue({ key: 'c', value: '3', lint: { severity: 'warning', message: 'odd' } }),
         makeValue({ key: 'd', value: '4', status: 'flagged', flag: 'look' }),
         makeValue({ key: 'e', value: '', state: 'illegible' }),
@@ -77,24 +44,60 @@ describe('approve all clean', () => {
         makeValue({ key: 'g', value: '7' }),
       ],
     });
-    await ready(withBoreholes(b));
-    st().askClean();
-    expect(st().confirmCleanOpen).toBe(true);
-    st().approveClean();
+
+  it('asks the source for the count first (dry run), then approves and reloads the document', async () => {
+    const approveClean = vi.fn<DataSource['approveClean']>();
+    const fake = await ready({}, [mixed()]);
+    approveClean.mockImplementation(fake.approveClean);
+    fake.approveClean = approveClean;
+    const documentBoreholes = vi.spyOn(fake, 'documentBoreholes');
+    const asking = st().askClean();
+    expect(st()).toMatchObject({ confirmCleanOpen: true, cleanCount: null });
+    await asking;
+    expect(approveClean).toHaveBeenCalledWith(doc.id, true);
+    expect(st().cleanCount).toBe(2);
+    // Nothing is approved by the dry run.
+    expect(value('a')?.status).toBe('unreviewed');
+    await st().approveClean();
+    expect(approveClean).toHaveBeenLastCalledWith(doc.id, false);
+    expect(documentBoreholes).toHaveBeenCalledWith(doc.id);
     const status = Object.fromEntries((bh()?.values ?? []).map((v) => [v.key, v.status]));
     expect(status).toEqual({ a: 'approved', b: 'unreviewed', c: 'unreviewed', d: 'flagged', e: 'unreviewed', f: 'approved', g: 'approved' });
+    expect(st()).toMatchObject({ confirmCleanOpen: false, cleanBusy: false });
     expect(st().toast?.text).toBe('2 clean values approved');
   });
 
-  it('does not open the confirmation when nothing is clean', async () => {
-    await ready(withBoreholes(makeBorehole({ values: [makeValue({ key: 'a', method: 'Guessed' })] })));
-    st().askClean();
+  it('with nothing clean, the confirmation says so and approves nothing', async () => {
+    const approveClean = vi.fn<DataSource['approveClean']>(async () => 0);
+    await ready({ approveClean }, [makeBorehole({ values: [makeValue({ key: 'a', method: 'Guessed' })] })]);
+    await st().askClean();
+    expect(st()).toMatchObject({ confirmCleanOpen: true, cleanCount: 0 });
+    await st().approveClean();
+    expect(approveClean).toHaveBeenCalledTimes(1);
+  });
+
+  it('a second click closes the confirmation, and a late count is ignored', async () => {
+    let answer: (n: number) => void = () => undefined;
+    await ready({ approveClean: () => new Promise((r) => (answer = r)) });
+    const asking = st().askClean();
+    await st().askClean();
     expect(st().confirmCleanOpen).toBe(false);
+    answer(5);
+    await asking;
+    expect(st().cleanCount).toBeNull();
+  });
+
+  it('a failed count closes the confirmation and explains', async () => {
+    await ready({ approveClean: () => Promise.reject(new Error('demo_mode')) });
+    await st().askClean();
+    expect(st().confirmCleanOpen).toBe(false);
+    expect(st().toast?.text).toBe('Could not count the clean values: demo_mode');
   });
 });
 
 describe('edit vs flag', () => {
   beforeEach(() => ready());
+  afterEach(() => settle());
 
   it('an unchanged edit approves without marking the value Edited', () => {
     st().startEdit(K.finalDepth, 'edit');
@@ -148,15 +151,27 @@ describe('edit vs flag', () => {
 });
 
 describe('CRS confirmation', () => {
+  const TB05 = 'bh_TEST0000000000000000000005';
+  /** A fictional borehole whose report prints coordinates without naming the CRS. */
+  const inferred = (): Borehole =>
+    makeBorehole({
+      uid: TB05, id: 'TB-05', crs: { name: 'Fictional grid B', code: 'EPSG:0002', status: 'inferred' },
+      onMap: false, lat: null, lng: null, unplottedReason: 'crs_unconfirmed',
+      values: [
+        makeValue({ key: K.boreholeId, value: 'TB-05', raw: 'TB 5' }),
+        makeValue({ key: K.xy, value: '512000 / 5540000', raw: '512 000 / 5 540 000' }),
+        makeValue({ key: K.crs, value: 'Fictional grid B', method: 'Guessed', kind: 'crs', box: { x: 0, y: 0, w: 0.1, h: 0.1 } }),
+      ],
+    });
+
+  const CANDIDATES: CrsCandidate[] = [
+    { name: 'Fictional grid A', code: 'EPSG:0001', note: 'shifted 2 km', score: 0.4, verdict: 'shifted', swapAxes: false, points: [{ uid: TB05, lat: 1.1, lng: 2.1 }] },
+    { name: 'Fictional grid B', code: 'EPSG:0002', note: 'pins on site', score: 0.9, verdict: 'match', swapAxes: true, points: [{ uid: TB05, lat: 1.8, lng: 2.2 }] },
+    { name: 'Fictional grid C', code: 'EPSG:0003', note: 'out of range', score: null, verdict: 'out_of_range', swapAxes: false, points: [] },
+  ];
+
   async function openFor(over: Partial<DataSource> = {}) {
-    await ready(
-      fakeSource({
-        load: async () => ({ boreholes: [inferred(), makeBorehole()], documents: [doc] }),
-        crsCandidates: async () => structuredClone(CANDIDATES),
-        ...over,
-      }),
-      'doc:TB-05',
-    );
+    return ready({ crsCandidates: async () => structuredClone(CANDIDATES), ...over }, [inferred(), makeBorehole()], TB05);
   }
 
   it('loads candidates, preselects the current CRS and reports loading', async () => {
@@ -168,33 +183,42 @@ describe('CRS confirmation', () => {
     expect(st().crsCandidates).toHaveLength(3);
   });
 
-  it('confirming turns every borehole of the document from inferred to confirmed', async () => {
-    const confirmCrs = vi.fn<DataSource['confirmCrs']>(async () => undefined);
-    await openFor({ confirmCrs });
+  it('sends the code, the swap-axes flag and your name, then reloads the document’s boreholes', async () => {
+    const confirmCrs = vi.fn<DataSource['confirmCrs']>(async () => 2);
+    const fake = await openFor({ confirmCrs });
+    const placed: Borehole = { ...inferred(), revision: 2, crs: { name: 'Fictional grid B', code: 'EPSG:0002', status: 'confirmed' }, onMap: true, lat: 1.8, lng: 2.2, unplottedReason: null };
+    const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [placed, { ...makeBorehole(), revision: 2 }]);
+    fake.documentBoreholes = documentBoreholes;
+    st().setReviewerName('  A. Reviewer ');
     await st().openCrsDialog();
-    expect(boreholeStatus(bh('doc:TB-05')!)).toBe('attention');
     await st().confirmCrs();
-    expect(confirmCrs).toHaveBeenCalledWith(doc.id, 'EPSG:31467');
+    expect(confirmCrs).toHaveBeenCalledWith(doc.id, { code: 'EPSG:0002', swapAxes: true, confirmedBy: 'A. Reviewer' } satisfies CrsConfirmation);
+    expect(documentBoreholes).toHaveBeenCalledWith(doc.id);
     expect(st().crsDialogOpen).toBe(false);
-    expect(bh('doc:TB-05')).toMatchObject({ crs: { status: 'confirmed', code: 'EPSG:31467' }, lat: 48.8, lng: 9.2 });
-    expect(value(K.crs, 'doc:TB-05')).toMatchObject({ status: 'approved', method: 'Guessed', value: 'DHDN / 3-degree Gauss-Krüger zone 3' });
-    expect(boreholeStatus(bh('doc:TB-05')!)).toBe('unreviewed');
-    // The other borehole of the same document is confirmed too.
-    expect(bh(UID)?.crs.status).toBe('confirmed');
-    expect(st().toast?.text).toBe('CRS confirmed for all boreholes in this report: EPSG:31467');
+    // The pins come from the server's records, not from the candidate's points.
+    expect(bh(TB05)).toMatchObject({ crs: { status: 'confirmed' }, onMap: true, lat: 1.8, lng: 2.2, revision: 2 });
+    expect(st().toast?.text).toBe('CRS confirmed for 2 boreholes in this report: Fictional grid B');
+    st().setReviewerName('');
   });
 
-  it('a shifted candidate marks the CRS value Edited; out of range cannot be confirmed', async () => {
-    const confirmCrs = vi.fn<DataSource['confirmCrs']>(async () => undefined);
+  it('sends no name when none is set', async () => {
+    const confirmCrs = vi.fn<DataSource['confirmCrs']>(async () => 1);
+    await openFor({ confirmCrs });
+    st().setReviewerName('');
+    await st().openCrsDialog();
+    st().pickCrs(0);
+    await st().confirmCrs();
+    expect(confirmCrs).toHaveBeenCalledWith(doc.id, { code: 'EPSG:0001', swapAxes: false, confirmedBy: null });
+  });
+
+  it('an out-of-range candidate cannot be confirmed', async () => {
+    const confirmCrs = vi.fn<DataSource['confirmCrs']>(async () => 1);
     await openFor({ confirmCrs });
     await st().openCrsDialog();
     st().pickCrs(2);
     await st().confirmCrs();
     expect(confirmCrs).not.toHaveBeenCalled();
     expect(st().crsDialogOpen).toBe(true);
-    st().pickCrs(0);
-    await st().confirmCrs();
-    expect(value(K.crs, 'doc:TB-05')?.method).toBe('Edited');
   });
 
   it('keeps the dialog open and toasts when the backend refuses', async () => {
@@ -202,7 +226,7 @@ describe('CRS confirmation', () => {
     await st().openCrsDialog();
     await st().confirmCrs();
     expect(st().crsDialogOpen).toBe(true);
-    expect(bh('doc:TB-05')?.crs.status).toBe('inferred');
+    expect(bh(TB05)?.crs.status).toBe('inferred');
     expect(st().toast?.text).toBe('Not saved: demo_mode');
   });
 
@@ -219,12 +243,13 @@ describe('CRS confirmation', () => {
 });
 
 describe('search ranking', () => {
-  beforeEach(() => ready(withBoreholes(makeBorehole(), makeBorehole({ uid: 'doc:TB-11', id: 'TB-11' }))));
+  const TB11 = 'bh_TEST0000000000000000000011';
+  beforeEach(() => ready({}, [makeBorehole(), makeBorehole({ uid: TB11, id: 'TB-11' })]));
 
   it('matches IDs without the dash and zooms out for a partial match in a multi-borehole project', () => {
     useAppStore.setState({ query: 'tb1' });
     st().search();
-    expect(st().mapFocus).toMatchObject({ uid: 'doc:TB-11', zoom: 11 });
+    expect(st().mapFocus).toMatchObject({ uid: TB11, zoom: 11 });
   });
 
   it('falls back to the project name', () => {
@@ -242,37 +267,39 @@ describe('search ranking', () => {
 });
 
 describe('upload review target', () => {
+  const UP = 'bh_TEST_UP_000000000000000021';
+  const base: DocumentSummary = makeDocument({ id: 'doc_TEST_UP', name: 'up.pdf', project: '', status: 'queued', step: 0, reviewBoreholeUid: null, uploaded: true });
+
   it('points a freshly extracted document at its first borehole and keeps it on later polls', async () => {
-    const extracted = makeBorehole({ uid: 'up:TB-21', id: 'TB-21', documentId: 'up', project: 'Uploaded Project' });
-    const base: DocumentSummary = { ...doc, id: 'up', name: 'up.pdf', project: '', step: 0, reviewBoreholeUid: null, uploaded: true };
+    const extracted = makeBorehole({ uid: UP, id: 'TB-21', documentId: base.id, project: 'Uploaded Project (fictional)' });
     let push: (d: DocumentSummary) => void = () => undefined;
-    const load = vi.fn(async () => ({ boreholes: [makeBorehole(), extracted], documents: [doc] }));
-    await ready(
-      fakeSource({
-        upload: async (_files, onUpdate) => {
-          push = onUpdate;
-          onUpdate(base);
-        },
-      }),
-    );
-    useAppStore.setState((s) => ({ source: s.source && { ...s.source, load } }));
+    const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [extracted]);
+    const fake = await ready({
+      upload: async (_files, onUpdate) => {
+        push = onUpdate;
+        onUpdate(base);
+      },
+      documentBoreholes,
+      getDocument: async () => base,
+    });
+    expect(fake.kind).toBe('sample');
     await st().addFiles([new File(['x'], 'up.pdf')]);
-    expect(st().documents[0]).toMatchObject({ id: 'up', reviewBoreholeUid: null });
-    push({ ...base, step: 2 });
-    await vi.waitFor(() => expect(st().documents.find((d) => d.id === 'up')?.reviewBoreholeUid).toBe('up:TB-21'));
-    expect(st().documents.find((d) => d.id === 'up')?.project).toBe('Uploaded Project');
-    expect(st().boreholes.map((b) => b.uid)).toContain('up:TB-21');
-    push({ ...base, step: 3 });
-    expect(st().documents.find((d) => d.id === 'up')?.reviewBoreholeUid).toBe('up:TB-21');
-    expect(load).toHaveBeenCalledTimes(1);
+    expect(st().documents[0]).toMatchObject({ id: base.id, reviewBoreholeUid: null });
+    push({ ...base, status: 'needs_review', step: 2 });
+    await vi.waitFor(() => expect(st().documents.find((d) => d.id === base.id)?.reviewBoreholeUid).toBe(UP));
+    expect(st().documents.find((d) => d.id === base.id)?.project).toBe('Uploaded Project (fictional)');
+    expect(st().boreholes.map((b) => b.uid)).toContain(UP);
+    push({ ...base, status: 'done', step: 3 });
+    expect(st().documents.find((d) => d.id === base.id)?.reviewBoreholeUid).toBe(UP);
+    expect(documentBoreholes).toHaveBeenCalledTimes(1);
   });
 
   it('a failed extraction gets no review target', async () => {
     let push: (d: DocumentSummary) => void = () => undefined;
-    await ready(fakeSource({ upload: async (_f, onUpdate) => void (push = onUpdate) }));
+    await ready({ upload: async (_f, onUpdate) => void (push = onUpdate) });
     await st().addFiles([new File(['x'], 'bad.pdf')]);
-    push({ ...doc, id: 'bad', step: 2, reviewBoreholeUid: null, error: 'parse failed' });
-    expect(st().documents.find((d) => d.id === 'bad')?.reviewBoreholeUid).toBeNull();
+    push({ ...base, id: 'doc_TEST_BAD', status: 'failed', step: 2, error: 'parse failed' });
+    expect(st().documents.find((d) => d.id === 'doc_TEST_BAD')?.reviewBoreholeUid).toBeNull();
   });
 });
 
@@ -280,10 +307,11 @@ describe('export', () => {
   beforeEach(() => vi.mocked(downloadBlob).mockClear());
 
   it('exports every borehole of the document, approved values only unless drafts are included', async () => {
-    const other = makeBorehole({ uid: 'x:TB-09', id: 'TB-09', documentId: 'x' });
-    const second = makeBorehole({ uid: 'doc:TB-02', id: 'TB-02' });
-    await ready(withBoreholes(makeBorehole(), second, other));
+    const other = makeBorehole({ uid: 'bh_TEST_OTHER_00000000000009', id: 'TB-09', documentId: 'doc_TEST_OTHER' });
+    const second = makeBorehole({ uid: 'bh_TEST0000000000000000000002', id: 'TB-02' });
+    await ready({}, [makeBorehole(), second, other]);
     st().toggleApprove(K.finalDepth);
+    await settle();
     await st().exportFile('csv');
     const [blob, name] = vi.mocked(downloadBlob).mock.calls[0];
     expect(name).toBe('test_tidy.csv');
@@ -299,5 +327,56 @@ describe('export', () => {
     const draft = await draftBlob.text();
     expect(draft).toContain('TB-02');
     expect(draft).not.toContain('TB-09');
+  });
+});
+
+describe('reviewer name', () => {
+  /** A tiny in-memory localStorage. */
+  function memoryStorage(): Storage {
+    const m = new Map<string, string>();
+    return {
+      get length() {
+        return m.size;
+      },
+      clear: () => m.clear(),
+      getItem: (k) => m.get(k) ?? null,
+      key: (i) => [...m.keys()][i] ?? null,
+      removeItem: (k) => void m.delete(k),
+      setItem: (k, v) => void m.set(k, String(v)),
+    };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useAppStore.setState({ reviewerName: null });
+  });
+
+  it('is kept in localStorage, trimmed, and cleared with an empty name', () => {
+    const storage = memoryStorage();
+    vi.stubGlobal('localStorage', storage);
+    st().setReviewerName('  A. Reviewer  ');
+    expect(st().reviewerName).toBe('A. Reviewer');
+    expect(storage.getItem(REVIEWER_NAME_KEY)).toBe('A. Reviewer');
+    expect(readReviewerName()).toBe('A. Reviewer');
+    st().setReviewerName('   ');
+    expect(st().reviewerName).toBeNull();
+    expect(storage.getItem(REVIEWER_NAME_KEY)).toBeNull();
+  });
+
+  it('works without storage: blocked access is ignored and the name stays for the session', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+      setItem: () => {
+        throw new Error('blocked');
+      },
+      removeItem: () => {
+        throw new Error('blocked');
+      },
+    });
+    expect(readReviewerName()).toBeNull();
+    st().setReviewerName('A. Reviewer');
+    expect(st().reviewerName).toBe('A. Reviewer');
   });
 });

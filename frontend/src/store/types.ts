@@ -1,6 +1,7 @@
 /**
  * State and action types of the app store. The store is one zustand store made of slices
- * (data, review, map, upload, panel); each slice file builds its part from a shared StoreContext.
+ * (data, review, map, upload, panel, settings); each slice file builds its part from a shared
+ * StoreContext (context.ts).
  */
 import type { DataSource } from '../data/DataSource';
 import type {
@@ -9,6 +10,7 @@ import type {
   CrsCandidate,
   DocumentSummary,
   FieldState,
+  Health,
   PageContent,
   Screen,
 } from '../domain/types';
@@ -23,8 +25,11 @@ export interface SourcePanel {
   uid?: string;
   key?: string;
   documentId: string;
-  page: number;
+  /** Page to show; null for a spreadsheet value, which has a cell instead. */
+  page: number | null;
   box?: Box | null;
+  /** Spreadsheet cell of the value, e.g. "Logdata!C5" (no page image then). */
+  cell?: string;
   /** Opened from a page cell (queue page strip), not from a value. */
   pageOnly?: boolean;
 }
@@ -43,9 +48,11 @@ export interface MapFocus { uid: string; zoom: number; nonce: number }
 export interface ListScroll { key: string; nonce: number }
 export interface Toast { text: string; id: number }
 
-/** Data source, load state and the data itself. */
+/** Data source, server health, load state and the data itself. */
 export interface DataSlice {
   source: DataSource | null;
+  /** Mode, providers and upload limits from the source; null until known or when the check failed. */
+  health: Health | null;
   loadState: LoadState;
   loadError: string | null;
   boreholes: Borehole[];
@@ -64,7 +71,12 @@ export interface ReviewSlice {
   focusKey: string | null;
   reviewPage: number;
   editing: EditingState | null;
+  /** The "approve all clean" confirmation is open. */
   confirmCleanOpen: boolean;
+  /** Clean values of the review document as the source counted them (dry run); null while counting. */
+  cleanCount: number | null;
+  /** True while approve-clean runs and the document's boreholes reload. */
+  cleanBusy: boolean;
   listScroll: ListScroll | null;
   crsDialogOpen: boolean;
   /** True while openCrsDialog waits for the data source's candidates. */
@@ -83,11 +95,14 @@ export interface ReviewSlice {
   toggleFlag(key: string): void;
   /** Sets "not in source" / "illegible" (and approves); the same state again resets it to ok + unreviewed. */
   setState(key: string, state: Exclude<FieldState, 'ok'>): void;
-  askClean(): void;
-  approveClean(): void;
+  /** Opens the confirmation and asks the source how many clean values the document has; closes it when open. */
+  askClean(): Promise<void>;
+  /** Approves every clean value of the review document, then reloads that document's boreholes. */
+  approveClean(): Promise<void>;
   cancelClean(): void;
   openCrsDialog(): Promise<void>;
   pickCrs(i: number): void;
+  /** Confirms the picked CRS for the whole document, then reloads that document's boreholes. */
   confirmCrs(): Promise<void>;
   closeCrsDialog(): void;
 }
@@ -111,10 +126,13 @@ export interface UploadSlice {
   dropError: string;
   dragActive: boolean;
 
+  /** Uploads the files the server accepts (type and size from health); explains the rest in dropError. */
   addFiles(files: FileList | File[]): Promise<void>;
   setDragActive(active: boolean): void;
   /** A status update of a document (upload or watch): updates its card and loads its boreholes after extraction. */
   documentUpdated(update: DocumentSummary): void;
+  /** Re-queues a failed document and follows it again. */
+  retryDocument(documentId: string): Promise<void>;
 }
 
 /** Navigation and overlays: screen, side panel, export menu, toast and Escape. */
@@ -140,4 +158,12 @@ export interface PanelSlice {
   escape(): void;
 }
 
-export type AppState = DataSlice & ReviewSlice & MapSlice & UploadSlice & PanelSlice;
+/** Reviewer settings kept in this browser. */
+export interface SettingsSlice {
+  /** "Your name", sent as confirmed_by / answered_by; null when not set. */
+  reviewerName: string | null;
+  /** Sets the name (trimmed; empty clears it) and keeps it in localStorage. */
+  setReviewerName(name: string): void;
+}
+
+export type AppState = DataSlice & ReviewSlice & MapSlice & UploadSlice & PanelSlice & SettingsSlice;

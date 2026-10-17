@@ -1,10 +1,12 @@
 /** Panel slice: navigation, the side panel, the export menu, the toast and Escape. */
 import { dataSourceKind } from '../data/createDataSource';
+import { errorText } from '../data/errors';
 import { csvBlob, openQuestionRows, tidyRows } from '../export/csv';
 import { downloadBlob, exportPrefix } from '../export/download';
 import { exportScope } from '../export/scope';
 import { exportStandardXlsx } from '../export/standardXlsx';
-import { errorText, LEAVE_REVIEW, nextNonce, type SliceCreator } from './context';
+import { LEAVE_REVIEW, nextNonce, type SliceCreator } from './context';
+import { NO_SOURCE_REFERENCE } from './reviewSlice';
 import type { PanelSlice } from './types';
 
 const TOAST_MS = 3200;
@@ -41,6 +43,15 @@ export const createPanelSlice: SliceCreator<PanelSlice> = ({ set, get, find }) =
       return;
     }
     const v = b.values.find((x) => x.key === key);
+    if (v && !v.hasProvenance) {
+      get().showToast(NO_SOURCE_REFERENCE);
+      return;
+    }
+    // A spreadsheet value points at a cell, not at a page.
+    if (v?.cell) {
+      set({ panel: { kind: 'source', uid, key, documentId: b.documentId, page: null, box: null, cell: v.cell } });
+      return;
+    }
     set({ panel: { kind: 'source', uid, key, documentId: b.documentId, page: v?.page ?? b.primaryPage, box: v?.box ?? null } });
   },
 
@@ -96,7 +107,7 @@ export const createPanelSlice: SliceCreator<PanelSlice> = ({ set, get, find }) =
   escape() {
     const s = get();
     if (s.editing) set({ editing: null });
-    else if (s.confirmCleanOpen) set({ confirmCleanOpen: false });
+    else if (s.confirmCleanOpen) s.cancelClean();
     else if (s.exportOpen) set({ exportOpen: false });
     else if (s.crsDialogOpen) s.closeCrsDialog();
     else if (s.panel) set({ panel: null });

@@ -30,6 +30,13 @@
   overflow-wrap: anywhere;
 }
 
+/* Second line of a value, e.g. the coordinates as printed. */
+.sub {
+  flex-basis: 100%;
+  font: 11px var(--font-mono);
+  color: var(--c-muted);
+}
+
 .location {
   display: flex;
   flex-direction: column;

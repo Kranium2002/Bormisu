@@ -4,13 +4,23 @@ test.describe('upload & queue', () => {
   test.beforeEach(async ({ page }) => {
     await openApp(page);
     await nav(page, 'UPLOAD & QUEUE');
-    await expect(page.getByText('DROP PDF, DOCX OR IMAGES HERE')).toBeVisible();
+    await expect(page.getByText('DROP REPORTS HERE')).toBeVisible();
   });
 
-  test('shows the three sample documents', async ({ page }) => {
+  test('shows the three sample documents with their page maps', async ({ page }) => {
     const cards = page.getByRole('region', { name: 'Document queue' }).locator('article');
     await expect(cards).toHaveCount(3);
-    await expect(page.getByRole('article', { name: 'neckarbogen_BG_2019.pdf' })).toContainText('needs review');
+    const nb = page.getByRole('article', { name: 'neckarbogen_BG_2019.pdf' });
+    await expect(nb).toContainText('needs review');
+    // Page tooltips say only what the source reported about each page.
+    const firstPage = nb.getByRole('group', { name: /^Page map of/ }).getByRole('button').first();
+    await expect(firstPage).toHaveAttribute('title', /^p\.1 · /);
+  });
+
+  test('the drop zone takes its accepted types from the server', async ({ page }) => {
+    // The sample source reports its limits like the backend's health answer; nothing is hard-coded in the page.
+    await expect(page.locator('input[type=file]')).toHaveAttribute('accept', /^\.[a-z0-9]+(,\.[a-z0-9]+)*$/);
+    await expect(page.getByText(/^or click to choose files · [A-Z0-9, ]+ · up to \d+ MB each$/)).toBeVisible();
   });
 
   test('the completeness panel lists BK-12 as missing', async ({ page }) => {
@@ -22,7 +32,7 @@ test.describe('upload & queue', () => {
     await expect(panel.locator('[title="Extracted"]')).toHaveCount(13);
     await expect(panel.getByText('LINT', { exact: true })).toBeVisible();
     // Still on the queue: the chip opens the panel, not Review.
-    await expect(page.getByText('DROP PDF, DOCX OR IMAGES HERE')).toBeVisible();
+    await expect(page.getByText('DROP REPORTS HERE')).toBeVisible();
   });
 
   test('a .txt upload shows the red unsupported-type error', async ({ page }) => {

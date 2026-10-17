@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { APP_NAME } from '../config';
 import { K } from '../domain/keys';
 import { applyValuePatch, flagPatch } from '../domain/review';
-import type { DocumentSummary } from '../domain/types';
-import { makeBorehole, makeValue } from '../test/fixtures';
+import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { openQuestionRows, tidyRows, toCsv } from './csv';
 import { exportPrefix } from './download';
 
@@ -19,25 +19,38 @@ describe('tidyRows', () => {
     const b = applyValuePatch(makeBorehole(), K.finalDepth, { state: 'not in source', status: 'approved' });
     expect(tidyRows([b], { includeUnreviewed: false })[1][4]).toBe('');
   });
+
+  it('includes the new fields, samples and test results, and names a spreadsheet cell as the source', () => {
+    const b = makeBorehole();
+    b.values = [
+      ...b.values,
+      makeValue({ key: K.boreholeName, field: 'BoreholeName', label: 'Borehole name', value: 'North well (fictional)', status: 'approved' }),
+      makeValue({ key: K.test(0), field: 'UCS', label: 'UCS', group: 'test', index: 0, value: '12.5', unit: 'MPa', page: null, cell: 'Lab!D7', status: 'approved' }),
+    ];
+    expect(tidyRows([b], { includeUnreviewed: false }).slice(1)).toEqual([
+      ['TB-01', 'Borehole name', '', '', 'North well (fictional)', '', 1, 'Read', 'approved', 'ok'],
+      ['TB-01', 'UCS', '', '', '12.5', 'MPa', 'Lab!D7', 'Read', 'approved', 'ok'],
+    ]);
+  });
 });
 
 describe('openQuestionRows', () => {
-  const doc: DocumentSummary = {
-    id: 'doc', name: 'test_report.pdf', project: 'Test', pageTypes: [], step: 2, counts: null, reviewBoreholeUid: null,
+  const doc = makeDocument({
+    id: 'doc', name: 'test_report.pdf', project: 'Test', pages: [], counts: null,
     completeness: { listed: 3, idPrefix: 'TB-', missing: ['TB-02'], unexpected: [], lint: [] },
-  };
+  });
 
   it('lists missing IDs, the inferred CRS, lints, flags and illegible values', () => {
-    let b = makeBorehole({ crs: { name: 'DHDN / GK zone 3', code: null, status: 'inferred' } });
+    let b = makeBorehole({ crs: { name: 'Fictional grid', code: null, status: 'inferred' } });
     b = { ...b, values: [...b.values, makeValue({ key: K.crs, kind: 'crs', page: 7 })] };
     b = applyValuePatch(b, K.finalDepth, flagPatch('boundary looks off'));
     b = applyValuePatch(b, K.boreholeId, { state: 'illegible' });
-    b = { ...b, values: b.values.map((v) => (v.key === K.gwStrike ? { ...v, lint: { severity: 'warning' as const, message: 'GW below final depth' } } : v)) };
+    b = { ...b, values: b.values.map((v) => (v.key === K.gw(0) ? { ...v, lint: { severity: 'warning' as const, message: 'GW below final depth' } } : v)) };
     expect(openQuestionRows([b], doc)).toEqual([
       ['borehole', 'page', 'question'],
       ['TB-02', '', 'Report names this borehole but no log was found. Please supply.'],
-      ['all', 7, 'Coordinate system not stated. Please confirm (we infer DHDN / GK zone 3).'],
-      ['TB-01', 1, `${K.boreholeId} is illegible in the scan.`],
+      ['all', 7, 'Coordinate system not stated. Please confirm (we infer Fictional grid).'],
+      ['TB-01', 1, `${K.boreholeId} is illegible in the source.`],
       ['TB-01', 1, `${K.finalDepth}: boundary looks off`],
       ['TB-01', 1, 'GW below final depth'],
     ]);
@@ -57,7 +70,7 @@ describe('toCsv', () => {
 
 describe('exportPrefix', () => {
   it('takes the first token of a file name', () => {
-    expect(exportPrefix('neckarbogen_BG_2019.pdf')).toBe('neckarbogen');
-    expect(exportPrefix('')).toBe('bormisu');
+    expect(exportPrefix('site_report_2019.pdf')).toBe('site');
+    expect(exportPrefix('')).toBe(APP_NAME.toLowerCase());
   });
 });

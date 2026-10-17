@@ -1,19 +1,21 @@
 /**
  * The app store (zustand): one store combined from slices, plus the selectors screens use.
- * - dataSlice: data source, load, page cache
+ * - dataSlice: data source, health, load, page cache
  * - reviewSlice: Review screen, saves, approve all clean, CRS dialog
  * - mapSlice: Detail selection, search, map focus
- * - uploadSlice: drop zone, uploads, document updates
+ * - uploadSlice: drop zone, uploads, retries, document updates
  * - panelSlice: navigation, side panel, export menu, toast, Escape
+ * - settingsSlice: the reviewer's name
  */
 import { useEffect } from 'react';
 import { create } from 'zustand';
-import type { Borehole, DocumentSummary, ExtractedValue } from '../domain/types';
+import type { Borehole, DocumentSummary, ExtractedValue, Health } from '../domain/types';
 import { createContext, isReviewable, pageKey } from './context';
 import { createDataSlice } from './dataSlice';
 import { createMapSlice } from './mapSlice';
 import { createPanelSlice } from './panelSlice';
 import { createReviewSlice } from './reviewSlice';
+import { createSettingsSlice } from './settingsSlice';
 import type { AppState, PageLoad } from './types';
 import { createUploadSlice } from './uploadSlice';
 
@@ -41,6 +43,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     ...createMapSlice(ctx),
     ...createUploadSlice(ctx),
     ...createPanelSlice(ctx),
+    ...createSettingsSlice(ctx),
   };
 });
 
@@ -74,6 +77,11 @@ export function useSelectedBorehole(): Borehole | undefined {
 /** True if the Review screen can show this borehole. */
 export function useIsReviewable(uid: string | null | undefined): boolean {
   return useAppStore((s) => isReviewable(s.boreholes.find((b) => b.uid === uid)));
+}
+
+/** Server mode, providers (e.g. `chat` for the coming chat drawer) and upload limits; null while unknown. */
+export function useHealth(): Health | null {
+  return useAppStore((s) => s.health);
 }
 
 const LOADING: PageLoad = { status: 'loading' };

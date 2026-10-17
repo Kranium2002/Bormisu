@@ -1,18 +1,23 @@
 import { useState, type ChangeEvent, type DragEvent } from 'react';
 import { useAppStore } from '../../store/appStore';
+import { acceptAttribute, uploadBlockedReason, uploadHint } from '../../store/uploads';
 import styles from './DropZone.module.css';
-
-/** File chooser filter. Drops are not filtered: the store rejects other types with a red error. */
-const ACCEPT = '.pdf,.docx,.jpg,.jpeg,.png';
 
 const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
 
-/** Drop zone for PDF / DOCX / JPG / PNG. Click opens the file chooser; unsupported files show a red error. */
+/**
+ * Drop zone. Accepted types and the size limit come from the server's health answer (the file
+ * chooser filters by them; drops are checked by the store, which explains refused files in red).
+ * In demo mode (no provider keys) it is disabled with that reason.
+ */
 export function DropZone() {
   const dragActive = useAppStore((s) => s.dragActive);
   const dropError = useAppStore((s) => s.dropError);
   const addFiles = useAppStore((s) => s.addFiles);
   const setDragActive = useAppStore((s) => s.setDragActive);
+  const health = useAppStore((s) => s.health);
+  const blocked = uploadBlockedReason(health);
+  const limits = health?.upload ?? null;
   /** Uploads still being sent (API mode posts each file before it shows up in the queue). */
   const [sending, setSending] = useState(0);
 
@@ -29,8 +34,8 @@ export function DropZone() {
   const onDragOver = (e: DragEvent<HTMLLabelElement>) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
-    setDragActive(true);
+    e.dataTransfer.dropEffect = blocked ? 'none' : 'copy';
+    if (!blocked) setDragActive(true);
   };
 
   const onDragLeave = (e: DragEvent<HTMLLabelElement>) => {
@@ -42,6 +47,7 @@ export function DropZone() {
   const onDrop = (e: DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     setDragActive(false);
+    if (blocked) return;
     void upload(Array.from(e.dataTransfer.files));
   };
 
@@ -54,14 +60,23 @@ export function DropZone() {
 
   return (
     <label
-      className={`${styles.zone} ${dragActive ? styles.drag : ''}`}
+      className={`${styles.zone} ${dragActive ? styles.drag : ''} ${blocked ? styles.disabled : ''}`}
+      aria-disabled={blocked ? true : undefined}
+      title={blocked ?? undefined}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <input type="file" multiple accept={ACCEPT} className={styles.input} onChange={onChange} />
-      <span className={styles.title}>DROP PDF, DOCX OR IMAGES HERE</span>
-      <span className={styles.sub}>or click to choose files · PDF, DOCX, JPG, PNG</span>
+      <input
+        type="file"
+        multiple
+        accept={acceptAttribute(limits)}
+        disabled={!!blocked}
+        className={styles.input}
+        onChange={onChange}
+      />
+      <span className={styles.title}>DROP REPORTS HERE</span>
+      <span className={styles.sub}>{blocked ? `Uploading is off: ${blocked}.` : uploadHint(limits)}</span>
       {sending > 0 && (
         <span className={styles.uploading} role="status">
           Uploading…

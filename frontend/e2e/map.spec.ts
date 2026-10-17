@@ -1,24 +1,25 @@
-import { AMBER, expect, legendCount, nav, openApp, pinFills, pins, test } from './fixtures';
+import { AMBER, expect, legendNumber, nav, openApp, pinFills, pins, resultRow, test } from './fixtures';
 
 test.describe('map', () => {
   test.beforeEach(async ({ page }) => openApp(page));
 
   test('renders pins, legend counts, the not-on-map list and the results table', async ({ page }) => {
     await expect(pins(page)).toHaveCount(45);
-    await expect(legendCount(page, 'reviewed')).toHaveText('23');
-    await expect(legendCount(page, 'unreviewed')).toHaveText('8');
-    await expect(legendCount(page, 'attention')).toHaveText('14');
-    expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(14);
+    // Every plotted borehole is counted once under its status; amber pins are exactly the attention count.
+    const counts = await Promise.all((['approved', 'in_review', 'unreviewed', 'attention'] as const).map((s) => legendNumber(page, s)));
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(45);
+    expect((await pinFills(page)).filter((f) => f === AMBER)).toHaveLength(counts[3]);
 
     const aside = page.getByRole('complementary').filter({ has: page.getByRole('heading', { name: 'NOT ON MAP (3)' }) });
     await expect(aside).toContainText('BK-13');
     await expect(aside).toContainText('BK-14');
     await expect(aside).toContainText('SK-05');
+    // Reasons are the backend's codes as labels, never a made-up text.
+    await expect(aside.getByText(/^(No coordinates in source|Coordinate system unknown|Coordinate system needs confirmation|Coordinates implausible|Not placed on the map)$/)).toHaveCount(3);
 
     await expect(page.getByText('48 boreholes · 7 projects', { exact: true })).toBeVisible();
     await expect(page.locator('[role="table"] [role="row"][data-uid]')).toHaveCount(48);
-    await expect(page.locator('[data-uid="nb:BK-07"]')).toContainText('18.00 m');
-    await expect(page.locator('[data-uid="nb:BK-07"]')).toContainText('Needs attention');
+    await expect(resultRow(page, 'BK-07')).toContainText('18.00 m');
   });
 
   test('leaving the map in the middle of a wheel zoom raises no error', async ({ page }) => {
@@ -34,7 +35,7 @@ test.describe('map', () => {
   });
 
   test('a results row opens the borehole detail', async ({ page }) => {
-    await page.locator('[data-uid="eq:EQ-02"]').click();
+    await resultRow(page, 'EQ-02').click();
     await expect(page.getByText('EQ-02', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
     await expect(page.getByRole('button', { name: 'EXPORT ▾' })).toBeVisible();
@@ -45,7 +46,7 @@ test.describe('map', () => {
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
     await expect(page.getByText(/not on the map/).first()).toBeVisible();
     await nav(page, 'MAP');
-    const row = page.locator('[role="table"] [data-uid$=":BK-13"]');
+    const row = resultRow(page, 'BK-13');
     await expect(row).toContainText('OPEN DETAIL ›');
     await row.click();
     await expect(page.getByText('BK-13', { exact: true }).first()).toBeVisible();

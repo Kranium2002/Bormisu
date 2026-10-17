@@ -1,10 +1,10 @@
-import type { MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { completenessSummary } from '../../domain/review';
-import type { DocumentSummary } from '../../domain/types';
+import type { DocumentProgress, DocumentSummary } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
 import styles from './DocumentCard.module.css';
 import { PageStrip } from './PageStrip';
-import { canOpenReview, countChips, docHint, docMeta } from './queueView';
+import { canOpenReview, countChips, docHint, docMeta, duplicateText, progressView, questionsText } from './queueView';
 import { StatusSteps } from './StatusSteps';
 
 /** Completeness chip ("Report lists 14 · extracted 13 · ⚠ 1 missing") that opens the Completeness panel. */
@@ -43,11 +43,56 @@ function CountChips({ counts }: { counts: DocumentSummary['counts'] }) {
   );
 }
 
-/** One document of the queue. When it has a reviewable borehole, the card (and its hint) opens Review. */
-export function DocumentCard({ doc }: { doc: DocumentSummary }) {
+/** Progress bars of a document the backend works on: pages classified, OCR, boreholes extracted. */
+function Progress({ progress }: { progress: DocumentProgress }) {
+  const view = progressView(progress);
+  return (
+    <div className={styles.progress}>
+      {view.bars.map((b) => (
+        <div key={b.label} className={styles.progressItem}>
+          <span className={styles.progressLabel}>
+            {b.label} {b.done}/{b.total}
+          </span>
+          <div
+            className={styles.progressBar}
+            role="progressbar"
+            aria-label={b.label}
+            aria-valuemin={0}
+            aria-valuemax={b.total}
+            aria-valuenow={b.done}
+          >
+            <div className={styles.progressFill} style={{ width: `${b.pct}%` }} />
+          </div>
+        </div>
+      ))}
+      <span className={styles.progressLabel}>{view.boreholes}</span>
+    </div>
+  );
+}
+
+interface Props {
+  doc: DocumentSummary;
+  /** Briefly highlighted (e.g. after "Same file as …" pointed here). */
+  highlighted?: boolean;
+  /** Scrolls to and highlights another document's card. */
+  onShowDocument(id: string): void;
+}
+
+/**
+ * One document of the queue. When it has a reviewable borehole, the card (and its hint) opens Review.
+ * It shows progress while the backend works, open questions, a duplicate link and, after a failure,
+ * the error with RETRY.
+ */
+export function DocumentCard({ doc, highlighted, onShowDocument }: Props) {
   const openReview = useAppStore((s) => s.openReview);
+  const retryDocument = useAppStore((s) => s.retryDocument);
+  const documents = useAppStore((s) => s.documents);
+  const [retrying, setRetrying] = useState(false);
   const reviewable = canOpenReview(doc);
   const hint = docHint(doc);
+  const duplicate = duplicateText(doc, documents);
+  const duplicateListed = !!doc.duplicateOf && documents.some((d) => d.id === doc.duplicateOf);
+  const questions = questionsText(doc);
 
   const open = () => {
     if (reviewable && doc.reviewBoreholeUid) openReview(doc.reviewBoreholeUid);
@@ -56,23 +101,55 @@ export function DocumentCard({ doc }: { doc: DocumentSummary }) {
     e.stopPropagation();
     open();
   };
+  const onRetry = async (e: MouseEvent) => {
+    e.stopPropagation();
+    setRetrying(true);
+    try {
+      await retryDocument(doc.id);
+    } finally {
+      setRetrying(false);
+    }
+  };
+  const onDuplicate = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (doc.duplicateOf) onShowDocument(doc.duplicateOf);
+  };
 
-  const cardClass = [styles.card, reviewable ? styles.openable : '', doc.error ? styles.failedCard : ''].join(' ');
+  const cardClass = [
+    styles.card,
+    reviewable ? styles.openable : '',
+    doc.error ? styles.failedCard : '',
+    highlighted ? styles.highlighted : '',
+  ].join(' ');
 
   return (
-    <article className={cardClass} onClick={reviewable ? open : undefined} aria-label={doc.name}>
+    <article className={cardClass} onClick={reviewable ? open : undefined} aria-label={doc.name} data-doc-id={doc.id}>
       <div className={styles.top}>
         <div className={styles.ident}>
           <h2 className={styles.name} title={doc.name}>
             {doc.name}
           </h2>
           <span className={styles.meta}>{docMeta(doc)}</span>
+          {duplicate &&
+            (duplicateListed ? (
+              <button type="button" className={styles.dupLink} onClick={onDuplicate}>
+                {duplicate}
+              </button>
+            ) : (
+              <span className={styles.meta}>{duplicate}</span>
+            ))}
         </div>
         <StatusSteps step={doc.step} failed={!!doc.error} />
         <div className={styles.checks}>
+          {questions && (
+            <span className={styles.questions} title="Questions the backend needs answered for this document">
+              {questions}
+            </span>
+          )}
           <CompletenessChip doc={doc} />
         </div>
       </div>
+      {doc.progress && <Progress progress={doc.progress} />}
       <CountChips counts={doc.counts} />
       <div className={styles.bottom}>
         <PageStrip doc={doc} />
@@ -83,8 +160,19 @@ export function DocumentCard({ doc }: { doc: DocumentSummary }) {
         )}
         {hint?.tone === 'muted' && <span className={styles.hint}>{hint.text}</span>}
         {hint?.tone === 'error' && (
-          <span className={styles.hintError} role="alert">
-            {hint.text}
+          <span className={styles.errorBlock}>
+            <span className={styles.hintError} role="alert">
+              {hint.text}
+            </span>
+            <button
+              type="button"
+              className={styles.retry}
+              disabled={retrying}
+              title={retrying ? 'Re-queuing…' : 'Re-queue this document from its last successful step'}
+              onClick={(e) => void onRetry(e)}
+            >
+              {retrying ? 'RETRYING…' : 'RETRY'}
+            </button>
           </span>
         )}
       </div>

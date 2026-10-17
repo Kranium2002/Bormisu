@@ -16,12 +16,14 @@ export function ScanPane({ b }: { b: Borehole }) {
   const reviewPage = useAppStore((s) => s.reviewPage);
   const focusKey = useAppStore((s) => s.focusKey);
   const focusValue = useAppStore((s) => s.focusValue);
-  const page = usePage(b.documentId, reviewPage);
+  const sheets = useMemo(() => sheetPages(b), [b]);
+  // A spreadsheet's values point at cells: there is no page image to show.
+  const cellsOnly = sheets.length === 0 && b.values.some((v) => v.cell);
+  const page = usePage(cellsOnly ? null : b.documentId, reviewPage);
   const content = page.status === 'ready' ? page.content : null;
   const ref = useRef<HTMLDivElement>(null);
   const shown = useRef<{ uid: string; page: number } | null>(null);
 
-  const sheets = useMemo(() => sheetPages(b), [b]);
   const boxes = useMemo(
     () => scanBoxes(b, reviewPage, focusKey, (key) => focusValue(key, true)),
     [b, reviewPage, focusKey, focusValue],
@@ -53,7 +55,12 @@ export function ScanPane({ b }: { b: Borehole }) {
     <div ref={ref} className={styles.scan} aria-label="Source page">
       {content && <ScanPage content={content} boxes={boxes} />}
       {page.status === 'loading' && <div className={styles.pagePlaceholder}>Loading page {reviewPage}…</div>}
-      {page.status === 'error' && (
+      {cellsOnly && (
+        <div className={styles.pagePlaceholder}>
+          Spreadsheet source: each value names its cell (e.g. Sheet!C5) next to its label. There is no page image.
+        </div>
+      )}
+      {page.status === 'error' && !cellsOnly && (
         <div className={`${styles.pagePlaceholder} ${styles.pageError}`} role="alert">
           {b.documentId ? page.error : 'No source document for this borehole'}
         </div>
