@@ -46,6 +46,40 @@ T = TypeVar("T", bound=BaseModel)
 # Providers whose key was refused (401/403) in this process: auto mode tries them last until they answer
 # again.
 _REFUSED: set[str] = set()
+# (model, output schema) pairs whose strict response schema the provider refused as an invalid argument
+# (Gemini caps the size and nesting of a response schema; the extractor's is beyond it): sent in JSON mode
+# with the schema in the system prompt from then on, and still validated with the Pydantic model.
+_JSON_MODE: set[tuple[str, str]] = set()
+SCHEMA_REFUSED_MARKERS = ("invalid argument", "invalid_argument")
+JSON_MODE_INSTRUCTION = (
+    "\n\nAnswer with one JSON object (no prose, no code fence) that validates against this JSON Schema:\n"
+)
+
+
+def schema_refused(exc: ProviderError) -> bool:
+    """A 400 whose answer says the request had an invalid argument (how Gemini refuses a response schema)."""
+    detail = (exc.detail or "").lower()
+    return exc.status == 400 and any(marker in detail for marker in SCHEMA_REFUSED_MARKERS)
+
+
+def json_mode_messages(messages: list[dict[str, Any]], schema: dict[str, Any]) -> list[dict[str, Any]]:
+    """The messages again with the schema appended to the system prompt (JSON mode carries no schema)."""
+    system = {
+        **messages[0],
+        "content": str(messages[0]["content"]) + JSON_MODE_INSTRUCTION + json.dumps(schema),
+    }
+    return [system, *messages[1:]]
+
+
+def unfence(text: str) -> str:
+    """A JSON answer without a surrounding ``` fence."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.split("\n", 1)[1] if "\n" in stripped else ""
+        stripped = stripped.rsplit("```", 1)[0]
+    return stripped.strip()
+
+
 # OpenAI models that answered 400 to the optional parameters (reasoning_effort, temperature) in this process.
 _PLAIN_OPENAI_MODELS: set[str] = set()
 
@@ -332,20 +366,39 @@ class LlmClient:
         max_tokens: int,
         estimate_usd: float,
     ) -> StructuredResult[T]:
-        response_format = {
+        schema = strict_json_schema(output)
+        response_format: dict[str, Any] = {
             "type": "json_schema",
-            "json_schema": {"name": output.__name__, "strict": True, "schema": strict_json_schema(output)},
+            "json_schema": {"name": output.__name__, "strict": True, "schema": schema},
         }
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system},
             {"role": "user", "content": content},
         ]
+        json_key = (model, output.__name__)
+        if provider == "openrouter" and json_key in _JSON_MODE:
+            response_format, messages = {"type": "json_object"}, json_mode_messages(messages, schema)
         in_total, out_total, cost_total = 0, 0, 0.0
         for attempt in range(2):
             await check_budget(estimate_usd)
-            payload = await self._post(
-                provider, self._body(provider, model, messages, response_format, max_tokens)
-            )
+            try:
+                payload = await self._post(
+                    provider, self._body(provider, model, messages, response_format, max_tokens)
+                )
+            except ProviderError as exc:
+                if (
+                    provider != "openrouter"
+                    or response_format["type"] != "json_schema"
+                    or not schema_refused(exc)
+                ):
+                    raise
+                # A refused 400 is not billed: ask again in JSON mode, and remember it for this process.
+                logger.info("%s refused the %s schema; JSON mode from now on", model, output.__name__)
+                _JSON_MODE.add(json_key)
+                response_format, messages = {"type": "json_object"}, json_mode_messages(messages, schema)
+                payload = await self._post(
+                    provider, self._body(provider, model, messages, response_format, max_tokens)
+                )
             usage = payload.get("usage") or {}
             in_tok, out_tok = usage.get("prompt_tokens"), usage.get("completion_tokens")
             returned_model = payload.get("model") or model
@@ -370,7 +423,7 @@ class LlmClient:
                     raise ProviderError("The model declined to answer.", retryable=False)
                 raise ProviderError("The model sent no answer.", retryable=True)
             try:
-                data = output.model_validate(json.loads(text))
+                data = output.model_validate(json.loads(unfence(text)))
             except (ValueError, ValidationError) as exc:
                 if attempt == 1:
                     raise ProviderError(

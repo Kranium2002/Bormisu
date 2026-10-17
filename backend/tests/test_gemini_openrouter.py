@@ -220,6 +220,61 @@ async def test_reasoning_is_mandatory_is_retried_and_remembered(db: None, env: A
     assert refused.value.status == 400 and "bad" not in str(refused.value)
 
 
+# How Google AI Studio (through OpenRouter) refuses a response schema beyond Gemini's limits.
+SCHEMA_REFUSED = {
+    "error": {
+        "message": "Provider returned error",
+        "code": 400,
+        "metadata": {
+            "raw": '{"error": {"code": 400, "message": "Request contains an invalid argument.", '
+            '"status": "INVALID_ARGUMENT"}}',
+            "provider_name": "Google AI Studio",
+        },
+    }
+}
+
+
+async def test_refused_response_schema_falls_back_to_json_mode(db: None, env: Any) -> None:
+    env(OPENROUTER_API_KEY="sk-or-test-not-real", CLASSIFIER_MODEL="fictional/small-schema-model")
+    good = label("log_sheet", borehole_labels=["FX-9"]).model_dump_json()
+
+    async def classify() -> PageLabel:
+        result = await LlmClient().structured(
+            output=PageLabel,
+            system="fictional system prompt",
+            content=[text_part("fictional")],
+            purpose="classify",
+            document_id=None,
+            role="classifier",
+            max_tokens=600,
+        )
+        return result.data
+
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(
+            side_effect=[
+                httpx.Response(400, json=SCHEMA_REFUSED),
+                httpx.Response(200, json=completion(f"```json\n{good}\n```")),
+                httpx.Response(200, json=completion(good)),
+            ]
+        )
+        first = await classify()
+        second = await classify()
+    assert first.borehole_labels == ["FX-9"] and second.borehole_labels == ["FX-9"]
+    bodies = [json.loads(c.request.content) for c in route.calls]
+    assert bodies[0]["response_format"]["type"] == "json_schema"
+    for body in bodies[
+        1:
+    ]:  # JSON mode with the schema in the system prompt; the second call goes there directly
+        assert body["response_format"] == {"type": "json_object"}
+        system = body["messages"][0]["content"]
+        assert system.startswith("fictional system prompt") and '"borehole_labels"' in system
+        assert body["provider"]["require_parameters"] is True and body["usage"] == {"include": True}
+    async with get_sessionmaker()() as session:
+        calls = (await session.scalars(select(ProviderCall))).all()
+    assert len(calls) == 2  # the refused 400 is not billed
+
+
 def _vision_llm(tmp_path: Path) -> bh3_llm.LLM:
     return bridge.make_llm(
         "https://openrouter.ai/api/v1",
