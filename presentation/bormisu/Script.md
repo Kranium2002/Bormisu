@@ -47,7 +47,7 @@
 
 > So what you just saw, in three points:
 > It reads any report — scans, handwriting, any language.
-> Every value has a source — one click and you see it on the original page.
+> Every value has a source — one click and you see it on the original page. And where it's unsure, it asks a person to verify.
 > And one standard comes out — the DIN 4023 profile, the map and the Herrenknecht xlsx.
 
 ## 09 · Under the hood (~25 s)
