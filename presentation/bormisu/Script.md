@@ -14,7 +14,7 @@
 
 > But you don't drill just ones. In Offenburg alone, there are about 2,700 documented soil samples.
 > This data is all kept on one database.
-> However here comes the problem, even this one database doesn't follow one standard, and pieces are missing.
+> However here starts the problem, even this one database doesn't follow one standard, and pieces are missing.
 
 ## 04 · World
 
@@ -41,15 +41,15 @@
 ## 08 · Key features
 
 > So what you just saw, in three points:
-> It reads any report: scans, handwriting, any language.
+> It reads any report: pdf, handwriting, any language.
 > Every value has a source. 
 > One click and you see it on the original page. 
 > And where it's unsure, it asks a human to verify.
-> One standard comes out.
+> at the end One standard comes out.
 
 ## 09 · Sovereignty
 
-> Today it runs in the Mistral cloud: Mistral Large and the Mistral ORC.
+> Today it runs in the Mistral cloud:with Mistral Large and the Mistral ORC.
 > But borehole reports are confidential. So the same pipeline runs on open models, whcih you can run either on your on premise server or your own PC.
 
 ## 10 · In a nutshell
