@@ -1,0 +1,53 @@
+# Lint rules: severity and message per rule id. Detection lives in app/validate/rules.py (one function
+# per rule, unit-tested). Messages may use {placeholders} filled by the rule.
+tolerance_m: 0.005
+rules:
+  layer_inverted:
+    severity: error
+    message: "Layer ends at {to} m but starts at {from_} m."
+  layer_gap:
+    severity: warning
+    message: "Gap of {size} m between layer {prev} and layer {next}."
+  layer_overlap:
+    severity: error
+    message: "Layer {next} starts {size} m above the end of layer {prev}."
+  last_layer_beyond_total_depth:
+    severity: error
+    message: "The last layer ends at {to} m, below the total depth of {depth} m."
+  last_layer_short_of_total_depth:
+    severity: warning
+    message: "The last layer ends at {to} m, above the total depth of {depth} m."
+  spt_below_total_depth:
+    severity: warning
+    message: "SPT at {spt} m lies below the total depth of {depth} m."
+  groundwater_below_total_depth:
+    severity: warning
+    message: "Groundwater at {gw} m lies below the total depth of {depth} m."
+  rqd_above_100:
+    severity: error
+    limit: 100
+    message: "RQD of {value} % is above {limit} % (kept as printed)."
+  recovery_above_100:
+    severity: error
+    limit: 100
+    message: "Core recovery of {value} % is above {limit} % (kept as printed)."
+  ucs_above_300:
+    severity: warning
+    limit: 300
+    units: ["", "mpa"]
+    test_names: ["UCS"]
+    message: "UCS of {value} MPa is above {limit} MPa; check the unit."
+  cai_above_6_5:
+    severity: warning
+    limit: 6.5
+    test_names: ["CAI"]
+    message: "CAI of {value} is above {limit}; check the reading."
+  spt_refusal_with_n:
+    severity: error
+    message: "SPT is marked as refusal but has an N value of {value}."
+  coordinates_out_of_range:
+    severity: error
+    message: "Latitude {lat} / longitude {lon} is outside WGS84 bounds."
+  sample_below_total_depth:
+    severity: warning
+    message: "Sample {name} at {value} m lies below the total depth of {depth} m."

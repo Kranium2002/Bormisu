@@ -1,0 +1,19 @@
+# Page roles from the classifier -> coarse Page.type for the UI legend, and the plain reason shown when
+# a page does not feed extraction. Generic for every standard and language; no document is named here.
+roles:
+  log_sheet:        { type: log }
+  log_continuation: { type: log }
+  summary_table:    { type: lab_table }
+  coordinate_table: { type: lab_table }
+  lab_results:      { type: lab_table }
+  legend_or_key:    { type: text,    unused_reason: "legend or key" }
+  narrative:        { type: text,    unused_reason: "narrative text" }
+  cover_or_toc:     { type: text,    unused_reason: "cover or contents page" }
+  location_plan:    { type: drawing, unused_reason: "location plan" }
+  cross_section:    { type: drawing, unused_reason: "cross-section drawing" }
+  photos:           { type: photo,   unused_reason: "photo page" }
+  blank:            { type: unknown, unused_reason: "blank page" }
+  duplicate:        { type: unknown, unused_reason: "duplicate of {file} p. {n}" }
+  other:            { type: unknown, unused_reason: "no borehole data found" }
+# Type of a page that has not been classified yet.
+unclassified_type: unknown
