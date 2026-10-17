@@ -38,7 +38,7 @@ const KIND: Record<string, string> = {
   crs_confirm: 'COORDINATE SYSTEM',
   locate_borehole: 'BOREHOLE POSITION',
   choose_reading: 'WHICH READING',
-  datum_convention: 'DEPTH ORIGIN',
+  datum_convention: 'DATUM',
   unit_ambiguous: 'UNIT',
   borehole_boundary: 'BOREHOLE PAGES',
   duplicate: 'DUPLICATE',

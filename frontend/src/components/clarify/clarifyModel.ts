@@ -15,7 +15,7 @@ export const KIND_LABEL: Record<ClarificationKind, string> = {
   crs_confirm: 'Coordinate system',
   locate_borehole: 'Borehole position',
   choose_reading: 'Which reading',
-  datum_convention: 'Depth origin',
+  datum_convention: 'Datum',
   unit_ambiguous: 'Unit',
   borehole_boundary: 'Borehole pages',
   duplicate: 'Duplicate',
