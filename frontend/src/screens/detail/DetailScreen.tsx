@@ -3,7 +3,6 @@ import { EmptyState } from '../../components/EmptyState';
 import { StatusChip } from '../../components/StatusChip';
 import { boreholeStatus } from '../../domain/review';
 import { useAppStore, useIsReviewable, useSelectedBorehole } from '../../store/appStore';
-import { reviewedText } from './detailModel';
 import { ExportMenu } from './ExportMenu';
 import { GroundwaterTable } from './GroundwaterTable';
 import { LayersTable } from './LayersTable';
@@ -68,7 +67,6 @@ export function DetailScreen() {
           <div className={styles.titleRow}>
             <h1 className={styles.id}>{b.id}</h1>
             <StatusChip status={boreholeStatus(b)} size="md" />
-            <span className={styles.reviewed}>{reviewedText(b)}</span>
           </div>
         </div>
         <div className={styles.spacer} />
@@ -93,7 +91,7 @@ export function DetailScreen() {
         <div className={styles.right}>
           <MetadataCard borehole={b} onOpenSource={onOpenSource} />
           <LayersTable borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
-          <TestResultsTable borehole={b} selected={selectedTest} onSelect={selectTest} />
+          <TestResultsTable borehole={b} selected={selectedTest} onSelect={selectTest} onOpenSource={onOpenSource} />
           <GroundwaterTable borehole={b} selected={selectedGw} onSelect={selectGw} onOpenSource={onOpenSource} />
         </div>
       </div>

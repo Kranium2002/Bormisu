@@ -37,11 +37,6 @@
   line-height: normal;
 }
 
-.reviewed {
-  font-size: var(--fs-sm);
-  color: var(--c-muted);
-}
-
 .spacer {
   margin-left: auto;
 }

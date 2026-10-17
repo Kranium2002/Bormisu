@@ -60,17 +60,17 @@ export function docMeta(d: DocumentSummary): string {
   return d.uploaded ? 'Uploaded, waiting for page count' : '';
 }
 
-export interface CountChip { n: number; label: string }
+export interface CountChip { n: number; label: string; hint: string }
 
-/** Found-count chips. A 0 is shown as 0: "0 found" differs from "not processed yet" (counts = null). */
+/** Found-count chips with a plain-language tooltip. A 0 is shown as 0: "0 found" differs from "not processed yet" (counts = null). */
 export function countChips(counts: DocumentSummary['counts']): CountChip[] | null {
   if (!counts) return null;
-  const chip = (n: number, one: string, many: string) => ({ n, label: n === 1 ? one : many });
+  const chip = (n: number, one: string, many: string, hint: string) => ({ n, label: n === 1 ? one : many, hint });
   return [
-    chip(counts.boreholes, 'BH', 'BH'),
-    chip(counts.layers, 'layer', 'layers'),
-    chip(counts.spt, 'SPT', 'SPT'),
-    chip(counts.groundwater, 'GW reading', 'GW readings'),
+    chip(counts.boreholes, 'BH', 'BH', 'Boreholes: drilled holes with their own log in this document'),
+    chip(counts.layers, 'layer', 'layers', 'Soil/rock layers described in the logs, summed over all boreholes'),
+    chip(counts.spt, 'SPT', 'SPT', 'Standard Penetration Tests: blow counts (N) at a depth, incl. refusals'),
+    chip(counts.groundwater, 'GW reading', 'GW readings', 'Groundwater levels recorded (strike, rest level, standpipe…)'),
   ];
 }
 

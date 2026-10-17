@@ -25,7 +25,6 @@ test.describe('detail', () => {
 
   test('shows the DIN 4023 profile, metadata and layer tables', async ({ page }) => {
     await expect(page.getByRole('group', { name: 'DIN 4023 profile of BK-07, 6 layers, final depth 18.00 m' })).toBeVisible();
-    await expect(page.getByText('0 of 30 values reviewed')).toBeVisible();
     await expect(page.getByText('ET 18.00 m')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Layer 1:/ })).toBeVisible();
   });

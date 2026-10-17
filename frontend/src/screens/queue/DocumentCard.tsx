@@ -35,7 +35,7 @@ function CountChips({ counts }: { counts: DocumentSummary['counts'] }) {
   return (
     <ul className={styles.counts} aria-label="Found">
       {chips.map((c) => (
-        <li key={c.label} className={styles.count}>
+        <li key={c.label} className={styles.count} title={c.hint}>
           <b>{c.n}</b> {c.label}
         </li>
       ))}

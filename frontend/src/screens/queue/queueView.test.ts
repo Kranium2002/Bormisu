@@ -62,7 +62,7 @@ describe('docMeta', () => {
 describe('countChips', () => {
   it('keeps 0 as 0 and null as not processed', () => {
     expect(countChips(null)).toBeNull();
-    expect(countChips({ boreholes: 13, layers: 1, spt: 0, groundwater: 9 })).toEqual([
+    expect(countChips({ boreholes: 13, layers: 1, spt: 0, groundwater: 9 })?.map(({ n, label }) => ({ n, label }))).toEqual([
       { n: 13, label: 'BH' }, { n: 1, label: 'layer' }, { n: 0, label: 'SPT' }, { n: 9, label: 'GW readings' },
     ]);
   });

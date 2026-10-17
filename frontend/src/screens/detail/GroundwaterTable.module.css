@@ -2,12 +2,6 @@
   grid-template-columns: 160px 160px minmax(0, 1fr);
 }
 
-/* status dot in front of the depth */
-.depth {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
 
 .type {
   padding: var(--space-2) var(--space-4);

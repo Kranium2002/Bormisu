@@ -1,4 +1,4 @@
-import { CertaintyMark } from '../../components/CertaintyMark';
+import { ValueCell } from '../../components/ValueCell';
 import { boreholeStatus } from '../../domain/review';
 import type { Borehole } from '../../domain/types';
 import { pinColor } from '../../theme';
@@ -34,10 +34,9 @@ export function MetadataCard({ borehole: b, onOpenSource }: Props) {
             <div key={r.label} className={styles.row}>
               <div className={styles.label}>{r.label}</div>
               <div className={styles.value}>
-                {r.certainty && (
-                  <CertaintyMark certainty={r.certainty} onOpen={r.source.clickable && key ? () => onOpenSource(key) : undefined} />
-                )}
-                <span className={face}>{r.shown.text}</span>
+                <ValueCell certainty={r.certainty} onOpen={r.source.clickable && key ? () => onOpenSource(key) : undefined}>
+                  <span className={face}>{r.shown.text}</span>
+                </ValueCell>
               </div>
             </div>
           );

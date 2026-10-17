@@ -3,7 +3,6 @@
  * groundwater row shows. One code path for every borehole (hand-made, generated or from the API);
  * displayed values always come from the borehole's ExtractedValues.
  */
-import { boreholeStatus, progress } from '../../domain/review';
 import { K } from '../../domain/keys';
 import { formatSpt, refusalTitle } from '../../domain/spt';
 import { certaintyOf, type Certainty } from '../../domain/certainty';
@@ -107,20 +106,6 @@ export function metadataRows(b: Borehole): MetaRow[] {
     metaRow(b, 'Drilling method', K.method, false),
     metaRow(b, 'Remarks', K.notes, false),
   ];
-}
-
-/* ---------- header ---------- */
-
-/**
- * Text next to the status chip: "7 of 30 values reviewed", or "all values reviewed". When every
- * value is approved but the borehole still needs attention, it says why (CRS inferred / not usable).
- */
-export function reviewedText(b: Borehole): string {
-  const p = progress(b);
-  if (p.total === 0) return 'no values extracted';
-  if (p.approved < p.total) return `${p.approved} of ${p.total} values reviewed`;
-  if (boreholeStatus(b) === 'attention' && b.crs.status === 'inferred') return 'all values reviewed · CRS inferred, not stated';
-  return 'all values reviewed';
 }
 
 /* ---------- location ---------- */

@@ -8,21 +8,6 @@
   vertical-align: middle;
 }
 
-.button {
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-.button:hover {
-  box-shadow: 0 0 0 3px var(--c-line);
-}
-
-.button:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: 2px;
-}
-
 .sure {
   background: var(--c-green);
 }

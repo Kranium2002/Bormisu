@@ -1,4 +1,4 @@
-import { CertaintyMark } from '../../components/CertaintyMark';
+import { ValueCell } from '../../components/ValueCell';
 import type { Borehole } from '../../domain/types';
 import { groundwaterRows } from './detailModel';
 import card from './cards.module.css';
@@ -26,9 +26,10 @@ export function GroundwaterTable({ borehole: b, selected, onSelect, onOpenSource
           onClick={() => onSelect(g.key)}
           onKeyDown={(e) => e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSelect(g.key))}>
           <div className={styles.type}>{g.type}</div>
-          <div className={`${styles.cell} ${styles.depth}`}>
-            {g.certainty && <CertaintyMark certainty={g.certainty} onOpen={g.source.clickable ? () => onOpenSource(g.key) : undefined} />}
-            <span className={g.depth.missing ? card.missing : card.mono}>{g.depth.text}</span>
+          <div className={styles.cell}>
+            <ValueCell certainty={g.certainty} onOpen={g.source.clickable ? () => onOpenSource(g.key) : undefined}>
+              <span className={g.depth.missing ? card.missing : card.mono}>{g.depth.text}</span>
+            </ValueCell>
           </div>
           <div className={`${styles.cell} ${styles.raw}`}>{g.raw}</div>
         </div>

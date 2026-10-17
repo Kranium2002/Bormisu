@@ -1,6 +1,7 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { AddColumnMenu, RemovableHeader, useColumns } from '../../components/ColumnChooser';
 import { CertaintyMark } from '../../components/CertaintyMark';
+import { ValueCell } from '../../components/ValueCell';
 import type { Borehole, Layer } from '../../domain/types';
 import { layerRows, type LayerRow, type SptCell, type ValueMark } from './detailModel';
 import card from './cards.module.css';
@@ -17,21 +18,23 @@ interface Props {
 /** A layer column the user can add or remove (README_data `layers`); #, FROM–TO and LITHOLOGY always stay. */
 interface LayerColumn {
   key: string; label: string; min: number;
-  /** `dot` draws a value's status dot (it opens the value's source). */
-  cell(r: LayerRow, l: Layer, openSpt: (e: MouseEvent) => void, dot: (m: ValueMark | null) => ReactNode): ReactNode;
+  /** `val` draws a value with its status dot; a click on it opens the value's source. */
+  cell(r: LayerRow, l: Layer, openSpt: (e: MouseEvent) => void, val: (m: ValueMark | null, content: ReactNode) => ReactNode): ReactNode;
 }
 
 const yes = (v: boolean | undefined) => (v ? 'yes' : '–');
 const txt = (v: unknown) => (v == null || v === '' ? '–' : String(v));
 const mono = (v: ReactNode) => <span className={card.mono}>{v}</span>;
 const LAYER_COLUMNS: readonly LayerColumn[] = [
-  { key: 'din_code', label: 'DIN', min: 70, cell: (r, _l, _o, dot) => <span className={styles.withDot}>{dot(r.marks.lithology)}{mono(r.din)}</span> },
+  { key: 'din_code', label: 'DIN', min: 70, cell: (r, _l, _o, val) => val(r.marks.lithology, mono(r.din)) },
   {
     key: 'spt', label: 'SPT', min: 120,
-    cell: (r, _l, open, dot) => (r.spt ? <span className={styles.spt}>{dot(r.marks.spt)}<Spt spt={r.spt} onOpen={open} /></span> : '–'),
+    cell: (r, _l, open) => (r.spt ? (
+      <span className={styles.spt}>{r.marks.spt && <CertaintyMark certainty={r.marks.spt.certainty} />}<Spt spt={r.spt} onOpen={open} /></span>
+    ) : '–'),
   },
-  { key: 'total_core_recovery', label: 'TCR (%)', min: 74, cell: (r, _l, _o, dot) => <span className={styles.withDot}>{dot(r.marks.tcr)}{mono(r.tcr)}</span> },
-  { key: 'rqd', label: 'RQD (%)', min: 74, cell: (r, _l, _o, dot) => <span className={styles.withDot}>{dot(r.marks.rqd)}{mono(r.rqd)}</span> },
+  { key: 'total_core_recovery', label: 'TCR (%)', min: 74, cell: (r, _l, _o, val) => val(r.marks.tcr, mono(r.tcr)) },
+  { key: 'rqd', label: 'RQD (%)', min: 74, cell: (r, _l, _o, val) => val(r.marks.rqd, mono(r.rqd)) },
   { key: 'original_description', label: 'AS PRINTED', min: 180, cell: (_r, l) => txt(l.lithologyAsPrinted) },
   { key: 'uscs_group', label: 'USCS', min: 60, cell: (_r, l) => mono(txt(l.fields?.uscs_group)) },
   { key: 'strength', label: 'STRENGTH', min: 100, cell: (_r, l) => txt(l.props?.consistencyDensity) },
@@ -91,8 +94,10 @@ export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenS
       ...shown.map((c) => `minmax(${c.min}px, 1fr)`), `${FIXED.add}px`].join(' '),
   };
   const minWidth = FIXED.n + FIXED.range + FIXED.lithology + FIXED.add + shown.reduce((a, c) => a + c.min, 0);
-  /** A value's status dot; a click on it shows where the value was read. */
-  const dot = (m: ValueMark | null) => (m ? <CertaintyMark certainty={m.certainty} onOpen={m.key ? () => onOpenSource(m.key!) : undefined} /> : null);
+  /** A value with its status dot; a click anywhere on it shows where the value was read (and selects the row). */
+  const val = (m: ValueMark | null, content: ReactNode) => (
+    <ValueCell certainty={m?.certainty ?? null} onOpen={m?.key ? () => onOpenSource(m.key!) : undefined}>{content}</ValueCell>
+  );
   const openFrom = (key: string) => (e: MouseEvent) => {
     e.stopPropagation();
     onOpenSource(key);
@@ -139,13 +144,13 @@ export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenS
               onKeyDown={onRowKey(r.n)}
             >
               <div role="cell" className={styles.cell}>{r.n}</div>
-              <div role="cell" className={`${styles.cell} ${styles.withDot}`}>{dot(r.marks.range)}<span className={card.mono}>{r.range}</span></div>
-              <div role="cell" className={`${styles.cell} ${styles.withDot} ${r.lithology.missing ? card.missing : ''}`} title={r.printed}>
-                {dot(r.marks.lithology)}<span>{r.lithology.text}</span>
+              <div role="cell" className={styles.cell}>{val(r.marks.range, <span className={card.mono}>{r.range}</span>)}</div>
+              <div role="cell" className={`${styles.cell} ${r.lithology.missing ? card.missing : ''}`} title={r.printed}>
+                {val(r.marks.lithology, <span>{r.lithology.text}</span>)}
               </div>
               {shown.map((c) => (
                 <div key={c.key} role="cell" className={styles.cell}>
-                  {c.cell(r, layer, r.spt ? openFrom(r.spt.key) : () => undefined, dot)}
+                  {c.cell(r, layer, r.spt ? openFrom(r.spt.key) : () => undefined, val)}
                 </div>
               ))}
               <div role="cell" />

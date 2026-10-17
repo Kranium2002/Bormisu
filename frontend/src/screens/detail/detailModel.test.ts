@@ -9,7 +9,6 @@ import {
   layerRows,
   locationInfo,
   metadataRows,
-  reviewedText,
   shown,
   sourceLink,
   unreviewedCount,
@@ -125,21 +124,6 @@ describe('sourceLink', () => {
     expect(layerRows(b)[1].spt).toMatchObject({ source: none });
     expect(layerRows(b)[1].spt?.title).toMatch(/No source page from the backend yet\.$/);
     expect(groundwaterRows(b)[0].source).toEqual(none);
-  });
-});
-
-describe('reviewedText', () => {
-  it('counts approved values, or says all are reviewed', () => {
-    const b = makeBorehole();
-    expect(reviewedText(b)).toBe(`0 of ${b.values.length} values reviewed`);
-    b.values = b.values.map((v) => ({ ...v, status: 'approved' }));
-    expect(reviewedText(b)).toBe('all values reviewed');
-  });
-
-  it('explains "needs attention" when every value is approved but the CRS is still inferred', () => {
-    const b = makeBorehole({ crs: { name: 'DHDN / GK zone 3', code: 'EPSG:31467', status: 'inferred' } });
-    b.values = b.values.map((v) => ({ ...v, status: 'approved' }));
-    expect(reviewedText(b)).toBe('all values reviewed · CRS inferred, not stated');
   });
 });
 
