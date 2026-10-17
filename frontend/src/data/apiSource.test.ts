@@ -49,8 +49,9 @@ function backend(route: Route = () => undefined) {
     if (own) return own;
     const path = call.url.slice(BASE.length);
     if (call.method === 'GET' && path === '/health') return json(200, fixture('health-live'));
-    if (call.method === 'GET' && path === '/boreholes?limit=5000') return json(200, fixture('boreholes-page-1'));
-    if (call.method === 'GET' && path === '/boreholes?limit=5000&cursor=cur_FICT_page2') return json(200, fixture('boreholes-page-2'));
+    if (call.method === 'GET' && path === '/map/boreholes.geojson') return json(200, fixture('map-features'));
+    // Every borehole of these fixtures is plotted: the "Not on map" list is empty.
+    if (call.method === 'GET' && path === '/boreholes?plotted=false&limit=5000') return json(200, { count: 0, boreholes: [], next_cursor: null });
     if (call.method === 'GET' && path === '/documents') return json(200, fixture('documents'));
     let m = /^\/boreholes\/([^/?]+)(\/values)?$/.exec(path);
     if (m) {
@@ -144,8 +145,8 @@ describe('request errors', () => {
   });
 
   it('names the endpoint only for route_not_found', async () => {
-    backend((c) => (c.url.includes('/boreholes') ? apiError(404, 'route_not_found') : undefined));
-    await expect(createApiSource(BASE).load()).rejects.toThrow('Backend endpoint not available: GET /api/v1/boreholes?limit=5000');
+    backend((c) => (c.url.includes('plotted=false') ? apiError(404, 'route_not_found') : undefined));
+    await expect(createApiSource(BASE).load()).rejects.toThrow('Backend endpoint not available: GET /api/v1/boreholes?plotted=false&limit=5000');
   });
 
   it('gives other non-JSON answers a code from the status, never from the text', async () => {
@@ -167,26 +168,33 @@ describe('health', () => {
 });
 
 describe('load', () => {
-  it('follows next_cursor and loads every document', async () => {
+  it('loads every document, the map layer and the "Not on map" list; full records come on demand', async () => {
     const { calls } = backend();
-    const { boreholes, documents } = await createApiSource(BASE).load();
+    const { documents, features, unplotted } = await createApiSource(BASE).load();
     expect(calls.map((c) => c.url).sort()).toEqual([
-      '/api/v1/boreholes?limit=5000', '/api/v1/boreholes?limit=5000&cursor=cur_FICT_page2', '/api/v1/documents',
+      '/api/v1/boreholes?plotted=false&limit=5000', '/api/v1/documents', '/api/v1/map/boreholes.geojson',
     ]);
-    expect(boreholes.map((b) => b.uid)).toEqual([HL01, HL02, KR01]);
+    expect(features.map((f) => f.uid).slice(0, 3)).toEqual([HL01, HL02, KR01]);
+    expect(unplotted).toEqual([]);
     expect(documents.map((d) => d.status)).toEqual(['needs_review', 'extracting', 'failed', 'needs_review', 'queued']);
   });
 
-  it("fills a document's project, review borehole and lint list from its boreholes", async () => {
+  it("fills a document's project and review borehole from the map layer; the lint list from the records it holds", async () => {
     backend();
-    const { documents } = await createApiSource(BASE).load();
+    const api = createApiSource(BASE);
+    const { documents } = await api.load();
     const [d1, d2, d3] = documents;
     expect(d1).toMatchObject({ project: 'Harbourline Tunnel (fictional)', reviewBoreholeUid: HL01 });
-    expect(d1.completeness?.lint).toHaveLength(5);
-    expect(d1.completeness?.lint[0]).toMatchObject({ boreholeId: 'HL-01' });
+    // No full record is loaded yet: no lint finding to list.
+    expect(d1.completeness?.lint).toEqual([]);
     // The document has no project: it falls back to its first borehole's.
     expect(d2).toMatchObject({ project: 'Kestrel Ridge Bypass (fictional)', reviewBoreholeUid: null });
     expect(d3).toMatchObject({ project: '', error: 'The file could not be read as an image.' });
+    // Once the records of the document are loaded (Review), the document lists their findings.
+    await api.documentBoreholes(D1);
+    const d1Again = await api.getDocument(D1);
+    expect(d1Again.completeness?.lint).toHaveLength(5);
+    expect(d1Again.completeness?.lint[0]).toMatchObject({ boreholeId: 'HL-01' });
   });
 
   it('stops paging when the server repeats a cursor', async () => {
@@ -197,11 +205,13 @@ describe('load', () => {
     expect(calls.filter((c) => c.url.includes('/boreholes?'))).toHaveLength(2);
   });
 
-  it('loads an empty backend as no boreholes and no documents', async () => {
-    backend((c) =>
-      c.url.includes('/boreholes') ? json(200, { count: 0, boreholes: [], next_cursor: null }) : json(200, { documents: [] }),
-    );
-    await expect(createApiSource(BASE).load()).resolves.toEqual({ boreholes: [], documents: [] });
+  it('loads an empty backend as no documents, no features and nothing unplotted', async () => {
+    backend((c) => {
+      if (c.url.includes('/map/')) return json(200, { type: 'FeatureCollection', features: [] });
+      if (c.url.includes('/boreholes')) return json(200, { count: 0, boreholes: [], next_cursor: null });
+      return json(200, { documents: [] });
+    });
+    await expect(createApiSource(BASE).load()).resolves.toEqual({ documents: [], features: [], unplotted: [] });
   });
 
   it('fails on a record without uid', async () => {
@@ -256,7 +266,7 @@ describe('review saves', () => {
   it('serialises saves of one borehole so every PATCH carries the latest revision, and resolves with the answer', async () => {
     const { calls } = backend();
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1); // Review loads the records of the document on demand
     const first = api.updateValue(HL01, K.finalDepth, { value: '15.6', method: 'Edited', status: 'approved' });
     const second = api.updateValue(HL01, K.boreholeName, { status: 'flagged', flag: 'check spelling' });
     const third = api.updateValue(HL01, K.notes, { state: 'not in source', status: 'approved' });
@@ -277,7 +287,7 @@ describe('review saves', () => {
   it('keeps saves of different boreholes independent', async () => {
     const { calls } = backend();
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1);
     await Promise.all([api.updateValue(HL01, K.boreholeId, { status: 'unreviewed' }), api.updateValue(HL02, K.boreholeId, { status: 'approved' })]);
     expect(patches(calls)).toEqual([
       { path: 'metadata.borehole_id', action: 'reset', if_revision: 4 },
@@ -288,7 +298,7 @@ describe('review saves', () => {
   it('on revision_conflict refetches the record and fails with it as current', async () => {
     const { calls, records } = backend();
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1);
     (records.get(HL01) as WireBorehole).revision = 11; // someone else saved meanwhile
     const saving = api.updateValue(HL01, K.finalDepth, { status: 'approved' });
     await expect(saving).rejects.toBeInstanceOf(SaveError);
@@ -306,7 +316,7 @@ describe('review saves', () => {
   it('a partly saved value fails with the record of the last successful answer', async () => {
     backend((c) => (c.method === 'PATCH' && c.body?.action === 'approve' ? apiError(500, 'internal_error') : undefined));
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1);
     const saving = api.updateValue(HL01, K.finalDepth, { value: '15.6', method: 'Edited', status: 'approved' });
     await saving.catch((e: SaveError) => {
       expect(e).toBeInstanceOf(SaveError);
@@ -322,7 +332,7 @@ describe('review saves', () => {
       return undefined;
     });
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1);
     await api.updateValue(HL01, K.finalDepth, { status: 'approved' }).catch((e: SaveError) => {
       expect([e.code, e.current?.revision, e.message]).toEqual([null, 4, unreachableMessage(BASE)]);
     });
@@ -332,7 +342,7 @@ describe('review saves', () => {
   it('refuses values without a provenance entry without sending anything', async () => {
     const { calls } = backend();
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1);
     await expect(api.updateValue(HL02, K.notes, { status: 'approved' })).rejects.toMatchObject({ name: 'SaveError', current: { uid: HL02 } });
     await expect(api.updateValue('bh_unknown', K.notes, { status: 'approved' })).rejects.toMatchObject({ name: 'SaveError', current: null });
     expect(patches(calls)).toEqual([]);
@@ -341,7 +351,7 @@ describe('review saves', () => {
   it('DV-15: refuses an SPT text that is no whole N before sending, where the backend tracks no printed SPT text', async () => {
     const { calls } = backend();
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1);
     const failed = await api.updateValue(HL01, K.spt(4), { value: '50/12', method: 'Edited', status: 'approved' }).catch((e: unknown) => e);
     expect(failed).toBeInstanceOf(SaveError);
     expect(failed).toMatchObject({
@@ -363,7 +373,7 @@ describe('review saves', () => {
       return undefined;
     });
     const api = createApiSource(BASE);
-    await api.load();
+    await api.documentBoreholes(D1);
     const bad = api.updateValue(HL01, K.finalDepth, { value: 'abc', method: 'Edited' });
     const good = api.updateValue(HL01, K.finalDepth, { status: 'approved' });
     await expect(bad).rejects.toMatchObject({ code: 'unparseable_value' });
@@ -375,8 +385,8 @@ describe('values without a provenance entry (the contract allows sparse provenan
   it('logs at most one console.info summary per load or refetch batch, never a warning per value', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const { records } = backend((c) =>
-      c.url.endsWith('/boreholes?limit=5000')
-        ? json(200, { ...fixture<WireBoreholeList>('boreholes-page-1'), boreholes: [records.get(HL01), records.get(HL02)] })
+      c.url.endsWith('/boreholes?plotted=false&limit=5000')
+        ? json(200, { ...fixture<WireBoreholeList>('boreholes-page-1'), boreholes: [records.get(HL01), records.get(HL02)], next_cursor: null })
         : undefined,
     );
     for (const uid of [HL01, HL02]) {
@@ -385,7 +395,8 @@ describe('values without a provenance entry (the contract allows sparse provenan
       delete rec.provenance['metadata.borehole_depth_m'];
     }
     const api = createApiSource(BASE);
-    const { boreholes } = await api.load();
+    // The records of the load are the "Not on map" list (served here with two fixture records).
+    const { unplotted: boreholes } = await api.load();
     expect(warn).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledTimes(1);
     const summary = String(info.mock.calls[0][0]);

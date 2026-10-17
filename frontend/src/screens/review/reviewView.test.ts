@@ -4,6 +4,7 @@ import { K } from '../../domain/keys';
 import { initialFocusKey } from '../../domain/review';
 import type { Borehole, Box, CrsCandidate } from '../../domain/types';
 import { fixture } from '../../test/contract/wire';
+import { makeClarification } from '../../components/clarify/clarifyFixtures';
 import { makeBorehole, makeMeta, makeValue } from '../../test/fixtures';
 import {
   boxVariant,
@@ -12,6 +13,7 @@ import {
   fieldNote,
   normalisedText,
   pageText,
+  questionKeys,
   readingText,
   reviewRows,
   rowKeys,
@@ -324,5 +326,31 @@ describe('DV-11-UI: values whose source is in another document', () => {
       values: [lab({ key: 'l1', group: 'layer', layer: 1, page: 3 }), makeValue({ key: 'l1b', group: 'layer', layer: 1, page: 8 })],
     });
     expect(reviewRows(b)[0]).toMatchObject({ kind: 'head', title: 'LAYER 1 · 0.00–2.50 M · P.8' });
+  });
+});
+
+describe('questionKeys (F12)', () => {
+  const b = makeBorehole({
+    uid: 'bh_Q',
+    values: [makeValue({ key: K.finalDepth }), makeValue({ key: 'stratigraphy[2].spt_n_value' }), makeValue({ key: K.elevation })],
+  });
+  // The data layer may list a value's source paths; then a question's wire path finds the value.
+  const withPaths = { ...b, values: b.values.map((v) => (v.key === K.elevation ? { ...v, paths: ['metadata.surface_elevation_mASL'] } : v)) };
+
+  it('puts an unresolved question on the value its path names; open questions before skipped ones', () => {
+    const skipped = makeClarification({ id: 'cl_skipped', boreholeUids: ['bh_Q'], status: 'skipped', path: 'stratigraphy[2].spt_n_value' });
+    const open = makeClarification({ id: 'cl_open', boreholeUids: ['bh_Q'], path: 'stratigraphy[2].spt_n_value' });
+    const elev = makeClarification({ id: 'cl_elev', boreholeUids: ['bh_Q'], path: 'metadata.surface_elevation_mASL' });
+    expect(questionKeys(withPaths, [skipped, open, elev])).toEqual({ 'stratigraphy[2].spt_n_value': 'cl_open', [K.elevation]: 'cl_elev' });
+  });
+
+  it('ignores answered questions, other boreholes and questions without a path or a matching value', () => {
+    const list = [
+      makeClarification({ id: 'a', boreholeUids: ['bh_Q'], status: 'answered', path: 'stratigraphy[2].spt_n_value' }),
+      makeClarification({ id: 'b', boreholeUids: ['bh_OTHER'], path: 'stratigraphy[2].spt_n_value' }),
+      makeClarification({ id: 'c', boreholeUids: ['bh_Q'], path: null }),
+      makeClarification({ id: 'd', boreholeUids: ['bh_Q'], path: 'metadata.depth_origin' }),
+    ];
+    expect(questionKeys(b, list)).toEqual({});
   });
 });

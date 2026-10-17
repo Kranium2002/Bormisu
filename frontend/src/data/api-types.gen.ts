@@ -160,6 +160,11 @@ export interface paths {
         parameters: {
             query?: {
                 dry_run?: boolean;
+                /**
+                 * @description Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
+                 *     cut to 100 characters; "reviewer" when absent or blank.
+                 */
+                confirmed_by?: string;
             };
             header?: never;
             path: {
@@ -191,7 +196,17 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Ranked coordinate-system candidates for the document's printed coordinates. */
+        /**
+         * Ranked coordinate-system candidates for the document's printed coordinates.
+         * @description Every system of the server's registry is tried in both axis orders. Evidence: the share of
+         *     points inside the system's EPSG area of use, the distance of the transformed centroid to a
+         *     reference place geocoded on the server from the boreholes' location name, project name or
+         *     country (uploaded places first, then the cached geocoder), the compactness of the points, and
+         *     how specific the system is (world-wide systems and areas of use far larger than the point
+         *     spread score lower). Verdict: see `CrsCandidate.verdict` (match, shifted, out_of_range).
+         *     Order: verdict, score, smaller area of use, EPSG code. An unavailable geocoder never fails
+         *     this call: the ranking then works without a reference place and says so in `note`.
+         */
         get: operations["listCrsCandidates"];
         put?: never;
         post?: never;
@@ -419,8 +434,37 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Leave the question open for later; affected records keep their uncertainty badge. */
+        /**
+         * Leave the question open for later; affected records keep their uncertainty badge.
+         * @description A skipped question still counts in `open_clarifications` (unresolved) and can be answered later
+         *     with POST /clarifications/{id}/answer. Skipping an answered question returns 409 already_resolved.
+         */
         post: operations["skipClarification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clarifications/{clarification_id}/crs-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clarification_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Ranked coordinate-system candidates for every borehole a crs_confirm question covers (1.1.0).
+         * @description Same ranking as GET /documents/{id}/crs-candidates, over all boreholes in the clarification's
+         *     `borehole_uids`, which may span several documents (one question per upload project). Empty
+         *     when the clarification is not a crs_confirm question or its boreholes have no printed
+         *     coordinates.
+         */
+        get: operations["listClarificationCrsCandidates"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -434,7 +478,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Server-sent events for live updates. See contracts/realtime-and-chat.md. */
+        /**
+         * Server-sent events for live updates. See contracts/realtime-and-chat.md.
+         * @description Without a last event id the stream starts at the newest event (no history). With one, every
+         *     stored event after that id is replayed first. The id can be sent as the `Last-Event-ID`
+         *     header (EventSource does this on its own reconnects) or, since 1.2.0, as the `last_event_id`
+         *     query parameter (for a stream the client opens anew, which cannot set headers). When both are
+         *     sent, the header wins. A header that is not a whole number is ignored.
+         */
         get: operations["streamEvents"];
         put?: never;
         post?: never;
@@ -575,6 +626,14 @@ export interface components {
             project?: string | null;
             status: components["schemas"]["DocumentStatus"];
             error?: string | null;
+            /**
+             * @description The pipeline stage that failed (1.2.0), the same name as `stage` in the `job.failed` event:
+             *     triage, classify, ocr, extract, reread for page documents; sheet_read, sheet_map,
+             *     sheet_extract for spreadsheets. null unless `status` is failed; also null when the
+             *     document failed before any stage ran (for example it could not be queued). Cleared when
+             *     the document is retried.
+             */
+            failed_stage?: string | null;
             mime_type?: string;
             size_bytes?: number;
             sha256?: string;
@@ -589,6 +648,7 @@ export interface components {
             completeness?: components["schemas"]["Completeness"] | null;
             progress?: components["schemas"]["DocumentProgress"] | null;
             duplicate_of?: string | null;
+            /** @description Unresolved questions about this document (status open or skipped). */
             open_clarifications?: number;
             /** Format: date-time */
             created_at: string;
@@ -648,6 +708,12 @@ export interface components {
             coordinate_system?: string | null;
             /** @description Confirmed or stated EPSG code, e.g. EPSG:28355. */
             crs_code?: string | null;
+            /**
+             * @description Human-readable name of crs_code (1.1.0), e.g. "GDA94 / MGA zone 55": the server registry's
+             *     label, else the EPSG name. Set by the server whenever crs_code is set, null otherwise.
+             *     Server-computed like crs_code: no provenance entry, not a PATCH path.
+             */
+            crs_label?: string | null;
             /** @description First coordinate exactly as printed. */
             x_raw?: string | null;
             y_raw?: string | null;
@@ -711,6 +777,12 @@ export interface components {
             core_recovery_pct?: number | null;
             /** @description Never set on refusal. */
             spt_n_value?: number | null;
+            /**
+             * @description The SPT as printed. To correct an SPT (also a refusal such as "50/120"), edit this path: the
+             *     server parses the text again and updates spt_refusal, spt_n_value (null on refusal),
+             *     spt_increments, spt_increment_mm and spt_penetration_cm in the same revision. An edit of
+             *     spt_n_value accepts whole numbers only.
+             */
             spt_raw?: string | null;
             spt_refusal?: boolean | null;
             spt_increments?: number[] | null;
@@ -745,6 +817,14 @@ export interface components {
             sample_name?: string | null;
             depth_m?: number | null;
         };
+        /**
+         * @description Provenance rule: every non-null value at a path of the ValuePatch grammar has an entry in
+         *     `provenance`, except the values the server computes itself: stratigraphy[i].thickness_m,
+         *     stratigraphy[i].description_language, metadata.coordinates.crs_code,
+         *     metadata.coordinates.crs_label and metadata.aliases. stratigraphy[i].english_lithology, when it
+         *     is a model's rendering of the printed description, carries method "guessed" with the page and
+         *     box of stratigraphy[i].original_description.
+         */
         BoreholeRecord: {
             uid: string;
             document_id: string;
@@ -766,17 +846,26 @@ export interface components {
             plotted: boolean;
             /** @enum {string|null} */
             unplotted_reason?: "no_coordinates" | "crs_unknown" | "crs_unconfirmed" | "implausible" | null;
+            /**
+             * @description Depth of the rock head in metres: as printed or edited, else derived from the top of the
+             *     first layer whose DIN 4023 code is a rock. null means not stated in the source and not
+             *     derivable from the printed layers; it never means that rock was not reached.
+             */
             rock_head_m?: number | null;
             metadata: components["schemas"]["BoreholeMetadata"];
             stratigraphy: components["schemas"]["Layer"][];
             groundwater: components["schemas"]["GroundwaterReading"][];
             samples?: components["schemas"]["Sample"][];
             test_results?: components["schemas"]["TestResult"][];
-            /** @description Keyed by value path, e.g. metadata.borehole_depth_m, stratigraphy[2].spt_n_value, groundwater[0].depth_m. */
+            /**
+             * @description Keyed by value path, e.g. metadata.borehole_depth_m, stratigraphy[2].spt_n_value,
+             *     groundwater[0].depth_m. See the provenance rule in this schema's description.
+             */
             provenance: {
                 [key: string]: components["schemas"]["Provenance"];
             };
             lint: components["schemas"]["Lint"][];
+            /** @description Unresolved questions about this borehole (status open or skipped). */
             open_clarifications?: number;
         };
         BoreholeList: {
@@ -809,13 +898,31 @@ export interface components {
             state?: "ok" | "not_in_source" | "illegible";
             /** @description Optional optimistic concurrency check. */
             if_revision?: number | null;
+            /**
+             * @description Who performed the action (1.1.0). Stored as the revision's actor, trimmed and cut to 100
+             *     characters; "reviewer" when absent or blank.
+             */
+            confirmed_by?: string | null;
         };
         CrsCandidate: {
             /** @description EPSG code, e.g. EPSG:25832. */
             crs: string;
             label: string;
             score?: number;
-            /** @enum {string} */
+            /**
+             * @description How the transformed points fit the system (meaning fixed in 1.2.0).
+             *     match: every point, transformed, lies inside the system's EPSG area of use and, when a
+             *     reference place is known, the centroid of the points lies within the server's match
+             *     distance of that place (distance 0 inside the place's bounding box).
+             *     shifted: every point lies inside the area of use or within the server's margin around it,
+             *     but some lie only in the margin, or the centroid is farther than the match distance from
+             *     the reference place.
+             *     out_of_range: at least one point lies outside the area of use and its margin, or cannot be
+             *     transformed (also when the server knows no area of use for the system).
+             *     The margin and the match distance are the server's data (its CRS registry), not part of
+             *     this contract; they can change without a contract change.
+             * @enum {string}
+             */
             verdict?: "match" | "shifted" | "out_of_range";
             /** @description Why it ranks here, e.g. "zone printed as 55H". */
             note?: string | null;
@@ -911,9 +1018,14 @@ export interface components {
                     borehole_depth_m?: number | null;
                     review_status: string;
                     crs_status: string;
+                    /** @description Stated or confirmed system, e.g. EPSG:2193 (1.2.0). */
+                    crs_code?: string | null;
+                    /** @description Readable name of crs_code, as in Coordinates.crs_label (1.2.0). */
+                    crs_label?: string | null;
                     revision?: number;
-                    /** @description True when a value is flagged, a lint error exists or a clarification is open. */
+                    /** @description True when a value is flagged, a lint error exists or a clarification is unresolved (open or skipped). */
                     attention?: boolean;
+                    /** @description Unresolved questions (status open or skipped). */
                     open_clarifications?: number;
                 };
             }[];
@@ -1234,7 +1346,10 @@ export interface operations {
                     "application/json": components["schemas"]["UploadAccepted"];
                 };
             };
-            /** @description Document is not in status failed. */
+            /**
+             * @description Document is not in status failed (code not_failed), or the server is in demo mode (code and
+             *     detail both exactly "demo_mode"; the document is not touched).
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1306,6 +1421,11 @@ export interface operations {
         parameters: {
             query?: {
                 dry_run?: boolean;
+                /**
+                 * @description Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
+                 *     cut to 100 characters; "reviewer" when absent or blank.
+                 */
+                confirmed_by?: string;
             };
             header?: never;
             path: {
@@ -1696,7 +1816,10 @@ export interface operations {
                     "application/json": components["schemas"]["Clarification"];
                 };
             };
-            /** @description Already answered or skipped. */
+            /**
+             * @description Already answered (code already_resolved). A skipped question is still unresolved and can
+             *     be answered: that returns 200.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1736,12 +1859,57 @@ export interface operations {
                     "application/json": components["schemas"]["Clarification"];
                 };
             };
+            /** @description Already answered (code already_resolved). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listClarificationCrsCandidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clarification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Candidates, best first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrsCandidate"][];
+                };
+            };
+            /** @description Unknown id (code clarification_not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     streamEvents: {
         parameters: {
             query?: {
                 document_id?: string;
+                /**
+                 * @description Replay every stored event after this id (1.2.0). Same meaning as the Last-Event-ID
+                 *     header, which wins when both are sent.
+                 */
+                last_event_id?: number;
             };
             header?: {
                 "Last-Event-ID"?: string;

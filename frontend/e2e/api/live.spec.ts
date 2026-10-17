@@ -17,6 +17,7 @@ import {
   LIVE_UID,
   liveBorehole,
   liveDocument,
+  liveFeature,
   sseBody,
   sseEvent,
 } from './live-helpers';
@@ -43,6 +44,11 @@ test('an uploaded document updates live from the event stream and becomes review
     (route) => route.fulfill({ json: doc.status === 'needs_review' ? [liveBorehole()] : [] }),
   );
   await page.route((url) => path(url) === `/api/v1/boreholes/${LIVE_UID}`, (route) => route.fulfill({ json: liveBorehole() }));
+  // The map layer of the test's document (the backend doesn't know it): its pin once it is extracted.
+  await page.route(
+    (url) => path(url) === '/api/v1/map/boreholes.geojson' && new URL(url).searchParams.get('document_id') === LIVE_DOC,
+    (route) => route.fulfill({ json: { type: 'FeatureCollection', features: doc.status === 'needs_review' ? [liveFeature()] : [] } }),
+  );
   await page.route(
     (url) => path(url).startsWith(`/api/v1/documents/${LIVE_DOC}/pages/`),
     (route) => route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG }),

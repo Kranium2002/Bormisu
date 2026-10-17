@@ -9,7 +9,7 @@ import type { Borehole, CrsCandidate, CrsConfirmation, DocumentSummary } from '.
 import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { useAppStore } from './appStore';
 import { readReviewerName, REVIEWER_NAME_KEY } from './settingsSlice';
-import { fakeSource, manualLive, readyStore, settle } from './testing';
+import { fakeSource, featureOf, manualLive, readyStore, settle } from './testing';
 
 vi.mock('../export/download', async (orig) => ({
   ...(await orig<typeof import('../export/download')>()),
@@ -285,8 +285,10 @@ describe('upload review target', () => {
 
   it('points a freshly extracted document at its first borehole and keeps it on later updates', async () => {
     const extracted = makeBorehole({ uid: UP, id: 'TB-21', documentId: base.id, project: 'Uploaded Project (fictional)' });
+    // The server's map layer has its pin; its full record is not needed for the card.
+    const mapFeatures = vi.fn<DataSource['mapFeatures']>(async (id) => (id === base.id ? [featureOf(extracted)!] : []));
     const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [extracted]);
-    const { fake, push } = await readyUploads(base, { documentBoreholes, getDocument: async () => base });
+    const { fake, push } = await readyUploads(base, { mapFeatures, documentBoreholes, getDocument: async () => base });
     expect(fake.kind).toBe('sample');
     st().addFiles([new File(['x'], 'up.pdf')]);
     await settle();
@@ -294,10 +296,25 @@ describe('upload review target', () => {
     push({ ...base, status: 'needs_review', step: 2 });
     await vi.waitFor(() => expect(st().documents.find((d) => d.id === base.id)?.reviewBoreholeUid).toBe(UP));
     expect(st().documents.find((d) => d.id === base.id)?.project).toBe('Uploaded Project (fictional)');
-    expect(st().boreholes.map((b) => b.uid)).toContain(UP);
+    // Its pin is on the map; the record comes on demand.
+    expect(st().features.map((f) => f.uid)).toContain(UP);
+    expect(documentBoreholes).not.toHaveBeenCalled();
     push({ ...base, status: 'done', step: 3 });
     expect(st().documents.find((d) => d.id === base.id)?.reviewBoreholeUid).toBe(UP);
-    expect(documentBoreholes).toHaveBeenCalledTimes(1);
+    expect(mapFeatures.mock.calls.filter(([id]) => id === base.id)).toHaveLength(1);
+  });
+
+  it('a document whose boreholes are all off the map points at its first unplotted one that Review can show', async () => {
+    const off = makeBorehole({ uid: UP, id: 'TB-21', documentId: base.id, onMap: false, lat: null, lng: null, unplottedReason: 'crs_unknown' });
+    const { fake, push } = await readyUploads(base, { getDocument: async () => base });
+    fake.held.set(off.uid, off);
+    st().addFiles([new File(['x'], 'up.pdf')]);
+    await settle();
+    push({ ...base, status: 'needs_review', step: 2 });
+    await vi.waitFor(() => expect(st().documents.find((d) => d.id === base.id)?.reviewBoreholeUid).toBe(UP));
+    // The NOT ON MAP list was reloaded with it (its full record).
+    expect(st().unplottedUids).toContain(UP);
+    expect(bh(UP)?.unplottedReason).toBe('crs_unknown');
   });
 
   it('a failed extraction gets no review target', async () => {

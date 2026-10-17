@@ -15,7 +15,7 @@ import { NB_CRS, NB_PROJECT } from './neckarbogen';
 /* ---------- projects and seeds (prototype PROJ, BHS) ---------- */
 
 /**
- * Per-borehole base code: r = reviewed, a = attention (one lint warning and an open datum question),
+ * Per-borehole base code: r = reviewed, a = attention (one lint warning and an open question, see clarifications.ts),
  * u / x = unreviewed, N = no coordinates in source, C = CRS unknown (local site grid), M = named but
  * missing (skipped).
  */
@@ -317,8 +317,9 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
     project: seed.project,
     revision: 1,
     reviewStatus: deriveReviewStatus(values),
-    // Open questions: the report's coordinate system (Neckarbogen) or the elevation datum (base "a").
-    openClarifications: seed.nb || seed.base === 'a' ? 1 : 0,
+    // Counted by the sample source from its questions (clarifications.ts): the report's coordinate
+    // system (Neckarbogen) and one question each for the base "a" boreholes.
+    openClarifications: 0,
     lat: seed.onMap ? seed.lat : null,
     lng: seed.onMap ? seed.lng : null,
     onMap: seed.onMap,

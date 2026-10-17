@@ -18,8 +18,10 @@ function introText(listed: number, total: number): string {
 }
 
 /**
- * NOT ON MAP aside: boreholes without usable coordinates are listed, not plotted.
- * A plausible wrong pin is worse than no pin. Each item opens the borehole's detail.
+ * NOT ON MAP, under the map next to RESULTS (README acceptance: "listed under the map with their
+ * reason, never placed at 0,0"): boreholes without usable coordinates are listed, not plotted, each
+ * with the backend's reason as a label (UNPLOTTED_LABELS). A plausible wrong pin is worse than no
+ * pin. Each item opens the borehole's detail.
  */
 export function NotOnMapList({ boreholes, total, onOpen }: Props) {
   return (

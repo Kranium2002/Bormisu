@@ -15,6 +15,7 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import {
   documents,
   expect,
+  expectPins,
   fieldRow,
   getJson,
   knownBug,
@@ -23,7 +24,6 @@ import {
   openApp,
   openDetail,
   openReview,
-  pins,
   records,
   reload,
   test,
@@ -32,7 +32,7 @@ import {
 } from './fixtures';
 
 
-interface Candidate { crs: string; label: string; verdict?: string; note?: string | null; score?: number; swap_axes?: boolean }
+interface Candidate { crs: string; label: string; verdict?: string | null; note?: string | null; score?: number; swap_axes?: boolean }
 interface Clarification { clarification_id: string; kind: string; status: string; document_id: string; borehole_uids: string[] }
 
 const VERDICT_TEXT: Record<string, string> = { match: 'pins on site', shifted: 'shifted from the site', out_of_range: 'out of range' };
@@ -69,6 +69,38 @@ test('FE-CRS-1: a borehole waiting for a CRS confirmation offers CHOOSE CRS… i
   await expect(row.getByRole('button', { name: 'CHOOSE CRS…' })).toBeVisible();
 });
 
+/** Verdict colours of the dialog (src/components/clarify/crsView.ts verdictColor), as the browser reports them. */
+const VERDICT_RGB: Record<string, string> = {
+  match: 'rgb(125, 183, 19)',
+  shifted: 'rgb(227, 155, 0)',
+  out_of_range: 'rgb(200, 16, 46)',
+  none: 'rgb(163, 163, 162)',
+};
+
+test('F13: every candidate shows its verdict colour and a mini-map; the picked one is large (read-only)', async ({ page, request }) => {
+  const doc = await unconfirmedDocument(request);
+  test.skip(!doc, 'no document with crs_unconfirmed boreholes left: reseed');
+  const candidates = await getJson<Candidate[]>(request, `/documents/${doc!.id}/crs-candidates`);
+  await openApp(page);
+  await openReview(page, doc!.boreholes[0].metadata.borehole_id);
+  const crsRow = await crsActionRow(page);
+  await crsRow.click({ position: { x: 12, y: 12 } });
+  await crsRow.getByRole('button', { name: 'CHOOSE CRS…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'CONFIRM CRS FOR THE WHOLE DOCUMENT' });
+  const radios = dialog.getByRole('radio');
+  await expect(radios).toHaveCount(candidates.length);
+  for (const [i, c] of candidates.entries()) {
+    const verdict = c.verdict ?? 'none';
+    await expect(radios.nth(i)).toHaveAttribute('data-verdict', verdict);
+    await expect(radios.nth(i)).toHaveCSS('border-left-color', VERDICT_RGB[verdict]);
+  }
+  // One thumbnail per candidate on the configured basemap (decorative), and the picked candidate large.
+  await expect(dialog.locator('.leaflet-container[aria-hidden="true"]')).toHaveCount(candidates.length);
+  await expect(dialog.getByLabel('Map preview of the picked CRS')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
+
 test('the dialog lists the server candidates with verdicts; confirming places every borehole of the document', async ({ page, request }) => {
   const doc = await unconfirmedDocument(request);
   test.skip(!doc, 'no document with crs_unconfirmed boreholes left: reseed (a confirmed CRS cannot be undone)');
@@ -78,7 +110,7 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
   const first = doc!.boreholes[0];
 
   await openApp(page);
-  await expect(pins(page)).toHaveCount(plottedBefore);
+  await expectPins(page, plottedBefore);
   for (const b of doc!.boreholes) {
     await expect(page.locator(`aside button[data-uid="${b.uid}"]`)).toContainText(UNPLOTTED_LABEL.crs_unconfirmed);
   }
@@ -127,7 +159,7 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
   await nav(page, 'MAP');
   const after = await records(request, `?document_id=${doc!.id}`);
   for (const b of after) expect({ id: b.metadata.borehole_id, plotted: b.plotted, crs: b.crs_status }).toEqual({ id: b.metadata.borehole_id, plotted: true, crs: 'confirmed' });
-  await expect(pins(page)).toHaveCount(plottedBefore + doc!.boreholes.length);
+  await expectPins(page, plottedBefore + doc!.boreholes.length);
   for (const b of doc!.boreholes) {
     await expect(page.locator(`aside button[data-uid="${b.uid}"]`)).toHaveCount(0);
     await expect(page.locator(`[role="table"] [role="row"][data-uid="${b.uid}"]`).getByRole('cell').nth(4)).toHaveText(/^confirmed/);
@@ -146,7 +178,13 @@ test('FE-CRS-2: a confirmed CRS is named by its code in Detail, Review and RESUL
   expect(code, 'the backend stores the confirmed code').toMatch(/^EPSG:/);
   await openApp(page);
   // Soft: report every place that drops the code, not only the first.
-  await expect.soft(page.locator(`[role="table"] [role="row"][data-uid="${b!.uid}"]`).getByRole('cell').nth(4), 'RESULTS CRS cell').toContainText(code);
+  // RESULTS: a pin from the map layer carries only the CRS status, so the row names the code once the
+  // record is cached (Detail, Review; checked at the end) and the status before. Its title never says
+  // there is no coordinate system.
+  const resultsCrs = page.locator(`[role="table"] [role="row"][data-uid="${b!.uid}"]`).getByRole('cell').nth(4);
+  const codePattern = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await expect.soft(resultsCrs, 'RESULTS CRS cell').toHaveText(new RegExp(`^confirmed( · ${codePattern})?$`));
+  await expect.soft(resultsCrs, 'RESULTS CRS title').not.toHaveAttribute('title', /no coordinate system/i);
   await openDetail(page, b!.metadata.borehole_id);
   const meta = page.getByLabel('Metadata');
   await expect.soft(meta, 'Detail location').not.toContainText('CRS unknown');
@@ -154,6 +192,11 @@ test('FE-CRS-2: a confirmed CRS is named by its code in Detail, Review and RESUL
   await page.getByRole('button', { name: '› OPEN IN REVIEW' }).click();
   await expect(page.getByRole('heading', { level: 1, name: `REVIEW · ${b!.metadata.borehole_id}` })).toBeVisible();
   await expect.soft(await crsActionRow(page), 'Review CRS row (else the X / Y row that offers CHOOSE CRS…)').toContainText(code);
+  // Back on the map the record is cached: RESULTS names the system after the status (the printed
+  // name, else the code), and its title carries the code.
+  await nav(page, 'MAP');
+  await expect.soft(resultsCrs, 'RESULTS CRS cell of a cached record').toHaveText(/^confirmed · \S/);
+  await expect.soft(resultsCrs, 'RESULTS CRS title of a cached record').toHaveAttribute('title', new RegExp(codePattern));
 });
 
 test('BE-CRS-1: confirming the CRS of a document resolves its open crs_confirm question', async ({ request }) => {

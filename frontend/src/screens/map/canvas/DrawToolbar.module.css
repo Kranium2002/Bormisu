@@ -1,0 +1,91 @@
+/* Area selection tools over the top-right corner of the map, under Leaflet's attribution-free corner. */
+.wrap {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  box-shadow: var(--shadow-card);
+  border-radius: 4px;
+  pointer-events: auto;
+}
+
+.tool {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: var(--c-surface);
+  color: var(--c-dark);
+  cursor: pointer;
+}
+
+.tool + .tool {
+  border-top: 1px solid var(--c-line);
+}
+
+.tool:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.tool:last-child {
+  border-radius: 0 0 4px 4px;
+}
+
+.tool:hover {
+  background: var(--c-hover);
+}
+
+.tool:focus-visible {
+  outline: 2px solid var(--c-dark);
+  outline-offset: -2px;
+}
+
+.active {
+  background: var(--c-dark);
+  color: #FFFFFF;
+}
+
+.active:hover {
+  background: var(--c-dark);
+}
+
+.remove {
+  color: var(--c-red);
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.hint {
+  max-width: 260px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.hint:not(:empty) {
+  background: var(--c-surface);
+  color: var(--c-text);
+  padding: 6px 10px;
+  box-shadow: var(--shadow-card);
+  border-radius: 4px;
+}

@@ -1,0 +1,8 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "ClarificationAnswer",
+  "example": {
+    "values": { "crs": "EPSG:2193", "swap_axes": false },
+    "answered_by": "A. Reviewer (fictional)"
+  }
+}

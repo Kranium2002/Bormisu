@@ -1,0 +1,256 @@
+/* FILTERS: compact form of the explore panel (LGRB "Filter", Bormisu tokens). */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.label,
+.sublabel,
+.inlineLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.sublabel {
+  font-weight: 600;
+  color: var(--c-muted);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: 13px var(--font-sans);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 1px;
+  border-color: var(--c-dark);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--c-red);
+  box-shadow: inset 0 0 0 1px var(--c-red);
+}
+
+.input:disabled {
+  background: var(--c-line);
+  cursor: not-allowed;
+}
+
+.group,
+.tri {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.option input,
+.check input,
+.inline input {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--c-dark);
+}
+
+.hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--c-muted);
+}
+
+.fieldError {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-red);
+}
+
+/* The DIN code list scrolls on its own, so the panel stays short. */
+.dinList {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--c-border);
+  border-radius: 2px;
+  padding: 4px 8px 6px;
+  background: var(--c-surface);
+}
+
+.dinKind {
+  position: sticky;
+  top: -4px;
+  margin: 0 -8px;
+  padding: 4px 8px 2px;
+  background: var(--c-surface);
+  color: var(--c-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.check:hover {
+  background: var(--c-hover);
+}
+
+.code {
+  flex: none;
+  min-width: 38px;
+  font: 600 12px var(--font-mono);
+}
+
+.chosen {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.link {
+  flex: none;
+  appearance: none;
+  border: 0;
+  padding: 2px 0;
+  background: none;
+  color: var(--c-green-text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.area {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--c-green);
+  background: var(--c-selected);
+  color: var(--c-text);
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.apply,
+.reset {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 2px;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+
+.apply {
+  flex: 1;
+  border: 0;
+  background: var(--c-green);
+  color: var(--c-on-green);
+}
+
+.apply:hover {
+  background: var(--c-dark);
+  color: #fff;
+}
+
+.apply:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.reset {
+  border: 1px solid var(--c-dark);
+  background: var(--c-surface);
+  color: var(--c-dark);
+}
+
+.reset:hover {
+  background: var(--c-hover);
+}
+
+.apply:focus-visible,
+.reset:focus-visible {
+  outline: 2px solid var(--c-dark);
+  outline-offset: 2px;
+}

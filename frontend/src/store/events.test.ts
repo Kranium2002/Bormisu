@@ -8,7 +8,7 @@ import { K } from '../domain/keys';
 import type { Borehole, DocumentSummary, LiveEvent } from '../domain/types';
 import { canOpenReview } from '../screens/queue/queueView';
 import { makeBorehole, makeDocument } from '../test/fixtures';
-import { fakeSource, makeHealth, manualLive, readyStore, settle, type FakeSource } from './testing';
+import { fakeSource, featureOf, makeClarification, makeHealth, manualLive, readyStore, settle, type FakeSource } from './testing';
 
 /** init() asks createDataSource once; it gets a proxy that forwards to the current fake source. */
 let current: DataSource;
@@ -42,8 +42,13 @@ async function ready(over: Partial<DataSource> = {}, documents: DocumentSummary[
   const fake = fakeSource({ boreholes: [makeBorehole(), ...extra], documents }, { subscribe: live.subscribe, ...over });
   current = fake;
   await readyStore(fake, UID);
-  // The extra boreholes exist on the server only (created after the load).
-  useAppStore.setState({ boreholes: st().boreholes.filter((b) => !extra.some((x) => x.uid === b.uid)) });
+  // The extra boreholes exist on the server only (created after the load): no record, pin or NOT ON MAP entry.
+  const later = (uid: string) => extra.some((x) => x.uid === uid);
+  useAppStore.setState({
+    boreholes: st().boreholes.filter((b) => !later(b.uid)),
+    features: st().features.filter((f) => !later(f.uid)),
+    unplottedUids: st().unplottedUids.filter((uid) => !later(uid)),
+  });
   st().startLive();
   return fake;
 }
@@ -144,9 +149,13 @@ describe('F7: a document that reaches needs_review through events becomes review
   const processing = makeDocument({ id: NEW_DOC, name: 'new_log.pdf', project: '', status: 'extracting', step: 1, reviewBoreholeUid: null, counts: null });
   const extracted = makeBorehole({ uid: NEW_UID, id: 'TB-21', documentId: NEW_DOC, project: 'Live Project (fictional)' });
 
-  it('loads its boreholes once, points the card at one, and Review and the map can show them', async () => {
-    const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [structuredClone(extracted)]);
-    await ready({ documentBoreholes, getDocument: async () => ({ ...processing, status: 'needs_review', step: 2 }) }, [processing, doc]);
+  /** Map-layer requests for the new document. */
+  const pinCalls = (mapFeatures: ReturnType<typeof vi.fn<DataSource['mapFeatures']>>) => mapFeatures.mock.calls.filter(([id]) => id === NEW_DOC);
+
+  it('loads its pins once, points the card at one, and Review and the map can show them', async () => {
+    const fake = await ready({ getDocument: async () => ({ ...processing, status: 'needs_review', step: 2 }) }, [processing, doc], [extracted]);
+    const mapFeatures = vi.fn(fake.mapFeatures);
+    fake.mapFeatures = mapFeatures;
     live.emit(updated({ ...processing, progress: { pagesTotal: 4, pagesClassified: 4, pagesOcrTotal: 2, pagesOcrDone: 1, boreholesExtracted: 0 } }));
     expect(docById(NEW_DOC)?.progress?.pagesOcrDone).toBe(1);
     expect(canOpenReview(docById(NEW_DOC)!)).toBe(false);
@@ -155,48 +164,86 @@ describe('F7: a document that reaches needs_review through events becomes review
     live.emit(updated(review));
     live.emit(updated(review));
     await vi.waitFor(() => expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID));
-    expect(documentBoreholes).toHaveBeenCalledTimes(1);
+    expect(pinCalls(mapFeatures)).toHaveLength(1);
     // The card's OPEN REVIEW works and takes the project from its boreholes.
     const card = docById(NEW_DOC)!;
     expect(canOpenReview(card)).toBe(true);
     expect(card.project).toBe('Live Project (fictional)');
-    // Its borehole is in the store, so the map shows it and Review opens it.
-    expect(bh(NEW_UID)).toMatchObject({ id: 'TB-21', onMap: true });
+    // Its pin is on the map; Review opens it and loads the record on demand.
+    expect(st().features.find((f) => f.uid === NEW_UID)).toMatchObject({ id: 'TB-21', documentId: NEW_DOC });
+    expect(bh(NEW_UID)).toBeUndefined();
     st().openReview(card.reviewBoreholeUid!);
     expect(st()).toMatchObject({ screen: 'review', reviewUid: NEW_UID });
-    expect(st().focusKey).not.toBeNull();
+    await vi.waitFor(() => expect(st().focusKey).not.toBeNull());
+    expect(bh(NEW_UID)).toMatchObject({ id: 'TB-21', onMap: true });
     // A later update (all approved) does not load them again.
     live.emit(updated({ ...review, status: 'done', step: 3 }));
     await settle();
-    expect(documentBoreholes).toHaveBeenCalledTimes(1);
+    expect(pinCalls(mapFeatures)).toHaveLength(1);
     expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID);
   });
 
-  it('boreholes created during extraction come one by one, then the full list replaces them', async () => {
+  it('boreholes created during extraction come one by one as pins, then the document’s pins are reloaded', async () => {
     const second = makeBorehole({ uid: 'bh_TEST_LIVE_000000000000022', id: 'TB-22', documentId: NEW_DOC });
-    const fake = await ready({}, [processing, doc], [extracted, second]);
+    const fake = await ready({}, [processing, doc], [extracted]);
     live.emit({ type: 'borehole.created', uid: NEW_UID, documentId: NEW_DOC, revision: 1, plotted: true });
-    await vi.waitFor(() => expect(bh(NEW_UID)).toBeDefined());
-    expect(bh(second.uid)).toBeUndefined();
+    await vi.waitFor(() => expect(st().features.map((f) => f.uid)).toContain(NEW_UID));
+    expect(st().features.map((f) => f.uid)).not.toContain(second.uid);
+    fake.held.set(second.uid, second);
     fake.getDocument = async () => ({ ...processing, status: 'needs_review', step: 2 });
     live.emit(updated({ ...processing, status: 'needs_review', step: 2 }));
-    await vi.waitFor(() => expect(bh(second.uid)).toBeDefined());
+    await vi.waitFor(() => expect(st().features.map((f) => f.uid)).toContain(second.uid));
+    expect(st().features.filter((f) => f.documentId === NEW_DOC).map((f) => f.uid)).toEqual([NEW_UID, second.uid]);
     expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID);
   });
 
-  it('a document seen for the first time at needs_review loads its boreholes too', async () => {
-    const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => [structuredClone(extracted)]);
-    await ready({ documentBoreholes, getDocument: async () => ({ ...processing, status: 'needs_review', step: 2 }) });
+  it('pins that arrive after the needs_review update still give the card its Review target', async () => {
+    // borehole.created only refreshes the document's pins (records stay on demand); that request is
+    // still running when the document reaches review.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const mapFeatures = vi.fn<DataSource['mapFeatures']>(async (id) => {
+      await held;
+      return id === NEW_DOC ? [featureOf(extracted)!] : [];
+    });
+    await ready({ mapFeatures }, [processing, doc], [extracted]);
+    live.emit({ type: 'borehole.created', uid: NEW_UID, documentId: NEW_DOC, revision: 1, plotted: true });
+    live.emit(updated({ ...processing, status: 'needs_review', step: 2 }));
+    await settle();
+    expect(docById(NEW_DOC)?.reviewBoreholeUid).toBeNull();
+    release();
+    await vi.waitFor(() => expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID));
+    expect(canOpenReview(docById(NEW_DOC)!)).toBe(true);
+  });
+
+  it('an unplotted borehole whose record arrives after the needs_review update gives the card its Review target', async () => {
+    // No pin will come for it: the borehole.created record is the only thing that names the document's borehole.
+    const unplotted = makeBorehole({ uid: NEW_UID, id: 'TB-21', documentId: NEW_DOC, lat: null, lng: null, onMap: false, unplottedReason: 'no_coordinates' });
+    const inReview = { ...processing, status: 'needs_review' as const, step: 2 as const };
+    await ready({ mapFeatures: async () => [] }, [inReview, doc], [unplotted]);
+    // The store has not heard of the borehole yet, so the card has no Review target.
+    useAppStore.setState({ documents: st().documents.map((d) => (d.id === NEW_DOC ? { ...d, reviewBoreholeUid: null } : d)) });
+    live.emit({ type: 'borehole.created', uid: NEW_UID, documentId: NEW_DOC, revision: 1, plotted: false });
+    await vi.waitFor(() => expect(st().unplottedUids).toContain(NEW_UID));
+    expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID);
+    expect(canOpenReview(docById(NEW_DOC)!)).toBe(true);
+  });
+
+  it('a document seen for the first time at needs_review loads its pins too', async () => {
+    const mapFeatures = vi.fn<DataSource['mapFeatures']>(async (id) => (id === NEW_DOC ? [featureOf(extracted)!] : []));
+    await ready({ mapFeatures, getDocument: async () => ({ ...processing, status: 'needs_review', step: 2 }) });
     live.emit(updated({ ...processing, status: 'needs_review', step: 2 }));
     await vi.waitFor(() => expect(docById(NEW_DOC)?.reviewBoreholeUid).toBe(NEW_UID));
-    expect(documentBoreholes).toHaveBeenCalledWith(NEW_DOC);
+    expect(mapFeatures).toHaveBeenCalledWith(NEW_DOC);
   });
 
   it('a failed document loads nothing', async () => {
+    const mapFeatures = vi.fn<DataSource['mapFeatures']>(async () => []);
     const documentBoreholes = vi.fn<DataSource['documentBoreholes']>(async () => []);
-    await ready({ documentBoreholes }, [processing, doc]);
+    await ready({ mapFeatures, documentBoreholes }, [processing, doc]);
     live.emit(updated({ ...processing, status: 'failed', error: 'OCR failed' }));
     await settle();
+    expect(mapFeatures).not.toHaveBeenCalled();
     expect(documentBoreholes).not.toHaveBeenCalled();
   });
 });
@@ -204,16 +251,62 @@ describe('F7: a document that reaches needs_review through events becomes review
 describe('borehole.created and borehole.updated', () => {
   const extracted = makeBorehole({ uid: NEW_UID, id: 'TB-21', documentId: doc.id });
 
-  it('borehole.created fetches the record and adds it once', async () => {
+  it('borehole.created of a plotted borehole reloads its document’s pins once; no full record is fetched', async () => {
     const getBorehole = vi.fn<DataSource['getBorehole']>(async () => structuredClone(extracted));
-    await ready({ getBorehole });
+    const fake = await ready({ getBorehole }, [doc], [extracted]);
+    const mapFeatures = vi.fn(fake.mapFeatures);
+    fake.mapFeatures = mapFeatures;
     const created: LiveEvent = { type: 'borehole.created', uid: NEW_UID, documentId: doc.id, revision: 1, plotted: true };
+    live.emit(created);
+    await vi.waitFor(() => expect(st().features.map((f) => f.uid)).toContain(NEW_UID));
+    live.emit(created);
+    await settle();
+    expect(mapFeatures).toHaveBeenCalledTimes(1);
+    expect(mapFeatures).toHaveBeenCalledWith(doc.id);
+    expect(st().features.filter((f) => f.uid === NEW_UID)).toHaveLength(1);
+    expect(getBorehole).not.toHaveBeenCalled();
+  });
+
+  it('borehole.created of an unplotted borehole fetches its record once and lists it under NOT ON MAP', async () => {
+    const off = makeBorehole({ uid: NEW_UID, id: 'TB-21', documentId: doc.id, onMap: false, lat: null, lng: null, unplottedReason: 'no_coordinates' });
+    const fake = await ready({}, [doc], [off]);
+    const getBorehole = vi.fn(fake.getBorehole);
+    fake.getBorehole = getBorehole;
+    const created: LiveEvent = { type: 'borehole.created', uid: NEW_UID, documentId: doc.id, revision: 1, plotted: false };
     live.emit(created);
     await vi.waitFor(() => expect(bh(NEW_UID)).toBeDefined());
     live.emit(created);
     await settle();
     expect(getBorehole).toHaveBeenCalledTimes(1);
+    expect(st().unplottedUids).toContain(NEW_UID);
     expect(st().boreholes.filter((b) => b.uid === NEW_UID)).toHaveLength(1);
+  });
+
+  it('borehole.updated of a pin without a cached record reloads its document’s pins (newer revisions only)', async () => {
+    const fake = await ready({}, [doc]);
+    useAppStore.setState({ boreholes: [] });
+    const mapFeatures = vi.fn(fake.mapFeatures);
+    const getBorehole = vi.fn(fake.getBorehole);
+    Object.assign(fake, { mapFeatures, getBorehole });
+    live.emit({ type: 'borehole.updated', uid: UID, revision: 1 });
+    await settle();
+    expect(mapFeatures).not.toHaveBeenCalled();
+    fake.held.set(UID, { ...fake.held.get(UID)!, revision: 2, reviewStatus: 'approved' });
+    live.emit({ type: 'borehole.updated', uid: UID, revision: 2 });
+    await vi.waitFor(() => expect(st().features.find((f) => f.uid === UID)?.reviewStatus).toBe('approved'));
+    expect(mapFeatures).toHaveBeenCalledWith(doc.id);
+    expect(getBorehole).not.toHaveBeenCalled();
+  });
+
+  it('a cached unplotted record that the server placed leaves NOT ON MAP and brings its pin', async () => {
+    const off = makeBorehole({ onMap: false, lat: null, lng: null, unplottedReason: 'crs_unconfirmed' });
+    const fake = await ready({}, [doc]);
+    useAppStore.setState({ boreholes: [off], features: [], unplottedUids: [UID] });
+    fake.held.set(UID, { ...makeBorehole(), revision: 2 });
+    live.emit({ type: 'borehole.updated', uid: UID, revision: 2 });
+    await vi.waitFor(() => expect(st().features.map((f) => f.uid)).toEqual([UID]));
+    expect(st().unplottedUids).toEqual([]);
+    expect(bh(UID)?.onMap).toBe(true);
   });
 
   it('borehole.updated refetches only when the store holds an older revision', async () => {
@@ -302,19 +395,26 @@ describe('document.deleted', () => {
 
   async function readyTwo() {
     await ready({}, [doc, second]);
-    useAppStore.setState({ boreholes: [...st().boreholes, other] });
+    useAppStore.setState({ boreholes: [...st().boreholes, other], features: [...st().features, featureOf(other)!] });
   }
 
-  it('removes the document, its boreholes, cached pages and failure, and nothing else', async () => {
+  it('removes the document, its boreholes, pins, NOT ON MAP entries, cached pages and failure, and nothing else', async () => {
     await readyTwo();
+    const off = makeBorehole({ uid: 'bh_TEST_LIVE_OFF', id: 'TB-23', documentId: NEW_DOC, onMap: false, lat: null, lng: null });
     useAppStore.setState({
       screen: 'queue',
+      boreholes: [...st().boreholes, off],
+      unplottedUids: [off.uid],
+      recordLoads: { bh_TEST_LIVE_GONE: 'loading', [off.uid]: 'error' },
       pages: { [`${NEW_DOC}:1`]: { status: 'loading' }, [`${doc.id}:1`]: { status: 'loading' } },
       jobFailures: { [NEW_DOC]: { stage: 'ocr', detail: 'x', retryable: true } },
     });
     live.emit({ type: 'document.deleted', documentId: NEW_DOC });
     expect(st().documents.map((d) => d.id)).toEqual([doc.id]);
     expect(st().boreholes.map((b) => b.uid)).toEqual([UID]);
+    expect(st().features.map((f) => f.uid)).toEqual([UID]);
+    expect(st().unplottedUids).toEqual([]);
+    expect(st().recordLoads).toEqual({ bh_TEST_LIVE_GONE: 'loading' });
     expect(Object.keys(st().pages)).toEqual([`${doc.id}:1`]);
     expect(st().jobFailures).toEqual({});
     expect(st().screen).toBe('queue');
@@ -397,22 +497,43 @@ describe('job.failed', () => {
 });
 
 describe('clarification.created and clarification.resolved', () => {
-  it('refetch the affected document and boreholes, so the open-question badges stay right', async () => {
+  it('refetch the affected document, boreholes and pins, so the open-question badges and pin colours stay right', async () => {
     const fake = await ready();
     const getDocument = vi.fn<DataSource['getDocument']>(async () => ({ ...doc, openClarifications: 1 }));
     const getBorehole = vi.fn<DataSource['getBorehole']>(async () => ({ ...structuredClone(fake.held.get(UID)!), openClarifications: 1 }));
-    Object.assign(fake, { getDocument, getBorehole });
-    live.emit({ type: 'clarification.created', clarificationId: 'cl_TEST_1', documentId: doc.id, boreholeUids: [UID, 'bh_UNKNOWN'] });
+    const mapFeatures = vi.fn(fake.mapFeatures);
+    Object.assign(fake, { getDocument, getBorehole, mapFeatures });
+    fake.held.set(UID, { ...fake.held.get(UID)!, openClarifications: 1 });
+    const question = makeClarification({ id: 'cl_TEST_1', documentId: doc.id, boreholeUids: [UID, 'bh_UNKNOWN'] });
+    live.emit({ type: 'clarification.created', clarification: question });
+    // The question joins the inbox at once (the event carries all of it).
+    expect(st().clarifications.map((c) => c.id)).toEqual(['cl_TEST_1']);
     await vi.waitFor(() => expect(docById(doc.id)?.openClarifications).toBe(1));
     await vi.waitFor(() => expect(bh(UID)?.openClarifications).toBe(1));
+    await vi.waitFor(() => expect(st().features.find((f) => f.uid === UID)?.attention).toBe(true));
     // Boreholes the store does not hold are left to borehole.created.
     expect(getBorehole).toHaveBeenCalledTimes(1);
+    expect(mapFeatures).toHaveBeenCalledWith(doc.id);
 
     getDocument.mockImplementation(async () => ({ ...doc, openClarifications: 0 }));
     getBorehole.mockImplementation(async () => ({ ...structuredClone(fake.held.get(UID)!), openClarifications: 0 }));
+    fake.held.set(UID, { ...fake.held.get(UID)!, openClarifications: 0 });
     live.emit({ type: 'clarification.resolved', clarificationId: 'cl_TEST_1', status: 'answered' });
+    expect(st().clarifications).toEqual([]);
     await vi.waitFor(() => expect(docById(doc.id)?.openClarifications).toBe(0));
     await vi.waitFor(() => expect(bh(UID)?.openClarifications).toBe(0));
+    await vi.waitFor(() => expect(st().features.find((f) => f.uid === UID)?.attention).toBe(false));
+  });
+
+  it('a question skipped elsewhere stays in the inbox as skipped; one listed before uses its own boreholes', async () => {
+    const fake = await ready();
+    const listed = makeClarification({ id: 'cl_TEST_2', documentId: doc.id, boreholeUids: [UID] });
+    useAppStore.setState({ clarifications: [listed] });
+    const getBorehole = vi.fn(fake.getBorehole);
+    fake.getBorehole = getBorehole;
+    live.emit({ type: 'clarification.resolved', clarificationId: 'cl_TEST_2', status: 'skipped' });
+    expect(st().clarifications).toMatchObject([{ id: 'cl_TEST_2', status: 'skipped' }]);
+    await vi.waitFor(() => expect(getBorehole).toHaveBeenCalledWith(UID));
   });
 
   it('a resolved clarification the store never saw refetches what shows open questions', async () => {

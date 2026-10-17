@@ -1,0 +1,26 @@
+/* Open-questions badge that opens the question dialog (document cards, Review header). */
+.badge {
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  white-space: nowrap;
+}
+
+.badge:hover:not(:disabled) {
+  border-color: var(--c-amber);
+}
+
+.badge:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.badge:disabled {
+  cursor: default;
+}

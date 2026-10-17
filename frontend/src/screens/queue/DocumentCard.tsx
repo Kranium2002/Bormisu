@@ -1,4 +1,6 @@
 import { useState, type MouseEvent } from 'react';
+import { firstQuestionOf } from '../../components/clarify/clarifyModel';
+import { QuestionsButton } from '../../components/clarify/QuestionsButton';
 import { completenessSummary } from '../../domain/review';
 import type { DocumentProgress, DocumentSummary } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
@@ -97,7 +99,8 @@ interface Props {
 
 /**
  * One document of the queue. When it has a reviewable borehole, the card (and its hint) opens Review.
- * It shows progress while the backend works, open questions, a duplicate link and, after a failure,
+ * It shows progress while the backend works, open questions (a badge that opens the first one in the
+ * question dialog, or the inbox), a duplicate link and, after a failure,
  * the error (with the stage when the server reported it live) and RETRY: disabled with the reason in
  * demo mode or when the server says a retry cannot fix it.
  */
@@ -113,6 +116,10 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
   // A link only to another card: a duplicate of itself (an upload of the same bytes again) says so as text.
   const duplicateListed = !!doc.duplicateOf && !isSelfDuplicate(doc) && documents.some((d) => d.id === doc.duplicateOf);
   const questions = questionsText(doc);
+  // The badge opens this document's first unresolved question (or the inbox while none is loaded).
+  const firstQuestion = useAppStore((s) => firstQuestionOf(s.clarifications, doc.id));
+  const showOnMap = useAppStore((s) => s.showDocumentOnMap);
+  const pinned = useAppStore((s) => s.features.reduce((n, f) => (f.documentId === doc.id ? n + 1 : n), 0));
 
   const open = () => {
     if (reviewable && doc.reviewBoreholeUid) openReview(doc.reviewBoreholeUid);
@@ -169,11 +176,19 @@ export function DocumentCard({ doc, highlighted, retryBlocked = null, failure = 
         </div>
         <StatusSteps step={doc.step} failed={failed} />
         <div className={styles.checks}>
-          {questions && (
-            <span className={styles.questions} title="Questions the backend needs answered for this document">
-              {questions}
-            </span>
+          {pinned > 0 && (
+            <button
+              type="button"
+              className={styles.onMap}
+              onClick={(e) => {
+                e.stopPropagation();
+                showOnMap(doc.id);
+              }}
+            >
+              {pinned} on the map · SHOW
+            </button>
           )}
+          {questions && <QuestionsButton text={questions} questionId={firstQuestion} about="this document" />}
           <CompletenessChip doc={doc} />
         </div>
       </div>

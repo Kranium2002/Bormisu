@@ -40,7 +40,7 @@ let lastCrsRun = -1;
 /** The latest "approve all clean" count request; answers of older ones are ignored. */
 let cleanRun = 0;
 
-export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, replaceBorehole, takeBoreholes, saves }) => {
+export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, replaceBorehole, takeBoreholes, refreshFeatures, saves }) => {
   const reviewValue = (key: string) => find(get().reviewUid)?.values.find((v) => v.key === key);
 
   /** The value when it can be reviewed; otherwise explains why not and returns undefined. */
@@ -104,19 +104,26 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       }
       const target = uid ?? s.reviewUid ?? s.documents.find((d) => d.reviewBoreholeUid)?.reviewBoreholeUid ?? null;
       const base = { screen: 'review' as const, confirmCleanOpen: false, exportOpen: false, searchMessage: '' };
-      if (!target || target === s.reviewUid) {
+      if (!target || (target === s.reviewUid && find(target))) {
         set(base);
         return;
       }
+      /** Review on the target's first value to check (its page too), once its record is at hand. */
+      const focusOn = (b: Borehole | undefined) => {
+        const focusKey = b ? initialFocusKey(b) : null;
+        return { focusKey, reviewPage: b ? pageFor(b, b.values.find((v) => v.key === focusKey), b.primaryPage) : null };
+      };
       const b = find(target);
-      const focusKey = b ? initialFocusKey(b) : null;
-      set({
-        ...base,
-        reviewUid: target,
-        focusKey,
-        editing: null,
-        reviewPage: b ? pageFor(b, b.values.find((v) => v.key === focusKey), b.primaryPage) : null,
-      });
+      set({ ...base, reviewUid: target, editing: null, ...focusOn(b) });
+      if (b) return;
+      // Not cached yet (a plotted borehole known by its pin): its record and its document's come on demand.
+      void get()
+        .ensureBorehole(target)
+        .then((record) => {
+          if (record && get().reviewUid === target && get().focusKey === null) set(focusOn(record));
+          if (record?.documentId) return get().ensureDocumentBoreholes(record.documentId);
+        })
+        .catch((e: unknown) => console.warn(`Loading the boreholes of the review document failed (${errorText(e)}).`));
     },
 
     focusValue(key, scrollList) {
@@ -232,6 +239,8 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
         const approved = `${count} clean value${count === 1 ? '' : 's'} approved`;
         try {
           takeBoreholes(await s.source.documentBoreholes(documentId), documentId);
+          // The pins of the document show the new review states.
+          refreshFeatures(documentId);
           get().showToast(approved);
         } catch (e) {
           get().showToast(`${approved}. Reloading the boreholes failed: ${errorText(e)}`);
@@ -289,7 +298,8 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       }
       // The answer closes only the dialog it came from, not one opened meanwhile.
       if (run === lastCrsRun) set({ crsDialogOpen: false, crsLoading: false });
-      // The server placed the boreholes; reload them instead of moving pins here.
+      // The server placed the boreholes; reload them, the pins and the NOT ON MAP list instead of moving pins here.
+      void get().refreshMap();
       try {
         takeBoreholes(await source.documentBoreholes(documentId), documentId);
         get().showToast(`CRS confirmed for ${boreholes(updated)} in this report: ${c.name}`);

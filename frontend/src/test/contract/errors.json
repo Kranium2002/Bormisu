@@ -66,6 +66,36 @@
     {
       "detail": "Something went wrong on the server.",
       "code": "internal_error"
+    },
+    {
+      "detail": "Result set not found or expired.",
+      "code": "result_set_not_found"
+    },
+    {
+      "detail": "Clarification not found.",
+      "code": "clarification_not_found"
+    },
+    {
+      "detail": "This question has already been answered.",
+      "code": "already_resolved"
+    },
+    {
+      "detail": "The answer does not match the question's fields.",
+      "code": "answer_invalid",
+      "errors": [
+        {
+          "loc": [
+            "body",
+            "values",
+            "crs"
+          ],
+          "msg": "Coordinate system is required."
+        }
+      ]
+    },
+    {
+      "detail": "Place search is unavailable right now. Try again later.",
+      "code": "geocoder_unavailable"
     }
   ]
 }

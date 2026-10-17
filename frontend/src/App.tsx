@@ -1,7 +1,10 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { Outlet } from 'react-router';
 import styles from './App.module.css';
+import { AuthGate } from './components/auth/AuthGate';
 import { DemoBanner, SampleBanner } from './components/Banner';
+import { ChatDrawerHost } from './components/chat/ChatDrawerHost';
+import { ClarificationHost } from './components/clarify/ClarificationHost';
 import { DinPatternDefs } from './components/DinPatternDefs';
 import { EmptyState } from './components/EmptyState';
 import { Header } from './components/Header';
@@ -19,6 +22,7 @@ const SCREEN_LABEL: Record<RouteKind, string> = {
   reviewIndex: 'Extraction review',
   review: 'Extraction review',
   detail: 'Borehole detail',
+  inbox: 'Questions inbox',
   notFound: 'Not found',
 };
 
@@ -96,18 +100,22 @@ export function App() {
   }, [escape]);
 
   return (
-    <div className={styles.app}>
-      <RouteSync />
-      <DinPatternDefs />
-      <Header />
-      {sampleBanner && <SampleBanner />}
-      {demoMode && !sampleBanner && <DemoBanner />}
-      <main ref={mainRef} className={styles.main} aria-label={SCREEN_LABEL[route.kind]}>
-        <Body />
-        <SidePanel />
-        {crsDialogOpen && <CrsDialog />}
-        <Toast />
-      </main>
-    </div>
+    <AuthGate>
+      <div className={styles.app}>
+        <RouteSync />
+        <DinPatternDefs />
+        <Header />
+        {sampleBanner && <SampleBanner />}
+        {demoMode && !sampleBanner && <DemoBanner />}
+        <main ref={mainRef} className={styles.main} aria-label={SCREEN_LABEL[route.kind]}>
+          <Body />
+          <SidePanel />
+          {crsDialogOpen && <CrsDialog />}
+          <ClarificationHost />
+          <ChatDrawerHost />
+          <Toast />
+        </main>
+      </div>
+    </AuthGate>
   );
 }

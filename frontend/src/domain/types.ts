@@ -48,7 +48,26 @@ export interface Health {
   providers: { ocr: boolean; classifier: boolean; extractor: boolean; chat: boolean; geocoder: boolean };
   /** Server upload limits; the drop zone mirrors them. Extensions are lower case with a dot (".pdf"). */
   upload: { maxMb: number; extensions: string[] };
+  /**
+   * Sign-in (contract 1.3.0): when enabled, every API route except health, register and sign-in
+   * needs a session. `registration: 'open'` lets anyone create an account (the first one becomes
+   * admin). A server that doesn't say has no sign-in; sample mode has none either.
+   */
+  auth: { enabled: boolean; registration: 'open' | 'closed' };
 }
+
+/** Every signed-in user may read and change data; admin is reserved for user management. */
+export type UserRole = 'reviewer' | 'admin';
+/** The signed-in user (GET /auth/me). The server records them on every revision. */
+export interface User {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  role: UserRole;
+  createdAt: string;
+}
+/** A new account: the server signs it in at once. */
+export interface Registration { email: string; password: string; displayName: string | null }
 
 export interface Spt {
   raw: string;
@@ -271,11 +290,122 @@ export type LiveEvent =
   | { type: 'document.deleted'; documentId: string }
   | { type: 'borehole.created'; uid: string; documentId: string; revision: number; plotted: boolean }
   | { type: 'borehole.updated'; uid: string; revision: number }
-  | { type: 'clarification.created'; clarificationId: string; documentId: string; boreholeUids: string[] }
+  | { type: 'clarification.created'; clarification: Clarification }
   | { type: 'clarification.resolved'; clarificationId: string; status: 'answered' | 'skipped' }
   | { type: 'job.failed'; documentId: string; stage: string; detail: string; retryable: boolean };
 /** How live updates arrive: the event stream, the polling fallback, or not (yet). */
 export type LiveStatus = 'connecting' | 'live' | 'polling' | 'offline';
+
+/**
+ * One plotted borehole as the light map layer carries it (GET /map/boreholes.geojson): enough for
+ * pins, clusters, popups, the legend, the results table and search, without layers or provenance.
+ */
+export interface MapFeature {
+  uid: string;
+  /** BoreholeID as printed. */
+  id: string;
+  project: string | null;
+  documentId: string | null;
+  lat: number; lng: number;
+  /** Final depth in m, null when not stated. */
+  depth: number | null;
+  reviewStatus: BoreholeReviewStatus;
+  crsStatus: CrsStatus;
+  revision: number | null;
+  /** A flagged value, a lint error or an unresolved question (server `attention`). */
+  attention: boolean;
+  openClarifications: number;
+}
+
+/** An area on the map, WGS84; bbox and center are [lon, lat] order like the contract. */
+export type Area =
+  | { type: 'bbox'; bbox: [number, number, number, number] }
+  | { type: 'polygon'; polygon: { type: 'Polygon'; coordinates: number[][][] } }
+  | { type: 'circle'; center: [number, number]; radiusM: number };
+
+/** A validated filter (contract BoreholeFilter). Unset fields are null or empty. */
+export interface BoreholeFilter {
+  search: string | null;
+  country: string | null;
+  project: string | null;
+  documentId: string | null;
+  minDepth: number | null;
+  maxDepth: number | null;
+  dinCodes: string[];
+  /** With dinCodes: the layer must reach below this depth. */
+  lithologyMinDepth: number | null;
+  hasSpt: boolean | null;
+  hasGroundwater: boolean | null;
+  reviewStatus: BoreholeReviewStatus[];
+  /** false keeps only approved boreholes (the contract's default). */
+  includeUnreviewed: boolean;
+  area: Area | null;
+}
+
+/** A stored, immutable selection of boreholes (filters, an area, or the chat), shared by id. */
+export interface ResultSet {
+  id: string;
+  count: number;
+  locatedCount: number;
+  unlocatedCount: number;
+  excludedUnreviewed: number | null;
+  uids: string[];
+  /** [min_lon, min_lat, max_lon, max_lat] of the located members, or of the searched area; null when neither. */
+  bbox: [number, number, number, number] | null;
+  /** The area used, echoed for outlining on the map. */
+  area: Area | null;
+  definition: BoreholeFilter;
+  createdAt: string;
+}
+
+/** A place found by GET /geocode: uploaded places first, then the server's geocoder. */
+export interface PlaceCandidate {
+  label: string;
+  lat: number; lng: number;
+  bbox: [number, number, number, number] | null;
+  source: 'uploaded' | 'geocoder';
+  kind: string | null;
+  /** Uploaded boreholes inside bbox, when known. */
+  boreholeCount: number | null;
+}
+
+export type ClarificationKind =
+  | 'crs_confirm' | 'locate_borehole' | 'choose_reading' | 'datum_convention' | 'unit_ambiguous'
+  | 'borehole_boundary' | 'duplicate' | 'conflicting_sources' | 'chat_parameter';
+export type ClarificationStatus = 'open' | 'answered' | 'skipped';
+export type FormWidget =
+  | 'text' | 'number_unit' | 'select' | 'boolean' | 'map_point' | 'choose_reading' | 'page_range' | 'crs_picker';
+/** A page region that backs a question or an option. */
+export interface Evidence { documentId: string; page: number; box: Box | null; snippet: string | null }
+export interface FormOption { value: unknown; label: string; evidence: Evidence | null }
+export interface FormField {
+  name: string;
+  widget: FormWidget;
+  label: string;
+  help: string | null;
+  required: boolean;
+  unitOptions: string[];
+  options: FormOption[];
+  /** The server's suggested value, or undefined. Never a value the client makes up. */
+  default: unknown;
+}
+/** A small question the backend asks when the input is unclear (contract Clarification). */
+export interface Clarification {
+  id: string;
+  kind: ClarificationKind;
+  status: ClarificationStatus;
+  documentId: string;
+  boreholeUids: string[];
+  /** The value path the question is about, when it is about one value. */
+  path: string | null;
+  question: string;
+  fields: FormField[];
+  evidence: Evidence[];
+  answer: unknown;
+  answeredBy: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
 
 /** Labels of the unplotted reason codes. */
 export const UNPLOTTED_LABELS: Record<UnplottedReason, string> = {

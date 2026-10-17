@@ -1,15 +1,137 @@
-/* Map left, NOT ON MAP aside right, RESULTS across the bottom (prototype template line 48). */
+/*
+ * Map screen (FRONTEND.md section 6): explore panel | map over RESULTS and NOT ON MAP.
+ *   >= 1280 px  three panes: panel column, map, results band under it.
+ *   768–1279 px the panel opens over the map from the SEARCH & FILTERS toggle.
+ *   < 768 px    the panel is a full-screen sheet; map, results and NOT ON MAP stack and the page
+ *               scrolls vertically, never horizontally.
+ */
 .screen {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  grid-template-rows: minmax(0, 1fr) 270px;
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.centre {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) 300px;
+}
+
+/* The panel toggle: only while the panel is not a column. */
+.toolbar {
+  grid-row: 1;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+}
+
+.toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--c-dark);
+  border-radius: 2px;
+  background: var(--c-dark);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+
+/* Three bars, drawn so the button's name stays its text. */
+.toggle::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  background: currentColor;
+  box-shadow: 0 -4px 0 currentColor, 0 4px 0 currentColor;
+}
+
+.toggle:hover {
+  background: var(--c-surface);
+  color: var(--c-dark);
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+.toolbarNote {
+  font-size: 12px;
+  color: var(--c-green-text);
+  font-weight: 700;
 }
 
 .mapCell {
+  grid-row: 2;
   position: relative;
-  /* Keeps Leaflet's pane and control z-indexes (400–1000) below the side panel and dialogs. */
+  min-height: 0;
+  /* Keeps Leaflet's pane and control z-indexes (400–1000) below the explore overlay, the side panel and dialogs. */
   isolation: isolate;
-  border-right: 1px solid var(--c-border);
+}
+
+.bottom {
+  grid-row: 3;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  border-top: 1px solid var(--c-border);
+}
+
+.bottom > aside {
+  border-left: 1px solid var(--c-border);
+}
+
+@media (max-width: 1279px) {
+  .screen {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .toolbar {
+    display: flex;
+  }
+
+  .bottom {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+}
+
+@media (max-width: 767px) {
+  .screen {
+    display: block;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .centre {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mapCell {
+    flex: none;
+    height: 55vh;
+    min-height: 260px;
+  }
+
+  .bottom {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bottom > aside {
+    border-left: 0;
+    border-top: 1px solid var(--c-border);
+  }
 }

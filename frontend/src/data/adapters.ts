@@ -7,16 +7,26 @@ import { K } from '../domain/keys';
 import { placeholderPage } from '../domain/pages';
 import { formatSpt, sptLint } from '../domain/spt';
 import type {
+  Area,
   Borehole,
+  BoreholeFilter,
   BoreholeMeta,
+  BoreholeReviewStatus,
   Box,
+  Clarification,
+  ClarificationKind,
+  ClarificationStatus,
   CrsCandidate,
+  CrsStatus,
   DocumentPage,
   DocumentStatus,
   DocumentStep,
   DocumentSummary,
+  Evidence,
   ExtractedValue,
   FieldState,
+  FormField,
+  FormWidget,
   GroundwaterReading,
   GroundwaterType,
   Health,
@@ -24,8 +34,11 @@ import type {
   Lint,
   LintFinding,
   LiveEvent,
+  MapFeature,
   Method,
+  PlaceCandidate,
   Reading,
+  ResultSet,
   ReviewStatus,
   Sample,
   Spt,
@@ -51,6 +64,15 @@ export type WireValuePatch = Schemas['ValuePatch'];
 export type WireUploadAccepted = Schemas['UploadAccepted'];
 export type WireError = Schemas['Error'];
 export type WireClarification = Schemas['Clarification'];
+export type WireClarificationAnswer = Schemas['ClarificationAnswer'];
+export type WireFormField = Schemas['FormField'];
+export type WireEvidence = Schemas['Evidence'];
+export type WireFeatureCollection = Schemas['BoreholeFeatureCollection'];
+export type WireFeature = WireFeatureCollection['features'][number];
+export type WireFilter = Schemas['BoreholeFilter'];
+export type WireArea = Schemas['AreaBbox'] | Schemas['AreaPolygon'] | Schemas['AreaCircle'];
+export type WireResultSet = Schemas['ResultSet'];
+export type WirePlace = Schemas['PlaceCandidate'];
 
 /**
  * The `data` of each server-sent event of GET /events. These shapes live in
@@ -71,8 +93,8 @@ export interface WireEventData {
 const METHODS: Record<Schemas['Method'], Method> = { read: 'Read', ocr: 'OCR', derived: 'Derived', guessed: 'Guessed', edited: 'Edited' };
 const STATES: Record<WireProvenance['state'], FieldState> = { ok: 'ok', not_in_source: 'not in source', illegible: 'illegible' };
 
-function toBox(b: WireProvenance['box']): Box | null {
-  return b && b.length === 4 ? { x: b[0], y: b[1], w: b[2], h: b[3] } : null;
+function toBox(b: WireProvenance['box'] | undefined): Box | null {
+  return Array.isArray(b) && b.length === 4 && b.every(Number.isFinite) ? { x: b[0], y: b[1], w: b[2], h: b[3] } : null;
 }
 
 function toStatus(s: WireProvenance['status'] | undefined): ReviewStatus {
@@ -817,9 +839,9 @@ export function adaptLiveEvent(
     case 'borehole.updated':
       return isText(data.uid) && isRevision(data.revision) ? { type, uid: data.uid, revision: data.revision } : null;
     case 'clarification.created': {
-      if (!isText(data.clarification_id) || !isText(data.document_id)) return null;
-      const uids = Array.isArray(data.borehole_uids) ? data.borehole_uids.filter(isText) : [];
-      return { type, clarificationId: data.clarification_id, documentId: data.document_id, boreholeUids: uids };
+      // The whole question (contract Clarification); one this client can't show is no event.
+      const clarification = adaptClarification(data);
+      return clarification ? { type, clarification } : null;
     }
     case 'clarification.resolved':
       if (!isText(data.clarification_id) || (data.status !== 'answered' && data.status !== 'skipped')) return null;
@@ -832,9 +854,316 @@ export function adaptLiveEvent(
   }
 }
 
+/* ---------- left-out items ---------- */
+
+/**
+ * One console.info for a batch (a list answer) of items this client can't represent and leaves out,
+ * with a few examples; nothing when every item was kept. Never a value guessed in their place.
+ */
+function reportLeftOut(what: string, reasons: string[]): void {
+  if (!reasons.length) return;
+  const more = reasons.length > 3 ? ', …' : '';
+  console.info(`Left ${reasons.length} ${what} out (the server sent what this client can't show): ${reasons.slice(0, 3).join('; ')}${more}`);
+}
+
+const isNumber = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+
+/** [min_lon, min_lat, max_lon, max_lat] when the wire value is four numbers, else null. */
+function toBbox(b: unknown): [number, number, number, number] | null {
+  return Array.isArray(b) && b.length === 4 && b.every(isNumber) ? [b[0], b[1], b[2], b[3]] : null;
+}
+
+/* ---------- map features (GET /map/boreholes.geojson, GET /result-sets/{id}/geojson) ---------- */
+
+const REVIEW_STATUSES: readonly BoreholeReviewStatus[] = ['unreviewed', 'in_review', 'approved'];
+const CRS_STATUSES: readonly CrsStatus[] = ['stated', 'inferred', 'confirmed', 'unknown'];
+const isReviewStatus = (x: unknown): x is BoreholeReviewStatus => (REVIEW_STATUSES as readonly unknown[]).includes(x);
+const isCrsStatus = (x: unknown): x is CrsStatus => (CRS_STATUSES as readonly unknown[]).includes(x);
+
+/** One feature as a MapFeature, or why it is left out. */
+function adaptFeature(f: WireFeature): MapFeature | string {
+  const p: Partial<WireFeature['properties']> = isFields(f?.properties) ? f.properties : {};
+  const uid = isText(p.uid) ? p.uid : isText(f?.id) ? f.id : null;
+  const name = `${uid ?? '?'}${typeof p.borehole_id === 'string' ? ` (${p.borehole_id})` : ''}`;
+  if (!uid) return 'a feature without uid';
+  if (typeof p.borehole_id !== 'string') return `${name}: no borehole_id`;
+  if (!isReviewStatus(p.review_status)) return `${name}: review_status "${String(p.review_status)}"`;
+  if (!isCrsStatus(p.crs_status)) return `${name}: crs_status "${String(p.crs_status)}"`;
+  const c = f.geometry?.coordinates;
+  const [lng, lat] = Array.isArray(c) ? c : [];
+  // [lon, lat] in WGS84; anything else is never placed (no 0, no (0, 0)).
+  if (!isNumber(lng) || !isNumber(lat) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return `${name}: no usable [lon, lat]`;
+  const open = isNumber(p.open_clarifications) ? p.open_clarifications : 0;
+  return {
+    uid,
+    id: p.borehole_id,
+    project: p.project_name ?? null,
+    documentId: isText(p.document_id) ? p.document_id : null,
+    lat,
+    lng,
+    depth: isNumber(p.borehole_depth_m) ? p.borehole_depth_m : null,
+    reviewStatus: p.review_status,
+    crsStatus: p.crs_status,
+    revision: isRevision(p.revision) ? p.revision : null,
+    // The contract's attention covers flags, lint errors and unresolved questions; without the flag
+    // only the questions are known.
+    attention: typeof p.attention === 'boolean' ? p.attention : open > 0,
+    openClarifications: open,
+  };
+}
+
+/**
+ * The light map layer as MapFeatures, in the server's order. A feature with an unknown review or CRS
+ * status, without a uid or without a usable [lon, lat] is left out (one console.info per call).
+ */
+export function adaptFeatures(fc: WireFeatureCollection): MapFeature[] {
+  const out: MapFeature[] = [];
+  const left: string[] = [];
+  for (const f of fc?.features ?? []) {
+    const r = adaptFeature(f);
+    if (typeof r === 'string') left.push(r);
+    else out.push(r);
+  }
+  reportLeftOut(left.length === 1 ? 'map feature' : 'map features', left);
+  return out;
+}
+
+/* ---------- filters and areas (BoreholeFilter, AreaBbox, AreaPolygon, AreaCircle) ---------- */
+
+/** An area drawn on the map as the contract sends it. */
+export function toWireArea(a: Area): WireArea {
+  switch (a.type) {
+    case 'bbox':
+      return { type: 'bbox', bbox: [...a.bbox] };
+    case 'polygon':
+      // The generated type of a GeoJSON object is an empty record; the polygon goes as it is.
+      return { type: 'polygon', polygon: structuredClone(a.polygon) as unknown as Schemas['AreaPolygon']['polygon'] };
+    case 'circle':
+      return { type: 'circle', center: [...a.center], radius_m: a.radiusM };
+  }
+}
+
+/** A position [lon, lat] of a GeoJSON ring. */
+const isPosition = (p: unknown): p is number[] => Array.isArray(p) && p.length >= 2 && isNumber(p[0]) && isNumber(p[1]);
+
+/** An area as sent (a ResultSet's echo, a filter's area), or null when it isn't one the contract defines. */
+export function adaptArea(x: unknown): Area | null {
+  if (!isFields(x)) return null;
+  if (x.type === 'bbox') {
+    const bbox = toBbox(x.bbox);
+    return bbox ? { type: 'bbox', bbox } : null;
+  }
+  if (x.type === 'circle') {
+    const c = x.center;
+    if (!isPosition(c) || c.length !== 2 || !isNumber(x.radius_m) || x.radius_m <= 0) return null;
+    return { type: 'circle', center: [c[0], c[1]], radiusM: x.radius_m };
+  }
+  if (x.type === 'polygon' && isFields(x.polygon) && x.polygon.type === 'Polygon') {
+    const rings = x.polygon.coordinates;
+    if (!Array.isArray(rings) || !rings.length || !rings.every((r) => Array.isArray(r) && r.length >= 3 && r.every(isPosition))) return null;
+    return { type: 'polygon', polygon: { type: 'Polygon', coordinates: (rings as number[][][]).map((r) => r.map((p) => [...p])) } };
+  }
+  return null;
+}
+
+/** Text of a filter field, or null when blank. */
+const filterText = (s: string | null): string | null => (s != null && s.trim() ? s.trim() : null);
+
+/**
+ * A filter as the contract's BoreholeFilter: unset fields (null, blank text, empty lists) are left
+ * out; include_unreviewed is always sent.
+ */
+export function toWireFilter(f: BoreholeFilter): WireFilter {
+  const out: WireFilter = { include_unreviewed: f.includeUnreviewed };
+  const search = filterText(f.search);
+  const country = filterText(f.country);
+  const project = filterText(f.project);
+  const documentId = filterText(f.documentId);
+  if (search != null) out.search = search;
+  if (country != null) out.country = country;
+  if (project != null) out.project = project;
+  if (documentId != null) out.document_id = documentId;
+  if (f.minDepth != null) out.min_depth_m = f.minDepth;
+  if (f.maxDepth != null) out.max_depth_m = f.maxDepth;
+  if (f.dinCodes.length) out.din4023_codes = [...f.dinCodes];
+  if (f.lithologyMinDepth != null) out.lithology_min_depth_m = f.lithologyMinDepth;
+  if (f.hasSpt != null) out.has_spt = f.hasSpt;
+  if (f.hasGroundwater != null) out.has_groundwater = f.hasGroundwater;
+  if (f.reviewStatus.length) out.review_status = [...f.reviewStatus];
+  if (f.area) out.area = toWireArea(f.area);
+  return out;
+}
+
+/** A filter as sent (a result set's definition): absent fields are unset; include_unreviewed defaults to false (contract). */
+export function adaptFilter(w: WireFilter | null | undefined): BoreholeFilter {
+  const f: Partial<WireFilter> = w ?? {};
+  return {
+    search: f.search ?? null,
+    country: f.country ?? null,
+    project: f.project ?? null,
+    documentId: f.document_id ?? null,
+    minDepth: f.min_depth_m ?? null,
+    maxDepth: f.max_depth_m ?? null,
+    dinCodes: [...(f.din4023_codes ?? [])],
+    lithologyMinDepth: f.lithology_min_depth_m ?? null,
+    hasSpt: f.has_spt ?? null,
+    hasGroundwater: f.has_groundwater ?? null,
+    reviewStatus: (f.review_status ?? []).filter(isReviewStatus),
+    includeUnreviewed: f.include_unreviewed ?? false,
+    area: adaptArea(f.area),
+  };
+}
+
+/* ---------- result sets ---------- */
+
+/**
+ * A stored result set. An absent excluded count stays null; the echoed area is the definition's when
+ * the answer has no `area` field.
+ */
+export function adaptResultSet(rs: WireResultSet): ResultSet {
+  const definition = adaptFilter(rs.definition);
+  return {
+    id: rs.result_set_id,
+    count: rs.count,
+    locatedCount: rs.located_count,
+    unlocatedCount: rs.unlocated_count,
+    excludedUnreviewed: isNumber(rs.excluded_unreviewed) ? rs.excluded_unreviewed : null,
+    uids: [...rs.uids],
+    bbox: toBbox(rs.bbox),
+    area: rs.area !== undefined ? adaptArea(rs.area) : definition.area,
+    definition,
+    createdAt: rs.created_at,
+  };
+}
+
+/* ---------- places (GET /geocode) ---------- */
+
+/** Place candidates in the server's order (uploaded places first). One without a known source or a position is left out. */
+export function adaptPlaces(list: WirePlace[]): PlaceCandidate[] {
+  const out: PlaceCandidate[] = [];
+  const left: string[] = [];
+  for (const p of list ?? []) {
+    const label = typeof p?.label === 'string' ? p.label : '?';
+    if (p?.source !== 'uploaded' && p?.source !== 'geocoder') left.push(`${label}: source "${String(p?.source)}"`);
+    else if (!isNumber(p.lat) || !isNumber(p.lon)) left.push(`${label}: no position`);
+    else {
+      out.push({
+        label, lat: p.lat, lng: p.lon, bbox: toBbox(p.bbox), source: p.source, kind: p.kind ?? null,
+        boreholeCount: isNumber(p.borehole_count) ? p.borehole_count : null,
+      });
+    }
+  }
+  reportLeftOut(left.length === 1 ? 'place' : 'places', left);
+  return out;
+}
+
+/* ---------- clarifications ---------- */
+
+const KINDS: readonly ClarificationKind[] = [
+  'crs_confirm', 'locate_borehole', 'choose_reading', 'datum_convention', 'unit_ambiguous',
+  'borehole_boundary', 'duplicate', 'conflicting_sources', 'chat_parameter',
+];
+const CLARIFICATION_STATUSES: readonly ClarificationStatus[] = ['open', 'answered', 'skipped'];
+const WIDGETS: readonly FormWidget[] = ['text', 'number_unit', 'select', 'boolean', 'map_point', 'choose_reading', 'page_range', 'crs_picker'];
+
+/** A page region as sent, or null without a document and page. The box array becomes a Box. */
+function adaptEvidence(e: unknown): Evidence | null {
+  if (!isFields(e) || !isText(e.document_id) || !isRevision(e.page)) return null;
+  return {
+    documentId: e.document_id,
+    page: e.page,
+    box: toBox(e.box as WireEvidence['box']),
+    snippet: typeof e.snippet === 'string' ? e.snippet : null,
+  };
+}
+
+/** One form field, or why the question can't be shown. The default is kept exactly as sent; absent, it is undefined. */
+function adaptField(f: unknown): FormField | string {
+  if (!isFields(f) || !isText(f.name) || typeof f.label !== 'string') return 'a field without name or label';
+  if (!(WIDGETS as readonly unknown[]).includes(f.widget)) return `widget "${String(f.widget)}"`;
+  const options = Array.isArray(f.options) ? f.options : [];
+  return {
+    name: f.name,
+    widget: f.widget as FormWidget,
+    label: f.label,
+    help: typeof f.help === 'string' ? f.help : null,
+    // The contract's default for an absent `required`.
+    required: f.required === true,
+    unitOptions: Array.isArray(f.unit_options) ? f.unit_options.filter((u): u is string => typeof u === 'string') : [],
+    options: options.filter(isFields).map((o) => ({
+      value: o.value,
+      label: typeof o.label === 'string' ? o.label : String(o.value),
+      evidence: o.evidence == null ? null : adaptEvidence(o.evidence),
+    })),
+    default: 'default' in f ? f.default : undefined,
+  };
+}
+
+/** A question as a Clarification, or why it can't be shown. */
+function clarificationOrReason(c: unknown): Clarification | string {
+  if (!isFields(c)) return 'a question that is no object';
+  const id = isText(c.clarification_id) ? c.clarification_id : null;
+  const name = id ?? '?';
+  if (!id || !isText(c.document_id) || typeof c.question !== 'string' || !Array.isArray(c.fields) || typeof c.created_at !== 'string') {
+    return `${name}: required fields missing`;
+  }
+  if (!(KINDS as readonly unknown[]).includes(c.kind)) return `${name}: kind "${String(c.kind)}"`;
+  if (!(CLARIFICATION_STATUSES as readonly unknown[]).includes(c.status)) return `${name}: status "${String(c.status)}"`;
+  const fields: FormField[] = [];
+  for (const raw of c.fields) {
+    const f = adaptField(raw);
+    if (typeof f === 'string') return `${name}: ${f}`;
+    fields.push(f);
+  }
+  const evidence = Array.isArray(c.evidence) ? c.evidence.map(adaptEvidence).filter((e): e is Evidence => e != null) : [];
+  return {
+    id,
+    kind: c.kind as ClarificationKind,
+    status: c.status as ClarificationStatus,
+    documentId: c.document_id,
+    boreholeUids: Array.isArray(c.borehole_uids) ? c.borehole_uids.filter(isText) : [],
+    path: isText(c.path) ? c.path : null,
+    question: c.question,
+    fields,
+    evidence,
+    answer: c.answer ?? null,
+    answeredBy: typeof c.answered_by === 'string' ? c.answered_by : null,
+    createdAt: c.created_at,
+    resolvedAt: typeof c.resolved_at === 'string' ? c.resolved_at : null,
+  };
+}
+
+/**
+ * One clarification (a list item, an answer, the data of clarification.created). Null when it lacks
+ * what the contract requires or has a kind, status or widget this client doesn't know: the dialog
+ * could not render it. Logs nothing (the callers report).
+ */
+export function adaptClarification(c: unknown): Clarification | null {
+  const r = clarificationOrReason(c);
+  return typeof r === 'string' ? null : r;
+}
+
+/** A list of questions in the server's order; one this client can't show is left out (one console.info per call). */
+export function adaptClarifications(list: WireClarification[]): Clarification[] {
+  const out: Clarification[] = [];
+  const left: string[] = [];
+  for (const c of list ?? []) {
+    const r = clarificationOrReason(c);
+    if (typeof r === 'string') left.push(r);
+    else out.push(r);
+  }
+  reportLeftOut(left.length === 1 ? 'question' : 'questions', left);
+  return out;
+}
+
 /* ---------- health ---------- */
 
 /** Maps the backend's Health answer. */
+/** The health's sign-in settings; anything not stated means no sign-in and no registration. */
+function authOf(a: { enabled?: unknown; registration?: unknown } | undefined): Health['auth'] {
+  return { enabled: a?.enabled === true, registration: a?.registration === 'open' ? 'open' : 'closed' };
+}
+
 export function adaptHealth(h: WireHealth): Health {
   return {
     mode: h.mode,
@@ -842,5 +1171,7 @@ export function adaptHealth(h: WireHealth): Health {
     version: h.version,
     providers: { ...h.providers },
     upload: { maxMb: h.upload.max_mb, extensions: [...h.upload.extensions] },
+    // Contract 1.3.0 adds `auth`; a server that doesn't send it has no sign-in.
+    auth: authOf((h as { auth?: { enabled?: unknown; registration?: unknown } }).auth),
   };
 }

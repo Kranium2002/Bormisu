@@ -62,6 +62,29 @@ export function liveBorehole(): WireRecord & Record<string, unknown> {
   };
 }
 
+/** The test borehole as the map layer carries it (GET /map/boreholes.geojson?document_id=). */
+export function liveFeature(): Record<string, unknown> {
+  const b = liveBorehole();
+  const c = b.metadata.coordinates;
+  return {
+    type: 'Feature',
+    id: b.uid,
+    geometry: { type: 'Point', coordinates: [c?.longitude, c?.latitude] },
+    properties: {
+      uid: b.uid,
+      borehole_id: b.metadata.borehole_id,
+      project_name: b.metadata.project_name ?? null,
+      document_id: b.document_id,
+      borehole_depth_m: b.metadata.borehole_depth_m ?? null,
+      review_status: b.review_status,
+      crs_status: b.crs_status,
+      revision: b.revision,
+      attention: false,
+      open_clarifications: 0,
+    },
+  };
+}
+
 /** One server-sent event: id, type and one data line, then a blank line. */
 export function sseEvent(id: number, event: string, data: unknown): string {
   return `id: ${id}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`;

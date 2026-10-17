@@ -10,18 +10,32 @@ import { formatSpt } from '../domain/spt';
 import type { Borehole, ExtractedValue } from '../domain/types';
 import { EXAMPLES_MISSING, EXAMPLES_PRESENT, example, examplesOf } from '../test/contract/examples';
 import {
+  adaptArea,
   adaptBorehole,
+  adaptClarification,
+  adaptClarifications,
   adaptCrsCandidates,
   adaptDocument,
+  adaptFeatures,
+  adaptFilter,
   adaptHealth,
+  adaptLiveEvent,
+  adaptPlaces,
+  adaptResultSet,
+  toWireFilter,
   valueAt,
   type AdaptedBorehole,
   type WireBorehole,
   type WireBoreholeList,
+  type WireClarification,
   type WireCrsCandidate,
   type WireDocument,
   type WireDocumentList,
+  type WireFeatureCollection,
+  type WireFilter,
   type WireHealth,
+  type WirePlace,
+  type WireResultSet,
 } from './adapters';
 
 /** Every BoreholeRecord example and every item of every BoreholeList example, as [label, record]. */
@@ -432,11 +446,101 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
     });
   });
 
+  describe('M2: map features, filters, result sets, places, clarifications', () => {
+    it.each(examplesOf<WireFeatureCollection>('BoreholeFeatureCollection'))('%s: every feature adapts, [lon, lat] as sent, nothing left out', (_, fc) => {
+      const features = adaptFeatures(fc);
+      expect(features).toHaveLength(fc.features.length);
+      fc.features.forEach((f, i) => {
+        const p = f.properties;
+        expect(features[i]).toEqual({
+          uid: p.uid, id: p.borehole_id, project: p.project_name ?? null, documentId: p.document_id ?? null,
+          lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], depth: p.borehole_depth_m ?? null,
+          reviewStatus: p.review_status, crsStatus: p.crs_status, revision: p.revision ?? null,
+          attention: p.attention ?? (p.open_clarifications ?? 0) > 0, openClarifications: p.open_clarifications ?? 0,
+        });
+      });
+    });
+
+    it.each(examplesOf<WireFilter>('BoreholeFilter'))('%s reads into a filter and is sent back the same (unset fields left out)', (_, w) => {
+      const filter = adaptFilter(w);
+      expect(filter.includeUnreviewed).toBe(w.include_unreviewed ?? false);
+      if (w.area) expect(filter.area?.type).toBe(w.area.type);
+      const back = toWireFilter(filter);
+      expect(back).toEqual(Object.fromEntries(Object.entries(w).filter(([, v]) => v != null && !(Array.isArray(v) && !v.length))));
+    });
+
+    it('BoreholeFilter.circle.json: the circle is {center [lon, lat], radiusM}', () => {
+      const filter = adaptFilter(example<WireFilter>('BoreholeFilter.circle.json'));
+      expect(filter.area).toEqual({ type: 'circle', center: [-1.9361, 53.6668], radiusM: 2500 });
+      expect(filter.reviewStatus).toEqual(['approved']);
+    });
+
+    it.each(examplesOf<WireResultSet>('ResultSet'))('%s adapts with its counts, bbox, echoed area and definition', (_, rs) => {
+      const set = adaptResultSet(rs);
+      expect(set).toMatchObject({
+        id: rs.result_set_id, count: rs.count, locatedCount: rs.located_count, unlocatedCount: rs.unlocated_count,
+        excludedUnreviewed: rs.excluded_unreviewed ?? null, uids: rs.uids, bbox: rs.bbox, createdAt: rs.created_at,
+      });
+      expect(set.definition).toEqual(adaptFilter(rs.definition));
+      expect(set.area).toEqual(rs.area == null ? null : adaptArea(rs.area));
+    });
+
+    it('ResultSet.empty_area.json: no member, the bbox of the searched area', () => {
+      const set = adaptResultSet(example<WireResultSet>('ResultSet.empty_area.json'));
+      expect([set.count, set.bbox, set.area]).toEqual([0, [-1.8, 53.6, -1.75, 53.63], { type: 'bbox', bbox: [-1.8, 53.6, -1.75, 53.63] }]);
+    });
+
+    it.each(examplesOf<WirePlace[]>('PlaceCandidate'))('%s: every candidate adapts in order, lon as lng', (_, list) => {
+      const places = adaptPlaces(list);
+      expect(places.map((p) => [p.label, p.lat, p.lng, p.source, p.boreholeCount])).toEqual(
+        list.map((p) => [p.label, p.lat, p.lon, p.source, p.borehole_count ?? null]),
+      );
+    });
+
+    it.each(examplesOf<WireClarification>('Clarification'))('%s adapts: fields, options with evidence, defaults as sent', (_, c) => {
+      const q = adaptClarification(c);
+      expect(q).not.toBeNull();
+      expect(q).toMatchObject({
+        id: c.clarification_id, kind: c.kind, status: c.status, documentId: c.document_id, boreholeUids: c.borehole_uids ?? [],
+        path: c.path ?? null, question: c.question, answer: c.answer ?? null, answeredBy: c.answered_by ?? null,
+        createdAt: c.created_at, resolvedAt: c.resolved_at ?? null,
+      });
+      c.fields.forEach((f, i) => {
+        const field = q?.fields[i];
+        expect(field).toMatchObject({ name: f.name, widget: f.widget, label: f.label, help: f.help ?? null, required: f.required ?? false });
+        expect(field?.unitOptions).toEqual(f.unit_options ?? []);
+        expect(field?.default).toEqual('default' in f ? f.default : undefined);
+        expect(field?.options.map((o) => [o.value, o.label, o.evidence?.page ?? null])).toEqual(
+          (f.options ?? []).map((o) => [o.value, o.label, o.evidence?.page ?? null]),
+        );
+      });
+      expect(q?.evidence.map((e) => [e.documentId, e.page, e.box && [e.box.x, e.box.y, e.box.w, e.box.h], e.snippet])).toEqual(
+        c.evidence.map((e) => [e.document_id, e.page, e.box ?? null, e.snippet ?? null]),
+      );
+    });
+
+    it('the clarification examples cover every widget and every kind', () => {
+      const all = adaptClarifications(examplesOf<WireClarification>('Clarification').map(([, c]) => c));
+      expect(new Set(all.flatMap((c) => c.fields.map((f) => f.widget)))).toEqual(
+        new Set(['text', 'number_unit', 'select', 'boolean', 'map_point', 'choose_reading', 'crs_picker', 'page_range']),
+      );
+      expect(new Set(all.map((c) => c.kind)).size).toBe(9);
+    });
+
+    it('events/clarification.created.json carries a question that adapts like a listed one', () => {
+      const data = example<WireClarification>('events/clarification.created.json');
+      const event = adaptLiveEvent('clarification.created', data);
+      expect(event).toEqual({ type: 'clarification.created', clarification: adaptClarification(data) });
+      expect(event && event.type === 'clarification.created' && event.clarification.fields[0].options[1].evidence?.snippet).toBe('9,80');
+    });
+  });
+
   describe('health and CRS candidates', () => {
     it.each(examplesOf<WireHealth>('Health'))('%s adapts as sent', (_, h) => {
       expect(adaptHealth(h)).toEqual({
         mode: h.mode, status: h.status, version: h.version, providers: h.providers,
         upload: { maxMb: h.upload.max_mb, extensions: h.upload.extensions },
+        auth: { enabled: false, registration: 'closed' },
       });
     });
 

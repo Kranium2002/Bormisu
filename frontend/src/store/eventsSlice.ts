@@ -4,118 +4,58 @@
  * keeps the transport status and applies each event as the contract's "Client action" says.
  *
  * Every handler is idempotent and treats events as hints to refetch, except document.updated, which
- * carries the whole document. Refetches of one borehole are coalesced: one runs at a time, and a
- * burst of events while it runs leads to one more refetch at most.
+ * carries the whole document, and clarification.created, which carries the whole question. Refetches
+ * of one borehole or document are coalesced (see context.ts). A cached full record is refetched;
+ * a plotted borehole known only by its map feature gets its document's features refetched instead.
  */
-import type { DataSource } from '../data/DataSource';
 import { errorText } from '../data/errors';
-import type { DocumentSummary, LiveEvent } from '../domain/types';
+import type { Clarification, DocumentSummary, LiveEvent } from '../domain/types';
 import { isProcessing, LEAVE_REVIEW, type SliceCreator } from './context';
+import { withoutDocumentMapData } from './mapDataSlice';
 import type { EventsSlice } from './types';
 
 /** Toast when the document shown in Review or Detail was deleted on the server. */
 export const deletedText = (name: string) => `${name} was deleted; its boreholes were removed.`;
 
-/** A borehole refetch in flight: what was asked for while it ran. */
-interface Refetch {
-  source: DataSource;
-  /** Another event arrived while the fetch ran. */
-  again: boolean;
-  /** Highest revision an event named. */
-  want: number;
-  /** An event asked for the record whatever its revision (e.g. a clarification changed it). */
-  force: boolean;
-}
-
-/** A document refetch in flight. */
-interface DocumentRefetch {
-  source: DataSource;
-  again: boolean;
-}
-
-export const createEventsSlice: SliceCreator<EventsSlice> = ({ set, get, find, takeBoreholes, markDeleted, isDeleted }) => {
+export const createEventsSlice: SliceCreator<EventsSlice> = (ctx) => {
+  const { set, get, find, feature, markDeleted, isDeleted, refetchBorehole, refetchDocument, refreshFeatures } = ctx;
   /** Ends the current subscription; null when none is open. */
   let unsubscribe: (() => void) | null = null;
   /** Bumped by every start and stop, so callbacks of an ended subscription are ignored. */
   let run = 0;
-  const boreholeFetches = new Map<string, Refetch>();
-  const documentFetches = new Map<string, DocumentRefetch>();
   /** What each clarification seen in this session concerns (clarification.resolved names only its id). */
-  const clarifications = new Map<string, { documentId: string; boreholeUids: string[] }>();
+  const clarifications = new Map<string, Pick<Clarification, 'documentId' | 'boreholeUids'>>();
 
   /**
-   * Fetches a borehole and takes it (takeBoreholes respects pending saves and drops older records).
-   * `revision` null fetches whatever the store holds; otherwise only while the store holds an older one.
+   * Refetches what a clarification concerns, so the open-question badges and the pins' attention
+   * stay right: its documents, its cached records and the features of its plotted boreholes.
    */
-  function refetchBorehole(uid: string, revision: number | null): void {
-    const source = get().source;
-    if (!source) return;
-    const running = boreholeFetches.get(uid);
-    if (running && running.source === source) {
-      running.again = true;
-      if (revision === null) running.force = true;
-      else running.want = Math.max(running.want, revision);
-      return;
-    }
-    const entry: Refetch = { source, again: true, want: revision ?? -1, force: revision === null };
-    boreholeFetches.set(uid, entry);
-    void (async () => {
-      while (entry.again) {
-        entry.again = false;
-        if (!entry.force && (find(uid)?.revision ?? -1) >= entry.want) continue;
-        entry.force = false;
-        try {
-          const record = await source.getBorehole(uid);
-          if (get().source !== source) break;
-          takeBoreholes([record]);
-        } catch (e) {
-          // The next event for this borehole tries again.
-          console.warn(`Live update: fetching borehole ${uid} failed (${errorText(e)}).`);
-        }
+  function refreshClarification(target: Pick<Clarification, 'documentId' | 'boreholeUids'>): void {
+    const documents = new Set([target.documentId]);
+    const pinned = new Set<string>();
+    if (get().features.some((f) => f.documentId === target.documentId)) pinned.add(target.documentId);
+    for (const uid of target.boreholeUids) {
+      const f = feature(uid);
+      if (f?.documentId) {
+        documents.add(f.documentId);
+        pinned.add(f.documentId);
       }
-      if (boreholeFetches.get(uid) === entry) boreholeFetches.delete(uid);
-    })();
-  }
-
-  /** Fetches a document the store shows and applies it like document.updated. */
-  function refetchDocument(documentId: string): void {
-    const source = get().source;
-    if (!source || !get().documents.some((d) => d.id === documentId)) return;
-    const running = documentFetches.get(documentId);
-    if (running && running.source === source) {
-      running.again = true;
-      return;
+      // Boreholes the store doesn't hold yet arrive with borehole.created.
+      if (find(uid)) refetchBorehole(uid, null);
     }
-    const entry: DocumentRefetch = { source, again: true };
-    documentFetches.set(documentId, entry);
-    void (async () => {
-      while (entry.again) {
-        entry.again = false;
-        try {
-          const doc = await source.getDocument(documentId);
-          if (get().source !== source) break;
-          get().documentUpdated(doc);
-        } catch (e) {
-          console.warn(`Live update: fetching document ${documentId} failed (${errorText(e)}).`);
-        }
-      }
-      if (documentFetches.get(documentId) === entry) documentFetches.delete(documentId);
-    })();
+    for (const id of documents) refetchDocument(id);
+    for (const id of pinned) refreshFeatures(id);
   }
 
-  /** Refetches what a clarification concerns, so the open-question badges stay right (the inbox is M2). */
-  function refreshClarification(target: { documentId: string; boreholeUids: string[] }): void {
-    refetchDocument(target.documentId);
-    // Boreholes the store doesn't hold yet arrive with borehole.created.
-    for (const uid of target.boreholeUids) if (find(uid)) refetchBorehole(uid, null);
-  }
-
-  /** Removes a deleted document, its boreholes and cached pages; leaves Review or Detail when they show one of them. */
+  /** Removes a deleted document, its boreholes, pins and cached pages; leaves Review or Detail when they show one of them. */
   function removeDocument(documentId: string): void {
     markDeleted(documentId);
     const s = get();
     const doc = s.documents.find((d) => d.id === documentId);
-    const gone = new Set(s.boreholes.filter((b) => b.documentId === documentId).map((b) => b.uid));
+    const gone = new Set([
+      ...s.boreholes.filter((b) => b.documentId === documentId).map((b) => b.uid),
+      ...s.features.filter((f) => f.documentId === documentId).map((f) => f.uid),
+    ]);
     if (!doc && !gone.size) return;
     const shown = (uid: string | null) => uid !== null && gone.has(uid);
     const leaveReview = s.screen === 'review' && shown(s.reviewUid);
@@ -125,6 +65,7 @@ export const createEventsSlice: SliceCreator<EventsSlice> = ({ set, get, find, t
     set({
       documents: s.documents.filter((d) => d.id !== documentId),
       boreholes: s.boreholes.filter((b) => !gone.has(b.uid)),
+      ...withoutDocumentMapData(s, documentId, gone),
       pages: Object.fromEntries(Object.entries(s.pages).filter(([key]) => !key.startsWith(prefix))),
       jobFailures: Object.fromEntries(Object.entries(s.jobFailures).filter(([id]) => id !== documentId)),
       ...(shown(s.reviewUid) ? { ...LEAVE_REVIEW, reviewUid: null, focusKey: null, reviewPage: null } : {}),
@@ -142,6 +83,26 @@ export const createEventsSlice: SliceCreator<EventsSlice> = ({ set, get, find, t
     get().documentUpdated(document);
     // A document first seen through an event (e.g. uploaded in another tab) is followed by the polling fallback too.
     if (!known && isProcessing(document) && !isDeleted(document.id)) get().source?.follow(document.id);
+  }
+
+  /**
+   * A borehole was created or changed on the server (`plotted` null when the event doesn't say).
+   * - Its full record is refetched when cached and older than the event, and fetched when the store
+   *   knows nothing of it and it is not on the map (NOT ON MAP lists full records; the record then
+   *   joins that list, or brings its document's pins when it turns out plotted).
+   * - Its document's pins are refetched when it is, or may be, on the map and its pin is older.
+   */
+  function boreholeChanged(uid: string, revision: number, documentId: string | null, plotted: boolean | null): void {
+    const record = find(uid);
+    const pin = feature(uid);
+    if (record) {
+      if (record.revision < revision) refetchBorehole(uid, revision);
+    } else if (!pin && plotted !== true) {
+      refetchBorehole(uid, revision);
+    }
+    const doc = documentId ?? pin?.documentId ?? record?.documentId ?? null;
+    const mayBePinned = plotted ?? (!!pin || !!record?.onMap);
+    if (doc && mayBePinned && (pin?.revision ?? -1) < revision) refreshFeatures(doc);
   }
 
   return {
@@ -184,31 +145,36 @@ export const createEventsSlice: SliceCreator<EventsSlice> = ({ set, get, find, t
         case 'document.deleted':
           removeDocument(event.documentId);
           return;
-        case 'borehole.created':
-        case 'borehole.updated': {
-          if (event.type === 'borehole.created' && isDeleted(event.documentId)) return;
-          // Only when the store holds an older revision, or none.
-          if ((find(event.uid)?.revision ?? -1) >= event.revision) return;
-          refetchBorehole(event.uid, event.revision);
+        case 'borehole.created': {
+          if (isDeleted(event.documentId)) return;
+          boreholeChanged(event.uid, event.revision, event.documentId, event.plotted);
           return;
         }
+        case 'borehole.updated':
+          boreholeChanged(event.uid, event.revision, null, null);
+          return;
         case 'clarification.created': {
-          const target = { documentId: event.documentId, boreholeUids: event.boreholeUids };
-          clarifications.set(event.clarificationId, target);
+          const c = event.clarification;
+          const target = { documentId: c.documentId, boreholeUids: c.boreholeUids };
+          clarifications.set(c.id, target);
+          ctx.clarificationEvents.created(c);
           refreshClarification(target);
           return;
         }
         case 'clarification.resolved': {
-          const target = clarifications.get(event.clarificationId);
-          clarifications.delete(event.clarificationId);
+          const listed = ctx.clarificationEvents.resolved(event.clarificationId, event.status);
+          const target = listed ?? clarifications.get(event.clarificationId);
+          if (event.status === 'answered') clarifications.delete(event.clarificationId);
           if (target) {
             refreshClarification(target);
             return;
           }
-          // Asked before this page loaded: refetch whatever shows open questions.
+          // Asked before this page loaded and not in the list: refetch whatever shows open questions.
           const s = get();
           for (const d of s.documents) if (d.openClarifications > 0) refetchDocument(d.id);
           for (const b of s.boreholes) if (b.openClarifications > 0) refetchBorehole(b.uid, null);
+          const pinned = new Set(s.features.filter((f) => f.openClarifications > 0 && f.documentId).map((f) => f.documentId as string));
+          for (const id of pinned) refreshFeatures(id);
           return;
         }
         case 'job.failed': {

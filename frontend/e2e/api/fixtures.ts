@@ -200,6 +200,8 @@ export interface ApiCall {
   requestBody: string | null;
 }
 
+const FONT_HOSTS = /fonts\.(googleapis|gstatic)\.com/;
+
 export const test = base.extend<{ errors: string[]; warnings: string[]; apiLog: ApiCall[] }>({
   apiLog: [
     async ({ page }, use, testInfo) => {
@@ -232,7 +234,8 @@ export const test = base.extend<{ errors: string[]; warnings: string[]; apiLog: 
     async ({ page }, use) => {
       const errors: string[] = [];
       page.on('console', (m) => {
-        if (m.type() === 'error') errors.push(`${m.text()} ${m.location().url}`);
+        // A network blip on the Google Fonts stylesheet is not an app error (the font stack falls back).
+        if (m.type() === 'error' && !FONT_HOSTS.test(`${m.text()} ${m.location().url}`)) errors.push(`${m.text()} ${m.location().url}`);
       });
       page.on('pageerror', (e) => errors.push(e.message));
       await page.route(/tile\.openstreetmap\.org/, (route) =>
@@ -254,6 +257,68 @@ export { expect };
  */
 export function knownBug(id: string, why: string): void {
   test.fail(!process.env.E2E_SHOW_KNOWN, `${id}: ${why}`);
+}
+
+/**
+ * Takes the console errors a test expects out of the collected ones (e.g. Chrome's "Failed to load
+ * resource … 404" for a deep link to a borehole that does not exist, which the app has to ask for).
+ * Returns how many were taken; every other error still fails the test.
+ */
+export function expectConsoleErrors(errors: string[], expected: (error: string) => boolean): number {
+  const keep = errors.filter((e) => !expected(e));
+  const taken = errors.length - keep.length;
+  errors.splice(0, errors.length, ...keep);
+  return taken;
+}
+
+/** True for a record answer of the backend: the lists, one record, or a document's records. */
+const RECORD_ANSWER = /^\/api\/v1\/(boreholes(\/[^/]+)?|documents\/[^/]+\/boreholes)$/;
+
+/**
+ * Changes the browser's copy of every borehole record the app loads (the NOT ON MAP list at boot,
+ * records fetched on demand for Detail and Review, a document's records) with `edit`. The backend
+ * is not changed.
+ */
+export async function editRecords(page: Page, edit: (r: WireRecord) => void): Promise<void> {
+  await page.route(
+    (url) => RECORD_ANSWER.test(url.pathname),
+    async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback();
+        return;
+      }
+      const res = await route.fetch();
+      if (res.status() !== 200) {
+        await route.fulfill({ response: res });
+        return;
+      }
+      const body = (await res.json()) as unknown;
+      const list = Array.isArray(body)
+        ? (body as WireRecord[])
+        : body && typeof body === 'object' && Array.isArray((body as { boreholes?: unknown }).boreholes)
+          ? (body as { boreholes: WireRecord[] }).boreholes
+          : body && typeof body === 'object' && 'uid' in body
+            ? [body as WireRecord]
+            : [];
+      list.forEach(edit);
+      await route.fulfill({ response: res, json: body });
+    },
+  );
+}
+
+/**
+ * Loads every seeded record into the app the way a user would: one Review per document (its route
+ * loads the document's records on demand), after the boot loaded the NOT ON MAP list.
+ */
+export async function loadEveryRecord(page: Page, all: WireRecord[]): Promise<void> {
+  const firstOfDocument = new Map<string, string>();
+  for (const r of all) if (!firstOfDocument.has(r.document_id)) firstOfDocument.set(r.document_id, r.uid);
+  for (const [documentId, uid] of firstOfDocument) {
+    const answered = page.waitForResponse((res) => new URL(res.url()).pathname === `${API}/documents/${documentId}/boreholes`);
+    await page.goto(`/review/${encodeURIComponent(uid)}`);
+    expect((await answered).status(), `records of ${documentId}`).toBe(200);
+    await loaded(page);
+  }
 }
 
 /* ---------- UI helpers ---------- */
@@ -313,8 +378,9 @@ export async function openReview(page: Page, id: string): Promise<void> {
 export const fieldRow = (page: Page, key: string) => page.locator(`[aria-label="Extracted values"] [data-key="${key}"]`);
 
 /** The map's circle markers (Leaflet SVG paths) on the main map. */
-export const pins = (page: Page) =>
-  page.getByRole('region', { name: 'Borehole map' }).locator('.leaflet-overlay-pane path.leaflet-interactive');
+/** Pins are canvas drawings: the map root reports how many it shows in data-pins. */
+export const expectPins = (page: Page, count: number) =>
+  expect(page.locator('[data-pins]')).toHaveAttribute('data-pins', String(count));
 
 /**
  * Runs `action` and waits for the next `count` PATCH answers of a borehole's values; resolves with

@@ -7,9 +7,9 @@ import { NO_SOURCE_REFERENCE } from '../../store/reviewSlice';
 import { makeValue } from '../../test/fixtures';
 import { FieldRow } from './FieldRow';
 
-const render = (value: ExtractedValue, focused = false) =>
+const render = (value: ExtractedValue, focused = false, questionId: string | null = null) =>
   renderToStaticMarkup(
-    <FieldRow uid="bh_TEST" value={value} focused={focused} editing={null} normText={value.value} note={null} canChooseCrs={false} />,
+    <FieldRow uid="bh_TEST" value={value} focused={focused} editing={null} normText={value.value} note={null} canChooseCrs={false} questionId={questionId} />,
   );
 
 describe('FieldRow', () => {
@@ -61,6 +61,13 @@ describe('FieldRow', () => {
     const html = render(v, true);
     expect(html.match(/disabled=""/g)).toHaveLength(6);
     expect(html.split(`title="${NO_SOURCE_REFERENCE}"`).length - 1).toBe(6);
+  });
+
+  it('F12: a value with an unresolved question shows a Question button, focused or not', () => {
+    const v = makeValue({ key: K.finalDepth, label: 'Final depth', value: '6.00' });
+    expect(render(v)).not.toContain('Question');
+    const html = render(v, false, 'cl_01TESTFICTIONAL');
+    expect(html).toMatch(/<button[^>]*aria-label="Question about Final depth"[^>]*>\? Question<\/button>/);
   });
 
   it('marks a lint the app added itself, so it is not mistaken for a backend finding', () => {

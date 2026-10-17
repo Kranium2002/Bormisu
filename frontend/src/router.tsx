@@ -9,6 +9,7 @@
  *   /review           the review target, else "nothing to review"
  *   /review/:uid      review of a borehole (?key=value key)
  *   /boreholes/:uid   borehole detail (?layer=n)
+ *   /inbox            clarification questions (?q=question whose dialog is open)
  *   anything else     not found, with a link to the map
  *
  * No loaders: the store loads the data, and navigation stays synchronous. nginx serves index.html for
@@ -18,6 +19,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { App } from './App';
 import {
   BoreholeRoute,
+  InboxRoute,
   MapRoute,
   NotFoundRoute,
   QueueRoute,
@@ -43,6 +45,7 @@ export const routes: RouteObject[] = [
           { path: ROUTE.reviewIndex, Component: ReviewIndexRoute },
           { path: ROUTE.review, Component: ReviewRoute },
           { path: ROUTE.detail, Component: BoreholeRoute },
+          { path: ROUTE.inbox, Component: InboxRoute },
           { path: '*', Component: NotFoundRoute },
         ],
       },

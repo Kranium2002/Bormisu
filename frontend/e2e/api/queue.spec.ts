@@ -1,6 +1,6 @@
 /**
  * Upload & queue in API mode: one card per stored document with its page strip, progress, found
- * counts, open questions, the error with RETRY for a failed one, and OPEN REVIEW; the drop zone in
+ * counts, open questions (a badge button), the error with RETRY for a failed one, and OPEN REVIEW; the drop zone in
  * demo mode; a duplicate upload (answered by the test, so nothing is written).
  *
  * Seed state needed: the fictional seed (`python -m app.seed`): documents in several states,
@@ -94,7 +94,8 @@ test('progress, found counts and open questions come from the document', async (
       await expect(c).toContainText('not processed yet');
     }
     const q = d.open_clarifications;
-    if (q > 0) await expect(c).toContainText(`${q} open question${q === 1 ? '' : 's'}`);
+    // F12: the open-questions badge is a button (it opens the first question; e2e/api/inbox.spec.ts).
+    if (q > 0) await expect(c.getByRole('button', { name: `${q} open question${q === 1 ? '' : 's'}`, exact: true })).toBeVisible();
     else await expect(c).not.toContainText('open question');
   }
 });

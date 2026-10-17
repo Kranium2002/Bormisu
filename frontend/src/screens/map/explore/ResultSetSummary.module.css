@@ -1,0 +1,60 @@
+/* The active result set above the RESULTS table; collapsed to nothing while no set is active. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.active {
+  padding: 6px 10px;
+  border-left: 3px solid var(--c-green);
+  background: var(--c-selected);
+  color: var(--c-text);
+}
+
+.tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--c-green-text);
+}
+
+/* Never display:none: an empty live region stays in the accessibility tree, so the next set is announced. */
+.summary {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-red);
+}
+
+.clear {
+  margin-left: auto;
+  appearance: none;
+  border: 1px solid var(--c-dark);
+  border-radius: 2px;
+  padding: 3px 10px;
+  background: var(--c-surface);
+  color: var(--c-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: var(--c-hover);
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}

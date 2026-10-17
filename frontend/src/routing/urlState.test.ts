@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   boreholePath,
   formatMapView,
+  inboxPath,
   mapPath,
   parseLocation,
   parseMapView,
@@ -51,9 +52,17 @@ describe('parseLocation', () => {
   });
 
   it('anything else is not found, with the path it was asked for', () => {
-    for (const path of ['/inbox', '/boreholes', '/boreholes/a/b', '/review/a/b', '/mapx', '/map/extra', '/boreholes/%E0%A4%A']) {
+    for (const path of ['/inbox/cl_1', '/inboxes', '/boreholes', '/boreholes/a/b', '/review/a/b', '/mapx', '/map/extra', '/boreholes/%E0%A4%A']) {
       expect(parseLocation(path, ''), path).toEqual({ kind: 'notFound', path });
     }
+  });
+
+  it('F12: reads the inbox with the question whose dialog is open', () => {
+    expect(parseLocation('/inbox', '')).toEqual({ kind: 'inbox', q: null });
+    expect(parseLocation('/inbox/', '?q=cl_01TESTFICTIONAL')).toEqual({ kind: 'inbox', q: 'cl_01TESTFICTIONAL' });
+    expect(parseLocation('/inbox', '?q=cl%3A1%202')).toEqual({ kind: 'inbox', q: 'cl:1 2' });
+    // An empty q is no question.
+    expect(parseLocation('/inbox', '?q=')).toEqual({ kind: 'inbox', q: null });
   });
 
   it('the root shows the map (the router redirects it to /map once the data is loaded)', () => {
@@ -95,6 +104,13 @@ describe('paths', () => {
     expect(boreholePath(UID, 4)).toBe(`/boreholes/${UID}?layer=4`);
   });
 
+  it('F12: builds the inbox URL, with the open question when given', () => {
+    expect(inboxPath()).toBe('/inbox');
+    expect(inboxPath(null)).toBe('/inbox');
+    expect(inboxPath('cl_01TESTFICTIONAL')).toBe('/inbox?q=cl_01TESTFICTIONAL');
+    expect(inboxPath('cl:1 2')).toBe('/inbox?q=cl%3A1%202');
+  });
+
   it('every route reads back as itself', () => {
     const routes: AppRoute[] = [
       { kind: 'map', at: { lat: 10, lng: 20, zoom: 5 }, sel: 'nb:BK-07', rs: 'r' },
@@ -103,6 +119,8 @@ describe('paths', () => {
       { kind: 'reviewIndex' },
       { kind: 'review', uid: 'nb:BK-07', key: 'GW[0]' },
       { kind: 'detail', uid: UID, layer: 2 },
+      { kind: 'inbox', q: null },
+      { kind: 'inbox', q: 'cl_01TESTFICTIONAL' },
     ];
     for (const r of routes) {
       const url = new URL(routePath(r), 'http://localhost');
@@ -118,5 +136,8 @@ describe('sameScreen', () => {
     expect(sameScreen({ kind: 'review', uid: UID, key: null }, { kind: 'review', uid: 'other', key: null })).toBe(false);
     expect(sameScreen({ kind: 'detail', uid: UID, layer: 1 }, { kind: 'review', uid: UID, key: null })).toBe(false);
     expect(sameScreen(null, { kind: 'queue' })).toBe(false);
+    // Opening or closing a question's dialog stays on the inbox (history replace).
+    expect(sameScreen({ kind: 'inbox', q: null }, { kind: 'inbox', q: 'cl_1' })).toBe(true);
+    expect(sameScreen({ kind: 'inbox', q: null }, { kind: 'queue' })).toBe(false);
   });
 });
