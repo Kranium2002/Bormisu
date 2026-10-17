@@ -1,0 +1,115 @@
+{
+  "document_id": "doc_01M54JJDG0JCBXQ9XZPN88864Y",
+  "file_name": "demo-ridge-tunnel-annex.pdf",
+  "project": "Demo Ridge Tunnel",
+  "status": "classifying",
+  "error": null,
+  "mime_type": "application/pdf",
+  "size_bytes": 2621440,
+  "sha256": "3efdf163ec741dc8f21d0fbf6eb4c44a3b8e32afa5747b456b167bf01b0b92cd",
+  "page_count": 8,
+  "found": null,
+  "pages": [
+    {
+      "n": 1,
+      "type": "text",
+      "role": "cover_or_toc",
+      "used": false,
+      "unused_reason": "cover page",
+      "borehole_ids": [],
+      "sheet_label": null,
+      "handwriting": "none",
+      "language": "en",
+      "ocr": "skipped",
+      "duplicate_of": null
+    },
+    {
+      "n": 2,
+      "type": "text",
+      "role": "narrative",
+      "used": false,
+      "unused_reason": "narrative text",
+      "borehole_ids": [],
+      "sheet_label": null,
+      "handwriting": "none",
+      "language": "en",
+      "ocr": "skipped",
+      "duplicate_of": null
+    },
+    {
+      "n": 3,
+      "type": "log",
+      "role": "log_sheet",
+      "used": true,
+      "unused_reason": null,
+      "borehole_ids": [
+        "DRT-B30"
+      ],
+      "sheet_label": "SHEET 1 OF 2",
+      "handwriting": "none",
+      "language": "en",
+      "ocr": "pending",
+      "duplicate_of": null
+    },
+    {
+      "n": 4,
+      "type": "log",
+      "role": "log_continuation",
+      "used": true,
+      "unused_reason": null,
+      "borehole_ids": [
+        "DRT-B30"
+      ],
+      "sheet_label": "SHEET 2 OF 2",
+      "handwriting": "annotations",
+      "language": "en",
+      "ocr": "pending",
+      "duplicate_of": null
+    },
+    {
+      "n": 5,
+      "type": "lab_table",
+      "role": "coordinate_table",
+      "used": true,
+      "unused_reason": null,
+      "borehole_ids": [
+        "DRT-B30"
+      ],
+      "sheet_label": null,
+      "handwriting": "none",
+      "language": "en",
+      "ocr": "pending",
+      "duplicate_of": null
+    },
+    {
+      "n": 6,
+      "type": "unknown",
+      "used": false,
+      "ocr": "pending"
+    },
+    {
+      "n": 7,
+      "type": "unknown",
+      "used": false,
+      "ocr": "pending"
+    },
+    {
+      "n": 8,
+      "type": "unknown",
+      "used": false,
+      "ocr": "pending"
+    }
+  ],
+  "completeness": null,
+  "progress": {
+    "pages_total": 8,
+    "pages_classified": 5,
+    "pages_ocr_total": 3,
+    "pages_ocr_done": 0,
+    "boreholes_extracted": 0
+  },
+  "duplicate_of": null,
+  "open_clarifications": 0,
+  "created_at": "2026-10-17T09:20:00Z",
+  "updated_at": "2026-10-17T09:22:15Z"
+}

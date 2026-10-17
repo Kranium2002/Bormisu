@@ -1,0 +1,4 @@
+{
+  "detail": "The borehole changed since revision 4. Reload it and try again.",
+  "code": "revision_conflict"
+}

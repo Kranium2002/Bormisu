@@ -1,0 +1,122 @@
+[
+  {
+    "crs": "EPSG:27700",
+    "label": "OSGB36 / British National Grid",
+    "score": 1.0,
+    "verdict": "match",
+    "note": "1 of 1 points inside the system's area of use; centroid inside 'Harrowmere, Example County, United Kingdom' (geocoder)",
+    "swap_axes": false,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 53.660458,
+        "lon": -1.949844
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:27700",
+    "label": "OSGB36 / British National Grid",
+    "score": 0.935,
+    "verdict": "match",
+    "note": "1 of 1 points inside the system's area of use; centroid 17 km from 'Harrowmere, Example County, United Kingdom' (geocoder); printed X read as northing",
+    "swap_axes": true,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 53.527058,
+        "lon": -1.726626
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:32618",
+    "label": "WGS 84 / UTM zone 18N",
+    "score": 0.365,
+    "verdict": "shifted",
+    "note": "1 of 1 points inside the system's area of use; centroid 8611 km from 'Harrowmere, Example County, United Kingdom' (geocoder)",
+    "swap_axes": false,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 3.783275,
+        "lon": -75.869862
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:32618",
+    "label": "WGS 84 / UTM zone 18N",
+    "score": 0.365,
+    "verdict": "shifted",
+    "note": "1 of 1 points inside the system's area of use; centroid 8614 km from 'Harrowmere, Example County, United Kingdom' (geocoder); printed X read as northing",
+    "swap_axes": true,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 3.649443,
+        "lon": -75.736399
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:32630",
+    "label": "WGS 84 / UTM zone 30N",
+    "score": 0.365,
+    "verdict": "shifted",
+    "note": "1 of 1 points inside the system's area of use; centroid 5546 km from 'Harrowmere, Example County, United Kingdom' (geocoder); UTM zone of the reference place",
+    "swap_axes": false,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 3.783275,
+        "lon": -3.869862
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:32630",
+    "label": "WGS 84 / UTM zone 30N",
+    "score": 0.365,
+    "verdict": "shifted",
+    "note": "1 of 1 points inside the system's area of use; centroid 5561 km from 'Harrowmere, Example County, United Kingdom' (geocoder); UTM zone of the reference place; printed X read as northing",
+    "swap_axes": true,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 3.649443,
+        "lon": -3.736399
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:32640",
+    "label": "WGS 84 / UTM zone 40N",
+    "score": 0.365,
+    "verdict": "shifted",
+    "note": "1 of 1 points inside the system's area of use; centroid 7618 km from 'Harrowmere, Example County, United Kingdom' (geocoder)",
+    "swap_axes": false,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 3.783275,
+        "lon": 56.130138
+      }
+    ]
+  },
+  {
+    "crs": "EPSG:32640",
+    "label": "WGS 84 / UTM zone 40N",
+    "score": 0.365,
+    "verdict": "shifted",
+    "note": "1 of 1 points inside the system's area of use; centroid 7638 km from 'Harrowmere, Example County, United Kingdom' (geocoder); printed X read as northing; 68 more candidates not listed (2 with the same score as this one): EPSG:32643, EPSG:21781, EPSG:3857, EPSG:3414, EPSG:2326, EPSG:2263, EPSG:31466, EPSG:2039, EPSG:2056, EPSG:28992 and 24 more",
+    "swap_axes": true,
+    "points": [
+      {
+        "uid": "bh_01M54CX9K86N0N3D5HSA8R6AQ7",
+        "lat": 3.649443,
+        "lon": 56.263601
+      }
+    ]
+  }
+]

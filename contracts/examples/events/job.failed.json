@@ -1,0 +1,6 @@
+{
+  "document_id": "doc_01M54CVA401HDG3EBKKP6FGY4K",
+  "stage": "ocr",
+  "detail": "Text recognition failed on page 1 after 3 attempts. Retry when the OCR service is reachable.",
+  "retryable": true
+}

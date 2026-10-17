@@ -1,0 +1,51 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.505846,
+          53.875923
+        ]
+      },
+      "properties": {
+        "uid": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+        "borehole_id": "FHL-BH01",
+        "project_name": "Fictional Harbour Link",
+        "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+        "borehole_depth_m": 18.0,
+        "review_status": "in_review",
+        "crs_status": "stated",
+        "revision": 4,
+        "attention": true,
+        "open_clarifications": 4
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bh_01M54B3F0GBNJ9N3650KGFT5AE",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -1.973322,
+          53.672644
+        ]
+      },
+      "properties": {
+        "uid": "bh_01M54B3F0GBNJ9N3650KGFT5AE",
+        "borehole_id": "DRT-B7",
+        "project_name": "Demo Ridge Tunnel",
+        "document_id": "doc_01M54AV7B076NM6GKCF4BXQMCH",
+        "borehole_depth_m": 6.0,
+        "review_status": "approved",
+        "crs_status": "confirmed",
+        "revision": 6,
+        "attention": false,
+        "open_clarifications": 0
+      }
+    }
+  ]
+}

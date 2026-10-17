@@ -1,0 +1,14 @@
+{
+  "area": {
+    "type": "circle",
+    "center": [
+      -1.9361,
+      53.6668
+    ],
+    "radius_m": 2500
+  },
+  "review_status": [
+    "approved"
+  ],
+  "include_unreviewed": false
+}

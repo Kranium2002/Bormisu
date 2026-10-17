@@ -1,0 +1,47 @@
+{
+  "clarification_id": "cl_01M54CESQGPPSJYV8AXY39RV2W",
+  "kind": "datum_convention",
+  "status": "open",
+  "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+  "borehole_uids": [
+    "bh_01M54CC1V0HG9R735BT821BSXT"
+  ],
+  "path": "metadata.depth_origin",
+  "question": "The log of FHL-BH02 notes 'Tiefen unter Kajenoberkante'. Are its depths measured below ground or below the quay edge?",
+  "fields": [
+    {
+      "name": "depth_origin",
+      "widget": "select",
+      "label": "Depths are measured from",
+      "help": null,
+      "required": true,
+      "options": [
+        {
+          "value": "ground",
+          "label": "Ground level"
+        },
+        {
+          "value": "relative",
+          "label": "The quay edge (a relative origin)"
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 8,
+      "box": [
+        0.08,
+        0.17,
+        0.3,
+        0.03
+      ],
+      "snippet": "Tiefen unter Kajenoberkante"
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T07:33:10Z",
+  "resolved_at": null
+}

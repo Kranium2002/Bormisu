@@ -1,0 +1,44 @@
+{
+  "clarification_id": "cl_01M54CEFZ01EJQ5BT7JN4QJCKA",
+  "kind": "locate_borehole",
+  "status": "open",
+  "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+  "borehole_uids": [
+    "bh_01M54CC1V0HG9R735BT821BSXT"
+  ],
+  "path": null,
+  "question": "FHL-BH02 has no coordinates in the report. Where was it drilled?",
+  "fields": [
+    {
+      "name": "location",
+      "widget": "map_point",
+      "label": "Click the borehole position on the map",
+      "help": "The location plan on page 4 shows FHL-BH02.",
+      "required": true
+    },
+    {
+      "name": "source_note",
+      "widget": "text",
+      "label": "Where does this position come from?",
+      "help": null,
+      "required": false
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 4,
+      "box": [
+        0.52,
+        0.41,
+        0.06,
+        0.03
+      ],
+      "snippet": "FHL-BH02"
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T07:33:00Z",
+  "resolved_at": null
+}

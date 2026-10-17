@@ -1,0 +1,160 @@
+name: backend
+
+# Lint, tests, image build and the data guard for the backend, db and contracts.
+# No job receives provider secrets: tests mock every provider.
+on:
+  push:
+    paths:
+      - "backend/**"
+      - "contracts/**"
+      - "db/**"
+      - "docker-compose.yml"
+      - ".github/workflows/backend.yml"
+      # Data files anywhere (any letter case) also trigger this workflow so the data guard sees them.
+      - "**.[pP][dD][fF]"
+      - "**.[xX][lL][sS][xX]"
+      - "**.[xX][lL][sS]"
+      - "**.[xX][lL][sS][mM]"
+      - "**.[cC][sS][vV]"
+      - "**.[dD][oO][cC][xX]"
+      - "**.[dD][oO][cC]"
+      - "**.[oO][dD][tT]"
+      - "**.[tT][iI][fF]"
+      - "**.[tT][iI][fF][fF]"
+      - "**.[jJ][pP][gG]"
+      - "**.[jJ][pP][eE][gG]"
+      - "**.[pP][nN][gG]"
+      - "**.[wW][eE][bB][pP]"
+      - "**.[hH][eE][iI][cC]"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "contracts/**"
+      - "db/**"
+      - "docker-compose.yml"
+      - ".github/workflows/backend.yml"
+      - "**.[pP][dD][fF]"
+      - "**.[xX][lL][sS][xX]"
+      - "**.[xX][lL][sS]"
+      - "**.[xX][lL][sS][mM]"
+      - "**.[cC][sS][vV]"
+      - "**.[dD][oO][cC][xX]"
+      - "**.[dD][oO][cC]"
+      - "**.[oO][dD][tT]"
+      - "**.[tT][iI][fF]"
+      - "**.[tT][iI][fF][fF]"
+      - "**.[jJ][pP][gG]"
+      - "**.[jJ][pP][eE][gG]"
+      - "**.[pP][nN][gG]"
+      - "**.[wW][eE][bB][pP]"
+      - "**.[hH][eE][iI][cC]"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.13.1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: ruff check
+        run: uv run --frozen ruff check .
+      - name: ruff format
+        run: uv run --frozen ruff format --check .
+      - name: mypy
+        run: uv run --frozen mypy
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://geomemory:geomemory@localhost:5432/geomemory_test
+      # Blank on purpose: tests must never reach a paid provider.
+      OPENROUTER_API_KEY: ""
+      OPEN_ROUTER_KEY: ""
+      MISTRAL_API_KEY: ""
+      OPENAI_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v5
+      - name: Start PostgreSQL + PostGIS + pgvector (db/Dockerfile)
+        run: docker compose up -d --wait db
+      - name: Create the test database
+        run: |
+          exists="$(docker compose exec -T db psql -U geomemory -d geomemory -tAc \
+            "SELECT 1 FROM pg_database WHERE datname = 'geomemory_test'")"
+          if [ "$exists" != "1" ]; then
+            docker compose exec -T db createdb -U geomemory geomemory_test
+          fi
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: pytest (unit, integration, API)
+        working-directory: backend
+        run: uv run --frozen pytest -q --ignore=tests/contract
+      - name: pytest (contract)
+        working-directory: backend
+        run: uv run --frozen pytest -q tests/contract
+      - name: Database logs
+        if: failure()
+        run: docker compose logs db
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate docker-compose.yml (no .env, as in a fresh clone)
+        run: docker compose config -q
+      # The web image is built by the frontend workflow.
+      - name: Build db and backend images
+        run: docker compose build db migrate
+
+  data-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: No documents, spreadsheets or scans outside docs/ and assets/
+        run: |
+          # Challenge data must never be committed. Data-like files are allowed only in docs/ and
+          # assets/, plus these reviewed paths:
+          #   frontend/docs/screenshots/*.png  UI screenshots of the app's fictional sample mode
+          #   frontend/public/ images           app icons and static UI images
+          # contracts/examples/ holds JSON only. Test PDFs are generated at test time, never committed.
+          offenders="$(git -c core.quotepath=off ls-files \
+            | grep -iE '\.(pdf|xlsx|xls|xlsm|csv|docx|doc|odt|tif|tiff|jpg|jpeg|png|webp|heic)$' \
+            | grep -vE '^(docs|assets)/' \
+            | grep -vE '^frontend/docs/screenshots/[^/]+\.png$' \
+            | grep -viE '^frontend/public/.+\.(png|jpg|jpeg|webp)$' \
+            || true)"
+          if [ -n "$offenders" ]; then
+            echo "::error::Data files committed outside docs/ and assets/ (challenge data must stay out of git):"
+            printf '%s\n' "$offenders"
+            exit 1
+          fi
+          echo "Data guard passed."

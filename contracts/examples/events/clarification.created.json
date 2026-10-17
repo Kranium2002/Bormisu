@@ -1,0 +1,69 @@
+{
+  "clarification_id": "cl_01M54CEMV8NY0P15KQV76C19NS",
+  "kind": "choose_reading",
+  "status": "open",
+  "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+  "borehole_uids": [
+    "bh_01M54CB4HGT2NXJXQZD6BE0FGK"
+  ],
+  "path": "stratigraphy[2].depth_to_m",
+  "question": "Two readings of a handwritten correction disagree for the bottom of layer 3 in FHL-BH01. Which one is on the page?",
+  "fields": [
+    {
+      "name": "reading",
+      "widget": "choose_reading",
+      "label": "Layer bottom (m)",
+      "help": null,
+      "required": true,
+      "options": [
+        {
+          "value": 9.5,
+          "label": "9,50 (OCR, confidence 0.58)",
+          "evidence": {
+            "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+            "page": 6,
+            "box": [
+              0.08,
+              0.41,
+              0.06,
+              0.02
+            ],
+            "snippet": "9,50"
+          }
+        },
+        {
+          "value": 9.8,
+          "label": "9,80 (second read, confidence 0.71)",
+          "evidence": {
+            "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+            "page": 6,
+            "box": [
+              0.08,
+              0.41,
+              0.06,
+              0.02
+            ],
+            "snippet": "9,80"
+          }
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 6,
+      "box": [
+        0.08,
+        0.41,
+        0.06,
+        0.02
+      ],
+      "snippet": "9,50 / 9,80 (handwritten)"
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T07:33:05Z",
+  "resolved_at": null
+}

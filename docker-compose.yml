@@ -1,0 +1,155 @@
+# GeoMemory (UI brand "Bormisu").
+#   docker compose up --build        then open http://localhost:${WEB_PORT:-8080}
+# Works with and without a .env file. Without OPENROUTER_API_KEY / MISTRAL_API_KEY the API runs in
+# demo mode (/api/health reports "demo"). Published host ports come from WEB_PORT, API_PORT, DB_PORT.
+# Needs Docker Compose 2.24 or newer (env_file with "required: false").
+
+x-backend-env-file: &backend-env-file
+  - path: .env
+    required: false
+
+# Container-internal values, pinned so a host-oriented .env (localhost URLs, Windows paths)
+# cannot break the containers. Everything else comes from .env or the defaults in app/config.py.
+x-backend-environment: &backend-environment
+  DATABASE_URL: postgresql+asyncpg://geomemory:geomemory@db:5432/geomemory
+  STORAGE_DIR: /data/storage
+  GOTENBERG_URL: http://gotenberg:3000
+
+services:
+  db:
+    build:
+      context: ./db
+    environment:
+      POSTGRES_USER: geomemory
+      POSTGRES_PASSWORD: geomemory
+      POSTGRES_DB: geomemory
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      # TCP check: the image's first-start init server listens on the unix socket only,
+      # so this turns healthy only once the real server accepts connections.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "geomemory", "-d", "geomemory"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  # Builds the backend image once; api and worker reuse it by name. The image exists only locally:
+  # pull_policy "build" here and "never" on api/worker stop Compose from looking for it on a registry.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    image: geomemory-backend:${BACKEND_IMAGE_TAG:-latest}
+    pull_policy: build
+    command: ["alembic", "upgrade", "head"]
+    env_file: *backend-env-file
+    environment: *backend-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  api:
+    image: geomemory-backend:${BACKEND_IMAGE_TAG:-latest}
+    # Built by "migrate".
+    pull_policy: never
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+    env_file: *backend-env-file
+    environment: *backend-environment
+    volumes:
+      - storage:/data/storage
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gotenberg:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+
+  worker:
+    image: geomemory-backend:${BACKEND_IMAGE_TAG:-latest}
+    pull_policy: never
+    command: ["python", "-m", "app.worker"]
+    env_file: *backend-env-file
+    environment: *backend-environment
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      gotenberg:
+        condition: service_started
+    # The image's HEALTHCHECK probes the HTTP API, which the worker does not serve.
+    healthcheck:
+      disable: true
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  # Office files (DOCX/DOC/ODT) to PDF. Internal only: no published port.
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+
+  # Owned by the frontend session (nginx serving the SPA and proxying /api to api:8000).
+  # Never give this service an env_file or any key.
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # make test / make lint / make contract-test. No env_file and blank provider keys, so tests
+  # can never call paid providers. Tests use TEST_DATABASE_URL (database geomemory_test).
+  # Gotenberg runs alongside so the office-file integration test converts a generated DOCX for real.
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: dev
+    image: geomemory-backend-dev:${BACKEND_IMAGE_TAG:-latest}
+    pull_policy: build
+    command: ["python", "-m", "pytest", "-q"]
+    environment:
+      TEST_DATABASE_URL: postgresql+asyncpg://geomemory:geomemory@db:5432/geomemory_test
+      DATABASE_URL: postgresql+asyncpg://geomemory:geomemory@db:5432/geomemory
+      STORAGE_DIR: /data/storage
+      GOTENBERG_URL: http://gotenberg:3000
+      OPENROUTER_API_KEY: ""
+      OPEN_ROUTER_KEY: ""
+      MISTRAL_API_KEY: ""
+      OPENAI_API_KEY: ""
+    depends_on:
+      db:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+    healthcheck:
+      disable: true
+
+volumes:
+  pgdata:
+  storage:

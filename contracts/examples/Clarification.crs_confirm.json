@@ -1,0 +1,77 @@
+{
+  "clarification_id": "cl_01M54CYZA04RS8ENJCDRNQ7ZJV",
+  "kind": "crs_confirm",
+  "status": "open",
+  "document_id": "doc_01M54CCNC0Q4F0EZR24EA9NNGS",
+  "borehole_uids": [
+    "bh_01M54CX9K86N0N3D5HSA8R6AQ7"
+  ],
+  "path": null,
+  "question": "Which coordinate system do the coordinates in demo-ridge-tunnel-scan.pdf use?",
+  "fields": [
+    {
+      "name": "crs",
+      "widget": "crs_picker",
+      "label": "Coordinate system",
+      "help": "Ranked by distance to the geocoded place 'Harrowmere'.",
+      "required": true,
+      "options": [
+        {
+          "value": "EPSG:27700",
+          "label": "OSGB36 / British National Grid",
+          "evidence": {
+            "document_id": "doc_01M54CCNC0Q4F0EZR24EA9NNGS",
+            "page": 1,
+            "box": [
+              0.6,
+              0.08,
+              0.32,
+              0.03
+            ],
+            "snippet": "E 403 412   N 418 220"
+          }
+        },
+        {
+          "value": "EPSG:25830",
+          "label": "ETRS89 / UTM zone 30N",
+          "evidence": {
+            "document_id": "doc_01M54CCNC0Q4F0EZR24EA9NNGS",
+            "page": 1,
+            "box": [
+              0.6,
+              0.08,
+              0.32,
+              0.03
+            ],
+            "snippet": "E 403 412   N 418 220"
+          }
+        }
+      ]
+    },
+    {
+      "name": "swap_axes",
+      "widget": "boolean",
+      "label": "The first printed value is the northing",
+      "help": null,
+      "required": false,
+      "default": false
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54CCNC0Q4F0EZR24EA9NNGS",
+      "page": 1,
+      "box": [
+        0.6,
+        0.08,
+        0.32,
+        0.03
+      ],
+      "snippet": "E 403 412   N 418 220"
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T07:42:00Z",
+  "resolved_at": null
+}

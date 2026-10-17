@@ -1,0 +1,16 @@
+[
+  {
+    "label": "Harrowmere, Example County, United Kingdom",
+    "lat": 53.6668,
+    "lon": -1.9361,
+    "bbox": [
+      -2.0,
+      53.64,
+      -1.9,
+      53.69
+    ],
+    "source": "geocoder",
+    "kind": "city",
+    "borehole_count": 1
+  }
+]

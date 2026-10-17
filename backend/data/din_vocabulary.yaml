@@ -1,0 +1,445 @@
+# Multilingual main-component nouns -> DIN 4023 codes (the case-sensitive keys of
+# assets/din4023_patterns/din_codes.json; two contain "ö"). Read by normalize.lithology.din_code_from_text
+# to fill `din4023_code` with method=derived when the extractor gave none. Generic; no document is named.
+#
+# Only NOUNS are listed. Adjectives (sandig, sandy, sableux, arenoso, zandig, sabbioso ...) name secondary
+# components and are deliberately absent, so "Sand, kiesig" and "gravelly SAND" both give S.
+# Terms are matched as whole words (or word sequences), case-insensitively, without stripping accents.
+# Languages: de, en, fr, es, pt, nl, no (Norwegian), sv, da, it. A term that means different codes in
+# different languages ("klei": Kl in German, clay in Dutch) is used only when the language is known.
+terms:
+  # Soils (DIN EN ISO 14688-1)
+  gY:
+    de: [große blöcke, grosse blöcke, großblöcke]
+    en: [large boulders, large boulder]
+    fr: [gros blocs]
+    es: [grandes bloques]
+    pt: [grandes blocos, grandes matacões]
+    nl: [grote blokken]
+    it: [grandi blocchi]
+  Y:
+    de: [blöcke, block, blocke]
+    en: [boulders, boulder]
+    fr: [blocs, bloc]
+    es: [bloques, bloque, bolos]
+    pt: [blocos, matacões, matacão]
+    nl: [blokken, keien]
+    "no": [blokker, blokk]
+    sv: [block]
+    da: [blokke, sten og blokke]
+    it: [blocchi, trovanti]
+  X:
+    de: [steine, steinen]
+    en: [cobbles, cobble]
+    fr: [pierres, cailloux, galets]
+    es: [cantos, cantos rodados]
+    pt: [calhaus, pedras]
+    nl: [stenen]
+    "no": [stein]
+    sv: [sten]
+    it: [ciottoli]
+  G:
+    de: [kies, kiese, geröll, gerölle]
+    en: [gravel, gravels]
+    fr: [gravier, graviers, graves, grave]
+    es: [grava, gravas, gravilla]
+    pt: [pedregulho, pedregulhos, cascalho, seixos]
+    nl: [grind]
+    "no": [grus]
+    sv: [grus]
+    da: [grus]
+    it: [ghiaia, ghiaie]
+  gG:
+    de: [grobkies]
+    "no": [grovgrus]
+    sv: [grovgrus]
+    da: [grovgrus]
+    nl: [grofgrind]
+  mG:
+    de: [mittelkies]
+    sv: [mellangrus]
+    da: [mellemgrus]
+  fG:
+    de: [feinkies]
+    "no": [fingrus]
+    sv: [fingrus]
+    da: [fingrus]
+    nl: [fijngrind]
+  S:
+    de: [sand, sande]
+    en: [sand, sands]
+    fr: [sable, sables]
+    es: [arena, arenas]
+    pt: [areia, areias]
+    nl: [zand]
+    "no": [sand]
+    sv: [sand]
+    da: [sand]
+    it: [sabbia, sabbie]
+  gS:
+    de: [grobsand]
+    "no": [grovsand]
+    sv: [grovsand]
+    da: [grovsand]
+    nl: [grofzand]
+  mS:
+    de: [mittelsand]
+    sv: [mellansand]
+    da: [mellemsand]
+  fS:
+    de: [feinsand]
+    "no": [finsand]
+    sv: [finsand]
+    da: [finsand]
+    nl: [fijnzand]
+  U:
+    de: [schluff, schluffe]
+    en: [silt, silts]
+    fr: [limon, limons, silt]
+    es: [limo, limos]
+    pt: [silte, siltes]
+    nl: [silt]
+    "no": [silt]
+    sv: [silt, mjäla]
+    da: [silt]
+    it: [limo, limi]
+  gU:
+    de: [grobschluff]
+    en: [coarse silt]
+    sv: [grovsilt]
+    da: [grovsilt]
+  T:
+    de: [ton]
+    en: [clay, clays]
+    fr: [argile, argiles]
+    es: [arcilla, arcillas]
+    pt: [argila, argilas]
+    nl: [klei]
+    "no": [leire]
+    sv: [lera]
+    da: [ler]
+    it: [argilla, argille]
+  H:
+    de: [torf, humus]
+    en: [peat, humus]
+    fr: [tourbe, humus]
+    es: [turba, humus]
+    pt: [turfa, húmus, humus]
+    nl: [veen, humus]
+    "no": [torv, humus]
+    sv: [torv, humus]
+    da: [tørv, humus]
+    it: [torba, humus]
+  V:
+    de: [vulkanische asche, vulkanasche]
+    en: [volcanic ash]
+    fr: [cendres volcaniques, cendre volcanique]
+    es: [ceniza volcánica, cenizas volcánicas]
+    pt: [cinza vulcânica, cinzas vulcânicas]
+    it: [cenere vulcanica, ceneri vulcaniche]
+  Bk:
+    de: [braunkohle]
+    en: [lignite, brown coal]
+    fr: [lignite]
+    es: [lignito]
+    pt: [linhito, lignito]
+    nl: [bruinkool]
+    "no": [brunkull]
+    sv: [brunkol]
+    da: [brunkul]
+    it: [lignite]
+
+  # Rocks (DIN EN ISO 14689)
+  Ko:
+    de: [konglomerat]
+    en: [conglomerate]
+    fr: [conglomérat]
+    es: [conglomerado]
+    pt: [conglomerado]
+    nl: [conglomeraat]
+    "no": [konglomerat]
+    sv: [konglomerat]
+    da: [konglomerat]
+    it: [conglomerato]
+  Br:
+    de: [brekzie, breccie]
+    en: [breccia]
+    fr: [brèche]
+    es: [brecha]
+    pt: [brecha]
+    nl: [breccie]
+    "no": [breksje]
+    sv: [breccia]
+    da: [breccie]
+    it: [breccia]
+  Sst:
+    de: [sandstein]
+    en: [sandstone]
+    fr: [grès]
+    es: [arenisca]
+    pt: [arenito]
+    nl: [zandsteen]
+    "no": [sandstein]
+    sv: [sandsten]
+    da: [sandsten]
+    it: [arenaria]
+  Ust:
+    de: [schluffstein]
+    en: [siltstone]
+    fr: [siltite, siltstone]
+    es: [limolita]
+    pt: [siltito]
+    nl: [siltsteen]
+    "no": [siltstein]
+    sv: [siltsten]
+    da: [siltsten]
+    it: [siltite]
+  Tst:
+    de: [tonstein]
+    en: [claystone, mudstone]
+    fr: [argilite]
+    es: [argilita, lutita]
+    pt: [argilito]
+    nl: [kleisteen]
+    "no": [leirstein]
+    sv: [lersten]
+    da: [lersten]
+    it: [argillite]
+  Mst:
+    de: [mergelstein]
+    en: [marlstone]
+    fr: [marne indurée]
+    nl: [mergelsteen]
+  Kst:
+    de: [kalkstein]
+    en: [limestone]
+    fr: [calcaire]
+    es: [caliza]
+    pt: [calcário]
+    nl: [kalksteen]
+    "no": [kalkstein]
+    sv: [kalksten]
+    da: [kalksten]
+    it: [calcare]
+  Dst:
+    de: [dolomitstein, dolomit]
+    en: [dolostone, dolomite]
+    fr: [dolomie]
+    es: [dolomía]
+    pt: [dolomito]
+    nl: [dolomiet]
+    "no": [dolomitt]
+    sv: [dolomit]
+    da: [dolomit]
+    it: [dolomia]
+  Ahst:
+    de: [anhydrit, anhydritstein]
+    en: [anhydrite]
+    fr: [anhydrite]
+    es: [anhidrita]
+    pt: [anidrita]
+    it: [anidrite]
+  Gyst:
+    de: [gips, gipsstein]
+    en: [gypsum]
+    fr: [gypse]
+    es: [yeso]
+    pt: [gipsita, gipso]
+    nl: [gips]
+    it: [gesso]
+  Sast:
+    de: [steinsalz, salzgestein]
+    en: [rock salt, halite]
+    fr: [sel gemme, halite]
+    es: [sal gema, halita]
+    pt: [sal gema, halita]
+    it: [salgemma]
+  Vst:
+    de: [tuffstein, tuff]
+    en: [tuff]
+    fr: [tuf volcanique]
+    es: [toba]
+    pt: [tufo vulcânico]
+    it: [tufo]
+  Stk:
+    de: [steinkohle]
+    en: [coal, hard coal]
+    fr: [houille, charbon]
+    es: [hulla, carbón]
+    pt: [carvão, hulha]
+    nl: [steenkool]
+    "no": [kull, steinkull]
+    sv: [stenkol]
+    da: [stenkul]
+    it: [carbon fossile]
+  Q:
+    de: [quarzit]
+    en: [quartzite]
+    fr: [quartzite]
+    es: [cuarcita]
+    pt: [quartzito]
+    nl: [kwartsiet]
+    "no": [kvartsitt]
+    sv: [kvartsit]
+    da: [kvartsit]
+    it: [quarzite]
+  Vu:
+    de: [basalt, andesit, vulkanit, rhyolith, dolerit, diabas]
+    en: [basalt, andesite, rhyolite, dolerite, diabase]
+    fr: [basalte, andésite, rhyolite, dolérite]
+    es: [basalto, andesita, riolita, diabasa]
+    pt: [basalto, andesito, riolito, diabásio]
+    nl: [basalt, andesiet]
+    "no": [basalt]
+    sv: [basalt]
+    da: [basalt]
+    it: [basalto, andesite]
+  Pl:
+    de: [granit, diorit, gabbro, granodiorit, plutonit, syenit]
+    en: [granite, diorite, gabbro, granodiorite, syenite]
+    fr: [granite, diorite, gabbro, granodiorite, syénite]
+    es: [granito, diorita, gabro, granodiorita, sienita]
+    pt: [granito, diorito, gabro, granodiorito, sienito]
+    nl: [graniet, gabbro]
+    "no": [granitt, gabbro]
+    sv: [granit, gabbro]
+    da: [granit, gabbro]
+    it: [granito, diorite, gabbro]
+  Mem:
+    de: [gneis, amphibolit, migmatit]
+    en: [gneiss, amphibolite, migmatite]
+    fr: [gneiss, amphibolite, migmatite]
+    es: [gneis, anfibolita, migmatita]
+    pt: [gnaisse, anfibolito, migmatito]
+    nl: [gneis]
+    "no": [gneis]
+    sv: [gnejs]
+    da: [gnejs]
+    it: [gneiss, anfibolite]
+  Meb:
+    de: [schiefer, glimmerschiefer, phyllit, tonschiefer]
+    en: [schist, phyllite, slate]
+    fr: [schiste, micaschiste, phyllade, ardoise]
+    es: [esquisto, filita, pizarra]
+    pt: [xisto, filito, ardósia]
+    nl: [schist, leisteen, fylliet]
+    "no": [skifer, glimmerskifer, fyllitt]
+    sv: [skiffer, glimmerskiffer, fyllit]
+    da: [skifer, glimmerskifer]
+    it: [scisto, filladi, ardesia]
+
+  # Common geological names (DIN 4023 table 3)
+  Mu:
+    de: [mutterboden, oberboden]
+    en: [topsoil, top soil]
+    fr: [terre végétale]
+    es: [tierra vegetal, suelo vegetal]
+    pt: [terra vegetal, solo vegetal]
+    nl: [bovengrond, teelaarde]
+    "no": [matjord]
+    sv: [matjord]
+    da: [muld, muldjord]
+    it: [terreno vegetale, terra vegetale]
+  L:
+    de: [verwitterungslehm, hanglehm]
+    en: [weathered loam, slope loam]
+  Lx:
+    de: [hangschutt]
+    en: [scree, slope debris, talus]
+    fr: [éboulis]
+    es: [derrubios, canchal]
+    pt: [tálus]
+    it: [detrito di falda]
+  Lg:
+    de: [geschiebelehm]
+    en: [till, glacial till, boulder clay]
+    sv: [morän]
+    "no": [morene]
+    da: [moræne]
+  Mg:
+    de: [geschiebemergel]
+    en: [boulder marl]
+  Lö:
+    de: [löss, löß]
+    en: [loess]
+    fr: [lœss, loess]
+    es: [loess]
+    pt: [loess]
+    nl: [löss, loess]
+  Löl:
+    de: [lösslehm, lößlehm]
+    en: [loess loam]
+  Kl:
+    de: [klei, schlick]
+    en: [marine clay]
+  Wk:
+    de: [wiesenkalk, seekreide]
+    en: [lake marl]
+  Bt:
+    de: [bänderton]
+    en: [varved clay]
+  F:
+    de: [mudde]
+    en: [gyttja, sapropel]
+    sv: [gyttja]
+  A:
+    de: [auffüllung, auffüllungen, aufschüttung, anschüttung]
+    en: [fill, made ground, backfill]
+    fr: [remblai, remblais]
+    es: [relleno, rellenos]
+    pt: [aterro, aterros]
+    nl: [ophooglaag, aanvulling, ophoogzand]
+    "no": [fyllmasse, fylling]
+    sv: [fyllning, fyllnadsmassor]
+    da: [fyld]
+    it: [riporto, terreno di riporto]
+  Krst:
+    de: [kreidestein]
+    en: [chalk]
+    fr: [craie]
+    es: [creta]
+    pt: [cré]
+    nl: [krijt]
+    it: [creta]
+  Ktst:
+    de: [kalktuff]
+    en: [calcareous tufa, tufa, travertine]
+    fr: [travertin]
+    es: [travertino]
+    pt: [travertino]
+    it: [travertino]
+
+# Size words next to a main noun narrow it to a fraction ("fine SAND" -> fS, "sable fin" -> fS,
+# "fine to coarse SAND" -> S). Fraction codes per base code:
+fractions:
+  S: { fine: fS, medium: mS, coarse: gS }
+  G: { fine: fG, medium: mG, coarse: gG }
+  U: { coarse: gU }
+fraction_words:
+  fine: [fine, fein, fin, fine, fina, fino, fijn, fint]
+  medium: [medium, mittel, moyen, moyenne, media, medio, média, médio, middel, midden, mellan, mellem, middels]
+  coarse: [coarse, grob, grossier, grossière, gros, gruesa, grueso, grossa, grosso, grof, grov]
+# Words between two fraction words that make a span ("fine to medium").
+fraction_range_words: [to, bis, à, a, até, tot, till, til, e, und, and, et, y, og, och]
+# A fraction word followed by one of these describes density or consistency, not grain size
+# ("medium dense SAND").
+fraction_blockers: [dense, loose, stiff, firm, soft, hard, strong, weak, compact, dicht, locker, steif,
+                    weich, fest, dense, lâche, compacte, densa, denso, suelta, suelto, compacta, compacto,
+                    rija, mole, compacta, vast, los, fast, löst, fast, fasta, sciolto, addensato]
+
+# Nouns after one of these words are secondary components ("CLAY with sand", "Ton mit Steinen"), up to
+# the next ";" or ".". Main components are the nouns outside such clauses; when they name two different
+# codes ("SAND and GRAVEL", "Sand, Kies") there is no single main component and no code is derived
+# (unless capitals mark one of them, BS 5930 style: "gravelly SAND", or a priority code applies).
+with_words: [with, some, trace, traces, occasional, mit, vereinzelt, avec, con, com, met, med, à, sowie,
+             including, inkl, einschließlich, contenant, conteniendo, contendo, incl]
+# Codes that win over soil nouns outside a "with" clause: "FILL: sandy gravel" is fill.
+priority_codes: [A, Mu]
+# Languages that write compounds as one word: a word ending in a listed noun of that language counts
+# as that noun when the remaining prefix has at least `compound_min_prefix` letters
+# ("Quarzsand" -> S, "Kalksandstein" -> Sst). Used only when the description language is known.
+compound_languages: [de, nl, "no", sv, da]
+compound_min_prefix: 3
+# DIN notation printed instead of words ("G, s, u'"): the main code first, then lower-case secondary
+# codes optionally marked weak (') or strong (*, ¯, ̅).
+notation_secondary_pattern: "^[a-zäöü]{1,3}['’*¯̅]?$"

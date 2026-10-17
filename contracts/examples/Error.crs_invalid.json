@@ -1,0 +1,4 @@
+{
+  "detail": "EPSG:99999 is not a known coordinate system.",
+  "code": "crs_invalid"
+}

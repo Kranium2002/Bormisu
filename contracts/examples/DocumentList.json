@@ -1,0 +1,669 @@
+{
+  "documents": [
+    {
+      "document_id": "doc_01M54K4QE0XK3RC16EX9VCXQNP",
+      "file_name": "fictional-harbour-link-addendum.pdf",
+      "project": "Fictional Harbour Link",
+      "status": "queued",
+      "error": null,
+      "mime_type": "application/pdf",
+      "size_bytes": 731002,
+      "sha256": "18d4f709eb06715f150d209c6f27d916455baf050dc0f313376457469649dc24",
+      "page_count": null,
+      "found": null,
+      "pages": [],
+      "completeness": null,
+      "progress": null,
+      "duplicate_of": null,
+      "open_clarifications": 0,
+      "created_at": "2026-10-17T09:30:00Z",
+      "updated_at": "2026-10-17T09:30:00Z"
+    },
+    {
+      "document_id": "doc_01M54JJDG0JCBXQ9XZPN88864Y",
+      "file_name": "demo-ridge-tunnel-annex.pdf",
+      "project": "Demo Ridge Tunnel",
+      "status": "classifying",
+      "error": null,
+      "mime_type": "application/pdf",
+      "size_bytes": 2621440,
+      "sha256": "3efdf163ec741dc8f21d0fbf6eb4c44a3b8e32afa5747b456b167bf01b0b92cd",
+      "page_count": 8,
+      "found": null,
+      "pages": [
+        {
+          "n": 1,
+          "type": "text",
+          "role": "cover_or_toc",
+          "used": false,
+          "unused_reason": "cover page",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "skipped",
+          "duplicate_of": null
+        },
+        {
+          "n": 2,
+          "type": "text",
+          "role": "narrative",
+          "used": false,
+          "unused_reason": "narrative text",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "skipped",
+          "duplicate_of": null
+        },
+        {
+          "n": 3,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B30"
+          ],
+          "sheet_label": "SHEET 1 OF 2",
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "pending",
+          "duplicate_of": null
+        },
+        {
+          "n": 4,
+          "type": "log",
+          "role": "log_continuation",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B30"
+          ],
+          "sheet_label": "SHEET 2 OF 2",
+          "handwriting": "annotations",
+          "language": "en",
+          "ocr": "pending",
+          "duplicate_of": null
+        },
+        {
+          "n": 5,
+          "type": "lab_table",
+          "role": "coordinate_table",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B30"
+          ],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "pending",
+          "duplicate_of": null
+        },
+        {
+          "n": 6,
+          "type": "unknown",
+          "used": false,
+          "ocr": "pending"
+        },
+        {
+          "n": 7,
+          "type": "unknown",
+          "used": false,
+          "ocr": "pending"
+        },
+        {
+          "n": 8,
+          "type": "unknown",
+          "used": false,
+          "ocr": "pending"
+        }
+      ],
+      "completeness": null,
+      "progress": {
+        "pages_total": 8,
+        "pages_classified": 5,
+        "pages_ocr_total": 3,
+        "pages_ocr_done": 0,
+        "boreholes_extracted": 0
+      },
+      "duplicate_of": null,
+      "open_clarifications": 0,
+      "created_at": "2026-10-17T09:20:00Z",
+      "updated_at": "2026-10-17T09:22:15Z"
+    },
+    {
+      "document_id": "doc_01M54J03J0K0Y6PHN91FETGCDR",
+      "file_name": "fictional-tunnel-portal-logs.pdf",
+      "project": "Demo Ridge Tunnel",
+      "status": "extracting",
+      "error": null,
+      "mime_type": "application/pdf",
+      "size_bytes": 1048576,
+      "sha256": "93a4c6f53711b289c340b82b97346e6588bf5d1ebb2d18d234378321db2923e7",
+      "page_count": 4,
+      "found": null,
+      "pages": [
+        {
+          "n": 1,
+          "type": "lab_table",
+          "role": "summary_table",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B20",
+            "DRT-B21"
+          ],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 2,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B20"
+          ],
+          "sheet_label": "SHEET 1 OF 1",
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 3,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B21"
+          ],
+          "sheet_label": "SHEET 1 OF 1",
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "pending",
+          "duplicate_of": null
+        },
+        {
+          "n": 4,
+          "type": "drawing",
+          "role": "location_plan",
+          "used": false,
+          "unused_reason": "location plan",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "skipped",
+          "duplicate_of": null
+        }
+      ],
+      "completeness": null,
+      "progress": {
+        "pages_total": 4,
+        "pages_classified": 4,
+        "pages_ocr_total": 3,
+        "pages_ocr_done": 2,
+        "boreholes_extracted": 0
+      },
+      "duplicate_of": null,
+      "open_clarifications": 0,
+      "created_at": "2026-10-17T09:10:00Z",
+      "updated_at": "2026-10-17T09:14:30Z"
+    },
+    {
+      "document_id": "doc_01M54CVA401HDG3EBKKP6FGY4K",
+      "file_name": "fictional-site-photo.jpg",
+      "project": null,
+      "status": "failed",
+      "error": "Text recognition failed on page 1 after 3 attempts. Retry when the OCR service is reachable.",
+      "mime_type": "image/jpeg",
+      "size_bytes": 3145728,
+      "sha256": "942d2294e83cb82e0dbc8cca102f95242d302a7dd561472737d75157b71a7898",
+      "page_count": 1,
+      "found": null,
+      "pages": [
+        {
+          "n": 1,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "full",
+          "language": "en",
+          "ocr": "failed",
+          "duplicate_of": null
+        }
+      ],
+      "completeness": null,
+      "progress": {
+        "pages_total": 1,
+        "pages_classified": 1,
+        "pages_ocr_total": 1,
+        "pages_ocr_done": 0,
+        "boreholes_extracted": 0
+      },
+      "duplicate_of": null,
+      "open_clarifications": 0,
+      "created_at": "2026-10-17T07:40:00Z",
+      "updated_at": "2026-10-17T07:44:05Z"
+    },
+    {
+      "document_id": "doc_01M54CCNC0Q4F0EZR24EA9NNGS",
+      "file_name": "demo-ridge-tunnel-scan.pdf",
+      "project": "Demo Ridge Tunnel",
+      "status": "needs_review",
+      "error": null,
+      "mime_type": "application/pdf",
+      "size_bytes": 2210457,
+      "sha256": "1ee5920a996dab5b21416394835acbca57834c04e32e932ebf58108eb8c7e32c",
+      "page_count": 2,
+      "found": {
+        "boreholes": 1,
+        "layers": 3,
+        "spt": 0,
+        "groundwater": 1
+      },
+      "pages": [
+        {
+          "n": 1,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B12"
+          ],
+          "sheet_label": "SHEET 1 OF 1",
+          "handwriting": "annotations",
+          "language": "en",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 2,
+          "type": "photo",
+          "role": "photos",
+          "used": false,
+          "unused_reason": "photo page",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": null,
+          "ocr": "skipped",
+          "duplicate_of": null
+        }
+      ],
+      "completeness": null,
+      "progress": {
+        "pages_total": 2,
+        "pages_classified": 2,
+        "pages_ocr_total": 1,
+        "pages_ocr_done": 1,
+        "boreholes_extracted": 1
+      },
+      "duplicate_of": null,
+      "open_clarifications": 1,
+      "created_at": "2026-10-17T07:32:00Z",
+      "updated_at": "2026-10-17T07:42:00Z"
+    },
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "file_name": "fictional-harbour-link-logs.pdf",
+      "project": "Fictional Harbour Link",
+      "status": "needs_review",
+      "error": null,
+      "mime_type": "application/pdf",
+      "size_bytes": 4812331,
+      "sha256": "4420897ac2779975a09c9b37cd55b931457b21fec3e6516bd2976251080a7172",
+      "page_count": 15,
+      "found": {
+        "boreholes": 2,
+        "layers": 8,
+        "spt": 2,
+        "groundwater": 2
+      },
+      "pages": [
+        {
+          "n": 1,
+          "type": "text",
+          "role": "cover_or_toc",
+          "used": false,
+          "unused_reason": "cover page",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "skipped",
+          "duplicate_of": null
+        },
+        {
+          "n": 2,
+          "type": "text",
+          "role": "narrative",
+          "used": false,
+          "unused_reason": "narrative text",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "skipped",
+          "duplicate_of": null
+        },
+        {
+          "n": 3,
+          "type": "lab_table",
+          "role": "summary_table",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "FHL-BH01",
+            "FHL-BH02",
+            "FHL-BH03"
+          ],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 4,
+          "type": "drawing",
+          "role": "location_plan",
+          "used": false,
+          "unused_reason": "location plan",
+          "borehole_ids": [
+            "FHL-BH01",
+            "FHL-BH02"
+          ],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 5,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "FHL-BH01"
+          ],
+          "sheet_label": "SHEET 1 OF 3",
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 6,
+          "type": "log",
+          "role": "log_continuation",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "FHL-BH01"
+          ],
+          "sheet_label": "SHEET 2 OF 3",
+          "handwriting": "annotations",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 7,
+          "type": "log",
+          "role": "log_continuation",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [],
+          "sheet_label": "SHEET 3 OF 3",
+          "handwriting": "partial",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 8,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "FHL-BH02"
+          ],
+          "sheet_label": "SHEET 1 OF 1",
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 9,
+          "type": "lab_table",
+          "role": "lab_results",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "FHL-BH01"
+          ],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 10,
+          "type": "text",
+          "role": "legend_or_key",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 11,
+          "type": "photo",
+          "role": "photos",
+          "used": false,
+          "unused_reason": "photo page",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": null,
+          "ocr": "skipped",
+          "duplicate_of": null
+        },
+        {
+          "n": 12,
+          "type": "unknown",
+          "role": "blank",
+          "used": false,
+          "unused_reason": "blank page",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": null,
+          "ocr": "skipped",
+          "duplicate_of": null
+        },
+        {
+          "n": 13,
+          "type": "unknown",
+          "role": "duplicate",
+          "used": false,
+          "unused_reason": "duplicate of fictional-harbour-link-logs.pdf p. 8",
+          "borehole_ids": [
+            "FHL-BH02"
+          ],
+          "sheet_label": "SHEET 1 OF 1",
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "skipped",
+          "duplicate_of": {
+            "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+            "n": 8
+          }
+        },
+        {
+          "n": 14,
+          "type": "drawing",
+          "role": "cross_section",
+          "used": false,
+          "unused_reason": "cross section",
+          "borehole_ids": [
+            "FHL-BH01",
+            "FHL-BH02"
+          ],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "de",
+          "ocr": "skipped",
+          "duplicate_of": null
+        },
+        {
+          "n": 15,
+          "type": "unknown",
+          "role": "other",
+          "used": false,
+          "unused_reason": "other",
+          "borehole_ids": [],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": null,
+          "ocr": "skipped",
+          "duplicate_of": null
+        }
+      ],
+      "completeness": {
+        "expected_ids": [
+          "FHL-BH01",
+          "FHL-BH02",
+          "FHL-BH03"
+        ],
+        "found_ids": [
+          "FHL-BH01",
+          "FHL-BH02"
+        ],
+        "missing": [
+          "FHL-BH03"
+        ],
+        "unexpected": []
+      },
+      "progress": {
+        "pages_total": 15,
+        "pages_classified": 15,
+        "pages_ocr_total": 8,
+        "pages_ocr_done": 8,
+        "boreholes_extracted": 2
+      },
+      "duplicate_of": null,
+      "open_clarifications": 8,
+      "created_at": "2026-10-17T07:20:00Z",
+      "updated_at": "2026-10-17T08:41:12Z"
+    },
+    {
+      "document_id": "doc_01M54B4CA0P2MRXKZMB6QWNDMJ",
+      "file_name": "fictional-harbour-link-labdata.xlsx",
+      "project": "Fictional Harbour Link",
+      "status": "done",
+      "error": null,
+      "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "size_bytes": 48213,
+      "sha256": "31cf020f85e87f76a377d6d04c7dc95021e1923880316edd7c4f37537eb83e30",
+      "page_count": null,
+      "found": {
+        "boreholes": 0,
+        "layers": 0,
+        "spt": 0,
+        "groundwater": 0
+      },
+      "pages": [],
+      "completeness": null,
+      "progress": null,
+      "duplicate_of": null,
+      "open_clarifications": 0,
+      "created_at": "2026-10-17T07:10:00Z",
+      "updated_at": "2026-10-17T07:12:40Z"
+    },
+    {
+      "document_id": "doc_01M54AV7B076NM6GKCF4BXQMCH",
+      "file_name": "fictional-vector-log.pdf",
+      "project": "Demo Ridge Tunnel",
+      "status": "done",
+      "error": null,
+      "mime_type": "application/pdf",
+      "size_bytes": 389120,
+      "sha256": "67f66bc9be6b60292d92abd0bf06a3f0a9cb932190cc1e13a4222b71c453ce9b",
+      "page_count": 2,
+      "found": {
+        "boreholes": 1,
+        "layers": 3,
+        "spt": 0,
+        "groundwater": 0
+      },
+      "pages": [
+        {
+          "n": 1,
+          "type": "log",
+          "role": "log_sheet",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B7"
+          ],
+          "sheet_label": "SHEET 1 OF 1",
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "done",
+          "duplicate_of": null
+        },
+        {
+          "n": 2,
+          "type": "lab_table",
+          "role": "lab_results",
+          "used": true,
+          "unused_reason": null,
+          "borehole_ids": [
+            "DRT-B7"
+          ],
+          "sheet_label": null,
+          "handwriting": "none",
+          "language": "en",
+          "ocr": "done",
+          "duplicate_of": null
+        }
+      ],
+      "completeness": null,
+      "progress": {
+        "pages_total": 2,
+        "pages_classified": 2,
+        "pages_ocr_total": 2,
+        "pages_ocr_done": 2,
+        "boreholes_extracted": 1
+      },
+      "duplicate_of": null,
+      "open_clarifications": 0,
+      "created_at": "2026-10-17T07:05:00Z",
+      "updated_at": "2026-10-17T08:58:30Z"
+    }
+  ]
+}

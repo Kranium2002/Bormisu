@@ -1,0 +1,12 @@
+{
+  "area": {
+    "type": "bbox",
+    "bbox": [
+      8.47,
+      53.85,
+      8.53,
+      53.89
+    ]
+  },
+  "include_unreviewed": true
+}
