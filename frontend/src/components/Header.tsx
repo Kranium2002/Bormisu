@@ -21,7 +21,7 @@ export function Header() {
   return (
     <header className={styles.header}>
       <button type="button" className={styles.brand} onClick={() => go('map')} aria-label="Bormisu: go to the map">
-        <div className={styles.logo} aria-hidden="true">H</div>
+        <img className={styles.logo} src={`${import.meta.env.BASE_URL}logo.png`} width="40" height="40" alt="" />
         <div className={styles.name}>BORMISU</div>
         <div className={styles.tagline}>Borehole Intelligence for Herrenknecht</div>
       </button>
