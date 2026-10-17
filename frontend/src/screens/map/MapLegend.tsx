@@ -1,5 +1,6 @@
 import { useId, useMemo, type Ref } from 'react';
 import { Link } from 'react-router';
+import { isFilterQuery, matchesQuery } from '../../domain/search';
 import { useT } from '../../i18n';
 import { ROUTE } from '../../routing/urlState';
 import { useAppStore } from '../../store/appStore';
@@ -23,7 +24,8 @@ const MODES: { value: ColourBy; label: string }[] = [
 
 /**
  * Legend over the bottom-left of the map, with the "Colour by: status | depth" switch (FRONTEND.md
- * F9): one row per colour class with the number of pins in it. Counted are the pins on the map, or
+ * F9): one row per colour class with the number of pins in it. Counted are the pins on the map (only
+ * the matching ones while the header search holds a query), or
  * the highlighted members while a result set is active. The counts are announced (aria-live) as they
  * change. The map measures the legend (`ref`) to keep pins out from under it when it fits them.
  */
@@ -34,14 +36,17 @@ export function MapLegend({ ref }: Props) {
   const boreholes = useAppStore((s) => s.boreholes);
   const unplottedUids = useAppStore((s) => s.unplottedUids);
   const resultSet = useAppStore((s) => s.resultSet);
+  const query = useAppStore((s) => s.query);
   const t = useT();
   const name = useId();
   const titleId = useId();
   const switchId = useId();
 
   const { pins, notOnMap } = useMemo(() => mapRows(features, boreholes, unplottedUids), [features, boreholes, unplottedUids]);
+  // While the header search holds a query the map keeps only the matching pins: count those (as MapScreen draws them).
+  const shownPins = useMemo(() => (isFilterQuery(query) ? pins.filter((p) => matchesQuery(p, query)) : pins), [pins, query]);
   const members = useMemo(() => (resultSet ? new Set(resultSet.uids) : null), [resultSet]);
-  const rows = useMemo(() => legendRows(pins, colourBy, members), [pins, colourBy, members]);
+  const rows = useMemo(() => legendRows(shownPins, colourBy, members), [shownPins, colourBy, members]);
 
   // With a result set active, the counts are its members'.
   const title = members ? (colourBy === 'status' ? 'SELECTION · STATUS' : 'SELECTION · DEPTH') : colourBy === 'status' ? 'REVIEW STATUS' : 'FINAL DEPTH';
