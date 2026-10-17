@@ -17,7 +17,6 @@ import {
   ensureUnreviewed,
   expect,
   fieldRow,
-  knownBug,
   openApp,
   openReview,
   patchesDuring,
@@ -343,12 +342,19 @@ test('a change made elsewhere meanwhile: the save answers 409, the newer record 
 });
 
 test('FE-PROV-1: the Lithology row of a layer can be approved (its source is original_description)', async ({ page, request }) => {
-  knownBug('FE-PROV-1', 'Lithology rows look for provenance at english_lithology only, so they are locked');
   const r = await target(request);
   expect(r.provenance['stratigraphy[0].original_description'], 'the backend tracks layer 1 at original_description').toBeTruthy();
   await openApp(page);
   await openReview(page, r.metadata.borehole_id);
-  await expect(fieldRow(page, 'layer[1].lithology').getByRole('button', { name: 'Approve Lithology', exact: true })).toBeEnabled();
+  const lith = fieldRow(page, 'layer[1].lithology');
+  await expect(lith.getByRole('button', { name: 'Approve Lithology', exact: true })).toBeEnabled();
+  await expect(lith.getByRole('button', { name: 'Flag Lithology', exact: true })).toBeEnabled();
+  // The row shows the English text but stands for the printed description: an edit would overwrite it.
+  if (!r.provenance['stratigraphy[0].english_lithology'] && r.stratigraphy[0].english_lithology) {
+    const edit = lith.getByRole('button', { name: 'Edit Lithology', exact: true });
+    await expect(edit).toBeDisabled();
+    await expect(edit).toHaveAttribute('title', /would overwrite the printed text/);
+  }
 });
 
 test('two approvals clicked straight after each other both reach the server (saves chain their revisions)', async ({ page, request }) => {

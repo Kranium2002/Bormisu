@@ -3,7 +3,7 @@
  * No React, no store: unit-tested in reviewView.test.ts.
  */
 import type { ScanBox, ScanBoxVariant } from '../../components/ScanPage';
-import { printedCoordinates } from '../../domain/format';
+import { crsLabel, printedCoordinates } from '../../domain/format';
 import { K } from '../../domain/keys';
 import { fromOtherDocument } from '../../domain/review';
 import { sptDepthText } from '../../domain/spt';
@@ -205,10 +205,25 @@ export function fieldNote(b: Borehole, v: ExtractedValue): Note | null {
   }
   if (v.key === K.xy) {
     const printed = printedCoordinates(b.meta);
-    const text = [printed ? `as printed: ${printed}` : '', v.note ?? ''].filter(Boolean).join(' · ');
-    return text ? { text, tone: 'faint' } : null;
+    // Without a CRS row the X / Y row offers CHOOSE CRS…, so it names the CRS the server has (FE-CRS-1/2).
+    const crs = b.values.some((x) => x.kind === 'crs') ? '' : xyCrsText(b);
+    const text = [printed ? `as printed: ${printed}` : '', crs, v.note ?? ''].filter(Boolean).join(' · ');
+    const tone = crs && b.crs.status !== 'confirmed' ? 'warn' : 'faint';
+    return text ? { text, tone } : null;
   }
   return v.note ? { text: v.note, tone: 'faint' } : null;
+}
+
+/**
+ * The CRS on the X / Y row of a borehole without a CRS row (the source prints no system): a confirmed
+ * one by its name or code, else what is missing. Nothing for a stated CRS.
+ */
+function xyCrsText(b: Borehole): string {
+  const name = crsLabel(b.crs);
+  if (b.crs.status === 'confirmed') return name ? `CRS ${name}, confirmed for the whole document` : 'CRS confirmed for the whole document';
+  if (b.crs.status === 'inferred') return `CRS not stated in source${name ? ` · inferred ${name}` : ''}, confirm it for the document`;
+  if (b.crs.status === 'unknown') return 'CRS not known, so this borehole is not on the map';
+  return '';
 }
 
 /** Hover text of an SPT value: its depth ("depth not stated" when the source has none) and how N is formed. */

@@ -9,7 +9,6 @@
 import {
   expect,
   expectedPinColor,
-  knownBug,
   expectedStatus,
   mapFeatures,
   openApp,
@@ -143,7 +142,6 @@ test('a RESULTS row and a NOT ON MAP item open the borehole detail', async ({ pa
 });
 
 test('FE-MAP-1: the first view shows every pin inside the map, none hidden under the legend', async ({ page, request }) => {
-  knownBug('FE-MAP-1', 'fitBounds pads 24 px and ignores the REVIEW STATUS legend overlay');
   const features = await mapFeatures(request);
   await openApp(page);
   await expect(pins(page)).toHaveCount(features.length);

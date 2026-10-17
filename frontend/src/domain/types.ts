@@ -84,8 +84,9 @@ export interface ExtractedValue {
   /** Why the value can't be edited here even though it has provenance (e.g. a CRS set only through the CRS dialog). */
   readOnlyReason?: string;
   /**
-   * False when the backend sent no provenance entry for the value (a backend bug): the value shows
-   * no source icon and can't be reviewed, because only provenance keys are valid PATCH paths.
+   * False when the backend sent no provenance entry for the value (the contract allows sparse
+   * provenance; the API source logs one summary per load): the value shows no source icon and can't
+   * be reviewed, because only provenance keys are valid PATCH paths.
    */
   hasProvenance: boolean;
   /** null when unknown (no provenance). */

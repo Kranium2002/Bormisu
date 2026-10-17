@@ -11,7 +11,7 @@
  * consumes one such document; after two runs reseed with
  * `python -m app.seed --remove && python -m app.seed`.
  */
-import type { APIRequestContext, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import {
   documents,
   expect,
@@ -48,33 +48,24 @@ async function unconfirmedDocument(api: APIRequestContext): Promise<{ id: string
 }
 
 /**
- * Gives the CRS row of these boreholes a provenance entry in the browser's copy of the list, so the
- * row (and its CHOOSE CRS… button) exists. Works around FE-CRS-1; the backend is untouched.
+ * The Review row that offers CHOOSE CRS… (src/screens/review/reviewView.ts crsActionKey): the CRS row,
+ * else the X / Y row, because a source that prints no system has no CRS value at all (FE-CRS-1).
  */
-async function injectCrsRow(page: Page, uids: string[]): Promise<void> {
-  await page.route(/\/api\/v1\/boreholes\?limit=/, async (route) => {
-    const res = await route.fetch();
-    const body = (await res.json()) as { boreholes: WireRecord[] };
-    for (const b of body.boreholes) {
-      const path = 'metadata.coordinates.coordinate_system';
-      if (!uids.includes(b.uid) || b.provenance[path] || b.crs_status !== 'inferred') continue;
-      const xProv = b.provenance['metadata.coordinates.local_x'];
-      b.provenance[path] = { ...xProv, raw: null, method: 'guessed', ai_value: null, confidence: null, readings: [] };
-    }
-    await route.fulfill({ response: res, json: body });
-  });
+async function crsActionRow(page: Page): Promise<Locator> {
+  const crs = fieldRow(page, 'CoordinateSystem');
+  return (await crs.count()) ? crs : fieldRow(page, 'XY');
 }
 
 test('FE-CRS-1: a borehole waiting for a CRS confirmation offers CHOOSE CRS… in Review', async ({ page, request }) => {
   const doc = await unconfirmedDocument(request);
   test.skip(!doc, 'no document with crs_unconfirmed boreholes left: reseed');
-  knownBug('FE-CRS-1', 'the CRS row exists only when coordinate_system or crs_code has a value or provenance; an inferred CRS has neither');
   await openApp(page);
   await openReview(page, doc!.boreholes[0].metadata.borehole_id);
-  const crs = fieldRow(page, 'CoordinateSystem');
-  await expect(crs).toHaveCount(1);
-  await crs.click({ position: { x: 12, y: 12 } });
-  await expect(crs.getByRole('button', { name: 'CHOOSE CRS…' })).toBeVisible();
+  const row = await crsActionRow(page);
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('not stated in source');
+  await row.click({ position: { x: 12, y: 12 } });
+  await expect(row.getByRole('button', { name: 'CHOOSE CRS…' })).toBeVisible();
 });
 
 test('the dialog lists the server candidates with verdicts; confirming places every borehole of the document', async ({ page, request }) => {
@@ -84,7 +75,6 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
   expect(candidates.length, 'CRS candidates for the document').toBeGreaterThan(0);
   const plottedBefore = (await mapFeatures(request)).length;
   const first = doc!.boreholes[0];
-  await injectCrsRow(page, doc!.boreholes.map((b) => b.uid));
 
   await openApp(page);
   await expect(pins(page)).toHaveCount(plottedBefore);
@@ -92,7 +82,7 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
     await expect(page.locator(`aside button[data-uid="${b.uid}"]`)).toContainText(UNPLOTTED_LABEL.crs_unconfirmed);
   }
   await openReview(page, first.metadata.borehole_id);
-  const crsRow = fieldRow(page, 'CoordinateSystem');
+  const crsRow = await crsActionRow(page);
   // Click the label cell: the focused row's middle holds the Not in source / Illegible buttons.
   await crsRow.click({ position: { x: 12, y: 12 } });
   const listed = page.waitForResponse((r) => r.url().endsWith(`/documents/${doc!.id}/crs-candidates`));
@@ -131,7 +121,6 @@ test('the dialog lists the server candidates with verdicts; confirming places ev
   await expect(page.getByRole('status').filter({ hasText: `CRS confirmed for ${doc!.boreholes.length} borehole` })).toBeVisible();
 
   // The server placed them: after a reload they are pins, not listed under NOT ON MAP.
-  await page.unroute(/\/api\/v1\/boreholes\?limit=/);
   await reload(page);
   const after = await records(request, `?document_id=${doc!.id}`);
   for (const b of after) expect({ id: b.metadata.borehole_id, plotted: b.plotted, crs: b.crs_status }).toEqual({ id: b.metadata.borehole_id, plotted: true, crs: 'confirmed' });
@@ -150,7 +139,6 @@ async function confirmedBorehole(api: APIRequestContext): Promise<WireRecord | u
 test('FE-CRS-2: a confirmed CRS is named by its code in Detail, Review and RESULTS, never "CRS unknown"', async ({ page, request }) => {
   const b = await confirmedBorehole(request);
   test.skip(!b, 'no borehole with a confirmed CRS yet');
-  knownBug('FE-CRS-2', 'the UI names a CRS only by coordinate_system (as printed); a confirmed CRS is only in crs_code');
   const code = b!.metadata.coordinates.crs_code!;
   expect(code, 'the backend stores the confirmed code').toMatch(/^EPSG:/);
   await openApp(page);
@@ -161,7 +149,8 @@ test('FE-CRS-2: a confirmed CRS is named by its code in Detail, Review and RESUL
   await expect.soft(meta, 'Detail location').not.toContainText('CRS unknown');
   await expect.soft(meta, 'Detail metadata').toContainText(code);
   await page.getByRole('button', { name: '› OPEN IN REVIEW' }).click();
-  await expect.soft(fieldRow(page, 'CoordinateSystem'), 'Review CRS row').toContainText(code);
+  await expect(page.getByRole('heading', { level: 1, name: `REVIEW · ${b!.metadata.borehole_id}` })).toBeVisible();
+  await expect.soft(await crsActionRow(page), 'Review CRS row (else the X / Y row that offers CHOOSE CRS…)').toContainText(code);
 });
 
 test('BE-CRS-1: confirming the CRS of a document resolves its open crs_confirm question', async ({ request }) => {

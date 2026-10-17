@@ -6,7 +6,7 @@
  * Seed state needed: none (the lists are replaced). Read-only.
  */
 import type { Page } from '@playwright/test';
-import { expect, knownBug, nav, test } from './fixtures';
+import { expect, nav, test } from './fixtures';
 
 async function openEmpty(page: Page): Promise<void> {
   await page.route(/\/api\/v1\/boreholes\?limit=/, (route) => route.fulfill({ json: { count: 0, boreholes: [], next_cursor: null } }));
@@ -29,8 +29,11 @@ test('an empty database loads without errors: no pins, empty RESULTS, queue and 
 });
 
 test('FE-EMPTY-1: the empty map says "Upload a report to see boreholes here" and NOT ON MAP does not claim every borehole is placed', async ({ page }) => {
-  knownBug('FE-EMPTY-1', 'no empty-map text (F5); NOT ON MAP (0) says "Every borehole has usable coordinates and is placed on the map."');
   await openEmpty(page);
   await expect.soft(page.getByText('Upload a report to see boreholes here')).toBeVisible();
   await expect.soft(page.getByText('Every borehole has usable coordinates and is placed on the map.')).toHaveCount(0);
+  await expect.soft(page.getByText('No boreholes yet. Boreholes without usable coordinates are listed here once a report is uploaded.')).toBeVisible();
+  // The overlay's button leads to the queue.
+  await page.getByRole('button', { name: 'OPEN UPLOAD & QUEUE' }).click();
+  await expect(page.getByText('No documents yet.')).toBeVisible();
 });

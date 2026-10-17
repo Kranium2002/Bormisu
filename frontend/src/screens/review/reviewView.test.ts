@@ -161,6 +161,26 @@ describe('values and notes', () => {
     expect(fieldNote(makeBorehole(), makeValue({ key: K.xy }))).toBeNull();
   });
 
+  it('FE-CRS-1/2: without a CRS row, the X / Y row names the CRS the server has, or says what is missing', () => {
+    const xy = makeValue({ key: K.xy, value: '2037743 / 5706760' });
+    const meta = makeMeta({ xRaw: '2037743.0', yRaw: '5706760.0', axisLabelsRaw: null });
+    const at = (crs: Borehole['crs']) => fieldNote(makeBorehole({ crs, meta, values: [xy] }), xy);
+    expect(at({ name: null, code: 'EPSG:2193', status: 'confirmed' })).toEqual({
+      text: 'as printed: 2037743.0 / 5706760.0 · CRS EPSG:2193, confirmed for the whole document',
+      tone: 'faint',
+    });
+    expect(at({ name: null, code: null, status: 'inferred' })).toEqual({
+      text: 'as printed: 2037743.0 / 5706760.0 · CRS not stated in source, confirm it for the document',
+      tone: 'warn',
+    });
+    expect(at({ name: null, code: 'EPSG:2193', status: 'inferred' })?.text).toContain('CRS not stated in source · inferred EPSG:2193');
+    expect(at({ name: null, code: null, status: 'unknown' })?.text).toContain('CRS not known, so this borehole is not on the map');
+    // A stated CRS, or one that has its own row, is not repeated on the X / Y row.
+    expect(at({ name: 'NZTM2000', code: 'EPSG:2193', status: 'stated' })).toEqual({ text: 'as printed: 2037743.0 / 5706760.0', tone: 'faint' });
+    const withRow = makeBorehole({ crs: { name: null, code: 'EPSG:2193', status: 'confirmed' }, meta, values: [xy, makeValue({ key: K.crs, kind: 'crs' })] });
+    expect(fieldNote(withRow, xy)).toEqual({ text: 'as printed: 2037743.0 / 5706760.0', tone: 'faint' });
+  });
+
   it('shows the SPT depth and increments on hover; an unstated depth says so', () => {
     const spt = makeValue({ key: 's', kind: 'spt', spt: { raw: '3,4,5 = 8', depth: 1.5, refusal: false, increments: [3, 4, 5], n: 8 } });
     expect(sptTitle(spt)).toBe('SPT at 1.50 m · increments 3 · 4 · 5: N = 4 + 5 (2nd + 3rd)');

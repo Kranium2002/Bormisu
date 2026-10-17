@@ -4,7 +4,8 @@
  * Seed state needed: the backend runs without provider keys (GET /api/v1/health says mode "demo")
  * and the fictional seed is loaded (`python -m app.seed`). Read-only: changes nothing.
  */
-import { API, expect, getJson, knownBug, nav, openApp, test } from './fixtures';
+import type { Page } from '@playwright/test';
+import { API, expect, getJson, knownBug, nav, openApp, records, test, type WireRecord } from './fixtures';
 
 interface Health {
   mode: string;
@@ -62,24 +63,85 @@ test('no frontend-only API calls fail: every request the app makes at boot answe
   expect(apiLog.filter((c) => c.method === 'GET' && c.url.endsWith('/api/v1/documents'))).toHaveLength(1);
 });
 
-/** Paths the adapter warns about: "Backend bug: borehole <uid> has a value at <path> without a provenance entry." */
-const unsourced = (warnings: string[]) =>
-  warnings.flatMap((w) => {
-    const m = /^Backend bug: borehole \S+ has a value at (\S+) without a provenance entry\.$/.exec(w);
-    return m ? [m[1]] : [];
-  });
+/**
+ * The API source's one console.info per load about values it shows without a provenance entry
+ * (src/data/apiSource.ts reportUnsourced): "<n> values in <m> boreholes have no provenance entry … E.g.
+ * <uid> <path>, …". The contract allows sparse provenance, so it is no warning (PROV-SPARSE).
+ */
+const UNSOURCED = /^\d+ values? in \d+ boreholes? (?:has|have) no provenance entry/;
 
-test('FE-PROV-1: layer lithology has a source (the seed and the contract examples put it on original_description)', async ({ page, warnings }) => {
-  // The adapter anchors the Lithology row at english_lithology; the backend (seed and
-  // contracts/examples/BoreholeRecord.full.json) tracks a layer's description at original_description.
-  knownBug('FE-PROV-1', 'Lithology rows look for provenance at english_lithology only');
+/** The borehole list request of the app (one per load). */
+const LIST = /\/api\/v1\/boreholes\?limit=/;
+
+/**
+ * Opens the app, waits until every borehole is listed in RESULTS, and returns the summaries the app
+ * logged about values without a provenance entry. No warning may mention provenance.
+ */
+async function unsourcedSummaries(page: Page, warnings: string[], boreholes: number): Promise<string[]> {
+  const infos: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'info' && UNSOURCED.test(m.text())) infos.push(m.text());
+  });
   await openApp(page);
-  expect(unsourced(warnings).filter((p) => p.endsWith('.english_lithology')), 'lithology rows without a source').toEqual([]);
+  await expect(page.locator('[role="table"] [role="row"][data-uid]')).toHaveCount(boreholes);
+  // A round trip after the render, so a console message logged before it has arrived.
+  await page.evaluate(() => undefined);
+  expect(warnings.filter((w) => /provenance/i.test(w)), 'warnings about provenance').toEqual([]);
+  return infos;
+}
+
+/** Values the provenance rule of contract 1.1.0 exempts (server-computed). */
+const SERVER_COMPUTED = /^metadata\.(aliases|coordinates\.crs_code|coordinates\.crs_label)$|\.(thickness_m|description_language)$/;
+
+/**
+ * Gives every stated value of a record that has no provenance entry one (a copy of the record's
+ * first entry), except the paths `keep` matches. Changes only the browser's copy of the list.
+ */
+function sourceAllBut(r: WireRecord, keep: RegExp): void {
+  const [template] = Object.values(r.provenance);
+  const add = (path: string) => {
+    if (r.provenance[path] || SERVER_COMPUTED.test(path) || keep.test(path)) return;
+    r.provenance[path] = { ...template, raw: null, ai_value: null, confidence: null, readings: [], status: 'unreviewed', state: 'ok', flag: null };
+  };
+  const walk = (v: unknown, path: string): void => {
+    if (v == null) return;
+    if (Array.isArray(v)) {
+      if (v.some((x) => x !== null && typeof x === 'object')) v.forEach((x, i) => walk(x, `${path}[${i}]`));
+      else if (v.length) add(path);
+    } else if (typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`);
+    } else {
+      add(path);
+    }
+  };
+  const rec = r as unknown as Record<string, unknown>;
+  for (const top of ['metadata', 'stratigraphy', 'groundwater', 'samples', 'test_results']) walk(rec[top], top);
+  walk(rec.rock_head_m, 'rock_head_m');
+}
+
+test('FE-PROV-1: every layer’s Lithology row has a source, also when the backend tracks only original_description', async ({ page, request, warnings }) => {
+  const all = await records(request);
+  const onDescription = all.flatMap((r) =>
+    r.stratigraphy.flatMap((l, i) =>
+      l.english_lithology && !r.provenance[`stratigraphy[${i}].english_lithology`] && r.provenance[`stratigraphy[${i}].original_description`] ? [i] : [],
+    ),
+  );
+  expect(onDescription.length, 'seeded layers whose English lithology is tracked only at original_description').toBeGreaterThan(0);
+  // Every other value gets an entry in the browser's copy of the list, so only a Lithology row could
+  // be left without a source (it would be reported at stratigraphy[i].english_lithology).
+  await page.route(LIST, async (route) => {
+    const res = await route.fetch();
+    const body = (await res.json()) as { boreholes: WireRecord[] };
+    for (const r of body.boreholes) sourceAllBut(r, /^stratigraphy\[\d+\]\.english_lithology$/);
+    await route.fulfill({ response: res, json: body });
+  });
+  expect(await unsourcedSummaries(page, warnings, all.length), 'values shown without a provenance entry').toEqual([]);
 });
 
-test('BE-PROV-1: every other value the seed states has a provenance entry', async ({ page, warnings }) => {
-  // FRONTEND.md 4.8: a value without a provenance entry cannot be reviewed and is a backend bug.
+test('BE-PROV-1: every value the seed states has a provenance entry', async ({ page, request, warnings }) => {
+  // Contract 1.1.0 (provenance rule): every non-null value at a ValuePatch path has an entry, except
+  // server-computed ones. The app shows such a value read-only and logs one summary per load.
   knownBug('BE-PROV-1', 'seeded location_name, country, client, colour, consistency_density, is_core without provenance');
-  await openApp(page);
-  expect(unsourced(warnings).filter((p) => !p.endsWith('.english_lithology')), 'values without provenance').toEqual([]);
+  const all = await records(request);
+  expect(await unsourcedSummaries(page, warnings, all.length), 'values shown without a provenance entry').toEqual([]);
 });
