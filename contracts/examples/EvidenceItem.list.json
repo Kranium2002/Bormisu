@@ -1,0 +1,99 @@
+[
+  {
+    "borehole_uid": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+    "borehole_label": "FHL-BH01",
+    "path": "metadata.borehole_id",
+    "label": "Borehole ID",
+    "value_display": "FHL-BH01",
+    "raw_text": "FHL-BH01",
+    "box": [
+      0.231,
+      0.052,
+      0.061,
+      0.018
+    ],
+    "method": "read",
+    "confidence": 1.0,
+    "review_status": "unreviewed"
+  },
+  {
+    "borehole_uid": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+    "borehole_label": "FHL-BH01",
+    "path": "stratigraphy[0].depth_from_m",
+    "label": "Layer 1 · top depth",
+    "value_display": "0.00 m",
+    "raw_text": "0,00",
+    "box": [
+      0.082,
+      0.231,
+      0.038,
+      0.012
+    ],
+    "method": "read",
+    "confidence": 1.0,
+    "review_status": "approved"
+  },
+  {
+    "borehole_uid": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+    "borehole_label": "FHL-BH01",
+    "path": "stratigraphy[0].original_description",
+    "label": "Layer 1 · description",
+    "value_display": "Sand, schluffig",
+    "raw_text": "Sand, schluffig",
+    "box": [
+      0.163,
+      0.231,
+      0.122,
+      0.012
+    ],
+    "method": "read",
+    "confidence": 1.0,
+    "review_status": "unreviewed"
+  },
+  {
+    "borehole_uid": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+    "borehole_label": "FHL-BH01",
+    "path": "stratigraphy[1].original_description",
+    "label": "Layer 2 · description",
+    "value_display": "Kies, sandig",
+    "raw_text": "Kies, sandig",
+    "box": [
+      0.161,
+      0.262,
+      0.118,
+      0.013
+    ],
+    "method": "located",
+    "confidence": 0.88,
+    "review_status": "unreviewed"
+  },
+  {
+    "borehole_uid": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+    "borehole_label": "FHL-BH01",
+    "path": "stratigraphy[0].depth_to_m",
+    "label": "Layer 1 · bottom depth",
+    "value_display": "1.20 m",
+    "raw_text": "1,20",
+    "box": [
+      0.0,
+      0.255,
+      1.0,
+      0.025
+    ],
+    "method": "approximate",
+    "confidence": 0.62,
+    "review_status": "flagged"
+  },
+  {
+    "borehole_uid": "bh_01M54CB4HGT2NXJXQZD6BE0FGK",
+    "borehole_label": "FHL-BH01",
+    "path": "metadata.client",
+    "label": "Client",
+    "value_display": "Fictional Roads Agency",
+    "raw_text": "Fictional Roads Agency",
+    "box": null,
+    "method": "page",
+    "confidence": null,
+    "review_status": "unreviewed"
+  }
+]

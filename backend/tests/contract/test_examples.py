@@ -86,6 +86,8 @@ REQUIRED_FILES = {
     "ValuePatch.reset.json",
     "ValuePatch.approve_confirmed_by.json",
     "CrsCandidate.list.json",
+    "PageWord.list.json",
+    "EvidenceItem.list.json",
     "CrsCandidate.clarification.json",
     "CrsConfirmRequest.json",
     "BoreholeFilter.bbox.json",
@@ -1108,8 +1110,11 @@ def test_version_has_a_changelog_entry() -> None:
     headings = re.findall(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", changelog, flags=re.MULTILINE)
     assert headings and headings[0][0] == version, "the newest CHANGELOG entry names info.version"
     entry = _section(changelog, f"## {version} ", "\n## ")
-    for addition in ("Document.warnings", "/documents/{id}/retry", "needs_review", "429", "crs_confirm"):
+    for addition in ("/pages/{n}/words", "/pages/{n}/evidence", "PageWord", "EvidenceItem", "located"):
         assert addition in entry, addition
+    patch = _section(changelog, "## 1.2.1 ", "\n## ")
+    for addition in ("Document.warnings", "/documents/{id}/retry", "needs_review", "429", "crs_confirm"):
+        assert addition in patch, addition
     previous = _section(changelog, "## 1.2.0 ", "\n## ")
     for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
         assert addition in previous, addition
