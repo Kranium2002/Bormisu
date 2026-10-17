@@ -68,9 +68,15 @@ class FakeOcrEngine:
     default_confidence: float = 0.97
     calls: int = 0
     pages_seen: int = 0
+    # Set by the OCR stage before each call: the document pages in the request. The stage sends image-only
+    # PDFs rebuilt from renders, so the fake reads the same pages of the original PDF's text layer instead.
+    current_pages: list[int] | None = None
 
     async def ocr(self, data: bytes, mime: str, *, document_id: str | None, page_count: int) -> OcrResponse:
         self.calls += 1
+        original = await _original_pages(document_id, self.current_pages)
+        if original is not None:
+            data, mime = original, "application/pdf"
         pages: list[dict[str, Any]] = []
         if mime != "application/pdf":
             pages.append({"index": 0, "markdown": "", "tables": [], "blocks": [], "dimensions": None})
@@ -336,3 +342,19 @@ class FakeRereader:
                 CropReading.model_validate({"id": crop.id, "text": text, "legibility": legibility})
             )
         return RereadAnswer(readings=readings), self.model, self.cost_usd
+
+
+async def _original_pages(document_id: str | None, pages: list[int] | None) -> bytes | None:
+    """The given pages of a document's original PDF (None when it is not a PDF or the pages are unknown)."""
+    if document_id is None or not pages:
+        return None
+    from app.db.models import Document
+    from app.db.session import get_sessionmaker
+    from app.pipeline.ocr import sub_pdf
+    from app.storage import get_storage
+
+    async with get_sessionmaker()() as session:
+        doc = await session.get(Document, document_id)
+    if doc is None or not doc.storage_key.lower().endswith(".pdf"):
+        return None
+    return sub_pdf(get_storage().path(doc.storage_key), pages)

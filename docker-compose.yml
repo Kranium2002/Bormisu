@@ -14,6 +14,9 @@ x-backend-environment: &backend-environment
   DATABASE_URL: postgresql+asyncpg://geomemory:geomemory@db:5432/geomemory
   STORAGE_DIR: /data/storage
   GOTENBERG_URL: http://gotenberg:3000
+  # OCR: Mistral direct when MISTRAL_API_KEY works, else (or on a refused key) through OpenRouter;
+  # set OCR_PROVIDER=openrouter or mistral in .env to force one route.
+  OCR_PROVIDER: ${OCR_PROVIDER:-auto}
 
 services:
   db:
