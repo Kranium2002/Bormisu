@@ -28,8 +28,8 @@ Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · heal
 | **Vector logs** | Read from the PDF text layer with **no OCR and no vision call**: 100 % of boundaries and 9/9 header fields on the corpus's clean vector-log report |
 | **DIN coding coverage** | **92 %** of 3,805 real layer descriptions get a DIN 4023 code (75 % before the page reader's mapper). Where the codebase's two DIN mappers both code a layer, they agree exactly on 88 % |
 | **Throughput** | Full challenge corpus (18 documents, 1,034 pages) in 98 minutes, about 0.6 US cents per page with the model used in development. Every stage caches its answers, so a retry repeats no vision call |
-| **Tests** | **2,940 passing tests**: 1,335 backend (pytest on real PostGIS) and 1,605 frontend (vitest), plus 14 Playwright end-to-end specs with 120 tests. None of them makes a paid provider call |
-| **Interface contract** | OpenAPI 3.1 contract with 34 operations and 91 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
+| **Tests** | **3,037 passing tests**: 1,419 backend (pytest on real PostGIS) and 1,618 frontend (vitest), plus 14 Playwright end-to-end specs with 120 tests. None of them makes a paid provider call |
+| **Interface contract** | OpenAPI 3.1 contract with 38 operations and 100 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
 | **Deployment** | One `docker compose up`. Runs on premise. Model-agnostic through OpenRouter, with an optional bundled Ollama service for local models |
 
 The accuracy, coverage and throughput figures were measured during development on the challenge corpus and 21 hand-labelled pages. Method and per-version history are in [`MAIN_VS_BH3.md`](MAIN_VS_BH3.md). The labels themselves stay out of git (see [Data rule](#data-rule)).
@@ -334,9 +334,9 @@ cd frontend && npm test && npm run e2e   # vitest and Playwright
 
 | Suite | Size |
 |---|---|
-| Backend (pytest, real PostGIS) | **1,335 passed** from 52 files (571 test functions, expanded by parametrisation), about 5½ minutes in Docker |
-| Backend contract tests | 60 test functions over 91 example files |
-| Frontend unit (vitest) | **1,605 passed** in 97 files |
+| Backend (pytest, real PostGIS) | **1,419 passed** from 58 files (610 test functions, expanded by parametrisation), about 8½ minutes in Docker |
+| Backend contract tests | 61 test functions over 100 example files |
+| Frontend unit (vitest) | **1,618 passed** in 97 files |
 | Frontend end-to-end (Playwright) | 14 specs, 120 tests: map, review, inbox, queue, explore, chat, accessibility, responsive layout, chart export |
 
 - **No paid calls in tests.** Provider clients are faked and the test service has blank keys, so a test can never reach a paid provider.
