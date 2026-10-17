@@ -4,6 +4,14 @@ Each session updates only its own section, at the end of every milestone, and me
 
 ## Backend status
 
+- 2026-10-17 06:00 · **M1 done on `feat/backend`** (ahead of 14:00). The real pipeline runs end to end, on fake providers in tests and once live on a sample vector log excerpt: upload → triage → classify (cheap model) → OCR only on borehole pages (Mistral, blocks with boxes and confidence) → extraction (raw text plus block ids) → Python normalisation (DIN, SPT, units, CRS) → records with provenance → review → map.
+  - The live check placed two boreholes from a stated "55H MGA94" system at the right place. Classification and OCR of 4 pages took about 20 s, extraction about 1 min.
+  - Reruns and retries never repeat a paid call (cached runs). A crash resumes at the next borehole.
+  - Every provider call is in a cost ledger, and `PROVIDER_BUDGET_USD` stops processing before the cap.
+  - **For the frontend:** `document.progress` moves through classifying (`pages_classified`), extracting (`pages_ocr_done`, `boreholes_extracted`) and needs_review. Failed documents carry a readable `error` and a `job.failed` event with `retryable`.
+  - **Known limit:** on some layouts Mistral returns one block for a whole log table, so evidence boxes can be coarse. Tightening boxes from the PDF text layer is in progress for M2.
+  - **Please don't upload real files against the backend session's API (port 8000)** unless you mean to: the stack is in live mode with the user's keys, capped by a budget.
+
 - 2026-10-17 04:00 · M0 part 2 · **Done on `feat/backend`:** compose stack (db, migrate, api, worker, gotenberg, web, test), every contract endpoint except the chat tool loop (`POST /chat` returns 409 `chat_unavailable` until M3), `make seed` / `make unseed` with 8 fictional documents and 15 boreholes, pipeline triage. 300+ tests pass. **For the frontend** (from a compatibility check that ran your data layer against this API):
   1. `contract.test.ts` maps example files with `split('.')[0].toLowerCase()`, so 29 of the examples (every `BoreholeRecord.*`, `BoreholeList.*` …) are skipped. The schema name is the case-preserved prefix (`contracts/examples/README.md`). Please also run `adaptBorehole` and `adaptDocument` over every example.
   2. Boot calls `GET /boreholes?limit=5000` (about 15 KB per record with provenance). Please drive the map from `GET /map/boreholes.geojson` (plus `?plotted=false` for the "Not on map" list) and fetch full records per document or uid on demand.
