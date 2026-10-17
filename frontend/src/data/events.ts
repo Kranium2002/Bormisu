@@ -80,6 +80,13 @@ export interface LiveFeedSource {
    * when the backend no longer has it. Rejects when it can't be fetched.
    */
   refetch(documentId: string): Promise<LiveEvent>;
+  /**
+   * Called on every stream failure. An EventSource can't see status codes: the API source checks
+   * there whether the session ended (sign-in, contract 1.3.0).
+   */
+  streamFailed?(): void;
+  /** False while a closed stream must not be opened again (the session ended); it is checked before each reopen. */
+  canReconnect?(): boolean;
 }
 
 interface Poller { timer?: ReturnType<typeof setTimeout>; errors: number }
@@ -199,7 +206,7 @@ export function openLiveFeed(
 
   function connect(): void {
     reconnectTimer = undefined;
-    if (!active) return;
+    if (!active || source.canReconnect?.() === false) return;
     if (!EventSourceClass) {
       startPolling();
       return;
@@ -225,7 +232,13 @@ export function openLiveFeed(
       }
     };
     es.onerror = () => {
-      if (stream === es && active) lost(es);
+      if (stream !== es || !active) return;
+      try {
+        source.streamFailed?.();
+      } catch {
+        // A failed check never stops the feed.
+      }
+      lost(es);
     };
     for (const type of LIVE_EVENT_TYPES) {
       es.addEventListener(type, (e) => {

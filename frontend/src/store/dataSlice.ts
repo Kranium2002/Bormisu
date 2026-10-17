@@ -1,14 +1,17 @@
 /**
- * Data slice: picks the data source, asks its health, loads the documents, the map features and the
- * unplotted records, starts live updates (events slice) and loads the questions (clarifications
- * slice), caches pages. Full records of plotted boreholes are fetched on demand (map data slice).
+ * Data slice: picks the data source, asks its health, checks the session when the server has
+ * sign-in (auth slice), loads the documents, the map features and the unplotted records, starts live
+ * updates (events slice) and loads the questions (clarifications slice), caches pages. Full records
+ * of plotted boreholes are fetched on demand (map data slice).
  */
 import { createDataSource } from '../data/createDataSource';
 import type { DataSource } from '../data/DataSource';
 import { errorText } from '../data/errors';
 import { initialFocusKey } from '../domain/review';
+import type { Health } from '../domain/types';
 import { pageFor, pageKey, withReviewTarget, type SliceCreator } from './context';
-import type { DataSlice } from './types';
+import { emptyFilter } from './mapDataSlice';
+import type { AppState, DataSlice } from './types';
 
 let initRun = 0;
 /** Created once per app; init() may run twice (React StrictMode) or again after an error. */
@@ -32,15 +35,45 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
       sourcePromise ??= createDataSource();
       const source = await sourcePromise;
       set({ source });
-      // Health first, without waiting for it: a failed check never blocks loading (mode and limits stay unknown).
-      source.health().then(
-        (health) => {
-          if (run === initRun) set({ health });
-        },
-        () => {
-          if (run === initRun) set({ health: null });
-        },
-      );
+      // Any request that answers 401 not_authenticated ends the session (shown as the sign-in).
+      source.setSessionListener(() => get().sessionEnded());
+      // Health first: it says whether the server has sign-in. A failed check never blocks loading
+      // (mode, limits and sign-in stay unknown; a 401 later still shows the sign-in).
+      let health: Health | null = null;
+      try {
+        health = await source.health();
+      } catch {
+        health = null;
+      }
+      if (run !== initRun) return;
+      set({ health });
+      if (!health?.auth.enabled) {
+        set({ authState: 'disabled', user: null });
+      } else {
+        const user = await source.currentUser();
+        if (run !== initRun) return;
+        if (!user) {
+          // Nothing is loaded without a session: the sign-in shows on the same URL.
+          set({ authState: 'signedOut', user: null });
+          return;
+        }
+        set({ authState: 'signedIn', user });
+      }
+      await get().loadData();
+    } catch (e) {
+      if (!get().source) sourcePromise = null;
+      // Load failures (backend unreachable, endpoint missing …) keep the error state with its message.
+      if (run === initRun) set({ loadState: 'error', loadError: errorText(e) });
+    }
+  },
+
+  async loadData() {
+    const run = ++initRun;
+    const source = get().source;
+    if (!source) return;
+    get().stopLive();
+    set({ loadState: 'loading', loadError: null });
+    try {
       const { documents, features, unplotted } = await source.load();
       if (run !== initRun) return;
       // The boreholes cache starts with the unplotted records (the NOT ON MAP list); every plotted
@@ -68,10 +101,20 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
       // The questions for the inbox and the badge; a failure never blocks the app.
       void get().loadClarifications();
     } catch (e) {
-      if (!get().source) sourcePromise = null;
-      // Load failures (backend unreachable, endpoint missing …) keep the error state with its message.
       if (run === initRun) set({ loadState: 'error', loadError: errorText(e) });
     }
+  },
+
+  resetData() {
+    // Loads in flight answer into nothing; live updates and uploads end.
+    initRun += 1;
+    const s = get();
+    s.stopLive();
+    for (const status of ['queued', 'uploading'] as const) {
+      for (const u of get().uploads) if (u.status === status) s.cancelUpload(u.id);
+    }
+    get().clearFinishedUploads();
+    set(signedOutData());
   },
 
   async loadPage(documentId, page) {
@@ -88,3 +131,70 @@ export const createDataSlice: SliceCreator<DataSlice> = ({ set, get }) => ({
     }
   },
 });
+
+/**
+ * The store without loaded data: what sign-out and an ended session leave. The URL is not touched;
+ * `route: null` lets the route sync apply it again once a user is signed in and the data is loaded.
+ */
+function signedOutData(): Partial<AppState> {
+  return {
+    // data
+    loadState: 'loading',
+    loadError: null,
+    boreholes: [],
+    documents: [],
+    pages: {},
+    // map data
+    features: [],
+    unplottedUids: [],
+    filter: emptyFilter(),
+    resultSet: null,
+    resultSetFeatures: null,
+    resultSetBusy: false,
+    resultSetError: null,
+    placeQuery: '',
+    places: null,
+    placeBusy: false,
+    placeError: null,
+    recordLoads: {},
+    mapOutline: null,
+    // map and detail selection
+    selectedUid: null,
+    selectedLayer: 1,
+    resultSetId: null,
+    query: '',
+    searchMessage: '',
+    mapFocus: null,
+    // review
+    reviewUid: null,
+    focusKey: null,
+    reviewPage: null,
+    editing: null,
+    confirmCleanOpen: false,
+    cleanCount: null,
+    cleanBusy: false,
+    listScroll: null,
+    crsDialogOpen: false,
+    crsLoading: false,
+    crsCandidates: [],
+    crsPick: 0,
+    // uploads (the queue itself is cleared by resetData)
+    uploads: [],
+    dropError: '',
+    dragActive: false,
+    uploadProject: '',
+    // live updates and questions
+    jobFailures: {},
+    clarifications: [],
+    clarificationsState: 'idle',
+    activeClarificationId: null,
+    // overlays
+    route: null,
+    panel: null,
+    exportOpen: false,
+    toast: null,
+    chatOpen: false,
+    chatAreaRequest: null,
+    chatArea: null,
+  };
+}

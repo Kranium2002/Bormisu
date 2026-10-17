@@ -52,10 +52,14 @@ import {
   type WireResultSet,
   type WireUploadAccepted,
   type WireValuePatch,
+  adaptUser,
+  type WireLogin,
+  type WireRegister,
+  type WireUserAnswer,
 } from './adapters';
 import type { DataSource, UploadHandle } from './DataSource';
 import {
-  ApiError, errorCode, errorText, isApiError, SaveError, UnreachableError, UploadCancelledError, type FieldError,
+  ApiError, errorCode, errorText, isApiError, parseRetryAfter, SaveError, UnreachableError, UploadCancelledError, type FieldError,
 } from './errors';
 import { FollowedDocuments, openLiveFeed } from './events';
 
@@ -167,8 +171,21 @@ function errorBody(parsed: unknown): { code: string; detail: string; errors: Fie
 interface Answer {
   status: number;
   contentType: string | null;
+  /** The Retry-After header (a 429 or 503), when sent. */
+  retryAfter?: string | null;
   /** The parsed JSON body; rejects when it is not JSON. */
   json(): Promise<unknown>;
+}
+
+/**
+ * Sign-in requests whose 401 is an answer (wrong password, no session yet), not a session that ended:
+ * they never call the session listener.
+ */
+const AUTH_ANSWER_PATHS = new Set(['/auth/login', '/auth/register', '/auth/me', '/auth/logout']);
+
+/** True for the answer of a request that needs a session and has none (any more). */
+export function endsSession(path: string, e: unknown): boolean {
+  return isApiError(e, 'not_authenticated') && e.status === 401 && !AUTH_ANSWER_PATHS.has(path.split('?')[0]);
 }
 
 /**
@@ -177,6 +194,15 @@ interface Answer {
  * an unreachable backend; nginx's own HTML 413 page is too_large; any other answer is `http_<status>`.
  */
 async function bodyOf<T>(base: string, method: string, path: string, res: Answer): Promise<T> {
+  try {
+    return await answerOf<T>(base, method, path, res);
+  } catch (e) {
+    if (e instanceof ApiError) e.retryAfter = parseRetryAfter(res.retryAfter);
+    throw e;
+  }
+}
+
+async function answerOf<T>(base: string, method: string, path: string, res: Answer): Promise<T> {
   const json = res.contentType?.includes('json') ?? false;
   if (res.status >= 200 && res.status < 300) {
     if (res.status === 204) return undefined as T;
@@ -226,19 +252,77 @@ export function createApiSource(base: string): DataSource {
    */
   const features = new Map<string, MapFeature>();
 
+  /** Called once per burst of 401 not_authenticated answers (the session ended); see setSessionListener. */
+  let sessionListener: (() => void) | null = null;
+  /** The listener was called (or the user signed out) and no sign-in happened since: further 401s stay quiet. */
+  let sessionLost = false;
+  /** health.auth.enabled as last read: a failing event stream then checks the session. */
+  let authEnabled = false;
+  /** The session check after a stream error, while it runs. */
+  let probing: Promise<void> | null = null;
+  /**
+   * Counts the sessions this source has seen start: a 401 of a request sent before the latest
+   * sign-in is about the session that ended before it and is not reported again.
+   */
+  let generation = 0;
+
+  /** Reports an ended session once per burst. */
+  function sessionEnded(): void {
+    if (sessionLost) return;
+    sessionLost = true;
+    sessionListener?.();
+  }
+
+  /** A signed-in user (sign-in, registration, /auth/me): the next 401 is a new ended session. */
+  function sessionStarted(): void {
+    sessionLost = false;
+    generation += 1;
+  }
+
+  /** Passes a request's failure on, reporting an ended session first (`sentIn`: the generation when it was sent). */
+  function failed(path: string, e: unknown, sentIn: number): never {
+    if (sentIn === generation && endsSession(path, e)) sessionEnded();
+    throw e;
+  }
+
+  /**
+   * An EventSource never sees status codes: when the stream fails while sign-in is on, one
+   * GET /auth/me tells whether the session ended (its 401 is reported like any other).
+   */
+  function checkSession(): void {
+    if (!authEnabled || sessionLost || probing) return;
+    probing = request<WireUserAnswer>('GET', '/auth/me')
+      .then(
+        () => undefined,
+        (e: unknown) => {
+          if (isApiError(e, 'not_authenticated')) sessionEnded();
+        },
+      )
+      .finally(() => {
+        probing = null;
+      });
+  }
+
   async function request<T>(method: string, path: string, body?: object): Promise<T> {
     const init: RequestInit = { method, headers: { Accept: 'application/json' } };
     if (body) {
       init.body = JSON.stringify(body);
       init.headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
     }
+    const sentIn = generation;
     let res: Response;
     try {
       res = await fetch(base + path, init);
     } catch {
       throw new UnreachableError(unreachableMessage(base));
     }
-    return bodyOf<T>(base, method, path, { status: res.status, contentType: res.headers.get('content-type'), json: () => res.json() });
+    const answer: Answer = {
+      status: res.status,
+      contentType: res.headers.get('content-type'),
+      retryAfter: res.headers.get('retry-after'),
+      json: () => res.json(),
+    };
+    return bodyOf<T>(base, method, path, answer).catch((e: unknown) => failed(path, e, sentIn));
   }
 
   /** Adapts a record and keeps it unless the source already holds a newer revision. */
@@ -388,6 +472,7 @@ export function createApiSource(base: string): DataSource {
    * every other request; cancel() aborts the transfer until the server has answered.
    */
   function sendFile(file: File, project: string | null, onProgress?: (p: UploadProgress) => void): UploadHandle {
+    const sentIn = generation;
     let answered = false;
     let settle!: { resolve: (r: UploadResult) => void; reject: (e: unknown) => void };
     const done = new Promise<UploadResult>((resolve, reject) => {
@@ -412,9 +497,11 @@ export function createApiSource(base: string): DataSource {
       const res: Answer = {
         status: xhr.status,
         contentType: xhr.getResponseHeader('content-type'),
+        retryAfter: xhr.getResponseHeader('retry-after'),
         json: async () => JSON.parse(xhr.responseText) as unknown,
       };
       bodyOf<WireUploadAccepted>(base, 'POST', '/documents', res)
+        .catch((e: unknown) => failed('/documents', e, sentIn))
         .then((accepted) => uploadResult(file, project, xhr.status, accepted))
         .then((result) => {
           // The source follows what it accepted while the backend works on it.
@@ -512,7 +599,9 @@ export function createApiSource(base: string): DataSource {
     kind: 'api',
 
     async health() {
-      return adaptHealth(await request<WireHealth>('GET', '/health'));
+      const health = adaptHealth(await request<WireHealth>('GET', '/health'));
+      authEnabled = health.auth.enabled;
+      return health;
     },
 
     async load() {
@@ -618,7 +707,19 @@ export function createApiSource(base: string): DataSource {
     },
 
     subscribe(onEvent, onStatus) {
-      return openLiveFeed({ url: `${base}/events`, followed, adapt: adaptEvent, refetch }, onEvent, onStatus);
+      return openLiveFeed(
+        {
+          url: `${base}/events`,
+          followed,
+          adapt: adaptEvent,
+          refetch,
+          streamFailed: checkSession,
+          // After the session ended the stream would only fail again: it waits for the next subscription.
+          canReconnect: () => !sessionLost,
+        },
+        onEvent,
+        onStatus,
+      );
     },
 
     follow(documentId) {
@@ -656,20 +757,44 @@ export function createApiSource(base: string): DataSource {
       const res = await request<{ updated: number }>('POST', `/documents/${enc(documentId)}/crs`, body);
       return res.updated;
     },
-    // Sign-in (contract 1.3.0) is built in the M3 auth work; until then these say so.
+
+    /* Sign-in (contract 1.3.0). The session is an HttpOnly cookie: no token ever reaches this code. */
+
     async currentUser() {
-      return null;
+      try {
+        const user = adaptUser((await request<WireUserAnswer>('GET', '/auth/me')).user);
+        sessionStarted();
+        return user;
+      } catch (e) {
+        if (isApiError(e) && e.status === 401) return null;
+        throw e;
+      }
     },
-    async signIn() {
-      throw new Error('Sign-in is not available yet');
+
+    async signIn(email, password) {
+      const body: WireLogin = { email: email.trim(), password };
+      const user = adaptUser((await request<WireUserAnswer>('POST', '/auth/login', body)).user);
+      sessionStarted();
+      return user;
     },
-    async register() {
-      throw new Error('Registration is not available yet');
+
+    async register({ email, password, displayName }) {
+      const body: WireRegister = { email: email.trim(), password };
+      const name = displayName?.trim();
+      if (name) body.display_name = name;
+      const user = adaptUser((await request<WireUserAnswer>('POST', '/auth/register', body)).user);
+      sessionStarted();
+      return user;
     },
-    async signOut() {},
-    async changePassword() {
-      throw new Error('Changing the password is not available yet');
+
+    async signOut() {
+      // Idempotent on the server; this side is signed out either way (later 401s stay quiet).
+      sessionLost = true;
+      await request<void>('POST', '/auth/logout');
     },
-    setSessionListener() {},
+
+    setSessionListener(listener) {
+      sessionListener = listener;
+    },
   };
 }
