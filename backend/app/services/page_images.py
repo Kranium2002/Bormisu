@@ -26,7 +26,7 @@ def resize_png(source: bytes, width: int) -> bytes:
         height = max(1, round(img.height * width / img.width))
         resized = img.resize((width, height), Image.Resampling.LANCZOS)
         out = io.BytesIO()
-        resized.save(out, format="PNG", optimize=True)
+        resized.save(out, format="PNG", compress_level=3)
         return out.getvalue()
 
 

@@ -130,6 +130,8 @@ class Bh3Read:
     boreholes: list[tuple[PageGroup, ExtractionOutcome]] = field(default_factory=list)
     pages: set[int] = field(default_factory=set)  # log pages that belong to a bh3 borehole
     failed: list[int] = field(default_factory=list)  # log pages bh3 could not read
+    # log pages not read because the provider budget ran out (the boreholes of the pages before stand)
+    over_budget: list[int] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -223,7 +225,11 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
 
     results: list[Any] = []
     failed: list[int] = []
+    over_budget: list[int] = []
     for n in log_pages:
+        if over_budget:
+            over_budget.append(n)
+            continue
         images = {n: image_paths[n]} if image_paths is not None and n in image_paths else None
         if image_paths is not None and images is None:
             failed.append(n)  # an image page without a render: nothing for bh3 to read
@@ -241,7 +247,9 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         try:
             read = await asyncio.to_thread(read_one)
         except bridge.BudgetExceeded as exc:
-            raise await stopped(exc) from exc
+            await stopped(exc)  # logs it; the pages read so far are still built below
+            over_budget.append(n)
+            continue
         except Exception:
             logger.exception(
                 "bh3 could not read page %s of %s; the classic extractor takes it", n, document_id
@@ -263,7 +271,9 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
     try:
         built = await asyncio.to_thread(build) if results else []
     except bridge.BudgetExceeded as exc:
-        raise await stopped(exc) from exc
+        if not over_budget:
+            raise await stopped(exc) from exc
+        return Bh3Read(failed=failed, over_budget=sorted({*over_budget, *(int(r.page_no) for r in results)}))
     except Exception:
         logger.exception(
             "bh3 could not assemble the boreholes of %s; the classic extractor takes them", document_id
@@ -275,7 +285,7 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         for r in results
     }
     long_side = _long_sides(pdf_path, infos)
-    out = Bh3Read(failed=failed)
+    out = Bh3Read(failed=failed, over_budget=over_budget)
     for bh in built:
         if too_thin(bh, infos):
             logger.warning(

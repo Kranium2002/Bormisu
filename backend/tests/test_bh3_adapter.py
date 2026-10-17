@@ -281,7 +281,7 @@ async def test_a_page_bh3_cannot_read_goes_to_the_classic_extractor(
     assert len(fx2_layers) == 2
 
 
-async def test_the_budget_stops_bh3_with_a_readable_failure(
+async def test_the_budget_stops_bh3_but_keeps_what_was_read(
     client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any, settings_env: Any
 ) -> None:
     bh3(FakeBridge(cost=0.3))
@@ -290,8 +290,9 @@ async def test_the_budget_stops_bh3_with_a_readable_failure(
     await work(queue, doc_id)
 
     doc = await document(client, doc_id)
-    assert doc["status"] == "failed" and doc["failed_stage"] == "extract"
-    assert "budget" in (doc["error"] or "").lower()
+    # the pages read before the budget ran out go to review; the rest are named in a warning for a retry
+    assert doc["status"] == "needs_review" and doc["found"]["boreholes"] >= 1
+    assert any("not read" in w for w in doc["warnings"])
     assert fakes.extractor.calls == 0  # the budget is not worked around by the classic extractor
 
 

@@ -46,7 +46,7 @@ class TriagedPage:
 
 def _png(img: Image.Image) -> bytes:
     out = io.BytesIO()
-    img.save(out, format="PNG", optimize=True)
+    img.save(out, format="PNG", compress_level=3)  # optimize=True took seconds per scanned page
     return out.getvalue()
 
 
