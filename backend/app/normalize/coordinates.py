@@ -267,6 +267,9 @@ def _axis_from_match(match: re.Match[str], form_hint: str) -> _Axis | str:
     )
 
 
+_GROUPED = re.compile(r"^\d{1,4}(?:\s+\d{1,4})+$")
+
+
 def _parse_axis(raw: str, style: NumberStyle | None) -> _Axis | str:
     text = _normalise(raw)
     if not text:
@@ -297,6 +300,13 @@ def _parse_axis(raw: str, style: NumberStyle | None) -> _Axis | str:
     if isinstance(marker, str):
         return marker
     number = parse_number(rest, style=style)
+    if number.value is None and _GROUPED.match(rest.strip()):
+        # grid values printed in digit groups ("34 21 600" for 3421600, Gauss-Krueger style): the groups are
+        # one number when they cannot be degrees, minutes and seconds
+        groups = rest.split()
+        joined = "".join(groups)
+        if len(joined) >= 6 and (marker.role is not None or any(int(g) >= 60 for g in groups[1:])):
+            number = parse_number(joined, style=style)
     if number.value is None:
         return number.reason or "not a number"
     unit = marker.unit

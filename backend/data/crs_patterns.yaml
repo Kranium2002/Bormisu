@@ -129,9 +129,9 @@ geographic_terms: [geographic, geographical, lat long, lat lon, latitude, longit
 # "6 123 456 mN", "RW 3512345"). Roles: east / north are the projected axes, lon / lat the geographic
 # ones, x / y keep the printed letter (X is read as the easting unless the values say otherwise).
 axis_labels:
-  east: [E, east, easting, eastings, mE, m E, Rechtswert, Rechts, RW, este, est, leste, oost, øst, öst,
+  east: [E, east, easting, eastings, mE, m E, Rechtswert, Rechts, RW, R, este, est, leste, oost, øst, öst,
          abscisse]
-  north: [N, north, northing, northings, mN, m N, Hochwert, Hoch, HW, norte, nord, noord, ordonnée]
+  north: [N, north, northing, northings, mN, m N, Hochwert, Hoch, HW, H, norte, nord, noord, ordonnée]
   lon: [lon, long, lng, longitude, Länge, Laenge, longitud, longitudine, lengtegraad, λ, lambda]
   lat: [lat, latitude, Breite, latitud, latitudine, breedtegraad, φ, phi]
   x: [X]
