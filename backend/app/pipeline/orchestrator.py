@@ -5,9 +5,10 @@ outputs and records itself in `documents.stage`, so a rerun (retry, worker resta
 never repeats paid calls. A stage that fails marks the document `failed` with a reason a person can read and
 emits `job.failed`; `POST /documents/{id}/retry` resumes after the last finished stage.
 
-The `extract` stage plans the page groups, then extracts and finalises each group on its own (bounded by
-CONCURRENCY_EXTRACT). Every group commits its borehole separately, so a crash after some groups resumes with
-the groups that have no borehole yet; a group extracted but not finalised reuses its stored extraction run.
+The `extract` stage plans the page groups and extracts each (bounded by CONCURRENCY_EXTRACT); once all are
+read, parts of one borehole are merged under the ID the document's tables list (app.pipeline.identity) and
+every borehole is committed separately. A crash resumes with the groups that have no borehole yet; a group
+extracted but not finalised reuses its stored extraction run.
 A group is extracted only once all of its pages and the document's context pages have OCR text, because a
 finished group is never extracted again. Groups held back that way do not stop the rest: the document is
 finalised with what was read (pins, questions) and goes to review with a warning naming the unread pages
@@ -33,6 +34,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -50,11 +52,12 @@ from app.pipeline.triage import TriagedPage, triage_image, triage_pdf
 from app.providers.base import ProviderError
 from app.queue import queue_app
 from app.services.documents import emit_document_updated
+from app.services.page_images import prewarm_page
 from app.storage import FileStorage, get_storage, page_render_key, page_thumb_key
 
 if TYPE_CHECKING:
     from app.pipeline.extract import Extractor
-    from app.pipeline.types import PageGroup
+    from app.pipeline.types import ExtractionOutcome, PageGroup
 
 logger = logging.getLogger("geomemory.pipeline")
 
@@ -121,7 +124,14 @@ def _store_page(storage: FileStorage, document_id: str, page: TriagedPage) -> di
 
 def _triage_files(storage: FileStorage, document_id: str, source: Path, kind: str) -> list[dict[str, object]]:
     pages = triage_pdf(source) if kind == "pdf" else triage_image(source)
-    return [_store_page(storage, document_id, page) for page in pages]
+    rows: list[dict[str, object]] = []
+    # The review screens show the original scan at once, not after a resize on first view (best effort:
+    # a width that is missing is made on request).
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for page in pages:
+            rows.append(_store_page(storage, document_id, page))
+            pool.submit(prewarm_page, storage, document_id, page.n, page.png)
+    return rows
 
 
 async def stage_triage(session: AsyncSession, doc: Document) -> None:
@@ -240,20 +250,21 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     new group starts once one has failed. Groups without readable text are held back and reported together
     as a StageError that rewinds the document to before OCR.
     """
-    from app.pipeline import bh3_adapter
+    from app.pipeline import bh3_adapter, identity
     from app.pipeline import extract as extract_module
     from app.pipeline import finalize as finalize_module
     from app.pipeline import group as group_module
 
     groups = await group_module.plan_groups(document_id)
     finished, unread = await _extraction_state(document_id)
+    # Every outcome is collected first: parts of one borehole (a log and its drilling plot, a name read in a
+    # header and the ID the document's tables list) are merged before they are stored (app.pipeline.identity).
+    ready: list[tuple[PageGroup, ExtractionOutcome]] = []
     if extractor is None and bh3_adapter.active():
         # bh3 reads the log pages; the classic extractor takes the groups it covers no page of.
         read = await bh3_adapter.extract_document(document_id)
         if read is not None:
-            for bh3_group, bh3_outcome in read.boreholes:
-                if bh3_group.key not in finished:
-                    await finalize_module.finalize_group(document_id, bh3_group, bh3_outcome)
+            ready.extend((g, o) for g, o in read.boreholes if g.key not in finished)
             groups = bh3_adapter.covered(groups, read.pages)
     todo: list[PageGroup] = []
     unread_pages: set[int] = set()
@@ -285,7 +296,6 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
                 return
             try:
                 outcome = await extract_module.extract_group(document_id, group, extractor=extractor)
-                uid = await finalize_module.finalize_group(document_id, group, outcome)
             except extract_module.NothingToExtractError as exc:
                 held.append(str(exc))
                 empty_pages.update(group.pages)
@@ -293,11 +303,21 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
             except Exception:
                 stopped = True
                 raise
-            if uid is None:
-                logger.warning("document %s group %s produced no borehole", document_id, group.key)
+            ready.append((group, outcome))
 
     results = await asyncio.gather(*(one(group) for group in todo), return_exceptions=True)
     errors = [r for r in results if isinstance(r, BaseException)]
+    # Stored only when every group was read: a part stored alone would become a second borehole once the
+    # rest is merged on the retry (which reuses the stored extraction runs and bh3's cache, so it is free).
+    tables = await identity.document_tables(document_id) if not errors else identity.Tables({})
+    for item in identity.reconcile(ready, tables) if not errors else []:
+        if item.group.key in finished:
+            continue
+        uid = await finalize_module.finalize_group(document_id, item.group, item.outcome)
+        if uid is None:
+            logger.warning("document %s group %s produced no borehole", document_id, item.group.key)
+        elif item.aliases:
+            await finalize_module.add_label_aliases(uid, item.aliases)
     if errors:
         provider_errors = [e for e in errors if isinstance(e, ProviderError)]
         raise (provider_errors or errors)[0]

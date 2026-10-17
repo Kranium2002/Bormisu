@@ -102,17 +102,27 @@ def sheet_numbers(page: PageInfo) -> tuple[int | None, int | None]:
 
 
 @lru_cache(maxsize=1)
-def _label_prefix() -> re.Pattern[str]:
-    """A borehole word with a number sign in front of the label (data/page_roles.yaml label_prefixes)."""
+def label_prefix_words() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Borehole words and number signs printed in front of labels (data/page_roles.yaml label_prefixes),
+    longest first."""
     with (get_settings().data_dir / "page_roles.yaml").open(encoding="utf-8") as handle:
         data = (yaml.safe_load(handle) or {}).get("label_prefixes") or {}
-    words = sorted((str(w) for w in data.get("words") or []), key=len, reverse=True)
-    signs = sorted((str(s) for s in data.get("number_signs") or []), key=len, reverse=True)
+    words = tuple(sorted((str(w) for w in data.get("words") or []), key=len, reverse=True))
+    signs = tuple(sorted((str(s) for s in data.get("number_signs") or []), key=len, reverse=True))
+    return words, signs
+
+
+@lru_cache(maxsize=1)
+def _label_prefix() -> re.Pattern[str]:
+    """A borehole word with a number sign in front of the label (data/page_roles.yaml label_prefixes)."""
+    words, signs = label_prefix_words()
     if not words or not signs:
         return re.compile(r"(?!)")
     word = "|".join(re.escape(w).replace(r"\ ", r"\s*") for w in words)
     sign = "|".join(re.escape(s) for s in signs)
-    return re.compile(rf"^\s*(?:{word})\s*(?:{sign})\s*[:.\-]?\s*(?=\S)", re.IGNORECASE)
+    # a listed borehole word, or any one word ("Hull nr 502", a misread "Holt nr 502"), then a number sign,
+    # then an ID with a digit in it
+    return re.compile(rf"^\s*(?:{word}|[^\W\d_]+\.?)\s*(?:{sign})\s*[:.\-]?\s*(?=\S*\d)", re.IGNORECASE)
 
 
 def clean_label(text: str) -> str:

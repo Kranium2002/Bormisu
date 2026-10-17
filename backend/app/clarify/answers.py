@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clarify.checks import apply_conflict_answer, apply_datum_answer
 from app.clarify.duplicates import apply_duplicate_answer
+from app.clarify.grid import apply_grid_answer, is_grid_answer
 from app.clarify.service import resolve_clarification
 from app.db.models import Borehole, Clarification
 from app.errors import ApiError
@@ -96,6 +97,9 @@ async def _apply(session: AsyncSession, row: Clarification, values: dict[str, An
                 session, uid, ValuePatch(path=row.path, action="edit", value=chosen), actor=actor
             )
             await apply_patch(session, uid, ValuePatch(path=row.path, action="approve"), actor=actor)
+        return
+    if row.kind == "locate_borehole" and row.borehole_uids and is_grid_answer(values):
+        await apply_grid_answer(session, row, values, actor)
         return
     if row.kind == "locate_borehole" and row.borehole_uids:
         point = next((v for v in values.values() if isinstance(v, dict) and "lat" in v and "lon" in v), None)

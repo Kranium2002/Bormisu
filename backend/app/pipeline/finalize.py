@@ -60,6 +60,7 @@ from app.pipeline.schemas import ExtractedLayer, ExtractionResult, RawValue
 from app.pipeline.textlayer import PageText
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
 from app.review.service import (
+    add_aliases,
     canonical_label,
     create_borehole,
     refresh_document_checks,
@@ -1140,6 +1141,13 @@ async def _ask_boundary(
 # ----------------------------------------------------------------------------------------------
 # Public stages
 # ----------------------------------------------------------------------------------------------
+
+
+async def add_label_aliases(uid: str, aliases: Sequence[str]) -> None:
+    """Names a borehole was read under before it took the ID its document's tables list."""
+    async with get_sessionmaker()() as session:
+        await add_aliases(session, uid, list(aliases), actor=ACTOR, note="name read before the listed ID")
+        await session.commit()
 
 
 async def finalize_group(document_id: str, group: PageGroup, outcome: ExtractionOutcome) -> str | None:
