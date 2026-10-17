@@ -11,11 +11,13 @@ import {
   adaptDocument,
   adaptHealth,
   documentLint,
+  stageStep,
   valueAt,
   type PatchTarget,
   type WireBorehole,
   type WireBoreholeList,
   type WireCrsCandidate,
+  type WireDocument,
   type WireDocumentList,
   type WireHealth,
 } from './adapters';
@@ -725,5 +727,19 @@ describe('CONTRACT-1: the step of a failed document', () => {
     expect(at(2, 2)).toBe(1);
     expect(at(1, 2)).toBe(0);
     expect(at(0, 0)).toBe(0);
+  });
+
+  it('1.2.0: the failed stage places it and is kept; unknown stages fall back to the progress, other statuses have none', () => {
+    const withStage = (stage: string | null, status = 'failed') => adaptDocument({ ...failed(), status, failed_stage: stage } as WireDocument);
+    expect(withStage('classify')).toMatchObject({ step: 0, failedStage: 'classify' });
+    expect(withStage('ocr')).toMatchObject({ step: 1, failedStage: 'ocr' });
+    expect(withStage('sheet_extract')).toMatchObject({ step: 1, failedStage: 'sheet_extract' });
+    expect(withStage('future_stage')).toMatchObject({ step: 0, failedStage: 'future_stage' });
+    expect(withStage(null)).toMatchObject({ failedStage: null });
+    expect(withStage('ocr', 'needs_review').failedStage).toBeNull();
+    expect(stageStep('reread')).toBe(1);
+    expect(stageStep('triage')).toBe(0);
+    expect(stageStep('nope')).toBeNull();
+    expect(stageStep(undefined)).toBeNull();
   });
 });

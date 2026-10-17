@@ -432,6 +432,8 @@ describe.skipIf(!EXAMPLES_PRESENT)(`adapters on the backend examples${EXAMPLES_P
     it('CONTRACT-1: the failed example failed during text recognition, after every page was classified', () => {
       const doc = adaptDocument(example<WireDocument>('Document.failed.json'));
       expect([doc.status, doc.step, doc.progress?.pagesClassified, doc.progress?.pagesTotal]).toEqual(['failed', 1, 1, 1]);
+      // 1.2.0: the stage it failed at, as in events/job.failed.json.
+      expect(doc.failedStage).toBe('ocr');
     });
 
     it('keeps a page duplicated inside the same document and a blank page of type unknown as classified', () => {

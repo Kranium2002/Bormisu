@@ -15,6 +15,9 @@ const PAGE_TYPE_NAME: Record<string, string> = {
 
 const card = (page: import('@playwright/test').Page, d: WireDocument) => page.locator(`article[data-doc-id="${d.document_id}"]`);
 
+/** A text as a literal inside a RegExp. */
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 test('every stored document is a card, newest first, with name, page count, project and status step', async ({ page, request }) => {
   const docs = await documents(request);
   expect(docs.length).toBeGreaterThan(0);
@@ -110,7 +113,10 @@ test('a failed document shows the backend error and RETRY (off in demo mode, BE-
   await nav(page, 'UPLOAD & QUEUE');
   for (const d of failed) {
     const c = card(page, d);
-    await expect(c.getByRole('alert')).toHaveText(`Extraction failed: ${d.error}`);
+    // 1.2.0 names the failed stage (failed_stage) after "at"; a 1.1.0 server sends none.
+    const stage = (d as { failed_stage?: string | null }).failed_stage;
+    if (stage) await expect(c.getByRole('alert')).toHaveText(new RegExp(`^Extraction failed at .+: ${escapeRe(d.error ?? '')}$`));
+    else await expect(c.getByRole('alert')).toHaveText(`Extraction failed: ${d.error}`);
     const retry = c.getByRole('button', { name: 'RETRY' });
     // Without provider keys a retry cannot extract anything: RETRY is off with the reason.
     if (mode === 'demo') {
@@ -156,6 +162,43 @@ test('demo mode: the drop zone, the project field and the folder picker are off 
   await expect(page.getByLabel('Project (optional)')).toBeDisabled();
   await expect(page.getByLabel('Choose a folder to upload')).toBeDisabled();
   await expect(page.locator('label').filter({ hasText: 'DROP REPORTS HERE' })).toContainText('Uploading is off: Live extraction needs API keys.');
+});
+
+test('upload → map: a processed card shows "N on the map · SHOW" for its pins, or the next step; SHOW and WHY open the map', async ({ page, request }) => {
+  const docs = (await documents(request)).filter((d) => d.status === 'needs_review' || d.status === 'done');
+  expect(docs.length, 'seeded processed documents').toBeGreaterThan(0);
+  const features = (await getJson<{ features: { properties: { document_id?: string | null } }[] }>(request, '/map/boreholes.geojson')).features;
+  const offMap = (await getJson<{ boreholes: { uid: string; document_id?: string | null }[] }>(request, '/boreholes?plotted=false&limit=5000')).boreholes;
+  await openApp(page);
+  await nav(page, 'UPLOAD & QUEUE');
+  let shown: WireDocument | null = null;
+  let why: WireDocument | null = null;
+  for (const d of docs) {
+    const c = card(page, d);
+    const pins = features.filter((f) => f.properties.document_id === d.document_id).length;
+    const show = c.locator('[data-map-step="onMap"]');
+    if (pins > 0) {
+      await expect(show).toHaveText(`${pins} on the map · SHOW`);
+      shown ??= d;
+    } else {
+      await expect(show).toHaveCount(0);
+    }
+    // Every borehole of the document that is not on the map is behind a next step (CONFIRM, PLACE or WHY).
+    const off = offMap.filter((b) => b.document_id === d.document_id).length;
+    const next = c.locator('[data-map-step="crs"], [data-map-step="locate"], [data-map-step="notOnMap"]');
+    if (off > 0) await expect(next.first()).toBeVisible();
+    if (off > 0 && (await c.locator('[data-map-step="notOnMap"]').count())) why ??= d;
+  }
+  if (shown) {
+    await card(page, shown).locator('[data-map-step="onMap"]').click();
+    await expect(page).toHaveURL(/\/map/);
+    await nav(page, 'UPLOAD & QUEUE');
+  }
+  if (why) {
+    await card(page, why).locator('[data-map-step="notOnMap"]').click();
+    await expect(page).toHaveURL(/\/map/);
+    await expect(page.getByRole('heading', { name: /^NOT ON MAP/ })).toBeVisible();
+  }
 });
 
 test('a duplicate upload says "Already uploaded" and points at the existing card instead of adding one', async ({ page, request }) => {

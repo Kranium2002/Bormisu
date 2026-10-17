@@ -58,7 +58,7 @@ export function PlaceSearchView({ text, onTextChange, onSubmit, onChoose, busy, 
             spellCheck={false}
             aria-describedby={hint ? 'place-hint' : undefined}
           />
-          <button type="submit" className={styles.submit} disabled={busy}>
+          <button type="submit" className={styles.submit} disabled={busy} title={busy ? 'Searching…' : undefined}>
             SEARCH
           </button>
         </div>

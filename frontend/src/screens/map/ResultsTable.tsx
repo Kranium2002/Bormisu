@@ -207,11 +207,23 @@ export function ResultsTableView({ rows, page, sort, selectedUid, summary, empty
       {pages > 1 && (
         <nav className={styles.pager} aria-label="Result pages">
           <span className={styles.range}>{`Rows ${start + 1}–${start + visible.length} of ${rows.length}`}</span>
-          <button type="button" className={styles.pageButton} disabled={shown === 0} onClick={() => onPage(shown - 1)}>
+          <button
+            type="button"
+            className={styles.pageButton}
+            disabled={shown === 0}
+            title={shown === 0 ? 'This is the first page' : undefined}
+            onClick={() => onPage(shown - 1)}
+          >
             ‹ PREVIOUS
           </button>
           <span className={styles.pageNo}>{`Page ${shown + 1} of ${pages}`}</span>
-          <button type="button" className={styles.pageButton} disabled={shown === pages - 1} onClick={() => onPage(shown + 1)}>
+          <button
+            type="button"
+            className={styles.pageButton}
+            disabled={shown === pages - 1}
+            title={shown === pages - 1 ? 'This is the last page' : undefined}
+            onClick={() => onPage(shown + 1)}
+          >
             NEXT ›
           </button>
         </nav>
