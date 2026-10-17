@@ -41,11 +41,9 @@
 ## 08 · Key features
 
 > So what you just saw, in three points:
-> It reads any report: pdf, handwriting, any language.
-> Every value has a source. 
-> One click and you see it on the original page. 
-> And where it's unsure, it asks a human to verify.
-> at the end One standard comes out.
+> It reads any report: PDF, handwriting, any language. And where it's unsure, it flags the case for a human to verify.
+> Area scraping: draw an area on the map and get an overview of many soil samples at once.
+> And export: the data comes out in your format, as PDF, JPEG or CSV.
 
 ## 09 · Sovereignty
 
