@@ -66,6 +66,7 @@ async def test_structured_request_shape_and_retry_on_invalid_json(db: None, keys
     assert schema["additionalProperties"] is False and set(schema["required"]) == set(schema["properties"])
     assert first["provider"] == {"require_parameters": True, "data_collection": "deny"}
     assert first["temperature"] == 0
+    assert first["reasoning"] == {"enabled": False}  # reasoning tokens would eat the answer
     second = json.loads(route.calls[1].request.content)
     assert "did not validate" in second["messages"][-1]["content"]
     assert route.calls[0].request.headers["authorization"] == "Bearer sk-test-not-real"

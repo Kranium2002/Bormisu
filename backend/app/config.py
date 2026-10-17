@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     ocr_fallback: Literal["openrouter", "none"] = "openrouter"
     chat_model: str = "gpt-6.1-sol"
     embedding_model: str = "qwen/qwen3-embedding-8b"
+    # Reasoning ("thinking") for the classifier and extractor on OpenRouter. Copying printed values needs
+    # none, and reasoning tokens count against max_tokens: with it on, answers can end before the JSON.
+    llm_reasoning: Literal["off", "low", "medium", "high"] = "off"
 
     # Pipeline thresholds
     important_page_roles: str = (

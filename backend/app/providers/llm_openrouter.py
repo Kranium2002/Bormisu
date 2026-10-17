@@ -62,6 +62,10 @@ class OpenRouterClient:
             "X-Title": self.settings.openrouter_app_title,
         }
 
+    def _reasoning(self) -> dict[str, Any]:
+        level = self.settings.llm_reasoning
+        return {"enabled": False} if level == "off" else {"effort": level}
+
     async def _post(self, body: dict[str, Any]) -> dict[str, Any]:
         url = self.settings.openrouter_base_url.rstrip("/") + "/chat/completions"
         if self._http is not None:
@@ -114,6 +118,7 @@ class OpenRouterClient:
                     "data_collection": self.settings.openrouter_data_collection,
                 },
                 "usage": {"include": True},
+                "reasoning": self._reasoning(),
             }
             payload = await self._post(body)
             usage = payload.get("usage") or {}
