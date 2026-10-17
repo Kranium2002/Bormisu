@@ -14,6 +14,7 @@ import {
   reviewedText,
   shortCrsName,
   shown,
+  sourceLink,
   unreviewedCount,
 } from './detailModel';
 
@@ -63,17 +64,17 @@ describe('metadataRows', () => {
     ]);
   });
 
-  it('shows LINT on an unapproved lint, and drops it once approved', () => {
+  it('shows Lint on an unapproved lint, and drops it once approved', () => {
     const b = shortLog();
-    expect(metadataRows(b)[0].chips.map((c) => c.label)).toEqual(['LINT']);
+    expect(metadataRows(b)[0].chips.map((c) => c.label)).toEqual(['Lint']);
     b.values = b.values.map((v) => (v.key === K.finalDepth ? { ...v, status: 'approved' } : v));
     expect(metadataRows(b)[0].chips).toEqual([]);
   });
 
   it('marks the elevation datum as unconfirmed and the CRS by its status', () => {
     const rows = metadataRows(shortLog());
-    expect(rows[2].chips.map((c) => c.label)).toEqual(['DATUM UNCONFIRMED']);
-    expect(rows[4].chips.map((c) => c.label)).toEqual(['STATED']);
+    expect(rows[2].chips.map((c) => c.label)).toEqual(['Datum unconfirmed']);
+    expect(rows[4].chips.map((c) => c.label)).toEqual(['Stated']);
   });
 
   it('says "not reached" for a missing rock head, with nothing to point at', () => {
@@ -87,20 +88,67 @@ describe('metadataRows', () => {
   it('fades the source icon for values that are not in the source', () => {
     const remarks = metadataRows(shortLog())[7];
     expect(remarks.shown).toEqual({ text: 'not in source', missing: true });
-    expect(remarks.dimSource).toBe(true);
+    expect(remarks.source).toEqual({ clickable: true, title: 'Show source', dim: true });
   });
 
   it('shows a flag as a chip', () => {
     const b = shortLog();
     b.values = b.values.map((v) => (v.key === K.crs ? { ...v, status: 'flagged', flag: 'check zone' } : v));
-    expect(metadataRows(b)[4].chips.map((c) => c.label)).toEqual(['STATED', 'FLAGGED']);
+    expect(metadataRows(b)[4].chips.map((c) => c.label)).toEqual(['Stated', 'Flagged']);
   });
 });
 
 describe('crsChip', () => {
-  it('maps every CRS status to a chip', () => {
-    const at = (status: Borehole['crs']['status']) => crsChip(makeBorehole({ crs: { name: 'x', code: null, status } })).label;
-    expect([at('inferred'), at('confirmed'), at('stated'), at('unknown')]).toEqual(['INFERRED', 'CONFIRMED', 'STATED', 'UNKNOWN']);
+  const chip = (status: Borehole['crs']['status']) => crsChip(makeBorehole({ crs: { name: 'x', code: null, status } }));
+
+  it('maps every CRS status to a sentence-case chip', () => {
+    expect([chip('inferred'), chip('confirmed'), chip('stated'), chip('unknown')].map((c) => c.label)).toEqual([
+      'Inferred', 'Confirmed', 'Stated', 'Unknown',
+    ]);
+  });
+
+  // Green means reviewed, never "correct": a CRS printed in the report is not checked yet.
+  it('is green only once a reviewer confirmed the CRS', () => {
+    expect([chip('inferred'), chip('confirmed'), chip('stated'), chip('unknown')].map((c) => c.tone)).toEqual(['amber', 'green', 'grey', 'red']);
+  });
+});
+
+// X05: numbers in the mono face, words in the sans.
+describe('metadata row faces', () => {
+  it('marks depths, elevation, X / Y and the start date as numeric', () => {
+    const numeric = metadataRows(shortLog()).filter((r) => r.numeric).map((r) => r.label);
+    expect(numeric).toEqual(['Final depth', 'Rock head', 'Surface elevation', 'X / Y', 'Start date']);
+  });
+});
+
+// int-10: a borehole without a source document had icons that only answered with a toast.
+describe('sourceLink', () => {
+  it('opens the source of a value, faded when nothing is printed', () => {
+    const b = shortLog();
+    expect(sourceLink(b, K.finalDepth)).toEqual({ clickable: true, title: 'Show source', dim: false });
+    expect(sourceLink(b, K.notes)).toEqual({ clickable: true, title: 'Show source', dim: true });
+  });
+
+  it('still opens the first page for a value without a page of its own', () => {
+    const b = shortLog();
+    b.values = b.values.map((v) => (v.key === K.finalDepth ? { ...v, page: null } : v));
+    expect(sourceLink(b, K.finalDepth)).toEqual({ clickable: true, title: 'Show source', dim: true });
+  });
+
+  it('is inert without a key', () => {
+    expect(sourceLink(shortLog(), null)).toEqual({ clickable: false, title: 'Nothing printed to show', dim: true });
+    expect(metadataRows(makeBorehole())[1].source).toEqual({ clickable: false, title: 'Nothing printed to show', dim: true });
+  });
+
+  it('is inert for a borehole without a source document, in every table', () => {
+    const b = { ...shortLog(), documentId: null };
+    const none = { clickable: false, title: 'No source page from the backend yet', dim: true };
+    expect(sourceLink(b, K.finalDepth)).toEqual(none);
+    expect(metadataRows(b).every((r) => !r.source.clickable)).toBe(true);
+    expect(layerRows(b).map((r) => r.source)).toEqual([none, none]);
+    expect(layerRows(b)[1].spt).toMatchObject({ source: none });
+    expect(layerRows(b)[1].spt?.title).toMatch(/No source page from the backend yet\.$/);
+    expect(groundwaterRows(b)[0].source).toEqual(none);
   });
 });
 
@@ -186,7 +234,10 @@ describe('layerLint', () => {
 describe('groundwaterRows', () => {
   it('shows type, depth and the raw text', () => {
     expect(groundwaterRows(shortLog())).toEqual([
-      { key: K.gwStrike, type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', method: 'Read', confidence: 0.9 },
+      {
+        key: K.gwStrike, type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', method: 'Read', confidence: 0.9,
+        source: { clickable: true, title: 'Show source', dim: false },
+      },
     ]);
   });
 });

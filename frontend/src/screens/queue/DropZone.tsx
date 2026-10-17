@@ -1,13 +1,18 @@
 import { useState, type ChangeEvent, type DragEvent } from 'react';
 import { useAppStore } from '../../store/appStore';
 import styles from './DropZone.module.css';
+import { dropErrorText } from './queueView';
 
 /** File chooser filter. Drops are not filtered: the store rejects other types with a red error. */
 const ACCEPT = '.pdf,.docx,.jpg,.jpeg,.png';
 
 const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files');
 
-/** Drop zone for PDF / DOCX / JPG / PNG. Click opens the file chooser; unsupported files show a red error. */
+/**
+ * Drop zone for PDF / DOCX / JPG / PNG. Click opens the file chooser; unsupported files turn the zone red
+ * with an error that says which types work. The status line has a fixed slot, so nothing below moves
+ * when "Uploading…" or an error appears. The next valid drop clears the error (store `addFiles`).
+ */
 export function DropZone() {
   const dragActive = useAppStore((s) => s.dragActive);
   const dropError = useAppStore((s) => s.dropError);
@@ -54,7 +59,7 @@ export function DropZone() {
 
   return (
     <label
-      className={`${styles.zone} ${dragActive ? styles.drag : ''}`}
+      className={[styles.zone, dropError ? styles.zoneError : '', dragActive ? styles.drag : ''].join(' ')}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -62,16 +67,18 @@ export function DropZone() {
       <input type="file" multiple accept={ACCEPT} className={styles.input} onChange={onChange} />
       <span className={styles.title}>DROP PDF, DOCX OR IMAGES HERE</span>
       <span className={styles.sub}>or click to choose files · PDF, DOCX, JPG, PNG</span>
-      {sending > 0 && (
-        <span className={styles.uploading} role="status">
-          Uploading…
-        </span>
-      )}
-      {dropError && (
-        <span className={styles.error} role="alert">
-          {dropError}
-        </span>
-      )}
+      <span className={styles.statusLine}>
+        {sending > 0 && (
+          <span className={styles.uploading} role="status">
+            Uploading…
+          </span>
+        )}
+        {dropError && (
+          <span className={styles.error} role="alert">
+            {dropErrorText(dropError)}
+          </span>
+        )}
+      </span>
     </label>
   );
 }

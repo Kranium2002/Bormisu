@@ -8,8 +8,10 @@
  * - `view` is the map focus (focusLayers.ts). World: no mask, no limits, fitted to every pin. Country:
  *   mask + border, fitted to the country, can't pan away or zoom out beyond it. A new focus replaces
  *   mask, border and limits; the same focus with moved pins only updates the limits.
- * - A new `fly` signal (header search) flies to the borehole and opens its popup. MapScreen passes
- *   it only once the borehole is one of this map's pins (after switching the focus if needed).
+ * - A new `fly` signal (header search) flies to the borehole and opens its popup, with the pin in the
+ *   middle of the area the overlays leave free. MapScreen passes it only once the borehole is one of
+ *   this map's pins (after switching the focus if needed). A new `closePopupNonce` closes the open
+ *   popup (a search for a borehole listed under NOT ON MAP).
  * - `me` (MY LOCATION) is a blue dot with its accuracy circle, both non-interactive; a new fix flies
  *   there (zoom 15) once `flyToMe` says the focus is settled. `locateControl` is rendered into a
  *   Leaflet control under the zoom buttons.
@@ -33,6 +35,7 @@ import {
   fitCountry,
   fitMinZoom,
   fitWorld,
+  openAreaCentre,
   setCountryLimits,
 } from './focusLayers';
 import { depthText, PIN_RADIUS, popupCrsWarning, type PlottedBorehole } from './mapModel';
@@ -83,6 +86,8 @@ interface Props {
   view: MapView;
   /** Search target among `boreholes`, else null. */
   fly: FlyTarget | null;
+  /** A new value closes the open popup (a search result that is listed under NOT ON MAP); 0 does nothing. */
+  closePopupNonce: number;
   /** MY LOCATION position, or null. */
   me: MeMarker | null;
   /** True once the focus fits `me` (MapScreen switched it if needed): a new fix flies there. */
@@ -145,7 +150,19 @@ function createControl(map: L.Map): HTMLElement {
   return el;
 }
 
-export function BoreholeMap({ boreholes, statuses, highlightUid, view, fly, me, flyToMe, meOffsetPx, locateControl, onOpen }: Props) {
+export function BoreholeMap({
+  boreholes,
+  statuses,
+  highlightUid,
+  view,
+  fly,
+  closePopupNonce,
+  me,
+  flyToMe,
+  meOffsetPx,
+  locateControl,
+  onOpen,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const focusRef = useRef<FocusState | null>(null);
@@ -287,12 +304,17 @@ export function BoreholeMap({ boreholes, statuses, highlightUid, view, fly, me, 
         handledFlyNonce = fly.nonce;
         map.closePopup();
         map.invalidateSize();
-        map.flyTo([b.lat, b.lng], fly.zoom, { duration: FLY_DURATION_S });
+        map.flyTo(openAreaCentre(map, [b.lat, b.lng], fly.zoom), fly.zoom, { duration: FLY_DURATION_S });
         timers.push(setTimeout(() => markersRef.current.get(b.uid)?.openPopup(), POPUP_DELAY_MS));
       }, FLY_DELAY_MS),
     );
     return () => timers.forEach(clearTimeout);
   }, [fly]);
+
+  // A search result that is listed under NOT ON MAP: the popup of an earlier result would contradict it.
+  useEffect(() => {
+    if (closePopupNonce) mapRef.current?.closePopup();
+  }, [closePopupNonce]);
 
   // MY LOCATION: redraw the dot and the accuracy circle for every new position.
   useEffect(() => {

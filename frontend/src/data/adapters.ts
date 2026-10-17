@@ -257,6 +257,15 @@ function lintAnchor(path: string, targets: Record<string, ApiTarget>): string {
   return K.boreholeId;
 }
 
+/**
+ * CRS status when the backend sends none. A coordinate system counts as stated only when it was
+ * read from the report (provenance with raw text): a backend default such as "WGS84" is not.
+ */
+function crsStatusFallback(prov: Record<string, ApiProvenance>, hasCoordinates: boolean): CrsStatus {
+  if (prov['metadata.coordinates.coordinate_system']?.raw?.trim()) return 'stated';
+  return hasCoordinates ? 'inferred' : 'unknown';
+}
+
 /** Maps one backend BoreholeRecord to a domain Borehole. */
 export function adaptBorehole(rec: ApiBoreholeRecord): AdaptedBorehole {
   const md = rec.metadata;
@@ -350,7 +359,8 @@ export function adaptBorehole(rec: ApiBoreholeRecord): AdaptedBorehole {
   return {
     targets,
     borehole: {
-      uid: rec.uid ?? `${documentId ?? 'doc'}:${md.borehole_id}`,
+      // Without a uid from the backend: report + ID, so the same ID in two reports stays apart.
+      uid: rec.uid ?? `${documentId ?? rec.source_file ?? 'doc'}:${md.borehole_id}`,
       id: md.borehole_id,
       documentId,
       sourceFile: rec.source_file ?? '',
@@ -365,7 +375,7 @@ export function adaptBorehole(rec: ApiBoreholeRecord): AdaptedBorehole {
       crs: {
         name: co.coordinate_system ?? null,
         code: co.coordinate_system && /^EPSG:\d+$/i.test(co.coordinate_system) ? co.coordinate_system : null,
-        status: rec.crs_status ?? (co.coordinate_system ? 'stated' : 'unknown'),
+        status: rec.crs_status ?? crsStatusFallback(prov, hasLatLng || hasLocal),
       },
       layers,
       groundwater,
@@ -396,7 +406,7 @@ function adaptLayer(l: ApiLayer, i: number, add: (s: ValueSpec) => ExtractedValu
     // The increment lint is added once the backend's own findings are attached (adaptBorehole).
     add({
       key: K.spt(n), path: `${base}.spt_n_value`, field: 'SPT', label: `SPT @ ${spt.depth.toFixed(2)} m`,
-      group: 'layer', layer: n, value: formatSpt(spt), method: 'Read', rawFallback: spt.raw, type: 'spt',
+      group: 'layer', layer: n, value: formatSpt(spt), rawFallback: spt.raw, type: 'spt',
       extra: { kind: 'spt', spt, refusal: spt.refusal },
     });
   }

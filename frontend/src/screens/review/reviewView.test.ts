@@ -5,6 +5,7 @@ import { makeBorehole, makeValue } from '../../test/fixtures';
 import {
   boxVariant,
   crsIntro,
+  emptyReview,
   fieldNote,
   normalisedText,
   pageText,
@@ -12,6 +13,7 @@ import {
   rowKeys,
   scanBoxes,
   scanCaption,
+  scanScale,
   sheetPages,
   siblings,
   siteCentre,
@@ -25,7 +27,7 @@ describe('reviewRows', () => {
   it('groups BOREHOLE, GROUNDWATER and LAYER n with range and page', () => {
     const b = makeBorehole();
     const heads = reviewRows(b).flatMap((r) => (r.kind === 'head' ? [r.title] : []));
-    expect(heads).toEqual(['BOREHOLE', 'GROUNDWATER', 'LAYER 1 · 0.00–2.50 M · P.1', 'LAYER 2 · 2.50–6.00 M · P.1']);
+    expect(heads).toEqual(['BOREHOLE', 'GROUNDWATER', 'LAYER 1 · 0.00–2.50 m · p.1', 'LAYER 2 · 2.50–6.00 m · p.1']);
   });
 
   it('orders values by group even when the source interleaves them', () => {
@@ -93,6 +95,14 @@ describe('scan boxes and caption', () => {
     expect(scanCaption(7, [7, 8], { ...v, state: 'not in source' }).tone).toBe('normal');
   });
 
+  it('scales the page to the pane width, between 0.95 and 1.45', () => {
+    expect(scanScale(660)).toBe(1);
+    expect(scanScale(625)).toBe(0.95);
+    expect(scanScale(800)).toBe(1.25);
+    expect(scanScale(1400)).toBe(1.45);
+    expect(scanScale(0)).toBe(0.95);
+  });
+
   it('shows the page and "no box" next to the label', () => {
     expect(pageText(makeValue({ key: 'a', page: 7, box: box(0, 0) }))).toBe('p.7');
     expect(pageText(makeValue({ key: 'a', page: 7, box: null }))).toBe('p.7 · no box');
@@ -157,5 +167,17 @@ describe('siblings', () => {
     const mk = (id: string, documentId: string | null = 'doc') => makeBorehole({ uid: `doc:${id}`, id, documentId });
     const all = [mk('BK-10'), mk('BK-2'), mk('X-1', 'other'), mk('BK-1')];
     expect(siblings(all, all[0]).map((b) => b.id)).toEqual(['BK-1', 'BK-2', 'BK-10']);
+  });
+});
+
+describe('emptyReview', () => {
+  it('explains boreholes without source pages, and asks for an upload when there are none', () => {
+    expect(emptyReview(true, false)).toEqual({
+      message: 'These boreholes have no source pages from the backend yet, so there is nothing to check them against.',
+      action: { label: 'OPEN MAP ›', screen: 'map' },
+    });
+    expect(emptyReview(false, false).action).toEqual({ label: 'OPEN UPLOAD & QUEUE ›', screen: 'queue' });
+    expect(emptyReview(false, false).message).toMatch(/^No report is ready for review yet/);
+    expect(emptyReview(true, true).action.screen).toBe('queue');
   });
 });

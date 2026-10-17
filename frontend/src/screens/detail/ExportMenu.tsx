@@ -48,7 +48,9 @@ export function ExportMenu({ borehole }: Props) {
       </button>
       {open && (
         <Popover width={360} label="Export">
-          <div className={styles.head}>EXPORT PROJECT · {borehole.project.toUpperCase()}</div>
+          <div className={styles.head}>
+            EXPORT PROJECT <span className={styles.headProject}>· {borehole.project || 'Unnamed project'}</span>
+          </div>
           {OPTIONS.map((o) => (
             <button key={o.kind} type="button" className={styles.option} onClick={() => void exportFile(o.kind)}>
               <span className={styles.optionLabel}>{o.label}</span>

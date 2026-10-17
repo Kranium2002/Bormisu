@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { Popover } from '../../components/Popover';
 import { cleanKeys, progress } from '../../domain/review';
 import type { Borehole } from '../../domain/types';
 import { useAppStore, useDocument } from '../../store/appStore';
 import styles from './ReviewScreen.module.css';
-import { sheetPages, siblings } from './reviewView';
+import { SCAN_PANE_ID, sheetPages, siblings } from './reviewView';
+
+/** Keys that move between the sheet tabs (roving tabindex, WAI-ARIA tabs pattern). */
+const TAB_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 /**
  * Review header: title + file / project, borehole switcher, sheet tabs, progress,
- * › BOREHOLE DETAIL and APPROVE ALL CLEAN (n) with its confirm popover.
+ * › OPEN DETAIL and APPROVE ALL CLEAN (n) with its confirm popover.
  */
 export function ReviewHeader({ b }: { b: Borehole }) {
   const doc = useDocument(b.documentId);
@@ -24,6 +27,7 @@ export function ReviewHeader({ b }: { b: Borehole }) {
   const openReview = useAppStore((s) => s.openReview);
 
   const cleanRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // A click outside the confirm popover cancels it (Escape is handled by the store).
   useEffect(() => {
@@ -44,12 +48,29 @@ export function ReviewHeader({ b }: { b: Borehole }) {
   const prev = idx > 0 ? sibs[idx - 1] : undefined;
   const next = idx >= 0 && idx < sibs.length - 1 ? sibs[idx + 1] : undefined;
   const subtitle = `${doc?.name ?? b.sourceFile} · ${doc?.project ?? b.project}${isSample ? ' (fictional)' : ''}`;
+  const title = `REVIEW · ${b.id}`;
+  // One tab is in the tab order: the shown sheet, else the first (a page outside the sheets).
+  const current = Math.max(0, sheets.indexOf(reviewPage));
+
+  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!TAB_KEYS.has(e.key) || !sheets.length) return;
+    e.preventDefault();
+    const last = sheets.length - 1;
+    const i =
+      e.key === 'Home' ? 0 : e.key === 'End' ? last : e.key === 'ArrowRight' ? (current + 1) % sheets.length : (current + last) % sheets.length;
+    setReviewPage(sheets[i]);
+    tabRefs.current[i]?.focus();
+  };
 
   return (
     <div className={styles.header}>
       <div className={styles.titleBlock}>
-        <h1 className={styles.title}>REVIEW · {b.id}</h1>
-        <div className={styles.subtitle}>{subtitle}</div>
+        <h1 className={styles.title} title={title}>
+          {title}
+        </h1>
+        <div className={styles.subtitle} title={subtitle}>
+          {subtitle}
+        </div>
       </div>
 
       {sibs.length > 1 && idx >= 0 && (
@@ -80,17 +101,22 @@ export function ReviewHeader({ b }: { b: Borehole }) {
         </div>
       )}
 
-      <div className={styles.tabs} role="tablist" aria-label="Log sheets">
+      <div className={styles.tabs} role="tablist" aria-label="Log sheets" onKeyDown={onTabKey}>
         {sheets.map((p, i) => (
           <button
             key={p}
+            ref={(el) => {
+              tabRefs.current[i] = el;
+            }}
             type="button"
             role="tab"
             aria-selected={reviewPage === p}
+            aria-controls={SCAN_PANE_ID}
+            tabIndex={i === current ? 0 : -1}
             className={`${styles.tab} ${reviewPage === p ? styles.tabActive : ''}`}
             onClick={() => setReviewPage(p)}
           >
-            SHEET {i + 1} · P.{p}
+            {`SHEET ${i + 1} · p.${p}`}
           </button>
         ))}
       </div>
@@ -112,7 +138,7 @@ export function ReviewHeader({ b }: { b: Borehole }) {
       </div>
 
       <button type="button" className={styles.detailBtn} onClick={() => openBorehole(b.uid)}>
-        › BOREHOLE DETAIL
+        › OPEN DETAIL
       </button>
 
       <div ref={cleanRef} className={styles.cleanWrap}>
@@ -137,7 +163,7 @@ export function ReviewHeader({ b }: { b: Borehole }) {
                 APPROVE
               </button>
               <button type="button" className={styles.cancelBtn} onClick={cancelClean}>
-                Cancel
+                CANCEL
               </button>
             </div>
           </Popover>

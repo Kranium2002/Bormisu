@@ -4,11 +4,11 @@
   position: relative;
   border: 2px dashed var(--c-border-strong);
   background: var(--c-surface);
-  padding: 26px;
+  padding: var(--space-5) var(--space-5) var(--space-3);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   cursor: pointer;
 }
 
@@ -16,9 +16,17 @@
   border-color: var(--c-grey);
 }
 
-.zone:focus-within {
-  outline: 2px solid var(--c-green);
+/* Keyboard focus on the hidden input rings the whole zone (a mouse click shows no ring). */
+.zone:has(.input:focus-visible) {
+  outline: var(--focus-ring);
   outline-offset: 2px;
+}
+
+/* Unsupported file: red until the next valid drop. Dragging over it again still shows green. */
+.zoneError,
+.zoneError:hover {
+  border-color: var(--c-red);
+  background: var(--c-red-bg-soft);
 }
 
 .drag,
@@ -42,24 +50,31 @@
 }
 
 .title {
-  font-weight: 800;
-  font-size: 14px;
-  letter-spacing: 0.04em;
+  font: 800 var(--fs-lg) var(--font-sans);
+  letter-spacing: var(--ls-head);
 }
 
 .sub {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
 }
 
-.uploading {
-  font-size: 12px;
+/* Fixed slot for "Uploading…" and the error: empty while idle, so the queue never shifts. */
+.statusLine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 16px;
+  font-size: var(--fs-sm);
   font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.uploading {
   color: var(--c-green-text);
 }
 
 .error {
-  font-size: 12px;
-  font-weight: 700;
   color: var(--c-red);
 }

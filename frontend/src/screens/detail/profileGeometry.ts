@@ -2,8 +2,8 @@
  * Geometry of the DIN 4023 profile column (prototype detail section of renderVals):
  * a 378 x 660 SVG whose depth axis runs from y = 28 (0 m) over 576 px down to the final depth.
  */
-import { decimalComma } from '../../domain/format';
-import type { Borehole, Layer } from '../../domain/types';
+import { K } from '../../domain/keys';
+import type { Borehole, GroundwaterReading, Layer } from '../../domain/types';
 
 export const PROFILE_W = 378;
 export const PROFILE_H = 660;
@@ -79,7 +79,7 @@ export function notLogged(b: Pick<Borehole, 'finalDepth' | 'logBottom' | 'layers
   return {
     from: b.logBottom,
     to: b.finalDepth,
-    label: `log ends ${decimalComma(b.logBottom)} ≠ ET ${decimalComma(b.finalDepth)}`,
+    label: `log ends ${b.logBottom.toFixed(2)} ≠ ET ${b.finalDepth.toFixed(2)}`,
   };
 }
 
@@ -101,4 +101,19 @@ export function firstRefusal(layers: Layer[]): { layer: Layer; depth: number; ra
     if (l.spt?.refusal) return { layer: l, depth: l.spt.depth, raw: l.spt.raw };
   }
   return null;
+}
+
+/** Markers the profile draws: only measurements the source states. The legend lists the same ones. */
+export interface DrawnMarks {
+  groundwater: GroundwaterReading[];
+  rockHead: number | null;
+  refusal: ReturnType<typeof firstRefusal>;
+}
+
+export function drawnMarks(b: Pick<Borehole, 'values' | 'groundwater' | 'rockHead' | 'layers'>): DrawnMarks {
+  return {
+    groundwater: b.groundwater.filter((g) => isStated(b, g.key)),
+    rockHead: isStated(b, K.rockHead) ? b.rockHead : null,
+    refusal: firstRefusal(b.layers.filter((l) => isStated(b, K.spt(l.n)))),
+  };
 }

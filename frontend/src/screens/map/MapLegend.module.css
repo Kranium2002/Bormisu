@@ -4,16 +4,15 @@
   bottom: 24px;
   z-index: var(--z-map-overlay);
   background: var(--c-surface);
-  padding: 10px 12px;
-  font-size: 12px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-sm);
   line-height: 1.7;
   box-shadow: var(--shadow-card);
 }
 
 .title {
-  font-weight: 800;
-  font-size: 11px;
-  letter-spacing: 0.07em;
+  font: 800 var(--fs-sm) / 1.7 var(--font-sans);
+  letter-spacing: var(--ls-head);
   margin-bottom: 2px;
 }
 
@@ -26,15 +25,16 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
+/* Same look as a pin: status fill, white ring, thin dark outline. */
 .dot {
   flex: none;
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--c-surface);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
@@ -45,5 +45,6 @@
 .count {
   font-family: var(--font-mono);
   color: var(--c-muted);
-  margin-left: 10px;
+  margin-left: var(--space-3);
+  text-align: right;
 }

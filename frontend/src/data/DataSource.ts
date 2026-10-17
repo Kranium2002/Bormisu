@@ -3,8 +3,11 @@ import type { Borehole, CrsCandidate, DocumentSummary, PageContent, ValuePatch }
 /** Where the app gets and saves its data: the FastAPI backend (`api`) or fictional demo data (`sample`). */
 export interface DataSource {
   readonly kind: 'api' | 'sample';
-  /** All boreholes and documents. */
-  load(): Promise<{ boreholes: Borehole[]; documents: DocumentSummary[] }>;
+  /**
+   * All boreholes and documents. `documentsUnavailable` is true when the backend has the boreholes
+   * but no documents endpoint yet: the map and detail work, the queue and Review have nothing to show.
+   */
+  load(): Promise<{ boreholes: Borehole[]; documents: DocumentSummary[]; documentsUnavailable?: boolean }>;
   /** One rendered page of a document (1-based). */
   getPage(documentId: string, page: number): Promise<PageContent>;
   /** Uploads files; `onUpdate` fires for every status change of each new document. */
@@ -28,7 +31,15 @@ export interface DataSource {
    * Neckarbogen site"). The API source has none, so the option doesn't exist there.
    */
   readonly simulatedSite?: { label: string; lat: number; lng: number };
+  /**
+   * API only: whether the backend runs live or in demo mode (no extraction key). Null when the
+   * backend doesn't say (no health endpoint, or no `mode` in it).
+   */
+  health?(): Promise<{ mode: BackendMode } | null>;
 }
+
+/** How the backend runs: `demo` has no extraction key, so uploads are refused. */
+export type BackendMode = 'live' | 'demo';
 
 /** A review action the source saved only partly: `applied` is the part it holds now. */
 export class PartialSaveError extends Error {

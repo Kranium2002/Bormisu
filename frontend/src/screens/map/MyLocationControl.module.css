@@ -10,34 +10,45 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
-.button {
+.button,
+.simulate {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   height: 32px;
-  padding: 0 11px 0 9px;
   border: 0;
   background: var(--c-surface);
   box-shadow: var(--shadow-card);
   color: var(--c-text);
-  font: 800 11px var(--font-sans);
-  letter-spacing: 0.07em;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.button:hover {
+.button {
+  padding: 0 var(--space-3) 0 var(--space-2);
+  font: 700 var(--fs-xs) var(--font-sans);
+  letter-spacing: var(--ls-caps);
+}
+
+.button:hover:not(:disabled),
+.simulate:hover {
   color: var(--c-dark);
   background: var(--c-hover);
 }
 
+.button:active:not(:disabled),
+.simulate:active {
+  transform: translateY(1px);
+}
+
 .button:focus-visible,
 .simulate:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: 1px;
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .button:disabled {
@@ -50,30 +61,22 @@
   flex: none;
 }
 
-/* Sample mode only. */
+/* Sample mode only: a DEMO tag in front says it is not a real position. */
 .simulate {
-  appearance: none;
-  height: 26px;
-  padding: 0 9px;
-  border: 1px dashed var(--c-border-strong);
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--c-muted);
-  font: 600 11px var(--font-sans);
-  cursor: pointer;
-  white-space: nowrap;
+  padding: 0 var(--space-3);
+  font: 600 var(--fs-sm) var(--font-sans);
 }
 
-.simulate:hover {
-  color: var(--c-dark);
-  border-color: var(--c-dark);
+.demoTag {
+  composes: tag from '../../styles/chips.module.css';
 }
 
 .message {
   max-width: 260px;
-  padding: 7px 10px;
+  padding: var(--space-2) var(--space-3);
   background: var(--c-surface);
   box-shadow: var(--shadow-card);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.4;
   color: var(--c-muted);
 }

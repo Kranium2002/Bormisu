@@ -19,9 +19,13 @@
   cursor: pointer;
 }
 
-.cell:hover:not([aria-disabled='true']),
+.cell:hover:not([aria-disabled='true']) {
+  outline: var(--focus-ring);
+}
+
 .cell:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 /* Not classified yet: keeps its tooltip, but there is no page to show. */
@@ -31,6 +35,6 @@
 
 /* The page currently shown in the Source panel. */
 .current {
-  outline: 2px solid var(--c-dark);
+  outline: var(--focus-ring);
   outline-offset: 1px;
 }

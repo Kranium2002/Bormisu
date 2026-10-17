@@ -1,9 +1,10 @@
 import { StatusChip } from '../../components/StatusChip';
 import type { BoreholeStatus } from '../../domain/types';
+import type { Compass } from '../../geo/nearest';
 import type { NearYouModel } from './mapModel';
 import styles from './NearYouPanel.module.css';
 
-const DIRECTION_WORDS: Record<string, string> = {
+const DIRECTION_WORDS: Record<Compass, string> = {
   N: 'north', NE: 'north-east', E: 'east', SE: 'south-east', S: 'south', SW: 'south-west', W: 'west', NW: 'north-west',
 };
 
@@ -48,12 +49,13 @@ export function NearYouPanel({ model, simulated, statuses, onOpen, onClose }: Pr
                 type="button"
                 className={styles.row}
                 data-uid={b.uid}
-                aria-label={`Open detail of ${b.id}, ${distance} ${DIRECTION_WORDS[direction]}`}
+                aria-label={`Open detail of ${b.id}, ${direction ? `${distance} ${DIRECTION_WORDS[direction]}` : distance}`}
                 onClick={() => onOpen(b.uid)}
               >
                 <span className={styles.id}>{b.id}</span>
                 <span className={styles.distance}>
-                  {distance} <span className={styles.direction}>{direction}</span>
+                  {distance}
+                  {direction && <span className={styles.direction}> {direction}</span>}
                 </span>
                 <span className={styles.project}>{b.project}</span>
                 <span className={styles.chip}>

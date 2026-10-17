@@ -3,10 +3,10 @@
 .card {
   border: 1px solid var(--c-border);
   background: var(--c-surface);
-  padding: 16px 18px;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
   cursor: default;
 }
 
@@ -27,27 +27,27 @@
 .top {
   display: grid;
   grid-template-columns: var(--queue-cols);
-  gap: 20px;
+  gap: var(--queue-gap);
   align-items: start;
 }
 
 .ident {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .name {
   margin: 0;
-  font: 600 13px var(--font-mono);
+  font: 600 var(--fs-md) var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .meta {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
 }
 
@@ -58,10 +58,8 @@
 
 /* Completeness chip; tone from domain completenessSummary(). */
 .comp {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 6px 10px;
+  font: 700 var(--fs-sm) var(--font-sans);
+  padding: 6px var(--space-3);
   border: 1px solid var(--c-border);
   border-radius: 2px;
   background: var(--c-surface);
@@ -70,8 +68,16 @@
   text-align: right;
 }
 
+.comp:hover {
+  text-decoration: underline;
+}
+
+.comp:active {
+  transform: translateY(1px);
+}
+
 .comp:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -92,14 +98,14 @@
 }
 
 .muted {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-style: italic;
   color: var(--c-faint);
 }
 
 .counts {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
   margin: 0;
@@ -108,8 +114,8 @@
 }
 
 .count {
-  font-size: 12px;
-  padding: 3px 8px;
+  font-size: var(--fs-sm);
+  padding: 3px var(--space-2);
   background: var(--c-line);
   border-radius: 2px;
 }
@@ -121,39 +127,24 @@
 .bottom {
   display: flex;
   align-items: flex-end;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .hint {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-faint);
   white-space: nowrap;
 }
 
+/* OPEN IN REVIEW ›: a text button; its text lines up with the card's right edge. */
 .hintAction {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--c-green-text);
+  composes: quiet link from '../../styles/buttons.module.css';
+  margin: 0 calc(-1 * var(--space-2)) calc(-1 * var(--space-1)) 0;
   white-space: nowrap;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-.hintAction:hover {
-  color: var(--c-dark);
-}
-
-.hintAction:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: 3px;
 }
 
 .hintError {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--c-red);
   max-width: 420px;

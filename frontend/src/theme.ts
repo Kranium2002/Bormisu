@@ -14,7 +14,7 @@ export const COL = {
   gw: '#1F5FA8',
   text: '#181818',
   muted: '#555555',
-  faint: '#868685',
+  faint: '#6F6F6E', // = --c-faint: lightest text tone (5.0:1 on white)
   border: '#D6D6D6',
   line: '#EFEFEF',
   greenText: '#3F6A00',

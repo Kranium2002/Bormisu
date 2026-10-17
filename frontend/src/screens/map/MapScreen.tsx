@@ -6,14 +6,15 @@
  * only that country's boreholes are pins, the legend counts them, RESULTS lists them (plus the
  * boreholes without coordinates), and the boreholes elsewhere are one line under NOT ON MAP and under
  * RESULTS, each with SHOW WORLD. A search result in another country switches the focus to that
- * country (World when it lies in none) and then flies there.
+ * country (World when it lies in none) and then flies there. A search result without usable
+ * coordinates is highlighted under NOT ON MAP while its message shows, and an open popup closes.
  *
  * MY LOCATION (under the zoom buttons) asks the browser for the position, switches the focus to the
  * country it lies in, flies there and opens NEAR YOU with the five nearest boreholes. The position
  * stays in memory (store `myLocation`): never sent, saved or put in the URL. Sample mode only: a
  * "Simulate: Neckarbogen site" option and `?simLocation=lat,lng` stand in for a real position.
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { countryLocator } from '../../geo/countryAssign';
 import { parseLatLng } from '../../geo/geolocate';
 import { WORLD } from '../../geo/mapFocus';
@@ -28,6 +29,7 @@ import {
   isPlotted,
   legendEntries,
   nearYouModel,
+  notOnMapSearchTarget,
   outsideSummary,
   placeBoreholes,
   searchStep,
@@ -53,6 +55,7 @@ export function MapScreen() {
   const boreholes = useAppStore((s) => s.boreholes);
   const reviewUid = useAppStore((s) => s.reviewUid);
   const flyTarget = useAppStore((s) => s.flyTarget);
+  const searchMessage = useAppStore((s) => s.searchMessage);
   const focus = useAppStore((s) => s.mapFocus);
   const setMapFocus = useAppStore((s) => s.setMapFocus);
   const openBorehole = useAppStore((s) => s.openBorehole);
@@ -103,6 +106,14 @@ export function MapScreen() {
   }, [flyTarget, target, step, setMapFocus, showNotOnMap]);
   const fly = step?.kind === 'fly' ? flyTarget : null;
 
+  // A search result listed under NOT ON MAP (while its message shows): highlight it there and close
+  // the popup of an earlier result.
+  const notOnMapUid = notOnMapSearchTarget(searchMessage, placement.unplaced, step?.kind === 'missing' && target ? target.uid : null);
+  const [closePopupNonce, setClosePopupNonce] = useState(0);
+  useEffect(() => {
+    if (notOnMapUid) setClosePopupNonce((n) => n + 1);
+  }, [notOnMapUid, searchMessage]);
+
   // MY LOCATION. Sample mode only: the demo site and ?simLocation=lat,lng (read once per page load).
   const site = source?.kind === 'sample' ? (source.simulatedSite ?? null) : null;
   useEffect(() => {
@@ -139,6 +150,7 @@ export function MapScreen() {
           highlightUid={reviewUid}
           view={view}
           fly={fly}
+          closePopupNonce={closePopupNonce}
           me={me}
           flyToMe={flyToMe}
           meOffsetPx={nearYouOpen ? NEAR_YOU_OFFSET_PX : 0}
@@ -158,7 +170,14 @@ export function MapScreen() {
           <NearYouPanel model={nearYou} simulated={located.simulated} statuses={statuses} onOpen={openBorehole} onClose={closeNearYou} />
         )}
       </div>
-      <NotOnMapList items={placement.unplaced} outside={outside} focusLabel={label} onOpen={openBorehole} onShowWorld={showWorld} />
+      <NotOnMapList
+        items={placement.unplaced}
+        outside={outside}
+        focusLabel={label}
+        activeUid={notOnMapUid}
+        onOpen={openBorehole}
+        onShowWorld={showWorld}
+      />
       <ResultsTable
         boreholes={pending ? [] : placement.results}
         statuses={statuses}

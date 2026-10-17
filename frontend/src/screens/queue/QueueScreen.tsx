@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { withInlineCode } from '../../components/EmptyState';
 import { useAppStore } from '../../store/appStore';
 import { PAGE_TYPE_LEGEND, PAGE_TYPE_META } from '../../theme';
 import { DocumentCard } from './DocumentCard';
@@ -42,10 +43,17 @@ function useRefuseStrayDrops() {
   }, []);
 }
 
-/** Upload & queue: drop zone plus one card per document with status, checks, counts and page map. */
+/**
+ * Upload & queue: drop zone plus one card per document with status, checks, counts and page map. When
+ * the backend has boreholes but no document list (API mode), an amber notice says so above the queue.
+ */
 export function QueueScreen() {
   const documents = useAppStore((s) => s.documents);
+  const documentsUnavailable = useAppStore((s) => s.documentsUnavailable);
   useRefuseStrayDrops();
+  // Without a document list from the backend the notice says why the queue is empty; "No documents
+  // yet" would contradict it. Documents uploaded in this session still show.
+  const showQueue = documents.length > 0 || !documentsUnavailable;
 
   return (
     <div className={styles.scroll} data-screen-label="Upload & queue">
@@ -55,18 +63,27 @@ export function QueueScreen() {
           <PageTypeLegend />
         </div>
         <DropZone />
-        <div className={styles.columns} aria-hidden="true">
-          <div>DOCUMENT</div>
-          <div>STATUS</div>
-          <div>CHECKS</div>
-        </div>
-        <section className={styles.list} aria-label="Document queue">
-          {documents.length ? (
-            documents.map((d) => <DocumentCard key={d.id} doc={d} />)
-          ) : (
-            <div className={styles.empty}>No documents yet. Drop a report above to extract its boreholes.</div>
-          )}
-        </section>
+        {documentsUnavailable && (
+          <p className={styles.notice} role="status">
+            {withInlineCode('The backend has no document list yet (GET /api/v1/documents). Boreholes still show on the map.')}
+          </p>
+        )}
+        {showQueue && (
+          <>
+            <div className={styles.colHead} aria-hidden="true">
+              <div>DOCUMENT</div>
+              <div>STATUS</div>
+              <div>CHECKS</div>
+            </div>
+            <section className={styles.list} aria-label="Document queue">
+              {documents.length ? (
+                documents.map((d) => <DocumentCard key={d.id} doc={d} />)
+              ) : (
+                <div className={styles.empty}>No documents yet. Drop a report above to extract its boreholes.</div>
+              )}
+            </section>
+          </>
+        )}
       </div>
     </div>
   );

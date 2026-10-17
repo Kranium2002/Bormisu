@@ -35,6 +35,9 @@ export function MyLocationControl({ state, onLocate, simulateLabel, onSimulate }
         </button>
         {simulateLabel && (
           <button type="button" className={styles.simulate} onClick={onSimulate}>
+            <span className={styles.demoTag} aria-hidden="true">
+              DEMO
+            </span>
             Simulate: {simulateLabel}
           </button>
         )}

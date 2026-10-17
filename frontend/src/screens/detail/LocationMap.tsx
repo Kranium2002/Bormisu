@@ -25,9 +25,22 @@ export function LocationMap({ lat, lng, color, label }: Props) {
     const el = elRef.current;
     if (!el) return;
     const { lat: la, lng: ln, color: c } = initial.current;
-    const map = L.map(el, { zoomControl: false, attributionControl: false }).setView([la, ln], ZOOM);
-    compactAttribution().addTo(map);
+    // A static locator: no panning, zooming or keyboard focus, so the role="img" box holds no controls.
+    const map = L.map(el, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      touchZoom: false,
+      keyboard: false,
+    }).setView([la, ln], ZOOM);
+    const attribution = compactAttribution().addTo(map);
     osmTileLayer().addTo(map);
+    // The attribution stays visible and clickable, but out of the tab order: inside role="img" its
+    // link would be a focus stop that assistive tech can't name. The Map screen has the same link.
+    attribution.getContainer()?.querySelectorAll('a').forEach((a) => (a.tabIndex = -1));
     pinRef.current = L.circleMarker([la, ln], { radius: 8, color: '#fff', weight: 2, fillColor: c, fillOpacity: 1 }).addTo(map);
     mapRef.current = map;
     // The card can change size after mount (fonts, sticky header): keep the tiles in step.

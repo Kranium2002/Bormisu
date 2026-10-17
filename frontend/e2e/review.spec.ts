@@ -14,7 +14,7 @@ test.describe('review', () => {
 
   test('opens on the inferred CRS with the scan, sheet tabs and progress', async ({ page }) => {
     await expect(page.getByText('0 of 30 values reviewed')).toBeVisible();
-    await expect(page.getByRole('tab')).toHaveText(['SHEET 1 · P.7', 'SHEET 2 · P.8']);
+    await expect(page.getByRole('tab')).toHaveText(['SHEET 1 · p.7', 'SHEET 2 · p.8']);
     await expect(row(page, 'CoordinateSystem')).toHaveAttribute('aria-current', 'true');
     await expect(page.getByText('not stated in source · inferred from 7-digit Rechtswert')).toBeVisible();
     await expect(page.getByText('page 7 · sheet 1 of 2 · click a box to jump to its field')).toBeVisible();
@@ -87,7 +87,7 @@ test.describe('review', () => {
     await page.getByRole('button', { name: 'CHOOSE CRS…' }).click();
     const dialog = page.getByRole('dialog', { name: 'CONFIRM CRS FOR THE WHOLE DOCUMENT' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('radio', { name: /Krüger zone 3/ })).toHaveAttribute('aria-checked', 'true');
+    await expect(dialog.getByRole('radio', { name: /Krüger zone 3/ })).toBeChecked();
     await dialog.getByRole('radio', { name: /UTM zone 32N/ }).click();
     await expect(dialog.getByText('Coordinates out of range: no pins can be placed')).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'CONFIRM FOR WHOLE DOCUMENT' })).toBeDisabled();

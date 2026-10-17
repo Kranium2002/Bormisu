@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DocumentSummary } from '../../domain/types';
-import { canOpenPage, canOpenReview, countChips, docHint, docMeta, pageTitle, stepViews } from './queueView';
+import { canOpenPage, canOpenReview, countChips, docHint, docMeta, dropErrorText, pageTitle, stepViews } from './queueView';
 
 const doc = (over: Partial<DocumentSummary> = {}): DocumentSummary => ({
   id: 'd1', name: 'report.pdf', project: 'Test project',
@@ -34,7 +34,7 @@ describe('stepViews', () => {
 
 describe('docHint', () => {
   it('offers review only when a review borehole exists and extraction is through', () => {
-    expect(docHint(doc({ reviewBoreholeUid: 'd1:BK-01' }))).toEqual({ text: 'OPEN REVIEW ›', tone: 'action' });
+    expect(docHint(doc({ reviewBoreholeUid: 'd1:BK-01' }))).toEqual({ text: 'OPEN IN REVIEW ›', tone: 'action' });
     expect(canOpenReview(doc({ reviewBoreholeUid: 'd1:BK-01', step: 1 }))).toBe(false);
     expect(canOpenReview(doc({ reviewBoreholeUid: 'd1:BK-01', error: 'boom' }))).toBe(false);
   });
@@ -79,5 +79,17 @@ describe('page strip', () => {
   it('only opens classified pages', () => {
     expect(canOpenPage('unknown')).toBe(false);
     expect(canOpenPage('photo')).toBe(true);
+  });
+});
+
+describe('dropErrorText', () => {
+  it('says what to do after an unsupported file type', () => {
+    expect(dropErrorText('File type not supported: notes.txt')).toBe('File type not supported: notes.txt. Use PDF, DOCX, JPG or PNG.');
+    expect(dropErrorText('File type not supported: a.txt, b.xls')).toBe('File type not supported: a.txt, b.xls. Use PDF, DOCX, JPG or PNG.');
+  });
+
+  it('shows other upload errors as one sentence, without the file-type advice', () => {
+    expect(dropErrorText('Upload failed: 413 Payload Too Large')).toBe('Upload failed: 413 Payload Too Large.');
+    expect(dropErrorText('Cannot reach the Bormisu backend.')).toBe('Cannot reach the Bormisu backend.');
   });
 });

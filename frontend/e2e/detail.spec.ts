@@ -13,7 +13,7 @@ async function openBk07(page: Page) {
 
 async function exportAs(page: Page, option: RegExp) {
   await page.getByRole('button', { name: 'EXPORT ▾' }).click();
-  await expect(page.getByText('EXPORT PROJECT · STADTBAHN NECKARBOGEN')).toBeVisible();
+  await expect(page.getByText('EXPORT PROJECT · Stadtbahn Neckarbogen')).toBeVisible();
   const downloading = page.waitForEvent('download');
   await page.getByRole('button', { name: option }).click();
   return downloading;
@@ -23,9 +23,9 @@ test.describe('detail', () => {
   test.beforeEach(async ({ page }) => openBk07(page));
 
   test('shows the DIN 4023 profile, metadata and layer tables', async ({ page }) => {
-    await expect(page.getByRole('group', { name: 'DIN 4023 profile of BK-07, 6 layers, final depth 18,00 m' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'DIN 4023 profile of BK-07, 6 layers, final depth 18.00 m' })).toBeVisible();
     await expect(page.getByText('0 of 30 values reviewed')).toBeVisible();
-    await expect(page.getByText('ET 18,00 m')).toBeVisible();
+    await expect(page.getByText('ET 18.00 m')).toBeVisible();
     await expect(page.getByText('Log bottom 14.50 m ≠ final depth 18.00 m. Possibly a missing sheet 3.')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Layer 1:/ })).toBeVisible();
   });
@@ -33,7 +33,7 @@ test.describe('detail', () => {
   test('clicking the R marker opens the source panel with the highlighted box', async ({ page }) => {
     await page.getByRole('button', { name: /SPT refusal 50\/30 at 10.50 m/ }).click();
     const panel = page.getByRole('dialog', { name: 'Source' });
-    await expect(panel.getByText('SOURCE · SPT @ 10.50 M')).toBeVisible();
+    await expect(panel.getByText('SOURCE · SPT @ 10.50 m')).toBeVisible();
     await expect(panel.getByText('as printed: “50/30”')).toBeVisible();
     const box = panel.locator('[title="SPT @ 10.50 m"]');
     await expect(box).toBeVisible();

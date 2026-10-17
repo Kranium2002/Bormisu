@@ -9,7 +9,7 @@ import type { Borehole, BoreholeStatus } from '../../domain/types';
 import type { Country } from '../../geo/countries';
 import type { CountryHit } from '../../geo/countryAssign';
 import { WORLD, type MapFocus } from '../../geo/mapFocus';
-import { formatDistance, nearest, type GeoPoint, type Nearby } from '../../geo/nearest';
+import { formatDistance, nearest, type Compass, type GeoPoint, type Nearby } from '../../geo/nearest';
 import { pinColor } from '../../theme';
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -17,19 +17,36 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 /** How many boreholes NEAR YOU lists, and the radius it calls "near". */
 export const NEAR_YOU_COUNT = 5;
 export const NEAR_YOU_RADIUS_M = 2000;
+/** Closer than this, a borehole is "here". */
+export const NEAR_YOU_HERE_M = 10;
+/** Closer than this, the compass direction is left out: GPS accuracy makes it meaningless. */
+export const NEAR_YOU_DIRECTION_M = 50;
+
+export interface NearYouRow extends Omit<Nearby<PlottedBorehole>, 'direction'> {
+  /** "112 m", "1.4 km", or "here" below 10 m. */
+  distance: string;
+  /** Compass direction ("SW"), or null below 50 m. */
+  direction: Compass | null;
+}
 
 export interface NearYouModel {
   /** "Accuracy ±25 m". */
   accuracy: string;
-  /** The nearest pins, nearest first, with distance ("112 m") and compass direction ("SW"). */
-  rows: (Nearby<PlottedBorehole> & { distance: string })[];
+  /** The nearest pins, nearest first, with distance and compass direction. */
+  rows: NearYouRow[];
   /** "No borehole within 2 km of you. Nearest: BK-07 at 3.4 km." when even the nearest is farther; else null. */
   farMessage: string | null;
 }
 
+/** Distance and direction of one NEAR YOU row: "here" (no direction) below 10 m, no direction below 50 m. */
+function nearYouRow(n: Nearby<PlottedBorehole>): NearYouRow {
+  if (n.distanceM < NEAR_YOU_HERE_M) return { ...n, distance: 'here', direction: null };
+  return { ...n, distance: formatDistance(n.distanceM), direction: n.distanceM < NEAR_YOU_DIRECTION_M ? null : n.direction };
+}
+
 /** NEAR YOU: the five boreholes with coordinates nearest to the position (in any country). */
 export function nearYouModel(at: GeoPoint & { accuracyM: number }, pins: readonly PlottedBorehole[]): NearYouModel {
-  const rows = nearest(at, pins, NEAR_YOU_COUNT).map((n) => ({ ...n, distance: formatDistance(n.distanceM) }));
+  const rows = nearest(at, pins, NEAR_YOU_COUNT).map(nearYouRow);
   const first = rows[0];
   return {
     accuracy: `Accuracy ±${formatDistance(at.accuracyM)}`,
@@ -275,6 +292,22 @@ export function searchStep(b: Borehole, placement: MapPlacement, hits: CountryHi
   if (placement.plotted.some((p) => p.uid === b.uid)) return { kind: 'fly' };
   if (!hits) return { kind: 'wait' };
   return { kind: 'switch', focus: hits.get(b.uid)?.country ?? WORLD };
+}
+
+/** End of the store's search message for a borehole the map can't place ("BK-13: … Listed under Not on map."). */
+const NOT_ON_MAP_MESSAGE_END = 'Listed under Not on map.';
+
+/**
+ * The NOT ON MAP item a search points to, while the search message says so: among the listed
+ * boreholes whose ID starts the message, the one of a `missing` search step when given (two reports
+ * can share an ID), else the first (the store explains boreholes flagged as not on the map itself,
+ * without a fly target). A `missingUid` the message doesn't name is an earlier search's and is
+ * ignored. Else null.
+ */
+export function notOnMapSearchTarget(message: string, unplaced: readonly NotOnMapItem[], missingUid: string | null): string | null {
+  if (!message.endsWith(NOT_ON_MAP_MESSAGE_END)) return null;
+  const named = unplaced.filter((u) => message.startsWith(`${u.borehole.id}: `));
+  return (named.find((u) => u.borehole.uid === missingUid) ?? named[0])?.borehole.uid ?? null;
 }
 
 /** Final depth as "18.00 m", or "–" when no depth was extracted (a blank never means 0). */

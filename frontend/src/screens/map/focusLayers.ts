@@ -28,8 +28,30 @@ const MAX_BOUNDS_MARGIN_DEG = 0.5;
 /** Space (px) kept between the country and the map edge when the whole country is shown. */
 export const FIT_PADDING_PX = 12;
 
-/** World view: the pins' bounds with this padding, never closer than street level. */
-const WORLD_FIT: L.FitBoundsOptions = { padding: [24, 24], maxZoom: 12, animate: false };
+/**
+ * The map's open area: what the overlays leave free. 280 px on the left clear the REVIEW STATUS legend
+ * (bottom left), 130 px at the top clear MAP FOCUS and MY LOCATION (top left).
+ */
+const OPEN_TOP_LEFT: L.PointTuple = [280, 130];
+const OPEN_BOTTOM_RIGHT: L.PointTuple = [24, 24];
+
+/** World view: the pins' bounds inside the open area, never closer than street level. */
+const WORLD_FIT: L.FitBoundsOptions = {
+  paddingTopLeft: OPEN_TOP_LEFT,
+  paddingBottomRight: OPEN_BOTTOM_RIGHT,
+  maxZoom: 12,
+  animate: false,
+};
+
+/**
+ * The map centre that puts `at` in the middle of the open area at `zoom` (the same offset fitBounds
+ * applies for paddingTopLeft / paddingBottomRight), so a searched pin and its popup don't land under
+ * the overlays.
+ */
+export function openAreaCentre(map: L.Map, at: L.LatLngExpression, zoom: number): L.LatLng {
+  const offset = L.point(OPEN_BOTTOM_RIGHT).subtract(OPEN_TOP_LEFT).divideBy(2);
+  return map.unproject(map.project(at, zoom).add(offset), zoom);
+}
 
 /** Map background behind the tiles (tokens.css `.leaflet-container`, --c-line). */
 const MASK_COLOR = COL.line;

@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { EmptyState } from '../../components/EmptyState';
-import { useAppStore, useReviewBorehole } from '../../store/appStore';
+import { isReviewable, useAppStore, useReviewBorehole } from '../../store/appStore';
 import { FieldList } from './FieldList';
 import { ReviewHeader } from './ReviewHeader';
 import styles from './ReviewScreen.module.css';
 import { ScanPane } from './ScanPane';
 import { useReviewKeys } from './useReviewKeys';
-import { reviewRows, rowKeys } from './reviewView';
+import { emptyReview, reviewRows, rowKeys } from './reviewView';
 import type { Borehole } from '../../domain/types';
 
 /**
@@ -16,12 +16,15 @@ import type { Borehole } from '../../domain/types';
 export function ReviewScreen() {
   const b = useReviewBorehole();
   const go = useAppStore((s) => s.go);
+  const hasBoreholes = useAppStore((s) => s.boreholes.length > 0);
+  const anyReviewable = useAppStore((s) => s.boreholes.some(isReviewable));
   if (!b) {
+    const empty = emptyReview(hasBoreholes, anyReviewable);
     return (
       <EmptyState
         title="NOTHING TO REVIEW"
-        message="No report is ready for review yet. Upload one and wait until it reaches “needs review”."
-        action={{ label: 'OPEN UPLOAD & QUEUE', onClick: () => go('queue') }}
+        message={empty.message}
+        action={{ label: empty.action.label, onClick: () => go(empty.action.screen) }}
       />
     );
   }

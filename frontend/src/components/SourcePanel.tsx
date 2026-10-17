@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { PAGE_H } from '../domain/types';
 import { useAppStore, useIsReviewable, usePage, useValue, type SourcePanel as SourcePanelState } from '../store/appStore';
 import { PAGE_TYPE_META } from '../theme';
 import { MethodBadge } from './MethodBadge';
@@ -26,16 +25,27 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
   const box = panel.box ?? null;
 
   // Show the page from the top (sheet header in view) unless the box would be below the fold.
+  // Box positions are fractions of the page as rendered, so an API image places again once it has
+  // loaded and has its real height.
   useEffect(() => {
     const el = scrollRef.current;
     const pageEl = el?.firstElementChild;
     if (!el || !pageEl || !content) return;
-    const pageTop = pageEl.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
-    const boxBottom = box ? pageTop + (box.y + box.h) * PAGE_H * SCALE : 0;
-    el.scrollTop = box && boxBottom + 40 > el.clientHeight ? Math.max(0, pageTop + box.y * PAGE_H * SCALE - 160) : 0;
+    const place = () => {
+      const rect = pageEl.getBoundingClientRect();
+      const pageTop = rect.top - el.getBoundingClientRect().top + el.scrollTop;
+      const boxBottom = box ? pageTop + (box.y + box.h) * rect.height : 0;
+      el.scrollTop = box && boxBottom + 40 > el.clientHeight ? Math.max(0, pageTop + box.y * rect.height - 160) : 0;
+    };
+    place();
+    const img = pageEl.querySelector('img');
+    if (!img || img.complete) return;
+    img.addEventListener('load', place, { once: true });
+    return () => img.removeEventListener('load', place);
   }, [content, box]);
 
-  const title = value ? value.label.toUpperCase() : `PAGE ${panel.page}`;
+  // The value's label keeps its case ('SPT @ 10.50 m'); page refs are lowercase.
+  const title = value ? value.label : `page ${panel.page}`;
   const label = content?.label ?? `page ${panel.page}`;
   const detail = value
     ? value.raw && `as printed: “${value.raw}”`
@@ -51,7 +61,9 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
   return (
     <>
       <PanelHeader>
-        <div className={styles.heading}>SOURCE · {title}</div>
+        <div className={styles.heading}>
+          SOURCE · <span className={styles.headingLabel}>{title}</span>
+        </div>
         <div className={styles.sub}>{label}</div>
         <div className={styles.meta}>
           {value && <MethodBadge method={value.method} confidence={value.confidence} formula={value.formula} />}
@@ -59,7 +71,8 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
         </div>
         {value && !box && <div className={styles.noBox}>Box not found: page shown</div>}
       </PanelHeader>
-      <div ref={scrollRef} className={styles.scroll}>
+      {/* A tab stop of its own, so the panel's focus trap includes it and arrow keys scroll the page. */}
+      <div ref={scrollRef} className={styles.scroll} role="region" aria-label="Source page" tabIndex={0}>
         {page.status === 'loading' && <div className={styles.status}>Loading page {panel.page}…</div>}
         {page.status === 'error' && <div className={styles.error}>{page.error}</div>}
         {content && (
@@ -73,7 +86,7 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
       {value && reviewable && (
         <div className={styles.foot}>
           <button type="button" className={styles.primary} onClick={openInReview}>
-            OPEN IN REVIEW
+            OPEN IN REVIEW ›
           </button>
           <span className={styles.sub}>Esc to close</span>
         </div>

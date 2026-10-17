@@ -13,6 +13,7 @@ import {
   legendEntries,
   nearYouModel,
   notOnMapReason,
+  notOnMapSearchTarget,
   outsideSummary,
   placeBoreholes,
   popupCrsWarning,
@@ -283,5 +284,42 @@ describe('nearYouModel', () => {
 
   it('has no rows without pins', () => {
     expect(nearYouModel({ lat: 0, lng: 0, accuracyM: 5 }, [])).toEqual({ accuracy: 'Accuracy ±5 m', rows: [], farMessage: null });
+  });
+
+  it('says "here" below 10 m and leaves the direction out below 50 m, where GPS accuracy makes it meaningless', () => {
+    // Positions due north of S1 (48.78, 9.18); one degree of latitude is about 111 195 m.
+    const north = (m: number) => ({ lat: 48.78 + m / 111_195, lng: 9.18, accuracyM: 25 });
+    expect(nearYouModel(north(5), pins).rows[0]).toMatchObject({ distance: 'here', direction: null });
+    expect(nearYouModel(north(30), pins).rows[0]).toMatchObject({ distance: '30 m', direction: null });
+    expect(nearYouModel(north(80), pins).rows[0]).toMatchObject({ distance: '80 m', direction: 'S' });
+  });
+});
+
+describe('notOnMapSearchTarget', () => {
+  const item = (uid: string) => {
+    const b = makeBorehole({ uid, id: 'BK-13', onMap: false, lat: null, lng: null });
+    return { borehole: b, reason: notOnMapReason(b) };
+  };
+  // Two reports with a BK-13 each: the search step's uid decides, else the first listed.
+  const unplaced = [item('a:BK-13'), item('b:BK-13')];
+  const message = 'BK-13: No usable coordinates. Listed under Not on map.';
+
+  it('points at the listed borehole the not-on-map search message names', () => {
+    expect(notOnMapSearchTarget(message, unplaced, null)).toBe('a:BK-13');
+    expect(notOnMapSearchTarget(message, unplaced, 'b:BK-13')).toBe('b:BK-13');
+  });
+
+  it('points at nothing without that message', () => {
+    expect(notOnMapSearchTarget('', unplaced, 'b:BK-13')).toBeNull();
+    expect(notOnMapSearchTarget('No results for “BK-13”', unplaced, null)).toBeNull();
+    expect(notOnMapSearchTarget('SK-99: CRS unknown. Listed under Not on map.', unplaced, null)).toBeNull();
+  });
+
+  // F4: searching an off-map B after a missing A kept A's uid; the map highlighted A under B's message.
+  it("ignores an earlier search's uid that the message doesn't name", () => {
+    const a = { borehole: makeBorehole({ uid: 'x:TB-02', id: 'TB-02', lat: null, lng: null }), reason: notOnMapReason(makeBorehole()) };
+    const list = [a, ...unplaced];
+    expect(notOnMapSearchTarget(message, list, 'x:TB-02')).toBe('a:BK-13');
+    expect(notOnMapSearchTarget('TB-02: No usable coordinates. Listed under Not on map.', list, 'x:TB-02')).toBe('x:TB-02');
   });
 });

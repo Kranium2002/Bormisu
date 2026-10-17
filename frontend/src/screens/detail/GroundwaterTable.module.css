@@ -1,17 +1,18 @@
 .cols {
-  grid-template-columns: 160px 140px minmax(0, 1fr) 76px 30px;
+  grid-template-columns: 160px 140px minmax(0, 1fr) 84px 30px;
 }
 
 .type {
-  padding: 8px 14px;
+  padding: var(--space-2) var(--space-4);
 }
 
 .cell {
-  padding: 8px;
+  padding: var(--space-2);
   min-width: 0;
 }
 
+/* As printed, in quotes: the scan's own text, so it keeps its decimal comma. */
 .raw {
-  font: 12px var(--font-mono);
+  font: var(--fs-sm) var(--font-mono);
   color: var(--c-faint);
 }

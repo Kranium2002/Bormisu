@@ -38,23 +38,47 @@ function cell(v: ExtractedValue | undefined): string {
 /** Chips every value can carry: an open lint (red error / amber warning) and a review flag. */
 function reviewChips(v: ExtractedValue | undefined): Chip[] {
   const chips: Chip[] = [];
-  if (hasOpenLint(v)) chips.push({ label: 'LINT', tone: v.lint.severity === 'error' ? 'red' : 'amber', title: v.lint.message });
-  if (v?.status === 'flagged') chips.push({ label: 'FLAGGED', tone: 'amber', ...(v.flag ? { title: v.flag } : {}) });
+  if (hasOpenLint(v)) chips.push({ label: 'Lint', tone: v.lint.severity === 'error' ? 'red' : 'amber', title: v.lint.message });
+  if (v?.status === 'flagged') chips.push({ label: 'Flagged', tone: 'amber', ...(v.flag ? { title: v.flag } : {}) });
   return chips;
 }
 
-/** CRS status chip: INFERRED (amber) until confirmed in review; STATED / CONFIRMED green; UNKNOWN red. */
+/**
+ * CRS status chip: Inferred (amber) until confirmed in review, Confirmed green (a reviewer checked
+ * it), Stated grey (printed, not checked: green never means "correct"), Unknown red.
+ */
 export function crsChip(b: Borehole): Chip {
   switch (b.crs.status) {
     case 'inferred':
-      return { label: 'INFERRED', tone: 'amber', title: 'Not printed in the source. Confirm it in review.' };
+      return { label: 'Inferred', tone: 'amber', title: 'Not printed in the source. Confirm it in review.' };
     case 'confirmed':
-      return { label: 'CONFIRMED', tone: 'green' };
+      return { label: 'Confirmed', tone: 'green', title: 'Confirmed in review' };
     case 'stated':
-      return { label: 'STATED', tone: 'green' };
+      return { label: 'Stated', tone: 'grey', title: 'Printed in the source' };
     default:
-      return { label: 'UNKNOWN', tone: 'red', title: 'No usable coordinate system' };
+      return { label: 'Unknown', tone: 'red', title: 'No usable coordinate system' };
   }
+}
+
+/* ---------- source links ---------- */
+
+/** The source icon (or link) of a value: whether it opens the Source panel, its tooltip, and if it is faded. */
+export interface SourceLink {
+  clickable: boolean;
+  title: string;
+  /** Faded: there is no printed box to point at. */
+  dim: boolean;
+}
+
+/**
+ * Source link of a value key. Without a document there is no page to show. A value without its own
+ * page still opens the borehole's first page ("Box not found: page shown" in the panel).
+ */
+export function sourceLink(b: Borehole, key: string | null): SourceLink {
+  if (!b.documentId) return { clickable: false, title: 'No source page from the backend yet', dim: true };
+  if (!key) return { clickable: false, title: 'Nothing printed to show', dim: true };
+  const v = valueOf(b, key);
+  return { clickable: true, title: 'Show source', dim: !v || v.state === 'not in source' || v.page == null };
 }
 
 /* ---------- metadata ---------- */
@@ -64,25 +88,29 @@ export interface MetaRow {
   /** Value key for the Source panel; null when there is no value to show the source of. */
   key: string | null;
   shown: Shown;
+  /** A number, date or coordinate pair: shown in the mono face. Words stay in the sans. */
+  numeric: boolean;
   chips: Chip[];
   method: Method | null;
   confidence?: number;
   formula?: string;
-  /** The source icon is faded: nothing printed to point at. */
-  dimSource: boolean;
+  source: SourceLink;
 }
 
-function metaRow(b: Borehole, label: string, key: string, extraChips: (v: ExtractedValue | undefined) => Chip[] = () => []): MetaRow {
+function metaRow(
+  b: Borehole, label: string, key: string, numeric: boolean, extraChips: (v: ExtractedValue | undefined) => Chip[] = () => [],
+): MetaRow {
   const v = valueOf(b, key);
   return {
     label,
     key: v ? key : null,
     shown: shown(v),
+    numeric,
     chips: [...extraChips(v), ...reviewChips(v)],
     method: v?.method ?? null,
     confidence: v?.confidence,
     formula: v?.formula,
-    dimSource: !v || v.state === 'not in source' || v.page == null,
+    source: sourceLink(b, v ? key : null),
   };
 }
 
@@ -90,20 +118,23 @@ function metaRow(b: Borehole, label: string, key: string, extraChips: (v: Extrac
 export function metadataRows(b: Borehole): MetaRow[] {
   const rock = valueOf(b, K.rockHead);
   const rockRow: MetaRow = rock
-    ? metaRow(b, 'Rock head', K.rockHead)
+    ? metaRow(b, 'Rock head', K.rockHead, true)
     : // No rock layer in the log: rock head is derived as "not reached", nothing to point at.
-      { label: 'Rock head', key: null, shown: { text: 'not reached', missing: true }, chips: [], method: 'Derived', dimSource: true };
+      {
+        label: 'Rock head', key: null, shown: { text: 'not reached', missing: true }, numeric: true, chips: [], method: 'Derived',
+        source: sourceLink(b, null),
+      };
   return [
-    metaRow(b, 'Final depth', K.finalDepth),
+    metaRow(b, 'Final depth', K.finalDepth, true),
     rockRow,
-    metaRow(b, 'Surface elevation', K.elevation, (v) =>
-      v && v.state === 'ok' ? [{ label: 'DATUM UNCONFIRMED', tone: 'grey', title: v.note ?? 'Height datum stored as printed' }] : [],
+    metaRow(b, 'Surface elevation', K.elevation, true, (v) =>
+      v && v.state === 'ok' ? [{ label: 'Datum unconfirmed', tone: 'grey', title: v.note ?? 'Height datum stored as printed' }] : [],
     ),
-    metaRow(b, 'X / Y', K.xy),
-    metaRow(b, 'CRS', K.crs, () => [crsChip(b)]),
-    metaRow(b, 'Start date', K.startDate),
-    metaRow(b, 'Drilling method', K.method),
-    metaRow(b, 'Remarks', K.notes),
+    metaRow(b, 'X / Y', K.xy, true),
+    metaRow(b, 'CRS', K.crs, false, () => [crsChip(b)]),
+    metaRow(b, 'Start date', K.startDate, true),
+    metaRow(b, 'Drilling method', K.method, false),
+    metaRow(b, 'Remarks', K.notes, false),
   ];
 }
 
@@ -148,11 +179,14 @@ export function locationInfo(b: Borehole): LocationInfo {
 export interface SptCell {
   key: string;
   text: string;
+  /** The text is a state ("not in source", "illegible"): grey italics. */
+  missing: boolean;
   refusal: boolean;
   /** Red text: the SPT has an open lint (e.g. increments don't add up to N). */
   lint: boolean;
-  /** Tooltip of the R badge. */
+  /** Tooltip of the R badge and the SPT text. */
   title: string;
+  source: SourceLink;
 }
 
 export interface LayerRow {
@@ -168,21 +202,28 @@ export interface LayerRow {
   confidence: number;
   /** Key of the layer's lithology value: the row's source icon opens it. */
   sourceKey: string | null;
+  source: SourceLink;
 }
 
-function sptCell(l: Layer, v: ExtractedValue | undefined): SptCell | null {
+function sptCell(b: Borehole, l: Layer, v: ExtractedValue | undefined): SptCell | null {
   const spt = v?.spt ?? l.spt;
   if (!v && !spt) return null;
   const refusal = !!(v?.refusal ?? spt?.refusal);
   // A refusal shows what was printed ("50/30"), or what the reviewer entered, next to the R badge; never an N value.
   const printed = v?.method === 'Edited' ? v.value : v?.raw || spt?.raw;
-  const text = v && v.state !== 'ok' ? v.state : refusal ? (printed || DASH) : (v?.value || (spt ? formatSpt(spt) : DASH));
+  const missing = !!v && v.state !== 'ok';
+  const text = v && missing ? v.state : refusal ? (printed || DASH) : (v?.value || (spt ? formatSpt(spt) : DASH));
+  const key = v?.key ?? K.spt(l.n);
+  const source = sourceLink(b, key);
+  const action = source.clickable ? 'Click for source' : source.title;
   return {
-    key: v?.key ?? K.spt(l.n),
+    key,
     text,
+    missing,
     refusal,
     lint: hasOpenLint(v),
-    title: refusal && spt ? `${refusalTitle(spt)} Click for source.` : 'Click for source',
+    title: refusal && spt ? `${refusalTitle(spt)} ${action}.` : action,
+    source,
   };
 }
 
@@ -191,18 +232,20 @@ export function layerRows(b: Borehole): LayerRow[] {
   return b.layers.map((l) => {
     const lith = valueOf(b, K.lithology(l.n));
     const printed = lith?.raw || l.lithologyAsPrinted;
+    const sourceKey = lith?.key ?? null;
     return {
       n: l.n,
       range: `${l.from.toFixed(2)}–${l.to.toFixed(2)}`,
       lithology: lith ? shown(lith) : { text: l.lithology || 'not in source', missing: !l.lithology },
       printed: printed ? `As printed: ${printed}` : '',
       din: l.din || lith?.din || DASH,
-      spt: sptCell(l, valueOf(b, K.spt(l.n))),
+      spt: sptCell(b, l, valueOf(b, K.spt(l.n))),
       tcr: cell(valueOf(b, K.tcr(l.n))),
       rqd: cell(valueOf(b, K.rqd(l.n))),
       method: lith?.method ?? l.method,
       confidence: lith?.confidence ?? l.confidence,
-      sourceKey: lith?.key ?? null,
+      sourceKey,
+      source: sourceLink(b, sourceKey),
     };
   });
 }
@@ -228,6 +271,7 @@ export interface GroundwaterRow {
   raw: string;
   method: Method | null;
   confidence?: number;
+  source: SourceLink;
 }
 
 export const GW_LABEL: Record<GroundwaterReading['type'], string> = {
@@ -245,6 +289,7 @@ export function groundwaterRows(b: Borehole): GroundwaterRow[] {
       raw: v?.raw ? `“${v.raw}”` : '',
       method: v?.method ?? null,
       confidence: v?.confidence,
+      source: sourceLink(b, g.key),
     };
   });
 }

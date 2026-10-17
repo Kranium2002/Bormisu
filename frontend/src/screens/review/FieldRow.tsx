@@ -1,4 +1,4 @@
-import { memo, type KeyboardEvent, type MouseEvent } from 'react';
+import { memo, useEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { MethodBadge } from '../../components/MethodBadge';
 import { refusalTitle } from '../../domain/spt';
 import type { ExtractedValue, FieldState } from '../../domain/types';
@@ -40,6 +40,35 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
   const openSource = useAppStore((s) => s.openSource);
   const openCrsDialog = useAppStore((s) => s.openCrsDialog);
 
+  const rowRef = useRef<HTMLDivElement>(null);
+  const editBtn = useRef<HTMLButtonElement>(null);
+  const flagBtn = useRef<HTMLButtonElement>(null);
+  /** Mode of the inline edit that is open, kept to return focus to its button once it closes. */
+  const openMode = useRef<EditingState['mode'] | null>(null);
+
+  // After SAVE / CANCEL (Enter / Escape) focus goes back to the ✎ or ⚑ that opened the input,
+  // unless the user has moved on: another row focused, or focus already elsewhere.
+  useEffect(() => {
+    if (editing) {
+      openMode.current = editing.mode;
+      return;
+    }
+    const mode = openMode.current;
+    openMode.current = null;
+    if (!mode || !focused) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && !rowRef.current?.contains(active)) return;
+    (mode === 'flag' ? flagBtn : editBtn).current?.focus();
+  }, [editing, focused]);
+
+  // Keyboard focus inside a row (Tab to ✓ ✎ ⚑) makes it the focused row, so A / E / F act on it.
+  // Mouse focus doesn't: refocusing on mousedown would move the rows before the click lands.
+  const onRowFocus = (e: FocusEvent<HTMLDivElement>) => {
+    if (focused || useAppStore.getState().editing) return;
+    if (!(e.target instanceof Element) || !e.target.matches(':focus-visible')) return;
+    focusValue(v.key);
+  };
+
   const isState = v.state !== 'ok';
   const isLith = v.kind === 'lithology' && !isState;
   const approved = v.status === 'approved';
@@ -70,9 +99,11 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
 
   return (
     <div
+      ref={rowRef}
       data-key={v.key}
       className={`${styles.row} ${focused ? styles.focused : ''}`}
       onClick={() => focusValue(v.key)}
+      onFocus={onRowFocus}
       aria-current={focused ? 'true' : undefined}
     >
       <div className={styles.labelCell}>
@@ -84,14 +115,17 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
         {!isLith && !isState && (
           <div className={styles.pair}>
             <span className={styles.raw}>{rawText(v)}</span>
-            <span className={styles.arrow}>→</span>
-            {v.refusal && v.spt && (
-              <span className={styles.refusal} title={refusalTitle(v.spt)}>
-                R
+            {/* The arrow stays with the normalised value: when the line is too narrow, both wrap together. */}
+            <span className={styles.to}>
+              <span className={styles.arrow}>→</span>
+              {v.refusal && v.spt && (
+                <span className={styles.refusal} title={refusalTitle(v.spt)}>
+                  R
+                </span>
+              )}
+              <span className={`${styles.norm} ${valueIsError ? styles.normError : ''}`} title={sptTitle(v)}>
+                {normText}
               </span>
-            )}
-            <span className={`${styles.norm} ${valueIsError ? styles.normError : ''}`} title={sptTitle(v)}>
-              {normText}
             </span>
           </div>
         )}
@@ -135,7 +169,7 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
               SAVE
             </button>
             <button type="button" className={styles.cancel} onClick={cancelEdit}>
-              Cancel
+              CANCEL
             </button>
           </div>
         )}
@@ -164,27 +198,32 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
         <button
           type="button"
           className={`${styles.act} ${styles.actApprove} ${approved ? styles.actApproved : ''}`}
-          title={approved ? 'Approved: click to undo' : 'Approve'}
+          title={approved ? 'Approved: click to undo (A)' : 'Approve (A)'}
           aria-label={`Approve ${v.label}`}
+          aria-keyshortcuts="A"
           aria-pressed={approved}
           onClick={() => toggleApprove(v.key)}
         >
           ✓
         </button>
         <button
+          ref={editBtn}
           type="button"
           className={styles.act}
-          title="Edit"
+          title="Edit (E)"
           aria-label={`Edit ${v.label}`}
+          aria-keyshortcuts="E"
           onClick={() => startEdit(v.key, 'edit')}
         >
           ✎
         </button>
         <button
+          ref={flagBtn}
           type="button"
           className={`${styles.act} ${flagged ? styles.actFlagged : ''}`}
-          title={flagged ? 'Flagged: click to remove the flag' : 'Flag'}
+          title={flagged ? 'Flagged: click to remove the flag (F)' : 'Flag (F)'}
           aria-label={`Flag ${v.label}`}
+          aria-keyshortcuts="F"
           aria-pressed={flagged}
           onClick={() => toggleFlag(v.key)}
         >

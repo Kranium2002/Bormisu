@@ -235,6 +235,18 @@ describe('search ranking', () => {
     expect(st().flyTarget?.uid).toBe('doc:TB-01');
   });
 
+  // F4: an off-map result kept the previous result's fly target, so the map pointed at that one.
+  it('drops the previous fly target for a borehole that is not on the map', async () => {
+    await ready(withBoreholes(makeBorehole(), makeBorehole({ uid: 'doc:TB-13', id: 'TB-13', onMap: false, lat: null, lng: null, unplottedReason: 'No coordinates in the log' })));
+    useAppStore.setState({ query: 'TB-01' });
+    st().search();
+    expect(st().flyTarget?.uid).toBe('doc:TB-01');
+    useAppStore.setState({ query: 'TB-13' });
+    st().search();
+    expect(st().flyTarget).toBeNull();
+    expect(st().searchMessage).toBe('TB-13: No coordinates in the log. Listed under Not on map.');
+  });
+
   it('ignores an empty query', () => {
     useAppStore.setState({ query: '   ' });
     st().search();

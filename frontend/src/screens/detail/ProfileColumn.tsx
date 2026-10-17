@@ -1,5 +1,4 @@
 import type { KeyboardEvent } from 'react';
-import { decimalComma } from '../../domain/format';
 import { K } from '../../domain/keys';
 import type { Borehole, Layer, PatternId } from '../../domain/types';
 import { COL, PATTERN_FILLS, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
@@ -7,9 +6,8 @@ import { GW_LABEL } from './detailModel';
 import {
   depthScale,
   depthTicks,
-  firstRefusal,
+  drawnMarks,
   gwTriangle,
-  isStated,
   notLogged,
   PROFILE_H,
   PROFILE_TOP,
@@ -101,9 +99,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
   const nl = notLogged(b);
   const sel = b.layers.find((l) => l.n === selectedLayer);
   // Measurements the reviewer marked "not in source" / "illegible" aren't drawn.
-  const refusal = firstRefusal(b.layers.filter((l) => isStated(b, K.spt(l.n))));
-  const groundwater = b.groundwater.filter((g) => isStated(b, g.key));
-  const rockHead = isStated(b, K.rockHead) ? b.rockHead : null;
+  const { refusal, groundwater, rockHead } = drawnMarks(b);
   const etY = y(depth) + 18;
   // The rock head line and its label already give that depth; a bottom label there would be crossed out.
   const onRockHead = (d: number) => rockHead != null && Math.abs(d - rockHead) < 0.005;
@@ -124,7 +120,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       // A group, not an img: an img's children are presentational, and the layers, GW triangles
       // and the R marker inside are buttons.
       role="group"
-      aria-label={`DIN 4023 profile of ${b.id}, ${b.layers.length} layers, final depth ${b.finalDepth != null ? `${decimalComma(b.finalDepth)} m` : 'not stated'}`}
+      aria-label={`DIN 4023 profile of ${b.id}, ${b.layers.length} layers, final depth ${b.finalDepth != null ? `${b.finalDepth.toFixed(2)} m` : 'not stated'}`}
     >
       <PatternDefs />
 
@@ -145,7 +141,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
         const h = (blk.to - blk.from) * s;
         return (
           <g key={`${blk.code}-${blk.from}`}>
-            <title>{`Stratigraphy ${blk.code || 'not stated'}: ${decimalComma(blk.from)}–${decimalComma(blk.to)} m`}</title>
+            <title>{`Stratigraphy ${blk.code || 'not stated'}: ${blk.from.toFixed(2)}–${blk.to.toFixed(2)} m`}</title>
             <rect x={X.stratX} y={y(blk.from)} width={X.stratW} height={h} fill={STRAT_COLORS[blk.code] ?? STRAT_FALLBACK} stroke={INK} />
             {h > 14 && (
               <text x={X.stratMid} y={y((blk.from + blk.to) / 2) + 4} fontSize="10" textAnchor="middle" fill={INK}>
@@ -166,7 +162,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             className={styles.hit}
             role="button"
             tabIndex={0}
-            aria-label={`Layer ${l.n}: ${l.lithology}, ${decimalComma(l.from)}–${decimalComma(l.to)} m`}
+            aria-label={`Layer ${l.n}: ${l.lithology}, ${l.from.toFixed(2)}–${l.to.toFixed(2)} m`}
             aria-pressed={l.n === selectedLayer}
             onClick={select}
             onKeyDown={onKeyActivate(select)}
@@ -176,7 +172,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             <rect x={X.layerX} y={y(l.from)} width={X.layerW} height={h} fill={`url(#${pat(l.pattern)})`} stroke={INK} />
             <line x1={X.layerX + X.layerW} y1={y(l.to)} x2={X.bottomTickTo} y2={y(l.to)} stroke={INK} />
             {!onRockHead(l.to) && (
-              <text x={X.bottomLabel} y={y(l.to) + 4} fontSize="10" fill={INK}>{decimalComma(l.to)}</text>
+              <text x={X.bottomLabel} y={y(l.to) + 4} fontSize="10" fill={INK}>{l.to.toFixed(2)}</text>
             )}
             {h > 12 && (
               <text x={X.code} y={codeY(l)} fontSize="11" fontWeight="700" fill={INK}>{l.din}</text>
@@ -210,16 +206,16 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       )}
 
       <text x={X.layerMid} y={etY} fontSize="10" textAnchor="middle" fill={INK}>
-        {b.finalDepth != null && b.finalDepth > 0 ? `ET ${decimalComma(b.finalDepth)} m` : 'ET not stated'}
+        {b.finalDepth != null && b.finalDepth > 0 ? `ET ${b.finalDepth.toFixed(2)} m` : 'ET not stated'}
       </text>
 
       {/* rock head */}
       {rockHead != null && (
         <g>
-          <title>{`Rock head ${decimalComma(rockHead)} m`}</title>
+          <title>{`Rock head ${rockHead.toFixed(2)} m`}</title>
           <line x1={X.rockFrom} y1={y(rockHead)} x2={X.rockTo} y2={y(rockHead)} stroke={COL.dark} strokeWidth="1.5" strokeDasharray="6 3" />
           <text x={X.code} y={y(rockHead) + 14} fontSize="10" fill={COL.dark} fontWeight="700">
-            {`rock head ${decimalComma(rockHead)}`}
+            {`rock head ${rockHead.toFixed(2)}`}
           </text>
         </g>
       )}
@@ -288,25 +284,36 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
   );
 }
 
-/** Legend under the profile. */
-export function ProfileLegend() {
+/** Legend under the profile: only the symbols this profile draws. Nothing drawn, no legend. */
+export function ProfileLegend({ borehole }: { borehole: Borehole }) {
+  const { groundwater, refusal } = drawnMarks(borehole);
+  const strike = groundwater.some((g) => g.type === 'strike');
+  // Rest levels and other readings share the hollow triangle.
+  const hollow = [...new Set(groundwater.filter((g) => g.type !== 'strike').map((g) => g.type))];
+  if (!strike && hollow.length === 0 && !refusal) return null;
   return (
     <div className={styles.legend}>
-      <span className={styles.legendItem}>
-        <svg width="12" height="10" aria-hidden="true">
-          <path d="M1 1 L11 1 L6 9 Z" fill={COL.gw} />
-        </svg>
-        GW strike
-      </span>
-      <span className={styles.legendItem}>
-        <svg width="12" height="10" aria-hidden="true">
-          <path d="M1 1 L11 1 L6 9 Z" fill="#fff" stroke={COL.gw} strokeWidth="1.5" />
-        </svg>
-        GW rest level
-      </span>
-      <span className={styles.legendItem}>
-        <span className={styles.rBadge}>R</span>SPT refusal (click)
-      </span>
+      {strike && (
+        <span className={styles.legendItem}>
+          <svg width="12" height="10" aria-hidden="true">
+            <path d="M1 1 L11 1 L6 9 Z" fill={COL.gw} />
+          </svg>
+          GW strike
+        </span>
+      )}
+      {hollow.length > 0 && (
+        <span className={styles.legendItem}>
+          <svg width="12" height="10" aria-hidden="true">
+            <path d="M1 1 L11 1 L6 9 Z" fill="#fff" stroke={COL.gw} strokeWidth="1.5" />
+          </svg>
+          {`GW ${hollow.map((t) => GW_LABEL[t].toLowerCase()).join(', ')}`}
+        </span>
+      )}
+      {refusal && (
+        <span className={styles.legendItem}>
+          <span className={styles.rBadge} aria-hidden="true">R</span>SPT refusal: click for source
+        </span>
+      )}
     </div>
   );
 }

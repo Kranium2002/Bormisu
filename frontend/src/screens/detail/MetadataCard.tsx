@@ -28,19 +28,21 @@ export function MetadataCard({ borehole: b, onOpenSource }: Props) {
         <div className={card.head}>METADATA</div>
         {rows.map((r) => {
           const key = r.key;
+          // Numbers in the mono face; words and "not in source" stay in the sans.
+          const face = r.shown.missing ? card.missing : r.numeric ? card.mono : '';
           return (
             <div key={r.label} className={styles.row}>
               <div className={styles.label}>{r.label}</div>
               <div className={styles.value}>
-                <span className={`${card.mono} ${r.shown.missing ? card.missing : ''}`}>{r.shown.text}</span>
+                <span className={face}>{r.shown.text}</span>
                 <Chips chips={r.chips} />
               </div>
               <div>{r.method && <MethodBadge method={r.method} confidence={r.confidence} formula={r.formula} />}</div>
               <div>
                 <SourceIcon
-                  dim={r.dimSource}
-                  title={key ? 'Show source' : 'Nothing printed to show'}
-                  onClick={key ? () => onOpenSource(key) : undefined}
+                  dim={r.source.dim}
+                  title={r.source.title}
+                  onClick={r.source.clickable && key ? () => onOpenSource(key) : undefined}
                 />
               </div>
             </div>

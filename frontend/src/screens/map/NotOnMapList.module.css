@@ -1,22 +1,21 @@
 .aside {
   overflow: auto;
-  padding: 18px;
+  padding: var(--space-4);
   background: var(--c-surface);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .title {
   margin: 0;
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.07em;
+  font: 800 var(--fs-sm) var(--font-sans);
+  letter-spacing: var(--ls-head);
 }
 
 .intro {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
   line-height: 1.45;
 }
@@ -28,7 +27,7 @@
   border: 0;
   border-top: 1px solid var(--c-line);
   margin: 0;
-  padding: 9px 0 0;
+  padding: var(--space-2) 0 0;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -43,17 +42,29 @@
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--c-green);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
+/* The borehole a search just pointed to: selected background and a green edge, across the aside's padding. */
+.itemActive {
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-2) var(--space-4);
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-green);
+}
+
+.itemActive:focus-visible {
+  outline-offset: -2px;
+}
+
 .id {
-  font: 600 13px var(--font-mono);
+  font: 600 var(--fs-md) var(--font-mono);
 }
 
 .project,
 .reason {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
 }
 
@@ -64,7 +75,7 @@
 /* One line for the boreholes outside the focus country, with the way back to World. */
 .outside {
   border-top: 1px solid var(--c-line);
-  padding-top: 9px;
+  padding-top: var(--space-2);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -73,26 +84,11 @@
 
 .outsideText {
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
+/* SHOW WORLD ›: a text button, its text in line with the text above. */
 .showWorld {
-  appearance: none;
-  background: none;
-  border: 0;
-  margin: 4px 0 0;
-  padding: 0;
-  font: 700 11px var(--font-sans);
-  letter-spacing: 0.05em;
-  color: var(--c-green-text);
-  cursor: pointer;
-}
-
-.showWorld:hover {
-  text-decoration: underline;
-}
-
-.showWorld:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: 2px;
+  composes: quiet link from '../../styles/buttons.module.css';
+  margin: var(--space-1) 0 0 calc(-1 * var(--space-2));
 }

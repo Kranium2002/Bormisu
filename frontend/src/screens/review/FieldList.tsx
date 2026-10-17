@@ -8,19 +8,20 @@ import { fieldNote, normalisedText, reviewRows } from './reviewView';
 /** Space kept above a row scrolled into view (prototype: offsetTop - 60), clears the sticky column header. */
 const ROW_OFFSET = 60;
 
-/** Scrolls a row into view unless it is already fully visible below the sticky header. */
+/** Scrolls a row into view unless it is already fully visible between the sticky header and the key hint. */
 function reveal(list: HTMLElement, key: string | null | undefined, behavior: ScrollBehavior) {
   if (!key) return;
   const row = list.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
   if (!row) return;
   const head = (list.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
+  const foot = (list.lastElementChild as HTMLElement | null)?.offsetHeight ?? 0;
   const top = row.offsetTop;
   const bottom = top + row.offsetHeight;
-  if (top >= list.scrollTop + head && bottom <= list.scrollTop + list.clientHeight) return;
+  if (top >= list.scrollTop + head && bottom <= list.scrollTop + list.clientHeight - foot) return;
   list.scrollTo({ top: Math.max(0, top - ROW_OFFSET), behavior });
 }
 
-/** Right half of the Review screen: sticky column header and the grouped field rows. */
+/** Right half of the Review screen: sticky column header, the grouped field rows and a sticky key hint. */
 export function FieldList({ b }: { b: Borehole }) {
   const focusKey = useAppStore((s) => s.focusKey);
   const editing = useAppStore((s) => s.editing);
@@ -76,6 +77,23 @@ export function FieldList({ b }: { b: Borehole }) {
           />
         ),
       )}
+      <div className={styles.keys}>
+        <span>
+          <kbd>J</kbd>/<kbd>K</kbd> move
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd>A</kbd> approve
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd>E</kbd> edit
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <kbd>F</kbd> flag
+        </span>
+      </div>
     </div>
   );
 }

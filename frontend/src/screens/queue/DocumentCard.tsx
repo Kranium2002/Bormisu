@@ -10,7 +10,7 @@ import { StatusSteps } from './StatusSteps';
 /** Completeness chip ("Report lists 14 · extracted 13 · ⚠ 1 missing") that opens the Completeness panel. */
 function CompletenessChip({ doc }: { doc: DocumentSummary }) {
   const openCompleteness = useAppStore((s) => s.openCompleteness);
-  if (!doc.completeness) return <span className={styles.muted}>checks run after extraction</span>;
+  if (!doc.completeness) return <span className={styles.muted}>Checks run after extraction</span>;
   const summary = completenessSummary(doc.completeness);
   const onClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -28,10 +28,10 @@ function CompletenessChip({ doc }: { doc: DocumentSummary }) {
   );
 }
 
-/** Found counts ("13 BH · 63 layers · …"), or "not processed yet" before extraction. */
+/** Found counts ("13 BH · 63 layers · …"), or "Not processed yet" before extraction. */
 function CountChips({ counts }: { counts: DocumentSummary['counts'] }) {
   const chips = countChips(counts);
-  if (!chips) return <span className={styles.muted}>not processed yet</span>;
+  if (!chips) return <span className={styles.muted}>Not processed yet</span>;
   return (
     <ul className={styles.counts} aria-label="Found">
       {chips.map((c) => (

@@ -212,6 +212,19 @@ describe('navigation', () => {
     expect(st().editing).toBeNull();
   });
 
+  it('F07: Escape on the approve-all-clean confirm closes it and keeps an unsaved inline edit', () => {
+    useAppStore.setState({ screen: 'review' });
+    st().startEdit(K.finalDepth, 'edit');
+    st().setEditText('6.50');
+    st().askClean();
+    expect(st().confirmCleanOpen).toBe(true);
+    st().escape();
+    expect(st().confirmCleanOpen).toBe(false);
+    expect(st().editing).toMatchObject({ key: K.finalDepth, mode: 'edit', text: '6.50' });
+    st().escape();
+    expect(st().editing).toBeNull();
+  });
+
   it('c24: a query of only dashes finds nothing', () => {
     for (const q of ['-', '--', ' - ']) {
       useAppStore.setState({ query: q, flyTarget: null });

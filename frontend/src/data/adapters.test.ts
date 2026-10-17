@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { K } from '../domain/keys';
-import { boreholeStatus } from '../domain/review';
+import { boreholeStatus, cleanKeys } from '../domain/review';
 import {
   adaptBorehole,
   adaptCrsCandidates,
@@ -102,6 +102,50 @@ describe('adaptBorehole', () => {
     const { borehole } = adaptBorehole({ metadata: { borehole_id: 'BH-1', coordinates: { latitude: 0, longitude: 0 } } });
     expect(borehole).toMatchObject({ uid: 'doc:BH-1', onMap: false, lat: null, unplottedReason: 'No coordinates in source' });
   });
+
+  // int-02: two reports with an FX-1 each both got the uid "doc:FX-1" (INTEGRATION.md pitfall 2).
+  it('tells the same borehole ID in two reports apart without a backend uid', () => {
+    const a = adaptBorehole({ source_file: 'north_GI.pdf', metadata: { borehole_id: 'FX-1' } }).borehole;
+    const b = adaptBorehole({ source_file: 'south_GI.pdf', metadata: { borehole_id: 'FX-1' } }).borehole;
+    const c = adaptBorehole({ document_id: 'd9', source_file: 'south_GI.pdf', metadata: { borehole_id: 'FX-1' } }).borehole;
+    expect([a.uid, b.uid, c.uid]).toEqual(['north_GI.pdf:FX-1', 'south_GI.pdf:FX-1', 'd9:FX-1']);
+  });
+
+  // int-04: an SPT without provenance counted as Read, so APPROVE ALL CLEAN approved an unchecked value.
+  it('gives an SPT without provenance the method Guessed, so it is not clean', () => {
+    const { borehole } = adaptBorehole({
+      uid: 'd:TB-02', document_id: 'd', metadata: { borehole_id: 'TB-02' },
+      stratigraphy: [{ depth_from_m: 0, depth_to_m: 3, spt_n_value: 12 }],
+    });
+    expect(borehole.values.find((x) => x.key === K.spt(1))).toMatchObject({ method: 'Guessed', value: 'N = 12' });
+    expect(cleanKeys(borehole)).not.toContain(K.spt(1));
+  });
+});
+
+// int-05: the backend's default "WGS84" showed as a stated CRS, even without coordinates.
+describe('adaptBorehole CRS status without crs_status', () => {
+  const crs = (rec: Partial<ApiBoreholeRecord>, coordinates: NonNullable<ApiBoreholeRecord['metadata']['coordinates']>) =>
+    adaptBorehole({ metadata: { borehole_id: 'TB-03', coordinates }, ...rec }).borehole.crs.status;
+
+  it('is stated when the coordinate system was read from the report', () => {
+    const provenance = { 'metadata.coordinates.coordinate_system': { page: 2, raw: 'Gauß-Krüger Zone 3', method: 'read' } };
+    expect(crs({ provenance }, { local_x: 3513420, local_y: 5405870, coordinate_system: 'EPSG:31467' })).toBe('stated');
+  });
+
+  it('is inferred when there are coordinates but the system has no source text', () => {
+    expect(crs({}, { latitude: 48.79, longitude: 9.18, coordinate_system: 'WGS84' })).toBe('inferred');
+    const provenance = { 'metadata.coordinates.coordinate_system': { page: 2, raw: '  ', method: 'guessed' } };
+    expect(crs({ provenance }, { local_x: 3513420, local_y: 5405870, coordinate_system: 'WGS84' })).toBe('inferred');
+  });
+
+  it('is unknown without coordinates', () => {
+    expect(crs({}, { coordinate_system: 'WGS84' })).toBe('unknown');
+    expect(crs({}, { latitude: 0, longitude: 0 })).toBe('unknown');
+  });
+
+  it('keeps the backend status when there is one', () => {
+    expect(crs({ crs_status: 'confirmed' }, { latitude: 48.79, longitude: 9.18, coordinate_system: 'WGS84' })).toBe('confirmed');
+  });
 });
 
 describe('patternFor', () => {
@@ -184,8 +228,14 @@ describe('patchActions', () => {
     ]);
   });
 
-  it('refuses undo, which the backend does not support yet', () => {
-    expect(() => patchActions({ status: 'unreviewed' }, depth)).toThrow(/not supported/);
+  // int-07: undo is sent as a reset (INTEGRATION.md §3 item 7), after any state change.
+  it('sends un-approve, un-flag and clearing a state as a reset', () => {
+    expect(patchActions({ status: 'unreviewed' }, depth)).toEqual([{ bodies: [{ path: p, action: 'reset' }], applied: { status: 'unreviewed' } }]);
+    expect(patchActions({ status: 'unreviewed', flag: undefined }, depth).map((s) => s.applied)).toEqual([{ status: 'unreviewed', flag: undefined }]);
+    expect(bodies({ state: 'ok', status: 'unreviewed' }, depth)).toEqual([
+      { path: p, action: 'set_state', state: 'ok' },
+      { path: p, action: 'reset' },
+    ]);
   });
 
   // Regression (c7): an alphanumeric ID "0007" was sent as the number 7.

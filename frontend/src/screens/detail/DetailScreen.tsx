@@ -39,7 +39,7 @@ export function DetailScreen() {
       <EmptyState
         title="NO BOREHOLE SELECTED"
         message="Pick a borehole on the map or in the results table."
-        action={{ label: 'OPEN MAP', onClick: () => go('map') }}
+        action={{ label: 'OPEN MAP ›', onClick: () => go('map') }}
       />
     );
   }
@@ -80,7 +80,7 @@ export function DetailScreen() {
             <span className={styles.profileNote}>DIN 4023 · depth in m bgl</span>
           </div>
           <ProfileColumn borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
-          <ProfileLegend />
+          <ProfileLegend borehole={b} />
         </section>
 
         <div className={styles.right}>

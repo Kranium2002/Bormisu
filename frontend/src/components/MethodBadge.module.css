@@ -1,10 +1,5 @@
+/* Colours are runtime values (METHOD_COLORS); none of them is green. */
 .badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: 2px;
-  white-space: nowrap;
+  composes: chip from '../styles/chips.module.css';
   cursor: default;
 }

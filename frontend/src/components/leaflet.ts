@@ -33,6 +33,13 @@ export function removeMap(map: L.Map): void {
   internals._panAnim?.off();
 }
 
+/** The attribution prefix of every map with the default attribution control: a plain "Leaflet" link. */
+export const LEAFLET_PREFIX = '<a href="https://leafletjs.com">Leaflet</a>';
+
+// Set once, before any map exists (every map module imports this file), so each map that is
+// created afterwards gets this prefix instead of Leaflet's default. compactAttribution() has none.
+L.Control.Attribution.mergeOptions({ prefix: LEAFLET_PREFIX });
+
 /** OSM's tile usage policy asks for the single host, not the old a/b/c subdomains. */
 export const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 export const OSM_ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';

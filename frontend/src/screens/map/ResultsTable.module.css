@@ -10,19 +10,18 @@
 .head {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  padding: 12px 24px 10px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-2);
 }
 
 .title {
   margin: 0;
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.07em;
+  font: 800 var(--fs-sm) var(--font-sans);
+  letter-spacing: var(--ls-head);
 }
 
 .summary {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--c-muted);
 }
 
@@ -31,7 +30,7 @@
 .scroll {
   overflow: auto;
   flex: 1;
-  padding: 0 14px;
+  padding: 0 var(--space-3);
 }
 
 .row {
@@ -44,40 +43,35 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  margin: 0 -14px;
-  padding: 0 14px;
+  margin: 0 calc(-1 * var(--space-3));
+  padding: 0 var(--space-3);
   background: var(--c-line);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--ls-caps);
   color: var(--c-muted);
 }
 
 .header .cell {
-  padding: 8px 10px;
+  padding: var(--space-2) var(--space-3);
 }
 
 .body {
-  font-size: 13px;
+  font-size: var(--fs-md);
   border-bottom: 1px solid var(--c-line);
 }
 
 .cell {
-  padding: 7px 10px;
+  padding: var(--space-2) var(--space-3);
   min-width: 0;
 }
 
+/* The whole row opens the detail with the pointer; the OPEN DETAIL › button is the keyboard way. */
 .clickable {
   cursor: pointer;
 }
 
 .clickable:hover {
-  background: var(--c-hover);
-}
-
-.clickable:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: -2px;
   background: var(--c-hover);
 }
 
@@ -98,16 +92,18 @@
   color: var(--c-amber-text);
 }
 
+/* The button's own padding replaces the cell's, so the row keeps the height of a text row. */
+.actionCell {
+  padding: 0;
+}
+
 .action {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  color: var(--c-green-text);
+  composes: quiet link from '../../styles/buttons.module.css';
 }
 
 .empty {
-  padding: 18px 10px;
-  font-size: 13px;
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--fs-md);
   color: var(--c-muted);
 }
 
@@ -119,10 +115,10 @@
 .footer {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 8px 24px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-5);
   border-top: 1px solid var(--c-border);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   background: var(--c-surface);
 }
@@ -133,22 +129,6 @@
 }
 
 .showWorld {
-  appearance: none;
-  background: none;
-  border: 0;
-  margin: 0 0 0 auto;
-  padding: 0;
-  font: 700 11px var(--font-sans);
-  letter-spacing: 0.05em;
-  color: var(--c-green-text);
-  cursor: pointer;
-}
-
-.showWorld:hover {
-  text-decoration: underline;
-}
-
-.showWorld:focus-visible {
-  outline: 2px solid var(--c-green);
-  outline-offset: 2px;
+  composes: quiet link from '../../styles/buttons.module.css';
+  margin-left: auto;
 }

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useDialogFocus } from '../../components/useDialogFocus';
 import type { CrsCandidate } from '../../domain/types';
 import { useAppStore, useReviewBorehole } from '../../store/appStore';
 import styles from './CrsDialog.module.css';
@@ -17,6 +18,8 @@ const NOTE_CLASS: Record<CrsCandidate['verdict'], string> = {
  * CONFIRM FOR WHOLE DOCUMENT (disabled for an out-of-range candidate). App renders it while
  * crsDialogOpen is true; Escape closes it via the store. The store preselects the candidate the
  * document currently uses and reports loading via crsLoading.
+ * Candidates are native radio buttons (arrow keys move between them), drawn as cards. Tab stays
+ * inside the dialog; closing it returns focus to CHOOSE CRS….
  */
 export function CrsDialog() {
   const candidates = useAppStore((s) => s.crsCandidates);
@@ -36,9 +39,7 @@ export function CrsDialog() {
   const current = candidates[pick];
   const canConfirm = !!current && current.verdict !== 'out_of_range' && !busy;
 
-  useEffect(() => {
-    dialog.current?.focus();
-  }, []);
+  useDialogFocus(dialog, { trap: true });
 
   const onConfirm = async () => {
     if (!canConfirm) return;
@@ -89,18 +90,19 @@ export function CrsDialog() {
             <div className={styles.intro}>{crsIntro(b, candidates)}</div>
             <div className={styles.cands} role="radiogroup" aria-label="CRS candidates">
               {candidates.map((c, i) => (
-                <button
-                  key={c.code}
-                  type="button"
-                  role="radio"
-                  aria-checked={i === pick}
-                  className={`${styles.cand} ${i === pick ? styles.candPicked : ''}`}
-                  onClick={() => pickCrs(i)}
-                >
+                <label key={c.code} className={`${styles.cand} ${i === pick ? styles.candPicked : ''}`}>
+                  <input
+                    type="radio"
+                    name="crs-candidate"
+                    className={styles.radio}
+                    value={c.code}
+                    checked={i === pick}
+                    onChange={() => pickCrs(i)}
+                  />
                   <span className={styles.candName}>{c.name}</span>
                   <span className={styles.candCode}>{c.code}</span>
                   <span className={NOTE_CLASS[c.verdict]}>{c.note}</span>
-                </button>
+                </label>
               ))}
               {!candidates.length && (
                 <div className={styles.none}>

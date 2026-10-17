@@ -5,6 +5,17 @@ import type { Borehole, DocumentSummary } from '../domain/types';
 import { makeBorehole, makeValue } from '../test/fixtures';
 import { useAppStore } from './appStore';
 
+/**
+ * init() gets its source from createDataSource once and keeps it. The mock hands it a proxy that
+ * forwards to `initSource.current`, so each test can swap the fake source behind it.
+ */
+const initSource = vi.hoisted(() => ({ current: null as DataSource | null }));
+vi.mock('../data/createDataSource', async (orig) => ({
+  ...(await orig<typeof import('../data/createDataSource')>()),
+  createDataSource: async () =>
+    new Proxy({} as DataSource, { get: (_target, prop) => (initSource.current ? Reflect.get(initSource.current, prop) : undefined) }),
+}));
+
 const doc: DocumentSummary = {
   id: 'doc', name: 'test_report.pdf', project: 'Test Project (fictional)', pageTypes: ['text', 'log'], step: 2,
   counts: null, completeness: null, reviewBoreholeUid: 'doc:TB-01',
@@ -92,7 +103,7 @@ describe('review actions', () => {
 describe('escape', () => {
   beforeEach(() => ready());
 
-  it('closes one layer per press: editing, confirm, export, CRS dialog, panel', () => {
+  it('closes one layer per press: confirm, editing, export, CRS dialog, panel', () => {
     useAppStore.setState({
       editing: { key: 'x', mode: 'edit', text: '' }, confirmCleanOpen: true, exportOpen: true, crsDialogOpen: true,
       panel: { kind: 'completeness', documentId: 'doc' },
@@ -256,5 +267,49 @@ describe('uploads', () => {
     expect(st().dropError).toBe('File type not supported: notes.txt');
     expect(upload.mock.calls[0][0].map((f) => f.name)).toEqual(['a.pdf']);
     expect(st().documents.map((d) => d.id)).toEqual(['new', 'doc']);
+  });
+});
+
+describe('init', () => {
+  it('int-01: takes documentsUnavailable from load and resets it on retry', async () => {
+    initSource.current = fakeSource({ load: async () => ({ boreholes: [makeBorehole()], documents: [], documentsUnavailable: true }) });
+    await st().init();
+    expect(st()).toMatchObject({ loadState: 'ready', documentsUnavailable: true, documents: [] });
+
+    initSource.current = fakeSource({ load: () => Promise.reject(new Error('Backend endpoint not available: GET /api/v1/boreholes')) });
+    const retry = st().init();
+    expect(st()).toMatchObject({ loadState: 'loading', documentsUnavailable: false });
+    await retry;
+    expect(st()).toMatchObject({ loadState: 'error', documentsUnavailable: false });
+
+    initSource.current = fakeSource();
+    await st().init();
+    expect(st()).toMatchObject({ loadState: 'ready', documentsUnavailable: false });
+    expect(st().documents.map((d) => d.id)).toEqual(['doc']);
+  });
+
+  it('int-12: asks the backend health once per load and keeps its mode', async () => {
+    const health = vi.fn<NonNullable<DataSource['health']>>(async () => ({ mode: 'demo' }));
+    initSource.current = fakeSource({ health });
+    await st().init();
+    await vi.waitFor(() => expect(st().backendMode).toBe('demo'));
+    expect(health).toHaveBeenCalledTimes(1);
+  });
+
+  it('int-12: no health check, no answer or a failing one leaves the mode unknown', async () => {
+    useAppStore.setState({ backendMode: null });
+    initSource.current = fakeSource();
+    await st().init();
+    expect(st().backendMode).toBeNull();
+
+    initSource.current = fakeSource({ health: async () => null });
+    await st().init();
+    await Promise.resolve();
+    expect(st().backendMode).toBeNull();
+
+    initSource.current = fakeSource({ health: () => Promise.reject(new Error('Cannot reach the Bormisu backend')) });
+    await st().init();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(st()).toMatchObject({ loadState: 'ready', backendMode: null, toast: null });
   });
 });

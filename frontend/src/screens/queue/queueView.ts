@@ -1,6 +1,7 @@
 /**
  * Pure view logic of the Upload & queue screen (prototype `renderVals` docs mapping):
- * status steps, card hint, count chips, page-strip tooltips. No React, unit-tested.
+ * status steps, card hint, count chips, page-strip tooltips, the drop zone's error line. No React,
+ * unit-tested.
  */
 import type { DocumentStep, DocumentSummary, PageType } from '../../domain/types';
 import { PAGE_TYPE_META, pageUsage } from '../../theme';
@@ -44,7 +45,7 @@ export interface HintView { text: string; tone: HintTone }
 /** Bottom-right hint of a card, in the prototype's order of precedence (failures first). */
 export function docHint(d: DocumentSummary): HintView | null {
   if (d.error) return { text: `Extraction failed: ${d.error}`, tone: 'error' };
-  if (canOpenReview(d)) return { text: 'OPEN REVIEW ›', tone: 'action' };
+  if (canOpenReview(d)) return { text: 'OPEN IN REVIEW ›', tone: 'action' };
   if (d.step === 3) return { text: 'All boreholes reviewed', tone: 'muted' };
   if (d.simulated && d.step === 2) return { text: 'Simulated: live extraction needs an API key', tone: 'muted' };
   if (d.step < 2) return { text: 'Processing…', tone: 'muted' };
@@ -82,4 +83,16 @@ export function pageTitle(type: PageType, page: number): string {
 /** Pages that are not classified yet can't be opened in the Source panel. */
 export function canOpenPage(type: PageType): boolean {
   return type !== 'unknown';
+}
+
+/** Start of the store's message for dropped files of another type ("File type not supported: notes.txt"). */
+const UNSUPPORTED_TYPE = 'File type not supported';
+
+/**
+ * The drop zone's error line: the store's message as a sentence, followed by what to do when the file
+ * type was the problem ("File type not supported: notes.txt. Use PDF, DOCX, JPG or PNG.").
+ */
+export function dropErrorText(message: string): string {
+  const sentence = /[.!?…]$/.test(message) ? message : `${message}.`;
+  return message.startsWith(UNSUPPORTED_TYPE) ? `${sentence} Use PDF, DOCX, JPG or PNG.` : sentence;
 }

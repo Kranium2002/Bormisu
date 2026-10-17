@@ -5,7 +5,7 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import { createDataSource, dataSourceKind } from '../data/createDataSource';
-import { PartialSaveError, type DataSource } from '../data/DataSource';
+import { PartialSaveError, type BackendMode, type DataSource } from '../data/DataSource';
 import {
   applyValuePatch,
   cleanKeys,
@@ -80,9 +80,16 @@ export interface AppState {
   source: DataSource | null;
   loadState: LoadState;
   loadError: string | null;
+  /**
+   * True when the backend sent boreholes but has no documents endpoint yet (DataSource.load):
+   * the map and detail work, the queue says why it is empty.
+   */
+  documentsUnavailable: boolean;
+  /** The backend's mode from `source.health()` after a load; null when unknown. `demo` shows a banner. */
+  backendMode: BackendMode | null;
 
   screen: Screen;
-  /** Always true in sample mode: the SAMPLE DATA banner can't be dismissed. */
+  /** Always true in sample mode: the DEMO banner can't be dismissed. */
   sampleBannerVisible: boolean;
   toast: Toast | null;
 
@@ -173,7 +180,10 @@ export interface AppState {
   showNotOnMap(id: string, reason: string): void;
   addFiles(files: FileList | File[]): Promise<void>;
   setDragActive(active: boolean): void;
-  /** Escape closes, in order: editing → confirm clean → export menu → CRS dialog → side panel → NEAR YOU → location message. */
+  /**
+   * Escape closes, in order: confirm clean → editing → export menu → CRS dialog → side panel → NEAR YOU →
+   * location message. The confirm goes first, so Escape on it keeps an unsaved inline edit.
+   */
   escape(): void;
   /** Loads a page into the cache (used by usePage). */
   loadPage(documentId: string, page: number): Promise<void>;
@@ -210,6 +220,15 @@ const LEAVE_REVIEW = { editing: null, confirmCleanOpen: false } as const;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const notOnMapMessage = (id: string, reason: string) => `${id}: ${reason}. Listed under Not on map.`;
 const pageKey = (documentId: string, page: number) => `${documentId}:${page}`;
+
+/** The backend's mode from its optional health check. No check, no answer or an error = unknown (null). */
+async function backendModeOf(source: DataSource): Promise<BackendMode | null> {
+  try {
+    return (await source.health?.())?.mode ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /** The layer the detail screen selects first: the first SPT refusal (the demo's "R"), else layer 1. */
 function defaultLayer(b: Borehole | undefined): number {
@@ -332,6 +351,8 @@ export const useAppStore = create<AppState>()((set, get) => {
     source: null,
     loadState: 'loading',
     loadError: null,
+    documentsUnavailable: false,
+    backendMode: null,
     screen: 'map',
     sampleBannerVisible: dataSourceKind() === 'sample',
     toast: null,
@@ -364,13 +385,14 @@ export const useAppStore = create<AppState>()((set, get) => {
 
     async init() {
       const run = ++initRun;
-      set({ loadState: 'loading', loadError: null });
+      set({ loadState: 'loading', loadError: null, documentsUnavailable: false });
       try {
         sourcePromise ??= createDataSource();
         const source = await sourcePromise;
         set({ source });
-        const { boreholes, documents } = await source.load();
+        const result = await source.load();
         if (run !== initRun) return;
+        const { boreholes, documents } = result;
         const reviewUid = documents.find((d) => d.reviewBoreholeUid)?.reviewBoreholeUid ?? null;
         const rb = boreholes.find((b) => b.uid === reviewUid);
         const focusKey = rb ? initialFocusKey(rb) : null;
@@ -384,6 +406,11 @@ export const useAppStore = create<AppState>()((set, get) => {
           reviewPage: rb ? pageFor(rb.values.find((v) => v.key === focusKey), rb.primaryPage) : 1,
           selectedUid: selected?.uid ?? null,
           selectedLayer: defaultLayer(selected),
+          documentsUnavailable: result.documentsUnavailable ?? false,
+        });
+        // Once per load: a backend without an extraction key says so (banner).
+        void backendModeOf(source).then((mode) => {
+          if (run === initRun) set({ backendMode: mode });
         });
         // Documents the backend is still working on (e.g. after a reload during extraction) keep updating.
         for (const d of documents) {
@@ -643,7 +670,8 @@ export const useAppStore = create<AppState>()((set, get) => {
         return;
       }
       if (!b.onMap) {
-        set({ ...LEAVE_REVIEW, screen: 'map' });
+        // Drop an earlier result's target, so the map doesn't keep pointing at that borehole.
+        set({ ...LEAVE_REVIEW, screen: 'map', flyTarget: null });
         flashSearch(notOnMapMessage(b.id, b.unplottedReason ?? 'No usable coordinates'), SEARCH_NOT_ON_MAP_MS);
         return;
       }
@@ -717,8 +745,8 @@ export const useAppStore = create<AppState>()((set, get) => {
 
     escape() {
       const s = get();
-      if (s.editing) set({ editing: null });
-      else if (s.confirmCleanOpen) set({ confirmCleanOpen: false });
+      if (s.confirmCleanOpen) set({ confirmCleanOpen: false });
+      else if (s.editing) set({ editing: null });
       else if (s.exportOpen) set({ exportOpen: false });
       else if (s.crsDialogOpen) s.closeCrsDialog();
       else if (s.panel) set({ panel: null });

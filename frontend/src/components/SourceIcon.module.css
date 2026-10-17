@@ -1,29 +1,38 @@
 .icon {
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
   border: 0;
   border-radius: 2px;
   background: transparent;
   padding: 0;
+  color: var(--c-muted);
   cursor: pointer;
+  vertical-align: middle;
 }
 
-.icon:hover {
+button.icon:hover {
+  color: var(--c-dark);
   background: var(--c-line);
+}
+
+button.icon:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Non-interactive variant (no onClick): same glyph, no pointer. */
+.inert {
+  cursor: default;
 }
 
 .dim {
   opacity: 0.35;
 }
 
-.sheet {
-  width: 9px;
-  height: 11px;
-  border: 1.5px solid var(--c-muted);
-  border-radius: 1px;
-  box-sizing: border-box;
+.glyph {
   display: block;
 }

@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import type { MouseEvent } from 'react';
 import { StatusChip } from '../../components/StatusChip';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
 import { crsCell, depthText, resultsSummary, type OutsideSummary } from './mapModel';
@@ -24,8 +24,9 @@ const COLUMNS = ['BOREHOLE', 'PROJECT', 'FINAL DEPTH', 'STATUS', 'CRS'] as const
 
 /**
  * RESULTS table under the map: the boreholes of the map focus with project, final depth, review status
- * and CRS status. Every row opens the borehole's detail (click, Enter or Space), also for boreholes not
- * on the map: those are the ones whose coordinates need a look.
+ * and CRS status. Every row opens the borehole's detail, also for boreholes not on the map: those are
+ * the ones whose coordinates need a look. A click anywhere on the row opens it; for the keyboard and
+ * screen readers each row has an OPEN DETAIL › button.
  */
 export function ResultsTable({ boreholes, statuses, focusLabel, anyBoreholes, loading, outside, onOpen, onShowWorld }: Props) {
   const empty = loading
@@ -74,21 +75,13 @@ export function ResultsTable({ boreholes, statuses, focusLabel, anyBoreholes, lo
 
 function ResultRow({ borehole: b, status, onOpen }: { borehole: Borehole; status: BoreholeStatus; onOpen(uid: string): void }) {
   const crs = crsCell(b.crs);
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onOpen(b.uid);
-    }
+  const onButton = (e: MouseEvent) => {
+    // The row's own click would open the detail a second time.
+    e.stopPropagation();
+    onOpen(b.uid);
   };
   return (
-    <div
-      className={`${styles.row} ${styles.body} ${styles.clickable}`}
-      role="row"
-      data-uid={b.uid}
-      tabIndex={0}
-      onClick={() => onOpen(b.uid)}
-      onKeyDown={onKeyDown}
-    >
+    <div className={`${styles.row} ${styles.body} ${styles.clickable}`} role="row" data-uid={b.uid} onClick={() => onOpen(b.uid)}>
       <div className={`${styles.cell} ${styles.id}`} role="cell">
         {b.id}
       </div>
@@ -104,8 +97,10 @@ function ResultRow({ borehole: b, status, onOpen }: { borehole: Borehole; status
       <div className={`${styles.cell} ${crs.warn ? styles.warn : styles.muted}`} role="cell" title={crs.title}>
         {crs.text}
       </div>
-      <div className={`${styles.cell} ${styles.action}`} role="cell">
-        OPEN DETAIL ›
+      <div className={`${styles.cell} ${styles.actionCell}`} role="cell">
+        <button type="button" className={styles.action} aria-label={`Open detail of ${b.id}`} onClick={onButton}>
+          OPEN DETAIL ›
+        </button>
       </div>
     </div>
   );

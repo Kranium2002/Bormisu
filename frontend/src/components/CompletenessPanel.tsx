@@ -9,7 +9,13 @@ const ID_TITLE = {
   unexpected: 'Extracted, not named in the report',
 } as const;
 
-/** Completeness panel: borehole IDs named in the report vs extracted, plus the document's lint findings. */
+/** Lint severity as a sentence-case chip label. */
+const SEVERITY_LABEL = { error: 'Error', warning: 'Warning' } as const;
+
+/**
+ * Completeness panel: borehole IDs named in the report vs extracted, plus the document's lint findings.
+ * Each ID chip carries a glyph (CSS ::before, same as the legend), so the state never rests on colour alone.
+ */
 export function CompletenessPanel({ documentId }: { documentId: string }) {
   const doc = useDocument(documentId);
   const c = doc?.completeness;
@@ -21,7 +27,8 @@ export function CompletenessPanel({ documentId }: { documentId: string }) {
         <div className={styles.heading}>COMPLETENESS</div>
         <div className={styles.subMono}>{doc?.name ?? documentId}</div>
       </PanelHeader>
-      <div className={styles.body}>
+      {/* A tab stop of its own, so the panel's focus trap includes it and arrow keys scroll a long list. */}
+      <div className={styles.body} role="region" aria-label="Completeness checks" tabIndex={0}>
         {!c || !summary ? (
           <div className={styles.status}>Checks run after extraction.</div>
         ) : (
@@ -35,14 +42,20 @@ export function CompletenessPanel({ documentId }: { documentId: string }) {
               ))}
             </div>
             <div className={styles.legend}>
-              <span>■ extracted</span>
-              <span className={styles.legendMissing}>■ named in report, not extracted</span>
-              <span className={styles.legendUnexpected}>■ extracted, not named in report</span>
+              <span>
+                <span className={styles.legendGlyph} aria-hidden="true">✓</span>extracted
+              </span>
+              <span className={styles.legendMissing}>
+                <span className={styles.legendGlyph} aria-hidden="true">✕</span>named in report, not extracted
+              </span>
+              <span className={styles.legendUnexpected}>
+                <span className={styles.legendGlyph} aria-hidden="true">+</span>extracted, not named in report
+              </span>
             </div>
             <div className={styles.lintHead}>LINT</div>
             {c.lint.map((l, i) => (
               <div key={i} className={styles.lintRow}>
-                <span className={l.severity === 'error' ? styles.sevError : styles.sevWarning}>{l.severity.toUpperCase()}</span>
+                <span className={l.severity === 'error' ? styles.sevError : styles.sevWarning}>{SEVERITY_LABEL[l.severity]}</span>
                 <span className={styles.mono}>{l.boreholeId}</span>
                 <span>{l.message}</span>
               </div>

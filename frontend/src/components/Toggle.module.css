@@ -10,6 +10,18 @@
   cursor: pointer;
 }
 
+/* 24 px tall hit target around the 18 px track */
+.track::after {
+  content: '';
+  position: absolute;
+  inset: -3px 0;
+}
+
+.track:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .on {
   background: var(--c-amber);
 }
@@ -21,7 +33,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--c-surface);
   transition: left 0.12s;
 }
 

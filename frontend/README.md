@@ -13,9 +13,9 @@ React 19 + TypeScript + Vite, zustand for state, Leaflet for maps, exceljs for t
 |---|---|---|
 | ![Map, World view](docs/screenshots/map.png) | ![Map, Germany view](docs/screenshots/map-country.png) | ![Map with MY LOCATION and the NEAR YOU panel](docs/screenshots/map-my-location.png) |
 
-| Review | Borehole detail |
-|---|---|
-| ![Review](docs/screenshots/review.png) | ![Detail](docs/screenshots/detail.png) |
+| Upload & queue | Review | Borehole detail |
+|---|---|---|
+| ![Upload & queue with three documents, their status steps, page maps and completeness checks](docs/screenshots/queue.png) | ![Review: the scanned page next to the extracted values](docs/screenshots/review.png) | ![Borehole detail: DIN 4023 profile, metadata, layers and location](docs/screenshots/detail.png) |
 
 *Screenshots use the fictional sample data (`npm run dev:sample`).*
 
@@ -26,14 +26,14 @@ npm install
 npm run dev:sample   # demo mode: fictional sample data, no backend needed → http://localhost:5173
 ```
 
-With the backend (FastAPI, see `docs/design/api-contract.md`):
+With the backend (FastAPI). The API contract is `docs/design/api-contract.md` on branch `prada/design` (PR #1). To run backend and frontend together on one machine, follow [docs/INTEGRATION.md](../docs/INTEGRATION.md).
 
 ```bash
 npm run dev          # API mode: proxies /api to http://127.0.0.1:8000
 VITE_API_PROXY=http://127.0.0.1:9000 npm run dev   # backend on another port
 ```
 
-In API mode the app never falls back to sample data. Without a backend it shows *NO DATA: Cannot reach the Bormisu backend at /api/v1…* with a RETRY button. If an endpoint is missing it shows *Backend endpoint not available: GET /api/v1/…*.
+In API mode the app never falls back to sample data. Without a backend it shows *NO DATA FROM THE BACKEND* with *Cannot reach the Bormisu backend at /api/v1. Start the backend, or run npm run dev:sample for demo data.* and a RETRY button. If an endpoint is missing, the same page says *Backend endpoint not available: GET /api/v1/…*. The one exception is a backend without the document list (`GET /api/v1/documents`): the map still shows its boreholes, and UPLOAD & QUEUE explains why the queue is empty. A backend that reports `"mode": "demo"` on `/api/health` (no extraction key) gets the banner *Backend in demo mode: live extraction needs an API key*.
 
 ## Data source flag
 
@@ -101,11 +101,29 @@ src/
   export/              standard xlsx, tidy CSV, open-questions CSV
   geo/                 map focus, country outlines (Natural Earth, lazy-loaded), country assignment, point-in-polygon,
                        distances / nearest boreholes, browser geolocation
-  styles/tokens.css    design tokens (colours, fonts) and global styles
+  styles/              design tokens (colours, type, spacing, focus) and global styles (tokens.css),
+                       shared buttons and chips that every screen composes (buttons.module.css, chips.module.css)
 e2e/                   Playwright smoke tests
 ```
 
-[ARCHITECTURE.md](ARCHITECTURE.md) is the binding spec: domain types, value keys, the DataSource interface, the store API and the hard rules. Read it before changing code.
+[ARCHITECTURE.md](ARCHITECTURE.md) is the binding spec: domain types, value keys, the DataSource interface, the store API, the hard rules and the design principles. Read it before changing code.
+
+## Design system
+
+One look for every screen, in the Herrenknecht brand (green #7DB713, dark green #003E25, Univers, uppercase headings). The rules are in [ARCHITECTURE.md › Design principles](ARCHITECTURE.md#design-principles). In short:
+
+- **Tokens only.** Colours, type sizes, letter-spacing, spacing and focus rings are CSS variables in `src/styles/tokens.css`:
+  - Colours: `--c-*`. Type sizes: `--fs-2xs` … `--fs-title` (10–20 px).
+  - Letter-spacing: `--ls-caps`, `--ls-head`, `--ls-title`. Spacing: `--space-1` … `--space-6` (4–32 px).
+  - Focus: `--focus-ring`, `--focus-ring-on-dark`.
+
+  Modules contain no hex values. Inline `style` is only for values computed at runtime.
+- **Shared buttons and chips.** A module composes them instead of restyling them: `composes: primary from '../../styles/buttons.module.css';`.
+  - Buttons: `primary` (green with dark-green text, at most one per region), `secondary`, `quiet`, `link`, `small` and `iconButton` (32×32, every ×).
+  - Chips are sentence case (*Inferred*, *Needs attention*). The only caps tag is DEMO.
+- **Type scale.** Screen titles are 20 px / 900. Card, panel and dialog headings are 12 px / 800 uppercase. Column headers are 11 px / 700 uppercase. Body text is 13 px. Depths, coordinates and counts are in mono.
+- **Focus and colour.** Every control has a visible `:focus-visible` ring: dark on light surfaces, green on the dark-green header. The side panel traps Tab, including its scrolling content. Colour is never the only signal: status chips carry text, and completeness chips carry ✓ / ✕ / +.
+- **Copy.** `18.00 m`, `p.7`. The same destination always has the same words (OPEN DETAIL, OPEN IN REVIEW). Navigation buttons carry `›`, menus `▾`.
 
 ## Export and the Herrenknecht standard format
 
@@ -146,6 +164,7 @@ npm run e2e      # Playwright, sample mode, system Chrome (channel: 'chrome'); P
 
 The e2e suite starts `npm run dev:sample` itself and stops it afterwards. Map tiles are stubbed, so it runs offline, and every test fails on any console error. It covers:
 
+- **Shell:** header, DEMO banner and navigation; a search miss; Escape closes the side panel. Tab and Shift+Tab inside the side panel reach its scrolling content (Completeness checks, Source page), which then scrolls with PageDown.
 - **Map:** pins, legend counts, the *Not on map* list, a results row and a pin popup opening the detail, and search ("EQ-03" flies to the pin; "BK-13" explains why it isn't on the map).
 - **Map focus:** the dropdown lists World, Germany, Norway, Singapore and Switzerland with their counts; World is the default, without mask or zoom limit; Germany shows mask and border between the tiles and the pins, can't be zoomed out beyond, narrows legend, results and *Not on map*, and SHOW WORLD restores World; switching countries leaves no stray mask or border; the keyboard works; `?focus=DE` opens on Germany and `?focus=ZZ` falls back to World; searching a Singapore borehole from the Germany view switches to Singapore and opens its popup. A test moves one sample project into the North Sea (by patching the sample module in the browser, not the repo): it is plotted only in World, and searching for it from Germany switches to World.
 - **My location:** with a granted position near BK-07 the map switches to Germany, draws the dot and accuracy circle, and NEAR YOU lists BK-07 first at 112 m SW; neither URL nor any request contains the position; Escape and × close the panel; a row opens the detail. Far away it names the nearest borehole; without permission it shows the denied message; `?simLocation=` and *Simulate: Neckarbogen site* show a *SIMULATED LOCATION*.

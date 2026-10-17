@@ -16,10 +16,19 @@
   height: 256.5px !important;
 }
 
+/*
+ * Pins: a soft dark edge around the white ring, so grey and green pins stay visible on pale tiles and
+ * on the country mask. Only the clickable pins (the focus mask and border and the MY LOCATION dot are
+ * non-interactive); fills and stacking are untouched.
+ */
+.map :global(.leaflet-overlay-pane path.leaflet-interactive) {
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+}
+
 /* "SIMULATED LOCATION" next to the MY LOCATION dot (a permanent Leaflet tooltip). */
 .meLabel {
-  font: 800 10px var(--font-sans);
-  letter-spacing: 0.06em;
+  font: 800 var(--fs-2xs) var(--font-sans);
+  letter-spacing: var(--ls-caps);
   color: var(--c-gw);
   border: 1px solid var(--c-gw);
   border-radius: 0;

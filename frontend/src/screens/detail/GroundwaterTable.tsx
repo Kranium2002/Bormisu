@@ -19,11 +19,15 @@ export function GroundwaterTable({ borehole: b, onOpenSource }: Props) {
       {rows.map((g) => (
         <div key={g.key} className={`${card.trow} ${styles.cols}`}>
           <div className={styles.type}>{g.type}</div>
-          <div className={`${styles.cell} ${card.mono} ${g.depth.missing ? card.missing : ''}`}>{g.depth.text}</div>
+          <div className={`${styles.cell} ${g.depth.missing ? card.missing : card.mono}`}>{g.depth.text}</div>
           <div className={`${styles.cell} ${styles.raw}`}>{g.raw}</div>
           <div>{g.method && <MethodBadge method={g.method} confidence={g.confidence} />}</div>
           <div>
-            <SourceIcon onClick={() => onOpenSource(g.key)} />
+            <SourceIcon
+              dim={g.source.dim}
+              title={g.source.title}
+              onClick={g.source.clickable ? () => onOpenSource(g.key) : undefined}
+            />
           </div>
         </div>
       ))}

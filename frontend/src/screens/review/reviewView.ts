@@ -4,7 +4,10 @@
  */
 import type { ScanBox, ScanBoxVariant } from '../../components/ScanPage';
 import { K } from '../../domain/keys';
-import type { Borehole, Box, CrsCandidate, ExtractedValue } from '../../domain/types';
+import { PAGE_W, type Borehole, type Box, type CrsCandidate, type ExtractedValue } from '../../domain/types';
+
+/** DOM id of the scan pane, the panel the sheet tabs control (aria-controls). */
+export const SCAN_PANE_ID = 'review-scan';
 
 /** One line of the field list: a group heading or a value. */
 export type ReviewRow =
@@ -26,12 +29,12 @@ export function orderedValues(b: Borehole): ExtractedValue[] {
     .map((x) => x.v);
 }
 
-/** Heading of a layer group: "LAYER 5 · 8.20–11.20 M · P.8". */
+/** Heading of a layer group: "LAYER 5 · 8.20–11.20 m · p.8" (units and page refs stay lowercase). */
 export function layerTitle(b: Borehole, n: number): string {
   const l = b.layers.find((x) => x.n === n);
   const page = b.values.find((v) => v.layer === n && v.page != null)?.page;
-  const range = l ? ` · ${l.from.toFixed(2)}–${l.to.toFixed(2)} M` : '';
-  return `LAYER ${n}${range}${page ? ` · P.${page}` : ''}`;
+  const range = l ? ` · ${l.from.toFixed(2)}–${l.to.toFixed(2)} m` : '';
+  return `LAYER ${n}${range}${page ? ` · p.${page}` : ''}`;
 }
 
 /** Field list rows with BOREHOLE / GROUNDWATER / LAYER n headings (prototype `rows`). */
@@ -113,9 +116,22 @@ export function scanBoxes(
   return boxes.sort((x, y) => Number(x.variant === 'focus') - Number(y.variant === 'focus'));
 }
 
+/** Smallest and largest scale of the scan page in the Review pane. */
+export const SCAN_SCALE = { min: 0.95, max: 1.45 } as const;
+
+/**
+ * Scale of the scan page in a pane `paneWidth` px wide (its clientWidth): the page fills the pane
+ * less 50 px each side, within SCAN_SCALE. Rounded, so a 1 px resize doesn't re-render the page.
+ */
+export function scanScale(paneWidth: number): number {
+  const fit = (paneWidth - 100) / PAGE_W;
+  const s = Math.min(SCAN_SCALE.max, Math.max(SCAN_SCALE.min, fit));
+  return Math.round(s * 1000) / 1000;
+}
+
 export interface Caption { text: string; tone: 'normal' | 'warn' }
 
-/** Caption under the scan: page and sheet, or "box not found, page shown" for a focused value without a box. */
+/** Caption above the scan: page and sheet, or "box not found, page shown" for a focused value without a box. */
 export function scanCaption(page: number, sheets: number[], focused: ExtractedValue | undefined): Caption {
   if (focused && !focused.box && focused.state === 'ok') {
     return { text: `${focused.label}: box not found, page shown`, tone: 'warn' };
@@ -193,6 +209,28 @@ export function siteCentre(candidates: CrsCandidate[]): { lat: number; lng: numb
   return {
     lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length,
     lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length,
+  };
+}
+
+export interface EmptyReview {
+  message: string;
+  action: { label: string; screen: 'queue' | 'map' };
+}
+
+/**
+ * What Review says when it has no borehole to show. Boreholes without source pages (the backend
+ * has no page images for them yet) can't be checked here; without any boreholes, upload one.
+ */
+export function emptyReview(hasBoreholes: boolean, anyReviewable: boolean): EmptyReview {
+  if (hasBoreholes && !anyReviewable) {
+    return {
+      message: 'These boreholes have no source pages from the backend yet, so there is nothing to check them against.',
+      action: { label: 'OPEN MAP ›', screen: 'map' },
+    };
+  }
+  return {
+    message: 'No report is ready for review yet. Upload one and wait until it reaches “needs review”.',
+    action: { label: 'OPEN UPLOAD & QUEUE ›', screen: 'queue' },
   };
 }
 
