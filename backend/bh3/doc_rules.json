@@ -1,0 +1,7 @@
+{
+  "_comment": "Document-specific reading rules (key = basename of the source file). Allowed for the corpus prototype; the code stays generic, the knowledge lives here. name_regex: tried on a page's embedded text when no usable borehole name was read; the first non-empty group is the name.",
+  "EUR01.pdf": {
+    "name_regex": "UTM32E89\\s+([A-Z]{1,4}\\d{1,3}[A-Z]?)\\b|\\(m\\)\\s+(T\\d{2})\\b|BORING NO\\.?\\s*\\n?\\s*([A-Z]{1,3}\\d{1,3}[A-Z]?)\\b",
+    "evidence": "Ramboll GeoGIS layout: the boring number follows the coordinate-system label (UTM32E89 BAS1) or the '(m)' of the elevation cell (… (m) T01)"
+  }
+}

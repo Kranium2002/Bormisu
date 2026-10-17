@@ -1,0 +1,9 @@
+.venv/
+.bh3_work/
+.llm_cache/
+out*/
+__pycache__/
+.pytest_cache/
+tests/
+api_data/
+uploads/
