@@ -1,0 +1,4 @@
+{
+  "detail": "File type not accepted. Accepted: .pdf, .png, .jpg, .jpeg, .webp, .tif, .tiff, .docx, .xlsx, .csv.",
+  "code": "unsupported_type"
+}

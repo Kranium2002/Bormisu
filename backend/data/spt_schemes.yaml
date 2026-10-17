@@ -1,0 +1,58 @@
+# Standard Penetration Test: how printed blow counts become N (normalize.spt). Generic for every
+# standard; no document is named here. Extend by adding entries, never by adding code branches.
+#
+# A scheme splits the drive into `increments` equal increments of `increment_mm`; the first `seating`
+# increments are the seating drive and N is the sum of the remaining (test) increments. A record that
+# prints only the test increments (as many numbers as increments - seating) sums all of them.
+schemes:
+  - id: 3x150mm            # seating 150 mm, test drive 2 x 150 mm (ISO 22476-3, ASTM D1586 6 in)
+    increment_mm: 150
+    increments: 3
+    seating: 1
+  - id: 6x75mm             # seating 2 x 75 mm, test drive 4 x 75 mm
+    increment_mm: 75
+    increments: 6
+    seating: 2
+  - id: 2x300mm            # seating 300 mm, test drive 300 mm
+    increment_mm: 300
+    increments: 2
+    seating: 1
+  - id: 3x100mm            # preliminary drive not recorded, test drive 3 x 100 mm all counted
+    increment_mm: 100
+    increments: 3
+    seating: 0
+
+# Scheme chosen from the number of printed increments when no increment note states one. Only counts
+# that identify a scheme on their own are listed (2 or 4 printed numbers fit several schemes).
+by_count:
+  3: 3x150mm
+  6: 6x75mm
+
+# A printed increment length matches a scheme within this tolerance (6 in = 152.4 mm -> 150 mm).
+length_tolerance_mm: 5
+
+# Length of the test drive that N counts (every scheme above: 300 mm). "23/30 cm" printed as one
+# count over this length is N = 23, not a refusal.
+test_drive_mm: 300
+
+# Units a penetration may be printed in (keys of data/units.yaml; their aliases are accepted).
+penetration_units: [mm, cm, m, in, ft]
+
+# The longest drive a refusal penetration can describe. A unitless penetration that would exceed it when
+# read in cm is read in mm ("50/120" -> 120 mm); one that fits both readings stays unknown ("27/12").
+max_drive_mm: 450
+
+# Words that mark a refusal (case-insensitive whole words; single letters are case-sensitive).
+refusal_terms: [R, Ref, Ref., refusal, refused, HB, hammer bounce, hammer bouncing, bouncing, refus,
+                rechazo, rebote, impenetrable, impenetrável, impenetravel, Verweigerung, rifiuto, weigering]
+
+# Labels printed before an N value ("N=23", "N30: 23", "SPT N 23").
+n_labels: [N, N30, "N(30)", N-value, N value, SPT N, SPT-N, SPT, Nspt, N spt, N_SPT, N-Wert, N Wert,
+           valeur N, valor N, valor de N, Schlagzahl N30]
+
+# Words between a blow count and its penetration ("50 for 120 mm", "50 auf 12 cm").
+penetration_joiners: [for, in, auf, pour, en, em, op, på, per, über]
+
+# Two identical SPT results whose depths lie within one drive length are one test (logs often print the
+# top and the base of the drive interval). Generic: the standard drive is 450 mm.
+duplicate_window_m: 0.5

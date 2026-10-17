@@ -1,0 +1,2 @@
+# Contract examples are shared byte-for-byte with the frontend tests; keep LF everywhere.
+* text eol=lf

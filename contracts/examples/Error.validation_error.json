@@ -1,0 +1,20 @@
+{
+  "detail": "Request validation failed.",
+  "code": "validation_error",
+  "errors": [
+    {
+      "loc": [
+        "body",
+        "action"
+      ],
+      "msg": "Input should be 'approve', 'edit', 'flag', 'set_state' or 'reset'"
+    },
+    {
+      "loc": [
+        "query",
+        "limit"
+      ],
+      "msg": "Input should be less than or equal to 5000"
+    }
+  ]
+}

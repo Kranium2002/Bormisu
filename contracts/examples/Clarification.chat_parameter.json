@@ -1,0 +1,45 @@
+{
+  "clarification_id": "cl_01M54KRVZ0RQTZ7G7JZHNWC84E",
+  "kind": "chat_parameter",
+  "status": "open",
+  "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+  "borehole_uids": [],
+  "path": null,
+  "question": "Which Lindenwick do you mean?",
+  "fields": [
+    {
+      "name": "place",
+      "widget": "select",
+      "label": "Place",
+      "help": null,
+      "required": true,
+      "options": [
+        {
+          "value": "candidate_1",
+          "label": "Fictional Harbour Link project site (uploaded)"
+        },
+        {
+          "value": "candidate_2",
+          "label": "Lindenwick, Example District, Germany"
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 5,
+      "box": [
+        0.3,
+        0.09,
+        0.3,
+        0.03
+      ],
+      "snippet": "Lindenwick, Nordkai"
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T09:41:00Z",
+  "resolved_at": null
+}

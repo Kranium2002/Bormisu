@@ -1,0 +1,385 @@
+# Printed conventions read by the normalisers (app/normalize): units and their conversions, number
+# qualifiers and range words, the number-style learning thresholds, month names for dates and the
+# depth-origin vocabulary. Generic for every language and standard; no document is named here.
+# Extend by adding entries, never by adding code branches.
+#
+# Unit aliases are matched after normalisation: case-folded, spaces removed, superscripts turned into
+# digits ("m³" -> "m3"), "^" and a trailing "." dropped. Two units may not share a normalised alias
+# (a unit test checks this).
+
+# Base unit of every dimension: each unit's `factor` converts one of it into the base unit.
+dimensions:
+  length: m
+  stress: kPa
+  unit_weight: kN/m3
+  ratio: "%"
+  velocity: m/s
+  angle: deg
+  dimensionless: "-"
+
+units:
+  # Length (depths, levels, penetrations). Projected coordinates are never converted (their unit belongs
+  # to the coordinate system).
+  m:
+    dimension: length
+    factor: 1.0
+    aliases: [m, metre, metres, meter, meters, mtr, mtrs, mt, mts, mètre, mètres, metro, metros, metri,
+              # metres with a printed depth or elevation reference glued on (the reference is read by
+              # normalize.datums, the unit is still metres)
+              mbgl, m bgl, m b.g.l., mbgs, mbsf, mbml, mbsl, masl, m a.s.l., mamsl, mod, maod, mahd,
+              mnn, mnhn, mnap, mcd, mlat, mbtoc, m u. gok, m u.gok, mugok, m ü. nn, m ü.nn, müNN,
+              m-mv, m+nap, m-nap]
+  cm:
+    dimension: length
+    factor: 0.01
+    aliases: [cm, centimetre, centimetres, centimeter, centimeters, centímetro, centímetros, centimètre]
+  mm:
+    dimension: length
+    factor: 0.001
+    aliases: [mm, millimetre, millimetres, millimeter, millimeters, milímetro, milímetros, millimètre]
+  km:
+    dimension: length
+    factor: 1000.0
+    aliases: [km, kilometre, kilometres, kilometer, kilometers]
+  ft:
+    dimension: length
+    factor: 0.3048
+    aliases: [ft, feet, foot, "'", "’", "′", fbgl, ft bgl, ftbgl, ft bgs, fbgs, pies, pés, pieds]
+  ftUS:
+    dimension: length
+    factor: 0.3048006096012192
+    aliases: [ftUS, US ft, us-ft, US survey foot, US survey feet]
+  in:
+    dimension: length
+    factor: 0.0254
+    aliases: [in, inch, inches, '"', "”", "″", "''", pulgadas, polegadas, pouces, Zoll]
+  yd:
+    dimension: length
+    factor: 0.9144
+    aliases: [yd, yard, yards]
+
+  # Stress and strength (base kPa). kg/cm² and t/m² are kilogram-force and tonne-force per area.
+  kPa:
+    dimension: stress
+    factor: 1.0
+    aliases: [kPa, kN/m2, kN/m², kN m-2, kNm-2]
+  MPa:
+    dimension: stress
+    factor: 1000.0
+    aliases: [MPa, MN/m2, MN/m², N/mm2, N/mm², MN m-2]
+  Pa:
+    dimension: stress
+    factor: 0.001
+    aliases: [Pa, N/m2, N/m²]
+  GPa:
+    dimension: stress
+    factor: 1000000.0
+    aliases: [GPa, kN/mm2, kN/mm²]
+  bar:
+    dimension: stress
+    factor: 100.0
+    aliases: [bar, bars]
+  kg/cm2:
+    dimension: stress
+    factor: 98.0665
+    aliases: [kg/cm2, kg/cm², kgf/cm2, kgf/cm², kp/cm2, kp/cm², kg/cm^2]
+  t/m2:
+    dimension: stress
+    factor: 9.80665
+    aliases: [t/m2, t/m², tf/m2, tf/m²]
+  psi:
+    dimension: stress
+    factor: 6.894757293
+    aliases: [psi, lb/in2, lbf/in2, lb/in²]
+  psf:
+    dimension: stress
+    factor: 0.04788025898
+    aliases: [psf, lb/ft2, lbf/ft2, lb/ft²]
+  ksf:
+    dimension: stress
+    factor: 47.88025898
+    aliases: [ksf, kip/ft2, kips/ft2]
+  tsf:
+    dimension: stress
+    factor: 95.76051796
+    aliases: [tsf, ton/ft2, tons/ft2]
+
+  # Unit weight (base kN/m³). Densities in t/m³, Mg/m³, g/cm³ or kg/m³ are converted with g = 9.80665 m/s².
+  kN/m3:
+    dimension: unit_weight
+    factor: 1.0
+    aliases: [kN/m3, kN/m³, kN m-3, kNm-3, kN/cbm]
+  MN/m3:
+    dimension: unit_weight
+    factor: 1000.0
+    aliases: [MN/m3, MN/m³]
+  N/m3:
+    dimension: unit_weight
+    factor: 0.001
+    aliases: [N/m3, N/m³]
+  t/m3:
+    dimension: unit_weight
+    factor: 9.80665
+    aliases: [t/m3, t/m³, Mg/m3, Mg/m³, tonne/m3, tf/m3]
+  g/cm3:
+    dimension: unit_weight
+    factor: 9.80665
+    aliases: [g/cm3, g/cm³, g/cc, gr/cm3, g/ccm]
+  kg/m3:
+    dimension: unit_weight
+    factor: 0.00980665
+    aliases: [kg/m3, kg/m³]
+  pcf:
+    dimension: unit_weight
+    factor: 0.1570874638
+    aliases: [pcf, lb/ft3, lbs/ft3, lb/ft³, lbf/ft3]
+
+  # Ratios (base %).
+  "%":
+    dimension: ratio
+    factor: 1.0
+    aliases: ["%", percent, per cent, pct, Prozent, pour cent, por ciento, por cento, procent, prosent,
+              percento, porcentaje, porcentagem]
+  "‰":
+    dimension: ratio
+    factor: 0.1
+    aliases: ["‰", permille, per mille, Promille]
+
+  # Velocity, hydraulic conductivity (base m/s).
+  m/s:
+    dimension: velocity
+    factor: 1.0
+    aliases: [m/s, m s-1, ms-1, m/sec, m*s-1, m·s-1]
+  cm/s:
+    dimension: velocity
+    factor: 0.01
+    aliases: [cm/s, cm s-1, cms-1, cm/sec]
+  mm/s:
+    dimension: velocity
+    factor: 0.001
+    aliases: [mm/s, mm s-1, mm/sec]
+  m/d:
+    dimension: velocity
+    factor: 1.1574074074074073e-05
+    aliases: [m/d, m/day, m d-1, m/Tag, m/jour, m/día, m/dia]
+  ft/s:
+    dimension: velocity
+    factor: 0.3048
+    aliases: [ft/s, ft/sec, fps]
+  ft/d:
+    dimension: velocity
+    factor: 3.527777777777778e-06
+    aliases: [ft/d, ft/day]
+
+  # Angles (base degree).
+  deg:
+    dimension: angle
+    factor: 1.0
+    aliases: [deg, "°", "º", degree, degrees, Grad, grados, graus, degré, degrés, gradi, grader]
+  gon:
+    dimension: angle
+    factor: 0.9
+    aliases: [gon, gons]
+
+  # Explicitly dimensionless (CAI, RMR, Q, GSI, indices).
+  "-":
+    dimension: dimensionless
+    factor: 1.0
+    aliases: ["-", "–", "—", dimensionless, "[-]", "(-)", ohne Einheit, sans unité, sin unidad]
+
+# Qualifiers printed before a number (matched case-insensitively at the start, as printed). A trailing
+# "+" ("50+") is read as a qualifier too.
+number_qualifiers: [">=", "<=", ">", "<", "≥", "≤", "~", "≈", "ca.", "ca", "c.", "circa", "approx.", "approx",
+                    "approximately", "about", "abt.", "etwa", "ungefähr", "rd.", "env.", "environ",
+                    "aprox.", "aprox", "aproximadamente", "cerca de", "ong.", "ongeveer", "omkring", "cirka",
+                    "ungefär", "circa", "ca"]
+
+# Words and signs between two numbers that make the text a range (a range is not a number).
+range_words: ["-", "–", "—", "−", "~", "to", "bis", "à", "a", "até", "tot", "till", "til", "al", "fino a",
+              "÷", "..."]
+
+# Learning a document's number style (normalize.numbers.learn_style): the decimal separator wins when it
+# has at least `min_evidence` unambiguous numbers and at least `min_share` of all evidence.
+number_style:
+  min_evidence: 1
+  min_share: 0.8
+
+dates:
+  # Month names and abbreviations per month (en, de, fr, es, pt, it, nl, no/da/sv). Matching ignores case,
+  # a trailing "." and accents. A name listed under two months is ignored (a unit test checks there is none).
+  months:
+    1: [january, jan, januar, jänner, jän, jaenner, janvier, janv, enero, ene, janeiro, gennaio, gen, januari]
+    2: [february, feb, febr, februar, feber, février, fevrier, févr, fevr, fév, fev, febrero, fevereiro,
+        febbraio, februari]
+    3: [march, mar, märz, maerz, marz, mär, mrz, mars, marzo, março, marco, maart, mrt, marts]
+    4: [april, apr, avril, avr, abril, abr, aprile]
+    5: [may, mai, mayo, maio, maggio, mag, mei, maj]
+    6: [june, jun, juni, juin, junio, junho, giugno, giu]
+    7: [july, jul, juli, juillet, juil, julio, julho, luglio, lug]
+    8: [august, aug, août, aout, agosto, ago, augustus, augusti]
+    9: [september, sep, sept, septembre, septiembre, setiembre, setembro, settembre, set]
+    10: [october, oct, oktober, okt, octobre, octubre, outubro, out, ottobre, ott]
+    11: [november, nov, novembre, noviembre, novembro]
+    12: [december, dec, dezember, dez, décembre, decembre, déc, diciembre, dic, dezembro, dicembre,
+         desember, des]
+  # Two-digit years: YY below the pivot is 20YY, otherwise 19YY ("04.03.26" -> 2026-03-04,
+  # "04.03.87" -> 1987-03-04). Set to null to reject two-digit years.
+  two_digit_year_pivot: 40
+  # Years outside this range are not dates of a borehole record.
+  year_range: [1850, 2100]
+
+# Depth origin of a log (normalize.datums). Phrases are matched case-insensitively on word boundaries
+# in the depth note and the printed datum. A specific origin (ground, mudline, seabed) wins over
+# `relative`; two different specific origins are a contradiction (origin None).
+depth_origins:
+  ground:
+    - below ground level
+    - below existing ground level
+    - below existing ground
+    - below ground surface
+    - below ground
+    - below the ground
+    - below surface
+    - below the surface
+    - below original ground
+    - below finished ground
+    - below collar
+    - bgl
+    - b.g.l.
+    - mbgl
+    - bgs
+    - mbgs
+    - from ground level
+    - from surface
+    - unter gok
+    - u. gok
+    - u.gok
+    - ugok
+    - u. gof
+    - unter geländeoberkante
+    - unter geländeoberfläche
+    - unter gelände
+    - u. gelände
+    - ab gok
+    - sous le terrain naturel
+    - sous tn
+    - /tn
+    - par rapport au terrain naturel
+    - depuis le terrain naturel
+    - bajo el nivel del terreno
+    - bajo el terreno
+    - bajo la superficie
+    - desde la superficie
+    - desde el nivel del terreno
+    - abaixo do nível do terreno
+    - abaixo do terreno
+    - abaixo da superfície
+    - a partir da superfície
+    - beneden maaiveld
+    - onder maaiveld
+    - m-mv
+    - mv
+    - under terreng
+    - under terrengoverflaten
+    - under markytan
+    - under markyta
+    - under terræn
+    - under terrænet
+    - sotto il piano campagna
+    - dal piano campagna
+    - da p.c.
+    - dal p.c.
+  mudline:
+    - below mudline
+    - below mud line
+    - below the mudline
+    - bml
+    - mbml
+  seabed:
+    - below seabed
+    - below sea bed
+    - below sea-bed
+    - below the seabed
+    - below seafloor
+    - below sea floor
+    - below the sea floor
+    - mbsf
+    - bsb
+    - mbsb
+    - unter meeresgrund
+    - unter meeresboden
+    - sous le fond marin
+    - sous le fond de la mer
+    - bajo el lecho marino
+    - bajo el fondo marino
+    - abaixo do leito marinho
+    - abaixo do fundo do mar
+    - onder de zeebodem
+    - onder zeebodem
+    - under havbunnen
+    - under havsbotten
+    - sotto il fondale
+  relative:
+    - relative to
+    - referred to
+    - with respect to
+    - referenced to
+    - below datum
+    - below top of casing
+    - bezogen auf
+    - bez. auf
+    - par rapport à
+    - par rapport au
+    - par rapport aux
+    - rapporté à
+    - rapportées à
+    - rapportées au
+    - relativo a
+    - relativo al
+    - relativa a
+    - referido a
+    - referido al
+    - referidas a
+    - referidas al
+    - em relação a
+    - em relação ao
+    - em relação à
+    - relativamente a
+    - relativamente ao
+    - referido ao
+    - referidas ao
+    - ten opzichte van
+    - t.o.v.
+    - relativt til
+    - i förhållande till
+    - rispetto a
+    - rispetto al
+    - riferito a
+    - riferito al
+# Sign conventions (regular expressions, case-insensitive): a note saying negative values denote depth,
+# or saying depths are positive downwards.
+negative_down_patterns:
+  - 'negative\s+(values?|numbers?|figures?|depths?|levels?|readings?)\s+(denote|indicate|represent|are|mean|show|signify|refer to)\s+(the\s+)?(depths?|below|down)'
+  - '(depths?|values?)\s+(are|is)\s+(given|shown|expressed|presented|recorded|plotted)\s+as\s+negative'
+  - 'negative\s*(=|:)\s*(below|down|depth)'
+  - 'negative\s+downwards?'
+  - 'positive\s+upwards?'
+  - 'negative\s+werte\s+.{0,40}(tiefe|unter)'
+  - 'tiefen?\s+.{0,30}negativ'
+  - 'nach\s+unten\s+negativ'
+  - 'valeurs\s+n[ée]gatives\s+.{0,40}(profondeur|sous)'
+  - 'profondeurs?\s+.{0,30}n[ée]gati'
+  - 'valores\s+negativos\s+.{0,40}(profundidad|profundidade|bajo|abaixo)'
+  - 'profundidad(es)?\s+.{0,30}negativ'
+  - 'profundidades?\s+.{0,30}negativ'
+  - 'negatieve\s+waarden\s+.{0,40}(diepte|onder)'
+  - 'valori\s+negativi\s+.{0,40}(profondit|sotto)'
+positive_down_patterns:
+  - 'positive\s+downwards?'
+  - 'negative\s+upwards?'
+  - '(depths?|values?)\s+(are|is)\s+(given|shown|expressed|presented|recorded)?\s*as\s+positive'
+  - 'positive\s+(values?|numbers?)\s+(denote|indicate|represent|are|mean)\s+(the\s+)?(depths?|below)'
+  - 'nach\s+unten\s+positiv'
+  - 'positi(f|ve)s?\s+vers\s+le\s+bas'
+  - 'positiv[oa]s?\s+hacia\s+abajo'
+  - 'positiv[oa]s?\s+para\s+baixo'

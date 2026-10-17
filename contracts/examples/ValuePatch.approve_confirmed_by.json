@@ -1,0 +1,6 @@
+{
+  "path": "metadata.location_name",
+  "action": "approve",
+  "if_revision": 4,
+  "confirmed_by": "Example Reviewer"
+}
