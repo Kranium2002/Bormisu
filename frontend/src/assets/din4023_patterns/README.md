@@ -5,7 +5,7 @@ Everything is keyed by the **DIN code** (e.g. `T` = clay, `Kst` = limestone): th
 Which data field picks which symbol, with an example per group: [DATA_MAPPING.md](DATA_MAPPING.md).
 
 ```
-assets/din4023_patterns/
+frontend/src/assets/din4023_patterns/
 ├── DATA_MAPPING.md  # which record field draws which symbol, one example per group
 ├── din_codes.json   # DIN code → colour, symbol colour, svg file, pattern id, tile size
 ├── patterns.svg     # all 49 patterns as <pattern> definitions (for SVG)
@@ -62,7 +62,7 @@ Copy the needed `<pattern>` from `patterns.svg` into the `<defs>` of your SVG (e
 
 ### HTML / CSS
 ```html
-<div style="background-image:url('assets/din4023_patterns/svg/rock_Kst.svg');
+<div style="background-image:url('frontend/src/assets/din4023_patterns/svg/rock_Kst.svg');
             background-repeat:repeat;
             background-size:50.395px 11.265px;   /* tile_width tile_height, both × the same factor */
             width:100%; height:240px"></div>
@@ -72,7 +72,7 @@ Never use `background-size: cover / contain / 100%` — that stretches the tile.
 ### Python (find what to draw)
 ```python
 import json
-codes = json.load(open("assets/din4023_patterns/din_codes.json", encoding="utf-8"))
+codes = json.load(open("frontend/src/assets/din4023_patterns/din_codes.json", encoding="utf-8"))
 c = codes.get(layer["din_code"])          # None -> plain #E0E0E0
 svg_file, w, h = c["svg"], c["tile_width"], c["tile_height"]
 ```

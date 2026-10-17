@@ -1,20 +1,20 @@
-import codes from '../../../../assets/din4023_patterns/din_codes.json';
-import secondaryCodes from '../../../../assets/din4023_patterns/secondary_codes.json';
-import properties from '../../../../assets/din4023_patterns/properties.json';
-import sprite from '../../../../assets/din4023_patterns/patterns.svg?raw';
-import symbolSprite from '../../../../assets/din4023_patterns/symbols.svg?raw';
-import gwStruck from '../../../../assets/din4023_patterns/left_symbols/groundwater_struck.svg?raw';
-import gwAfter from '../../../../assets/din4023_patterns/left_symbols/groundwater_after_drilling.svg?raw';
-import gwRest from '../../../../assets/din4023_patterns/left_symbols/groundwater_rest.svg?raw';
-import cored from '../../../../assets/din4023_patterns/left_symbols/sample_cored.svg?raw';
+import codes from '../../assets/din4023_patterns/din_codes.json';
+import secondaryCodes from '../../assets/din4023_patterns/secondary_codes.json';
+import properties from '../../assets/din4023_patterns/properties.json';
+import sprite from '../../assets/din4023_patterns/patterns.svg?raw';
+import symbolSprite from '../../assets/din4023_patterns/symbols.svg?raw';
+import gwStruck from '../../assets/din4023_patterns/left_symbols/groundwater_struck.svg?raw';
+import gwAfter from '../../assets/din4023_patterns/left_symbols/groundwater_after_drilling.svg?raw';
+import gwRest from '../../assets/din4023_patterns/left_symbols/groundwater_rest.svg?raw';
+import cored from '../../assets/din4023_patterns/left_symbols/sample_cored.svg?raw';
 import type { GroundwaterType, Layer, LayerProps, PatternId } from '../../domain/types';
 import { COL } from '../../theme';
 
-/** DIN 4023 symbols, read from the repo's assets/din4023_patterns (not copied into the frontend). */
+/** DIN 4023 symbols, read from src/assets/din4023_patterns. */
 type DinCode = keyof typeof codes;
 type SecondaryCode = keyof typeof secondaryCodes;
 
-const PROPERTY_FILES = import.meta.glob('../../../../assets/din4023_patterns/properties/*.svg', {
+const PROPERTY_FILES = import.meta.glob('../../assets/din4023_patterns/properties/*.svg', {
   query: '?raw', import: 'default', eager: true,
 }) as Record<string, string>;
 
@@ -94,7 +94,7 @@ export const PROP_K = 0.25;
 
 interface PropertyEntry { group: string; key: string; name_de: string; name_en: string; svg: string; tile_width: number; tile_height: number; repeat_y: boolean; frame: number | null }
 const PROPS = new Map((properties as PropertyEntry[]).map((p) => {
-  const file = PROPERTY_FILES[`../../../../assets/din4023_patterns/${p.svg}`];
+  const file = PROPERTY_FILES[`../../assets/din4023_patterns/${p.svg}`];
   const id = `din-prop-${p.group}_${p.key}`;
   const s = parse(file);
   if (p.repeat_y) tilePattern(id, s, PROP_K);
