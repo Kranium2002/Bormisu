@@ -1,7 +1,9 @@
 """Page classification (BACKEND.md 7.3): duplicates by perceptual hash, then a cheap model labels each page.
 
 Each page is labelled and committed on its own, so a retry resumes with the pages still unlabelled and never
-pays twice. Labels below CLASSIFIER_MIN_CONFIDENCE are asked again with the extractor model.
+pays twice. Labels below CLASSIFIER_MIN_CONFIDENCE are asked again with the extractor model, and so is a
+page put in a no-data role that looks like the log sheets around it (`second_opinion`, capped per document
+in data/page_roles.yaml); the page records that it was asked, so a retry never asks twice.
 
 Duplicate thresholds live in data/document_checks.yaml (`page_duplicates`). A scan (no trustworthy text
 layer on both pages) is a copy only when its render is near identical too, never on the hash alone: the same
@@ -17,6 +19,8 @@ import base64
 import io
 import json
 import logging
+import math
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Protocol
 
@@ -106,6 +110,97 @@ def _blank_rule() -> tuple[float, int, int]:
         int(rule.get("dark_below", 0)),
         int(rule.get("max_text_chars", 0)),
     )
+
+
+@dataclass(frozen=True)
+class SecondOpinionRule:
+    max_share: float
+    max_pages: int
+    size_tolerance: float
+    log_roles: frozenset[str]
+    handwriting: frozenset[str]
+    skip_roles: frozenset[str]
+
+
+@lru_cache(maxsize=1)
+def second_opinion_rule() -> SecondOpinionRule:
+    import yaml
+
+    with (get_settings().data_dir / "page_roles.yaml").open(encoding="utf-8") as handle:
+        rule = (yaml.safe_load(handle) or {}).get("second_opinion") or {}
+    return SecondOpinionRule(
+        max_share=float(rule.get("max_share", 0.0)),
+        max_pages=int(rule.get("max_pages", 0)),
+        size_tolerance=float(rule.get("size_tolerance", 0.0)),
+        log_roles=frozenset(rule.get("roles") or ()),
+        handwriting=frozenset(rule.get("handwriting") or ()),
+        skip_roles=frozenset(rule.get("skip_roles") or ()),
+    )
+
+
+def _same_size(a: Page, b: Page, tolerance: float) -> bool:
+    if not (a.width_px and a.height_px and b.width_px and b.height_px):
+        return False
+    return abs(a.width_px - b.width_px) <= tolerance * max(a.width_px, b.width_px) and abs(
+        a.height_px - b.height_px
+    ) <= tolerance * max(a.height_px, b.height_px)
+
+
+def outliers(pages: list[Page]) -> list[int]:
+    """Pages in a no-data role that look like the log sheets next to them, in page order and capped.
+
+    A candidate has a log-sheet neighbour of the same page size, and either handwriting of its own or log
+    sheets on both sides; a page already asked twice (`second_opinion` in its label) is never a candidate."""
+    rule = second_opinion_rule()
+    if rule.max_pages <= 0 or rule.max_share <= 0 or not pages:
+        return []
+    important = get_settings().important_roles
+    by_n = {p.n: p for p in pages}
+    found: list[int] = []
+    for page in sorted(pages, key=lambda p: p.n):
+        if page.role is None or page.role in important or page.role in rule.skip_roles:
+            continue
+        if (page.classifier or {}).get("second_opinion"):
+            continue
+        logs = [
+            other
+            for other in (by_n.get(page.n - 1), by_n.get(page.n + 1))
+            if other is not None and other.role in rule.log_roles
+        ]
+        alike = [other for other in logs if _same_size(page, other, rule.size_tolerance)]
+        if alike and (page.handwriting in rule.handwriting or len(logs) == 2):
+            found.append(page.n)
+    cap = min(rule.max_pages, max(1, math.ceil(rule.max_share * len(pages))))
+    return found[:cap]
+
+
+async def second_opinion(document_id: str, classifier: Classifier) -> list[int]:
+    """Label the outliers again with the extractor model (paid through the provider ledger like every
+    escalation); returns the pages whose role changed."""
+    async with get_sessionmaker()() as session:
+        pages = list((await session.scalars(select(Page).where(Page.document_id == document_id))).all())
+    changed: list[int] = []
+    for n in outliers(pages):
+        async with get_sessionmaker()() as session:
+            page = await session.get(Page, (document_id, n))
+            if page is None or page.role is None:
+                continue
+            first_role = page.role
+            storage = get_storage()
+            png = await asyncio.to_thread(
+                _shrink, await asyncio.to_thread(storage.get_bytes, page.render_key or "")
+            )
+            text = await asyncio.to_thread(_text_for, page)
+            label = await classifier.label(page, png, text, escalate=True)
+            apply_label(page, label)
+            page.classifier = {**(page.classifier or {}), "second_opinion": {"first_role": first_role}}
+            await session.commit()
+            if label.role != first_role:
+                logger.info(
+                    "document %s p%d: %s -> %s on a second opinion", document_id, n, first_role, label.role
+                )
+                changed.append(n)
+    return changed
 
 
 def is_blank(png: bytes, text: str | None) -> bool:
@@ -321,6 +416,8 @@ async def stage_classify(document_id: str, classifier: Classifier | None = None)
     errors = [r for r in results if isinstance(r, BaseException)]
     if errors:
         raise errors[0]
+    if await second_opinion(document_id, model):
+        await update_progress(document_id, emit=True)
     await mark_document_duplicate(document_id)
 
 

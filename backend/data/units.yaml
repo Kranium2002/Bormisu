@@ -225,6 +225,10 @@ dates:
   # Two-digit years: YY below the pivot is 20YY, otherwise 19YY ("04.03.26" -> 2026-03-04,
   # "04.03.87" -> 1987-03-04). Set to null to reject two-digit years.
   two_digit_year_pivot: 40
+  # Day and month split by a slash, then a dash before the year ("19/8-08", "3/11-1997"): a handwritten
+  # form-filling style that is day first wherever it is used; no convention writes month/day-year so.
+  # Set to false to treat these as ambiguous like "03/04/2026".
+  slash_dash_day_first: true
   # Years outside this range are not dates of a borehole record.
   year_range: [1850, 2100]
 
