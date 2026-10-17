@@ -1,0 +1,473 @@
+/* The chat (FRONTEND.md F14): the header button, the drawer on the right of the main region (a
+   full-screen sheet below 768 px), its transcript parts and the request_area hint over the map. */
+
+/* ---------- header button ---------- */
+
+.buttonWrap {
+  display: flex;
+  align-items: center;
+}
+
+.headerButton {
+  cursor: pointer;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--c-nav-idle);
+  border-radius: 2px;
+  background: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.headerButton:hover {
+  border-color: #fff;
+}
+
+.headerButton:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.headerButtonOpen {
+  background: var(--c-green);
+  border-color: var(--c-green);
+  color: var(--c-on-green);
+}
+
+.headerButton[aria-disabled='true'],
+.headerButton[aria-disabled='true']:hover {
+  cursor: not-allowed;
+  border-color: var(--c-nav-idle);
+  opacity: 0.55;
+}
+
+/* ---------- drawer ---------- */
+
+/* Above the side panel's scrim, below dialogs and the toast; left of the Source panel when that is open. */
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  z-index: calc(var(--z-panel) + 1);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+.besidePanel {
+  right: 600px;
+}
+
+@media (max-width: 767px) {
+  .drawer,
+  .besidePanel {
+    right: 0;
+    left: 0;
+    width: auto;
+  }
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.title {
+  margin: 0;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.headButton {
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--c-text);
+}
+
+.headButton[aria-disabled='true'] {
+  cursor: not-allowed;
+  color: var(--c-faint);
+}
+
+.close {
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: var(--c-text);
+}
+
+.off {
+  flex: none;
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+  border-radius: 2px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty {
+  margin: 0;
+  color: var(--c-muted);
+  line-height: 1.5;
+}
+
+.user {
+  align-self: flex-end;
+  max-width: 85%;
+  background: var(--c-green-bg);
+  color: var(--c-text);
+  padding: 8px 11px;
+  border-radius: 6px 6px 0 6px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.thinking {
+  color: var(--c-muted);
+  font-style: italic;
+}
+
+/* tool progress lines */
+.tool {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  color: var(--c-muted);
+  font-size: 12px;
+}
+
+.toolMark {
+  flex: none;
+  width: 12px;
+  text-align: center;
+  color: var(--c-green-text);
+}
+
+.tool[data-tool-state='running'] .toolMark {
+  color: var(--c-faint);
+}
+
+.toolFailed,
+.toolFailed .toolMark {
+  color: var(--c-red);
+}
+
+.toolError {
+  color: var(--c-text);
+}
+
+/* citation chips: numbered, inline in the text */
+.cite {
+  cursor: pointer;
+  display: inline-block;
+  min-width: 18px;
+  margin: 0 2px;
+  padding: 0 4px;
+  border: 1px solid var(--c-ok-border);
+  border-radius: 9px;
+  background: var(--c-green-bg);
+  color: var(--c-green-text);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+.cite:hover,
+.cite:focus-visible {
+  background: var(--c-green);
+  color: var(--c-on-green);
+}
+
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.sourcesTag,
+.cardTag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--c-muted);
+}
+
+/* result and question cards */
+.card {
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-green);
+  border-radius: 2px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--c-surface);
+}
+
+.question {
+  border-left-color: var(--c-amber);
+}
+
+.cardText {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scope {
+  font-size: 11.5px;
+  color: var(--c-muted);
+  border-top: 1px solid var(--c-line);
+  padding-top: 6px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--c-red-bg);
+  color: var(--c-red);
+  border-radius: 2px;
+  line-height: 1.4;
+}
+
+.error > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+/* buttons */
+.primary,
+.secondary,
+.stop {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.primary {
+  background: var(--c-green);
+  color: var(--c-on-green);
+  border: 0;
+}
+
+.secondary {
+  background: var(--c-surface);
+  color: var(--c-dark);
+  border: 1px solid var(--c-border-strong);
+}
+
+.stop {
+  background: var(--c-surface);
+  color: var(--c-red);
+  border: 1px solid var(--c-red);
+}
+
+.primary[aria-disabled='true'],
+.secondary[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.linkButton {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--c-dark);
+  text-decoration: underline;
+}
+
+/* footer: area line, switches, input */
+.foot {
+  flex: none;
+  border-top: 1px solid var(--c-border);
+  padding: 10px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.area {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--c-selected);
+  border: 1px solid var(--c-ok-border);
+  border-radius: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.area > span {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option {
+  font-size: 12px;
+  color: var(--c-text);
+}
+
+.chip {
+  cursor: pointer;
+  margin-left: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--c-text);
+}
+
+.chipOn {
+  background: var(--c-dark);
+  border-color: var(--c-dark);
+  color: #fff;
+}
+
+.chip[aria-disabled='true'] {
+  cursor: not-allowed;
+  color: var(--c-faint);
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 2px;
+  padding: 7px 9px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--c-text);
+  background: var(--c-surface);
+}
+
+.input:focus {
+  outline: 2px solid var(--c-green);
+  outline-offset: -1px;
+}
+
+.input:disabled {
+  background: var(--c-line);
+  cursor: not-allowed;
+}
+
+/* ---------- request_area hint over the map ---------- */
+
+.areaHint {
+  position: absolute;
+  top: 10px;
+  left: 56px;
+  z-index: 2;
+  max-width: min(440px, calc(100% - 120px));
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--c-surface);
+  border-left: 3px solid var(--c-green);
+  box-shadow: var(--shadow-popover);
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.areaHintText {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.areaHintHow {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--c-muted);
+}
+
+.areaHintActions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
