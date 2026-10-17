@@ -164,3 +164,6 @@ local_grid:
   words: [lokal, local, site grid, site, baustelle, grille locale, locale, lokales, lokaler, örtlich, ortsnetz,
           lokalt, lokala, paikallinen, local grid, site coordinates, project grid, arbitrary]
   max_abs_value: 100000
+  # Languages whose surveyors print the northing first as X on site grids (geodetic convention); the
+  # site-grid question defaults to "X is north" for documents in them. Others default to X east.
+  x_north_languages: [no, nb, nn, da, sv, fi, is, de, pl, cs, sk, ru, uk, ko, ja]

@@ -23,6 +23,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clarify.grid import GridMember, ask_grid, grid_name, grid_point
 from app.clarify.service import add_boreholes, create_clarification
 from app.db.models import Borehole, Clarification, Document, FieldValue
 from app.normalize.coordinates import parse_coordinates
@@ -107,8 +108,10 @@ def local_grid_of(record: dict[str, Any], crs_status: str) -> str | None:
 
 
 async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
-    """One `locate_borehole` question per borehole of `doc` without coordinates but with a printed place.
-    Returns how many questions were asked for the first time."""
+    """`locate_borehole` questions for the boreholes of `doc` that no coordinate system places: one per site
+    grid with two or more of its boreholes (app.clarify.grid places them all from one or two anchors), one per
+    other borehole without coordinates but with a printed place. Returns how many were asked for the first
+    time."""
     boreholes = (
         await session.scalars(
             select(Borehole)
@@ -128,7 +131,27 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         ).all()
         for uid in (uids or [])
     }
+    in_grid = {
+        bh.uid: grid
+        for bh in boreholes
+        if (grid := local_grid_of(bh.record, bh.crs_status)) is not None and grid_point(bh.record) is not None
+    }
+    names = grid_name(list(in_grid.values()))
+    members: dict[str, list[GridMember]] = {}
     for bh in boreholes:
+        if bh.uid in in_grid:
+            x, y = grid_point(bh.record) or (0.0, 0.0)
+            members.setdefault(names[in_grid[bh.uid]], []).append(GridMember(bh.uid, bh.label_raw, x, y))
+    for grid, group in sorted(members.items()):
+        if len(group) < 2:
+            continue
+        already = await _asked_uids(session, doc.id)
+        if not all(m.uid in already for m in group):  # questions about each of them were asked earlier
+            asked += int(await ask_grid(session, doc, grid, sorted(group, key=lambda m: m.label)))
+        covered |= {m.uid for m in group}
+    for bh in boreholes:
+        if bh.uid in covered and bh.uid in in_grid:
+            continue  # placed through its grid's question
         grid = local_grid_of(bh.record, bh.crs_status)
         if grid is None and bh.crs_status == "inferred" and bh.uid not in covered:
             grid = unplaceable_system(bh.record)  # printed values no coordinate system places
@@ -181,6 +204,18 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         )
         asked += 1
     return asked
+
+
+async def _asked_uids(session: AsyncSession, document_id: str) -> set[str]:
+    """Boreholes of the document some locate_borehole question already asks about."""
+    rows = (
+        await session.scalars(
+            select(Clarification.borehole_uids).where(
+                Clarification.kind == "locate_borehole", Clarification.document_id == document_id
+            )
+        )
+    ).all()
+    return {uid for uids in rows for uid in (uids or [])}
 
 
 # ----------------------------------------------------------------------------------------------

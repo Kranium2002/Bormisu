@@ -26,5 +26,5 @@ blank_page: { max_ink_share: 0.001, dark_below: 200, max_text_chars: 8 }   # fai
 label_prefixes:
   words: [borehole, bore hole, boring, hole, bh, b.h., drillhole, drill hole, sondage, sondeo, sondaggio,
           bohrung, bohrloch, perforación, perforacion, perfuração, perfuracao, furo, boorgat, boring nr,
-          borhull, borhål, borehul, sonda]
+          borhull, borhål, borehul, sonda, hull, id, punkt, pkt]
   number_signs: ["no.", "no", "nr.", "nr", "n°", "nº", "n.", "#", "number", "núm.", "núm", "num.", "nummer"]
