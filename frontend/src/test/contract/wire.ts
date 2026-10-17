@@ -11,7 +11,8 @@ export interface Envelope {
   example: unknown;
 }
 
-const files = import.meta.glob<Envelope>('./*.json', { eager: true, import: 'default' });
+// No type argument on purpose (see examples.ts): Vitest's module cache then re-reads the folder every run.
+const files = import.meta.glob('./*.json', { eager: true, import: 'default' }) as Record<string, Envelope>;
 
 /** Every fixture by file name without ".json". */
 export const FIXTURES: Record<string, Envelope> = Object.fromEntries(

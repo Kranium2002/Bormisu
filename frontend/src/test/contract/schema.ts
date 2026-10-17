@@ -77,9 +77,26 @@ export function validatorFor(ref: string): ValidateFunction {
   return fn;
 }
 
+const messages = (fn: ValidateFunction) => (fn.errors ?? []).map((e) => `${e.instancePath || '/'} ${e.message ?? 'is invalid'}`);
+
 /** Validation errors of `data` against a schema reference (empty when valid). */
 export function contractErrors(ref: string, data: unknown): string[] {
   const fn = validatorFor(ref);
-  if (fn(data)) return [];
-  return (fn.errors ?? []).map((e) => `${e.instancePath || '/'} ${e.message ?? 'is invalid'}`);
+  return fn(data) ? [] : messages(fn);
+}
+
+const inline = new WeakMap<object, ValidateFunction>();
+
+/**
+ * Validation errors of `data` against an inline JSON schema, for shapes the contract defines outside
+ * the OpenAPI file (the small event payloads of contracts/realtime-and-chat.md). Local refs
+ * ("#/components/schemas/...") point into the contract.
+ */
+export function inlineErrors(schema: object, data: unknown): string[] {
+  let fn = inline.get(schema);
+  if (!fn) {
+    fn = ajv.compile(rebase(schema) as object);
+    inline.set(schema, fn);
+  }
+  return fn(data) ? [] : messages(fn);
 }

@@ -1,45 +1,67 @@
 /**
- * The fictional wire fixtures (src/test/contract) and, once the backend writes them, the shared
- * examples in contracts/examples must validate against contracts/openapi.yaml. A rename in the
- * contract then fails here before it fails in the browser.
+ * The fictional wire fixtures (src/test/contract) and the backend's shared examples
+ * (<repo>/contracts/examples) must validate against contracts/openapi.yaml and
+ * contracts/realtime-and-chat.md. A rename in the contract then fails here before it fails in the browser.
  */
 import { describe, expect, it } from 'vitest';
-import { contractErrors, hasSchema, openapi } from '../test/contract/schema';
+import {
+  CHAT_STREAMS,
+  EXAMPLES,
+  EXAMPLES_MISSING,
+  EXAMPLES_PRESENT,
+  eventFiles,
+  eventTypeOf,
+  schemaFiles,
+  schemaNameOf,
+} from '../test/contract/examples';
+import examplesSource from '../test/contract/examples.ts?raw';
+import { contractErrors, hasSchema, inlineErrors, openapi } from '../test/contract/schema';
 import { FIXTURES } from '../test/contract/wire';
+import wireSource from '../test/contract/wire.ts?raw';
 
-/** The backend's shared examples; an empty map while the folder doesn't exist. */
-const examples = import.meta.glob<unknown>('../../../contracts/examples/*.json', { eager: true, import: 'default' });
-
-/** File names of shared examples that name their payload differently from the schema. */
-const ALIASES: Record<string, string> = {
-  borehole: 'BoreholeRecord',
-  borehole_record: 'BoreholeRecord',
-  boreholes: 'BoreholeList',
-  borehole_list: 'BoreholeList',
-  document: 'Document',
-  documents: 'DocumentList',
-  document_list: 'DocumentList',
-  errors: 'array:Error',
-  crs_candidates: 'array:CrsCandidate',
-  clarifications: 'array:Clarification',
-  places: 'array:PlaceCandidate',
-  geocode: 'array:PlaceCandidate',
+/**
+ * The `data` of each server-sent event (realtime-and-chat.md section 1): `document.updated` carries a
+ * full Document, `clarification.created` a full Clarification, the others the small objects of the
+ * table. Extra fields are allowed (additive changes inside 1.x); a renamed or missing field is not.
+ */
+const EVENT_SCHEMAS: Record<string, object> = {
+  'document.updated': { $ref: '#/components/schemas/Document' },
+  'document.deleted': {
+    type: 'object', required: ['document_id'], properties: { document_id: { type: 'string', minLength: 1 } },
+  },
+  'borehole.created': {
+    type: 'object',
+    required: ['uid', 'document_id', 'revision', 'plotted'],
+    properties: {
+      uid: { type: 'string', minLength: 1 }, document_id: { type: 'string', minLength: 1 },
+      revision: { type: 'integer', minimum: 1 }, plotted: { type: 'boolean' },
+    },
+  },
+  'borehole.updated': {
+    type: 'object',
+    required: ['uid', 'revision'],
+    properties: { uid: { type: 'string', minLength: 1 }, revision: { type: 'integer', minimum: 1 } },
+  },
+  'clarification.created': { $ref: '#/components/schemas/Clarification' },
+  'clarification.resolved': {
+    type: 'object',
+    required: ['clarification_id', 'status'],
+    properties: { clarification_id: { type: 'string', minLength: 1 }, status: { enum: ['answered', 'skipped'] } },
+  },
+  'job.failed': {
+    type: 'object',
+    required: ['document_id', 'stage', 'detail', 'retryable'],
+    properties: {
+      document_id: { type: 'string', minLength: 1 }, stage: { type: 'string' }, detail: { type: 'string' }, retryable: { type: 'boolean' },
+    },
+  },
 };
 
-const pascal = (s: string) => s.split(/[_\-\s]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join('');
-
-/** The schema reference of a shared example file, or null when it can't be mapped. */
-function exampleSchema(file: string, data: unknown): string | null {
-  if (data && typeof data === 'object' && !Array.isArray(data) && typeof (data as { schema?: unknown }).schema === 'string' && 'example' in data) {
-    return (data as unknown as { schema: string }).schema;
-  }
-  const base = (file.split('/').pop() ?? file).replace(/\.json$/, '').split('.')[0].toLowerCase();
-  const alias = ALIASES[base];
-  if (alias) return alias === 'BoreholeList' && Array.isArray(data) ? 'array:BoreholeRecord' : alias;
-  if (hasSchema(pascal(base))) return pascal(base);
-  const single = pascal(base.replace(/s$/, ''));
-  if (Array.isArray(data) && hasSchema(single)) return `array:${single}`;
-  return null;
+/** Error codes the contract lists in the Error schema's description. */
+function contractErrorCodes(): string[] {
+  const description = (openapi.components.schemas.Error as { properties: { code: { description: string } } }).properties.code.description;
+  const list = description.slice(description.indexOf(':') + 1);
+  return list.split(',').map((c) => c.trim().replace(/\.$/, '')).filter(Boolean);
 }
 
 describe('contract fixtures (src/test/contract)', () => {
@@ -69,40 +91,75 @@ describe('contract fixtures (src/test/contract)', () => {
     expect(contractErrors('Health', { status: 'ok', mode: 'sample' }).length).toBeGreaterThan(0);
     expect(contractErrors('ValuePatch', { path: 'metadata.borehole_id', action: 'undo' }).length).toBeGreaterThan(0);
     expect(contractErrors('response:approveClean:200', { count: -1 }).length).toBeGreaterThan(0);
+    expect(inlineErrors(EVENT_SCHEMAS['borehole.updated'], { uid: 'bh_x', rev: 2 }).length).toBeGreaterThan(0);
+    expect(inlineErrors(EVENT_SCHEMAS['document.updated'], { document_id: 'doc_x' }).length).toBeGreaterThan(0);
   });
 });
 
-describe('shared examples (contracts/examples)', () => {
-  const files = Object.keys(examples);
+describe('example loading', () => {
+  it('re-reads the examples folder on every run (no type argument on import.meta.glob, so Vitest never caches a stale file list)', () => {
+    for (const [name, src] of Object.entries({ 'examples.ts': examplesSource, 'wire.ts': wireSource })) {
+      expect(src, name).toContain('import.meta.glob(');
+      expect(src, name).not.toMatch(/import\.meta\.glob</);
+    }
+  });
+});
 
-  it('validate against the contract when the backend has written them', () => {
-    if (!files.length) {
-      console.info('contracts/examples/ has no JSON files yet: nothing to validate.');
-      return;
+describe('example file names (contracts/examples/README.md naming rule)', () => {
+  it('map <SchemaName>.<variant>.json and <SchemaName>.json to the schema, case-sensitive', () => {
+    expect(schemaNameOf('BoreholeRecord.full.json')).toBe('BoreholeRecord');
+    expect(schemaNameOf('BoreholeList.not_on_map.json')).toBe('BoreholeList');
+    expect(schemaNameOf('CrsCandidate.list.json')).toBe('CrsCandidate');
+    expect(schemaNameOf('Error.route_not_found.json')).toBe('Error');
+    expect(schemaNameOf('Stats.json')).toBe('Stats');
+    expect(schemaNameOf('events/document.updated.json')).toBeNull();
+    expect(schemaNameOf('README.md')).toBeNull();
+    // Case matters: "boreholerecord" is not a schema, so such a file fails instead of being skipped.
+    expect(hasSchema(schemaNameOf('boreholerecord.full.json') as string)).toBe(false);
+    expect(eventTypeOf('events/clarification.created.json')).toBe('clarification.created');
+    expect(eventTypeOf('BoreholeRecord.full.json')).toBeNull();
+  });
+});
+
+describe.skipIf(!EXAMPLES_PRESENT)(`shared examples (contracts/examples)${EXAMPLES_PRESENT ? '' : ` — skipped: ${EXAMPLES_MISSING}`}`, () => {
+  const files = schemaFiles();
+
+  it('has the examples the README promises', () => {
+    expect(files.length).toBeGreaterThanOrEqual(60);
+    const schemas = new Set(files.map(schemaNameOf));
+    for (const s of ['Health', 'Document', 'DocumentList', 'BoreholeRecord', 'BoreholeList', 'ValuePatch', 'CrsCandidate', 'UploadAccepted', 'Error']) {
+      expect(schemas.has(s), s).toBe(true);
     }
-    const failures: string[] = [];
-    for (const file of files) {
-      const data = examples[file];
-      const ref = exampleSchema(file, data);
-      if (!ref) {
-        console.info(`contracts/examples: no schema known for ${file}; skipped.`);
-        continue;
-      }
-      const payload = ref === (data as { schema?: string })?.schema ? (data as { example: unknown }).example : data;
-      const errors = contractErrors(ref, payload);
-      if (errors.length) failures.push(`${file} (${ref}): ${errors.slice(0, 5).join('; ')}`);
-    }
-    expect(failures).toEqual([]);
   });
 
-  it('maps example file names to schemas', () => {
-    expect(exampleSchema('x/health.json', {})).toBe('Health');
-    expect(exampleSchema('x/borehole_record.json', {})).toBe('BoreholeRecord');
-    expect(exampleSchema('x/boreholes.json', [])).toBe('array:BoreholeRecord');
-    expect(exampleSchema('x/boreholes.json', { count: 0 })).toBe('BoreholeList');
-    expect(exampleSchema('x/crs_candidates.json', [])).toBe('array:CrsCandidate');
-    expect(exampleSchema('x/result_set.json', {})).toBe('ResultSet');
-    expect(exampleSchema('x/whatever.json', {})).toBeNull();
-    expect(exampleSchema('x/env.json', { schema: 'Health', example: {} })).toBe('Health');
+  it.each(files)('%s validates against its schema (arrays per item)', (file) => {
+    const schema = schemaNameOf(file);
+    expect(schema && hasSchema(schema), `${file}: no schema "${schema}" in contracts/openapi.yaml`).toBe(true);
+    const data = EXAMPLES[file];
+    const items = Array.isArray(data) ? data : [data];
+    if (Array.isArray(data)) expect(data.length, `${file} is an empty array`).toBeGreaterThan(0);
+    const errors = items.flatMap((item, i) => contractErrors(schema as string, item).map((e) => (Array.isArray(data) ? `[${i}]${e}` : e)));
+    expect(errors).toEqual([]);
   });
+
+  it('has an Error example for every error code of the contract, and no other', () => {
+    const codes = files.filter((f) => schemaNameOf(f) === 'Error').map((f) => f.split('.')[1]).sort();
+    expect(codes).toEqual(contractErrorCodes().sort());
+    for (const code of codes) expect((EXAMPLES[`Error.${code}.json`] as { code: string }).code).toBe(code);
+  });
+
+  const events = eventFiles();
+
+  it('has an example for every event type of realtime-and-chat.md section 1', () => {
+    expect(events.map(eventTypeOf).sort()).toEqual(Object.keys(EVENT_SCHEMAS).sort());
+  });
+
+  it.each(events)('%s validates against its event shape', (file) => {
+    const type = eventTypeOf(file) as string;
+    const schema = EVENT_SCHEMAS[type];
+    expect(schema, `${file}: unknown event type`).toBeDefined();
+    expect(inlineErrors(schema, EXAMPLES[file])).toEqual([]);
+  });
+
+  it.skip(`chat/*.sse streams (${Object.keys(CHAT_STREAMS).join(', ') || 'none'}) are checked with the chat drawer (M3)`, () => undefined);
 });

@@ -68,7 +68,14 @@ export function toApiState(s: FieldState): NonNullable<WireValuePatch['state']> 
   return s === 'not in source' ? 'not_in_source' : s === 'illegible' ? 'illegible' : 'ok';
 }
 
-const depthText = (v: number) => v.toFixed(2);
+/**
+ * A depth or level as text: at least two decimals ("15.50"), never fewer digits than the server sent
+ * ("3.425" stays "3.425"): exports read the number back from this text.
+ */
+const depthText = (v: number) => {
+  const s = String(v);
+  return /e/i.test(s) || (s.split('.')[1]?.length ?? 0) < 2 ? v.toFixed(2) : s;
+};
 
 /** Display text of a wire value: numbers as digits, booleans as yes / no, lists joined, null as ''. */
 function wireText(v: unknown): string {
@@ -98,13 +105,15 @@ export type PatchValueType = 'number' | 'string' | 'boolean' | 'spt';
 
 /**
  * Where a value lives in the backend record: the provenance paths a PATCH targets. A value that holds
- * two fields (X / Y) keeps the whole `pair` (X first); an edit is split on " / " and each part goes to
- * its path, as long as that path is a provenance key.
+ * two fields (X / Y) keeps the whole `pair` (X first) and the `current` text of each; an edit is split
+ * on " / " and each part goes to its path when that path is a provenance key. A part whose path is not
+ * a provenance key can't be saved, so it must stay as it is.
  */
 export interface PatchTarget {
   paths: string[];
   type: PatchValueType;
   pair?: readonly [string, string];
+  current?: readonly [string, string];
 }
 
 /** A domain borehole plus the backend target of each patchable value key. */
@@ -264,7 +273,8 @@ export function adaptBorehole(rec: WireBorehole): AdaptedBorehole {
         ...(flag ? { flag } : {}),
         ...s.extra,
       };
-      targets[s.key] = { paths: provPaths, type: s.type ?? 'string', ...(pair ? { pair } : {}) };
+      const current = pair && Array.isArray(s.value) ? ([wireText(s.value[0]), wireText(s.value[1])] as const) : undefined;
+      targets[s.key] = { paths: provPaths, type: s.type ?? 'string', ...(pair ? { pair, ...(current ? { current } : {}) } : {}) };
     }
     rowPaths.set(s.key, paths);
     values.push(v);

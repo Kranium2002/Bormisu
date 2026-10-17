@@ -224,6 +224,18 @@ describe('single resources', () => {
     ]);
   });
 
+  it("forgets a document's boreholes that its borehole list no longer has", async () => {
+    const { records } = backend();
+    const api = createApiSource(BASE);
+    await api.load();
+    // The backend merged HL-01 away (e.g. after a borehole-boundary answer): the document lists HL-02 only.
+    records.delete(HL01);
+    await expect(api.documentBoreholes(D1)).resolves.toMatchObject([{ uid: HL02 }]);
+    const doc = await api.getDocument(D1);
+    expect(doc.reviewBoreholeUid).toBe(HL02);
+    expect(doc.completeness?.lint.every((l) => l.boreholeId === 'HL-02')).toBe(true);
+  });
+
   it('serves page images at 1400 px with the usage the backend reported', async () => {
     const { calls } = backend();
     const api = createApiSource(BASE);
@@ -406,13 +418,26 @@ describe('uploads', () => {
     expect((calls[0].form as FormData).has('project')).toBe(false);
   });
 
-  it('reports a duplicate upload with the earlier document and keeps it while following', async () => {
+  it('reports a duplicate upload as the earlier document itself (never a duplicate of itself) and follows it', async () => {
     backend((c) => (c.method === 'POST' ? json(200, fixture('upload-duplicate')) : undefined));
     const updates: DocumentSummary[] = [];
     await createApiSource(BASE).upload([file()], (d) => updates.push(d), { project: null });
-    expect(updates[0]).toMatchObject({ id: D1, duplicateOf: D1, status: 'needs_review' });
+    expect(updates[0]).toMatchObject({ id: D1, duplicateOf: null, status: 'needs_review', uploaded: true });
     await vi.waitFor(() => expect(updates).toHaveLength(2));
-    expect(updates[1]).toMatchObject({ id: D1, duplicateOf: D1, uploaded: true, status: 'needs_review' });
+    expect(updates[1]).toMatchObject({ id: D1, duplicateOf: null, uploaded: true, status: 'needs_review', name: 'harbourline_GI_report.pdf' });
+  });
+
+  it('keeps a duplicate answer that names another document', async () => {
+    backend((c) => {
+      if (c.method === 'POST') return json(200, { document_id: D5, status: 'queued', duplicate_of: D1 });
+      if (c.url.endsWith(`/documents/${D5}`)) return json(200, { ...fixture<WireDocumentList>('documents').documents[4], status: 'done' });
+      return undefined;
+    });
+    const updates: DocumentSummary[] = [];
+    await createApiSource(BASE).upload([file()], (d) => updates.push(d), { project: null });
+    expect(updates[0]).toMatchObject({ id: D5, duplicateOf: D1 });
+    await vi.waitFor(() => expect(updates).toHaveLength(2));
+    expect(updates[1]).toMatchObject({ id: D5, duplicateOf: D1, status: 'done' });
   });
 
   it('rejects in demo mode with code demo_mode', async () => {

@@ -193,18 +193,36 @@ describe('sample source mutations', () => {
     expect(bk7.revision).toBe(2);
   });
 
-  it('confirms the CRS for every borehole of the document and answers the CRS question', async () => {
+  it('confirms the CRS for every borehole of the document with printed coordinates and answers the CRS question', async () => {
     const src = createSampleSource();
     const cands = await src.crsCandidates('nb');
     expect(cands.map((c) => [c.verdict, c.swapAxes])).toEqual([['match', false], ['shifted', false], ['out_of_range', false]]);
     await expect(src.confirmCrs('nb', { code: 'EPSG:25832', swapAxes: false, confirmedBy: null })).rejects.toMatchObject({ code: 'crs_invalid' });
-    await expect(src.confirmCrs('nb', { code: 'EPSG:31467', swapAxes: false, confirmedBy: null })).resolves.toBe(13);
+    const before = (await src.load()).boreholes;
+    // Like the backend: only boreholes with printed coordinates get the system (BK-13 and BK-14 have none).
+    await expect(src.confirmCrs('nb', { code: 'EPSG:31467', swapAxes: false, confirmedBy: null })).resolves.toBe(11);
     const { boreholes, documents } = await src.load();
     const nb = boreholes.filter((b) => b.documentId === 'nb');
-    expect(nb.every((b) => b.crs.status === 'confirmed' && b.openClarifications === 0 && b.revision === 2)).toBe(true);
+    const located = nb.filter((b) => b.meta.localX != null && b.meta.localY != null);
+    expect(located).toHaveLength(11);
+    expect(located.every((b) => b.crs.status === 'confirmed' && b.openClarifications === 0 && b.revision === 2)).toBe(true);
+    for (const id of ['BK-13', 'BK-14']) expect(byId(boreholes, id), id).toEqual(byId(before, id));
     expect(displayStatus(byId(boreholes, 'BK-01'))).toBe('approved');
     expect(legend(boreholes).attention).toBe(4);
     expect(documents[0].openClarifications).toBe(0);
+  });
+
+  it('approving or resetting a flagged value clears its flag, as the backend does', async () => {
+    const src = createSampleSource();
+    const flagged = await src.updateValue('nb:BK-07', K.finalDepth, { status: 'flagged', flag: 'check the end note (fictional)' });
+    expect(flagged.values.find((v) => v.key === K.finalDepth)).toMatchObject({ status: 'flagged', flag: 'check the end note (fictional)' });
+    const approved = await src.updateValue('nb:BK-07', K.finalDepth, { status: 'approved' });
+    expect(approved.values.find((v) => v.key === K.finalDepth)).toMatchObject({ status: 'approved' });
+    expect(approved.values.find((v) => v.key === K.finalDepth)?.flag).toBeUndefined();
+    await src.updateValue('nb:BK-07', K.finalDepth, { status: 'flagged', flag: 'again (fictional)' });
+    const reset = await src.updateValue('nb:BK-07', K.finalDepth, { status: 'unreviewed' });
+    expect(reset.values.find((v) => v.key === K.finalDepth)).toMatchObject({ status: 'unreviewed' });
+    expect(reset.values.find((v) => v.key === K.finalDepth)?.flag).toBeUndefined();
   });
 
   it('simulates upload progress 0 → 1 → 2 with the dropped project', async () => {

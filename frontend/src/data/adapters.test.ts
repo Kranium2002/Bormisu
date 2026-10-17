@@ -19,6 +19,7 @@ import {
   type WireDocumentList,
   type WireHealth,
 } from './adapters';
+import { buildStandardSheets } from '../export/standardXlsx';
 import { patchActions } from './apiSource';
 
 const hl01 = () => fixture<WireBorehole>('borehole');
@@ -80,6 +81,26 @@ describe('adaptBorehole: identity, position and metadata', () => {
     expect(pick(K.casing)).toEqual(['Casing', 'HW casing to 3.0 m', '']);
     expect(pick(K.rockHead)).toEqual(['RockHead', '9.00', 'm']);
     expect(pick(K.notes)).toEqual(['Notes', 'Fictional record for frontend tests.', '']);
+  });
+
+  it('shows depths and levels with at least two decimals but never rounds away what the server sent', () => {
+    const rec = hl01();
+    rec.metadata.surface_elevation_mASL = 3.425;
+    rec.metadata.borehole_depth_m = 15.125;
+    rec.stratigraphy[0].depth_to_m = 1.205;
+    rec.groundwater[0].depth_m = 2.105;
+    const { borehole: b } = adaptBorehole(rec);
+    expect(val(b, K.elevation)?.value).toBe('3.425');
+    expect(val(b, K.finalDepth)?.value).toBe('15.125');
+    expect(val(b, K.bottom(1))?.value).toBe('1.205');
+    expect(val(b, K.gw(0))?.value).toBe('2.105');
+    // Whole and one-decimal numbers keep the two-decimal display.
+    expect(val(b, K.rockHead)?.value).toBe('9.00');
+    expect(val(b, K.bottom(2))?.value).toBe('4.50');
+    // The export reads the number from the value: it must be the server's number.
+    const sheets = buildStandardSheets([{ ...b, values: b.values.map((v) => ({ ...v, status: 'approved' as const })) }], { includeUnreviewed: false });
+    expect(JSON.stringify(sheets)).toContain('3.425');
+    expect(JSON.stringify(sheets)).toContain('15.125');
   });
 
   it('takes the rock head only from rock_head_m, never from the lithology', () => {
@@ -186,7 +207,7 @@ describe('adaptBorehole: coordinates and CRS', () => {
     expect(val(b, K.xy)?.box?.w).toBeCloseTo(0.3);
     expect(targets[K.xy]).toEqual({
       paths: ['metadata.coordinates.local_x', 'metadata.coordinates.local_y'], type: 'number',
-      pair: ['metadata.coordinates.local_x', 'metadata.coordinates.local_y'],
+      pair: ['metadata.coordinates.local_x', 'metadata.coordinates.local_y'], current: ['1757412.3', '5920530.8'],
     });
     const kr = adaptBorehole(kr01());
     expect(val(kr.borehole, K.xy)?.value).toBe('10.7522 / 59.9139');
@@ -456,7 +477,7 @@ describe('patchActions', () => {
     expect(patchActions({ value: '' }, depth)[0].value).toBeNull();
   });
 
-  it('splits an X / Y edit per path, also when only one coordinate is a provenance key', () => {
+  it('splits an X / Y edit per path, also when only one coordinate is a provenance key and the other stays as it is', () => {
     const pair = ['metadata.coordinates.local_x', 'metadata.coordinates.local_y'] as const;
     expect(patchActions({ value: '512345 / 6123456', status: 'approved' }, { paths: [...pair], type: 'number', pair })).toEqual([
       { path: pair[0], action: 'edit', value: 512345 },
@@ -464,10 +485,18 @@ describe('patchActions', () => {
       { path: pair[0], action: 'approve' },
       { path: pair[1], action: 'approve' },
     ]);
-    expect(patchActions({ value: '512345 / 6123456' }, { paths: [pair[1]], type: 'number', pair })).toEqual([
+    expect(patchActions({ value: '512345.0 / 6123456' }, { paths: [pair[1]], type: 'number', pair, current: ['512345', ''] })).toEqual([
       { path: pair[1], action: 'edit', value: 6123456 },
     ]);
     expect(() => patchActions({ value: '512345' }, { paths: [...pair], type: 'number', pair })).toThrow(/both values/);
+  });
+
+  it('refuses an X / Y edit that changes the coordinate without a provenance entry instead of dropping it', () => {
+    // TQ-02: only local_x has a provenance entry; local_y can't be saved.
+    const { targets } = adaptBorehole(caseOf('TQ-02'));
+    expect(() => patchActions({ value: '30512.4 / 29870.1' }, targets[K.xy])).toThrow(/Y can't be changed here.*metadata\.coordinates\.local_y/);
+    // Y left as it is (empty) saves X alone.
+    expect(patchActions({ value: '30512.4 /' }, targets[K.xy])).toEqual([{ path: 'metadata.coordinates.local_x', action: 'edit', value: 30512.4 }]);
   });
 
   it('builds bodies the contract accepts', () => {

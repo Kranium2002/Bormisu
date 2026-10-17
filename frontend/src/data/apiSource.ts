@@ -66,15 +66,34 @@ function serialise(text: string, type: PatchValueType): unknown {
   return parseNumber(t) ?? text;
 }
 
-/** The edit bodies of one value: one per path; a two-field value ("X / Y") is split into its parts. */
+/** True when two texts of one value are the same, numbers compared as numbers ("12.50" = "12.5"). */
+function sameText(a: string, b: string): boolean {
+  if (a.trim() === b.trim()) return true;
+  const x = parseNumber(a);
+  return x != null && x === parseNumber(b);
+}
+
+/**
+ * The edit bodies of one value: one per path. A two-field value ("X / Y") is split into its parts and
+ * each part goes to its path. A part whose path has no provenance entry can't be saved: changing it
+ * is refused rather than silently dropped.
+ */
 function editBodies(text: string, target: PatchTarget): PatchBody[] {
   if (!target.pair) return target.paths.map((path) => ({ path, action: 'edit', value: serialise(text, target.type) }));
-  const parts = text.split(MULTI_FIELD_SEPARATOR).map((p) => p.trim());
-  if (parts.length !== 2 || parts.some((p) => !p)) {
-    throw new Error(`Enter both values separated by "${MULTI_FIELD_SEPARATOR.trim()}", e.g. 512345 / 6123456`);
-  }
-  const pair = target.pair;
-  return target.paths.map((path) => ({ path, action: 'edit', value: serialise(parts[pair.indexOf(path)], target.type) }));
+  const sep = MULTI_FIELD_SEPARATOR.trim();
+  const both = `Enter both values separated by "${sep}", e.g. 512345 ${sep} 6123456`;
+  const parts = text.split(sep).map((p) => p.trim());
+  if (parts.length !== 2) throw new Error(both);
+  const bodies: PatchBody[] = [];
+  target.pair.forEach((path, i) => {
+    if (target.paths.includes(path)) {
+      if (!parts[i]) throw new Error(both);
+      bodies.push({ path, action: 'edit', value: serialise(parts[i], target.type) });
+    } else if (!sameText(parts[i], target.current?.[i] ?? '')) {
+      throw new Error(`${i === 0 ? 'X' : 'Y'} can't be changed here: the backend record has no source entry for it (${path}).`);
+    }
+  });
+  return bodies;
 }
 
 /**
@@ -113,6 +132,13 @@ function pendingDocument(id: string, name: string, status: DocumentStatus): Docu
     id, name, project: '', status, pages: [], step: stepOf(status), progress: null, counts: null, completeness: null,
     reviewBoreholeUid: null, openClarifications: 0, duplicateOf: null, error: null,
   };
+}
+
+/** One error for the files of an upload the server refused, naming each file; code and status of the first. */
+function uploadError(failures: { file: File; error: ApiError }[]): ApiError {
+  const first = failures[0].error;
+  const text = failures.map(({ file, error }) => `${file.name}: ${errorText(error)}`).join(' · ');
+  return new ApiError(first.status, first.code, first.detail, first.errors, text);
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -200,7 +226,8 @@ export function createApiSource(base: string): DataSource {
   /**
    * Polls a document every POLL_MS until the backend is done with it. A failed poll is not a failed
    * document: the card keeps its last state, the wait doubles up to MAX_BACKOFF_MS, and polling goes
-   * on. One console warning marks the start of each error streak.
+   * on. One console warning marks the start of each error streak. A document the backend no longer
+   * has (deleted meanwhile) is not followed any further.
    */
   async function poll(first: DocumentSummary, onUpdate: (doc: DocumentSummary) => void): Promise<void> {
     let errors = 0;
@@ -216,6 +243,10 @@ export function createApiSource(base: string): DataSource {
         if (isTerminal(d.status)) return;
         errors = 0;
       } catch (e) {
+        if (isApiError(e, 'document_not_found')) {
+          console.warn(`Document ${first.id} no longer exists on the backend; stopped following it.`);
+          return;
+        }
         if (errors === 0) console.warn(`Following document ${first.id} failed (${errorText(e)}); retrying with backoff.`);
         errors += 1;
       }
@@ -301,7 +332,11 @@ export function createApiSource(base: string): DataSource {
 
     async documentBoreholes(documentId) {
       const list = await request<WireBorehole[]>('GET', `/documents/${enc(documentId)}/boreholes`);
-      return list.map((rec) => remember(rec).borehole);
+      const boreholes = list.map((rec) => remember(rec).borehole);
+      // The answer is the document's full list: a borehole it no longer has (merged or removed) is gone.
+      const listed = new Set(boreholes.map((b) => b.uid));
+      for (const [uid, r] of records) if (r.borehole.documentId === documentId && !listed.has(uid)) records.delete(uid);
+      return boreholes;
     },
 
     async getDocument(documentId) {
@@ -322,21 +357,32 @@ export function createApiSource(base: string): DataSource {
     },
 
     async upload(files, onUpdate, options) {
+      const refused: { file: File; error: ApiError }[] = [];
       for (const file of files) {
         const form = new FormData();
         form.append('file', file);
         if (options?.project != null) form.append('project', options.project);
-        const res = await request<WireUploadAccepted>('POST', '/documents', form);
-        const first: DocumentSummary = {
-          ...pendingDocument(res.document_id, file.name, res.status),
-          project: options?.project ?? '',
-          uploaded: true,
-          // A 200 answer for bytes uploaded before names the earlier document.
-          duplicateOf: res.duplicate_of ?? null,
-        };
+        let res: WireUploadAccepted;
+        try {
+          res = await request<WireUploadAccepted>('POST', '/documents', form);
+        } catch (e) {
+          // Demo mode refuses every file and an unreachable backend takes none: stop. Otherwise the
+          // server refused this file only (type, size): send the others and name it at the end.
+          if (!isApiError(e) || e.code === 'demo_mode') throw e;
+          refused.push({ file, error: e });
+          continue;
+        }
+        // A 200 answer for bytes uploaded before names the earlier document, usually as its own id
+        // (document_id = duplicate_of): then this is that document, not a new one and not a duplicate
+        // of itself, and its card keeps what the source knows of it.
+        const earlier = res.duplicate_of != null ? docs.get(res.document_id) : undefined;
+        const base = earlier ? summarise(earlier) : { ...pendingDocument(res.document_id, file.name, res.status), project: options?.project ?? '' };
+        const other = res.duplicate_of != null && res.duplicate_of !== res.document_id ? res.duplicate_of : null;
+        const first: DocumentSummary = { ...base, uploaded: true, duplicateOf: other ?? base.duplicateOf };
         onUpdate(first);
         follow(first, onUpdate);
       }
+      if (refused.length) throw uploadError(refused);
     },
 
     watch(documentId, onUpdate) {
