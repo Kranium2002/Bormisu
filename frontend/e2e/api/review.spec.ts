@@ -315,11 +315,43 @@ test('Larger source view opens the page image at the value’s box with the raw 
   await expect(panel).toHaveCount(0);
 });
 
-test('a change made elsewhere meanwhile: the save answers 409, the newer record is shown and nothing is lost silently', async ({ page, request, errors }) => {
+test('a change made elsewhere arrives live: the record moves on and the next save carries the new revision', async ({ page, request }) => {
   const r = await target(request);
   const id = r.metadata.borehole_id;
   await ensureUnreviewed(request, r.uid, PATHS.depth);
   await ensureUnreviewed(request, r.uid, PATHS.contractor);
+  try {
+    await openApp(page);
+    await openReview(page, id);
+    await expect(approveBtn(page, 'Drilling contractor')).toHaveAttribute('aria-pressed', 'false');
+    // Someone else approves another value: the event stream brings the new revision without a reload.
+    await patchValue(request, r.uid, { path: PATHS.contractor, action: 'approve' });
+    await expect(approveBtn(page, 'Drilling contractor')).toHaveAttribute('aria-pressed', 'true');
+    const revision = (await record(request, r.uid)).revision;
+    const [approve] = await patchesDuring(page, r.uid, 1, () => approveBtn(page, 'Final depth').click());
+    expect(approve).toEqual({ path: PATHS.depth, action: 'approve', if_revision: revision });
+    await expect(approveBtn(page, 'Final depth')).toHaveAttribute('aria-pressed', 'true');
+  } finally {
+    await ensureUnreviewed(request, r.uid, PATHS.depth);
+    await ensureUnreviewed(request, r.uid, PATHS.contractor);
+  }
+});
+
+test('a change made elsewhere that the app has not heard of: the save answers 409, the newer record is shown and nothing is lost silently', async ({ page, request, errors }) => {
+  const r = await target(request);
+  const id = r.metadata.borehole_id;
+  await ensureUnreviewed(request, r.uid, PATHS.depth);
+  await ensureUnreviewed(request, r.uid, PATHS.contractor);
+  // The event stream stays silent (it would deliver the other change before the click).
+  await page.route(
+    (url) => url.pathname === '/api/v1/events',
+    (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' },
+        body: ['retry: 60000', ': held silent by this test', '', ''].join('\n'),
+      }),
+  );
   try {
     await openApp(page);
     await openReview(page, id);

@@ -20,13 +20,16 @@ frontend/
   Dockerfile  Dockerfile.dockerignore  nginx.conf      production image (repo root is the build context)
   scripts/check-dist.mjs                               fails when a build contains sample data
   src/
-    main.tsx  App.tsx  config.ts                       bootstrap, shell, build-time settings
+    main.tsx  App.tsx  config.ts                       bootstrap, layout route (shell), build-time settings
+    router.tsx  routing/   routes (createBrowserRouter), urlState.ts (every URL built or read), RouteSync,
+                           navigator (injected into the store), route screens, not-found page
     domain/      types.ts (all domain types), status.ts (review status, attention, clean values),
                  pages.ts (page placeholders, usage text), din.ts (DIN 4023 lookup), keys.ts,
                  review.ts (value patches), spt.ts, format.ts
-    data/        DataSource.ts (interface), errors.ts (ApiError, UnreachableError, SaveError),
-                 api-types.gen.ts (generated), adapters.ts, apiSource.ts, createDataSource.ts,
-                 contract.test.ts (fixtures validated against the contract)
+    data/        DataSource.ts (interface), errors.ts (ApiError, UnreachableError, SaveError,
+                 UploadCancelledError), api-types.gen.ts (generated), adapters.ts, apiSource.ts,
+                 events.ts (live events and the polling fallback), createDataSource.ts,
+                 contract.test.ts (fixtures and contracts/examples validated against the contract)
     sample/      DEMO ONLY fictional data source
     store/       zustand store combined from slices (below)
     components/  shared UI: Header, Banner, ReviewerName, SidePanel/SourcePanel, ScanPage, DinPatternDefs …
@@ -50,9 +53,10 @@ frontend/
 
 ## Data source (`src/data/DataSource.ts`)
 
-`health`, `load`, `getBorehole`, `documentBoreholes`, `getDocument`, `getPage`, `upload` (with a `project` label), `watch`, `updateValue` (resolves with the borehole as the source now holds it), `approveClean(documentId, dryRun)`, `retry`, `crsCandidates`, `confirmCrs({code, swapAxes, confirmedBy})`.
+`health`, `load`, `getBorehole`, `documentBoreholes`, `getDocument`, `getPage`, `thumbnailUrl` (page images at width 200), `upload(file, {project, onProgress})` (one file, returns `{done, cancel}`), `subscribe(onEvent, onStatus)` (live events), `follow(documentId)`, `updateValue` (resolves with the borehole as the source now holds it), `approveClean(documentId, dryRun)`, `retry`, `crsCandidates`, `confirmCrs({code, swapAxes, confirmedBy})`.
 
-- **API source.** Every error answer becomes an `ApiError` with the contract's `code`; the UI branches on `code` and shows `detail`, never parsing it. Network failures, non-JSON 5xx and HTML where JSON was expected are `UnreachableError` ("backend unreachable"); only `route_not_found` reads "Backend endpoint not available". Saves are serialised per borehole and send `if_revision`; a `revision_conflict` refetches the record; a failure throws `SaveError` whose `current` is what the server holds. "Undo" is the `reset` action. Documents still being processed are polled with backoff (2 s doubling to 30 s) that never gives up after one error. Server-sent events replace polling in M1.
+- **API source.** Every error answer becomes an `ApiError` with the contract's `code`; the UI branches on `code` and shows `detail`, never parsing it. Network failures, non-JSON 5xx and HTML where JSON was expected are `UnreachableError` ("backend unreachable"); only `route_not_found` reads "Backend endpoint not available". Saves are serialised per borehole and send `if_revision`; a `revision_conflict` refetches the record; a failure throws `SaveError` whose `current` is what the server holds. "Undo" is the `reset` action. Uploads use `XMLHttpRequest` for byte progress and can be cancelled; a 200 duplicate answer is the earlier document, never a duplicate of itself.
+- **Live events** (`events.ts`): `EventSource` on `GET /events`, which reconnects itself and resends `Last-Event-ID`; each named event is mapped through the adapters to a `LiveEvent`. After three stream errors within a minute (or without `EventSource`) the source polls `GET /documents/{id}` for the documents it follows every 2 s, backing off to 30 s after errors and never giving up after one; a terminal or deleted document stops being followed. It keeps trying the stream and goes back to `live` once it opens; a recreated stream refetches the followed documents once (it cannot resend `Last-Event-ID`). Status `offline` means neither the stream nor a poll succeeded for 60 s.
 - **Sample source.** In memory, deterministic, simulated uploads; implements the same interface, including revisions and approve-clean.
 
 ## Store (`src/store/`)
@@ -64,13 +68,20 @@ One zustand store (`useAppStore`) combined from slices, with selectors (`useBore
 | `dataSlice` | data source, health, load state, boreholes, documents, page cache |
 | `reviewSlice` | Review screen, saves, approve all clean, CRS dialog |
 | `mapSlice` | Detail selection, search, map focus |
-| `uploadSlice` | drop zone (types and size limit from health), uploads, document updates, retry |
-| `panelSlice` | navigation, side panel, export menu, toast, Escape |
+| `uploadSlice` | drop zone (types and size limit from health), the upload queue (two at a time, byte progress, cancel, retry, the project label typed or taken from a dropped folder), document updates, retry |
+| `eventsSlice` | the live subscription (`startLive` after load, `stopLive` on teardown), `liveStatus`, `applyLiveEvent` for every event type, server-reported job failures |
+| `panelSlice` | navigation through the injected router navigator, route, side panel, export menu, toast, Escape |
 | `settingsSlice` | the reviewer's optional name (localStorage), sent as `confirmed_by` |
 
 **Saves** (`saves.ts`, `SaveTracker`): a review action updates the store optimistically; while saves of a borehole are pending, answers and refetches are only collected; when the last one settles, the newest record (highest revision) replaces the borehole. A failed save therefore rolls back exactly to what the server holds, and an older answer never overwrites a newer one. **Approve all clean** asks the server for the count (`dry_run=true`), confirms, then reloads the document's boreholes. **CRS confirmation** sends the candidate's `swap_axes` and the reviewer's name, then reloads the document's boreholes instead of moving pins locally.
 
+**Live events** apply idempotently: `document.updated` replaces the document (and loads its boreholes once it reaches review, so an uploaded document becomes reviewable without a reload); `borehole.created` / `borehole.updated` refetch through `takeBoreholes`, which respects pending saves, one refetch per uid at a time; `document.deleted` removes the document and its boreholes; `job.failed` shows the stage and detail with RETRY when retryable; clarification events refetch the affected counts.
+
 Escape closes, in order: editing → confirm clean → export menu → CRS dialog → side panel.
+
+## Routing (`src/router.tsx`, `src/routing/`)
+
+react-router in data mode (`createBrowserRouter`); nginx and Vite fall back to `index.html`. Routes: `/` → `/map`, `/map?at=<lat>,<lng>,<zoom>&sel=<uid>&rs=<result set>`, `/queue`, `/review/:uid?key=<value key>`, `/boreholes/:uid?layer=<n>`, anything else a not-found page. The URL is the source of navigation truth: `RouteSync` applies every location to the store one way (`screen`, `selectedUid`, `reviewUid`, map view, selected layer and value); navigation actions (`go`, `openBorehole`, `openReview`, search) update the store and call the navigator injected in `main.tsx`, which pushes a history entry, or replaces it when only the query changes (pan, zoom, popup, layer, focused value after a short rest). Without a navigator (unit tests) the actions set the store directly. Reload and deep links restore the screen and selection; an unknown uid shows "Borehole not found", never a blank page. All URL building and parsing lives in `urlState.ts`.
 
 ## Screens
 
@@ -78,7 +89,7 @@ Escape closes, in order: editing → confirm clean → export menu → CRS dialo
 |---|---|
 | Header, banners | Nav (MAP, UPLOAD & QUEUE with a badge for documents in review, REVIEW), search, the reviewer-name setting, `APP_NAME`. SAMPLE DATA banner in sample mode; "Live extraction needs API keys" in demo mode |
 | Map | Leaflet with the configured basemap (grayscale CSS). Pins coloured by `displayStatus`, legend counts, NOT ON MAP list with reason labels, RESULTS table; every row opens Detail. World view, clustering and area selection arrive with F9/F10 |
-| Upload & queue | Drop zone mirroring the server's types and size limit (disabled with a reason in demo mode), document cards with steps, progress bar, page strip from `pages[]` (tooltips from `pageUsageText`), completeness chip, open-clarification badge, duplicate link, error with Retry |
+| Upload & queue | Drop zone mirroring the server's types and size limit (disabled with a reason in demo mode), a "Project (optional)" field, upload rows with byte progress, cancel, remove and retry, an "Already uploaded" notice that jumps to the existing card, the live-status line, document cards with steps, progress bar, page strip from `pages[]` (thumbnail and `pageUsageText` on hover or focus), completeness chip, open-clarification badge, duplicate link, the server's failure stage and detail with Retry |
 | Review | Scan page with value boxes; values grouped BOREHOLE / GROUNDWATER / LAYER n / SAMPLES / TEST RESULTS; approve, edit (AI value struck through), flag, not in source, illegible, undo; readings side by side; spreadsheet cells as "Sheet!C5"; APPROVE ALL CLEAN with the server's count; CRS dialog with verdicts, notes, scores and the swap-axes flag |
 | Detail | DIN 4023 profile, metadata (raw coordinates as printed next to converted ones), layers, groundwater, location map, exports |
 
@@ -104,6 +115,6 @@ Client-side in both modes, from domain data:
 | `npm run check:dist` | fails when `dist/` contains sample data |
 | `npm run gen:api` | regenerates `src/data/api-types.gen.ts` from the contract |
 | `npm test` | Vitest: domain, adapters on the contract fixtures, store with fake sources, view models, exports |
-| `npm run e2e` | Playwright in sample mode (system Chrome locally, bundled Chromium in CI) |
+| `npm run e2e` | Playwright project `sample` (system Chrome locally, bundled Chromium in CI); `E2E_BASE_URL=http://localhost:8081 npm run e2e -- --project=api` runs the API project against a seeded compose stack |
 
 Node ≥ 22.12 is required (`engines`, `.nvmrc`).

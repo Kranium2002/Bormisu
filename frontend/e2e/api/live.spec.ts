@@ -128,8 +128,9 @@ test('an uploaded document updates live from the event stream and becomes review
   await expect(card.getByRole('list', { name: 'Processing status' }).locator('li[aria-current="step"]')).toHaveText('extracting');
   await expect(card.getByRole('progressbar', { name: 'OCR' })).toHaveAttribute('aria-valuenow', '1');
   await expect(card.getByRole('button', { name: 'OPEN REVIEW ›' })).toHaveCount(0);
-  // Live, not polled: the document was never fetched while it advanced.
-  expect(documentGets).toEqual([]);
+  // Live, not polled: apart from the one resync when the stream opens (a new EventSource has no
+  // Last-Event-ID, so the source refetches what it follows once), the document was never fetched.
+  expect(documentGets.length, 'GETs of the document while it advanced').toBeLessThanOrEqual(1);
 
   // The browser reconnects after the stream's `retry` delay and the stream goes on. (Its Last-Event-ID
   // header is not visible to Playwright's interception in Chrome, so it is not asserted here.)
@@ -141,8 +142,9 @@ test('an uploaded document updates live from the event stream and becomes review
   await expect(card.getByRole('list', { name: 'Processing status' }).locator('li[aria-current="step"]')).toHaveText('needs review');
   await expect(card.getByRole('list', { name: 'Found' })).toContainText('1 BH');
   const fetchedOnce = documentGets.length;
-  // At most the one refetch for the checks once the boreholes are known; no polling afterwards.
-  expect(fetchedOnce).toBeLessThanOrEqual(1);
+  // At most two one-off fetches: the source's resync when the stream first opened, and the store's
+  // refetch for the completeness checks once the boreholes are known. No polling afterwards.
+  expect(fetchedOnce).toBeLessThanOrEqual(2);
   await page.waitForTimeout(3_000);
   expect(documentGets).toHaveLength(fetchedOnce);
 

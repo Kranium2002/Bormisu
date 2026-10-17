@@ -5,7 +5,7 @@
  * and the fictional seed is loaded (`python -m app.seed`). Read-only: changes nothing.
  */
 import type { Page } from '@playwright/test';
-import { API, expect, getJson, knownBug, nav, navLink, openApp, records, test, type WireRecord } from './fixtures';
+import { API, expect, getJson, nav, navLink, openApp, records, test, type WireRecord } from './fixtures';
 
 interface Health {
   mode: string;
@@ -122,18 +122,24 @@ function sourceAllBut(r: WireRecord, keep: RegExp): void {
 
 test('FE-PROV-1: every layer’s Lithology row has a source, also when the backend tracks only original_description', async ({ page, request, warnings }) => {
   const all = await records(request);
+  // Since contract 1.1.0 the seed tracks english_lithology itself. The browser's copy of the list drops
+  // those entries again wherever the description has one (the older seed's shape), so the Lithology
+  // row has to fall back to original_description.
   const onDescription = all.flatMap((r) =>
-    r.stratigraphy.flatMap((l, i) =>
-      l.english_lithology && !r.provenance[`stratigraphy[${i}].english_lithology`] && r.provenance[`stratigraphy[${i}].original_description`] ? [i] : [],
-    ),
+    r.stratigraphy.flatMap((l, i) => (l.english_lithology && r.provenance[`stratigraphy[${i}].original_description`] ? [i] : [])),
   );
-  expect(onDescription.length, 'seeded layers whose English lithology is tracked only at original_description').toBeGreaterThan(0);
+  expect(onDescription.length, 'seeded layers with an English lithology and a described source').toBeGreaterThan(0);
   // Every other value gets an entry in the browser's copy of the list, so only a Lithology row could
   // be left without a source (it would be reported at stratigraphy[i].english_lithology).
   await page.route(LIST, async (route) => {
     const res = await route.fetch();
     const body = (await res.json()) as { boreholes: WireRecord[] };
-    for (const r of body.boreholes) sourceAllBut(r, /^stratigraphy\[\d+\]\.english_lithology$/);
+    for (const r of body.boreholes) {
+      r.stratigraphy.forEach((_, i) => {
+        if (r.provenance[`stratigraphy[${i}].original_description`]) delete r.provenance[`stratigraphy[${i}].english_lithology`];
+      });
+      sourceAllBut(r, /^stratigraphy\[\d+\]\.english_lithology$/);
+    }
     await route.fulfill({ response: res, json: body });
   });
   expect(await unsourcedSummaries(page, warnings, all.length), 'values shown without a provenance entry').toEqual([]);
@@ -142,7 +148,7 @@ test('FE-PROV-1: every layer’s Lithology row has a source, also when the backe
 test('BE-PROV-1: every value the seed states has a provenance entry', async ({ page, request, warnings }) => {
   // Contract 1.1.0 (provenance rule): every non-null value at a ValuePatch path has an entry, except
   // server-computed ones. The app shows such a value read-only and logs one summary per load.
-  knownBug('BE-PROV-1', 'seeded location_name, country, client, colour, consistency_density, is_core without provenance');
+  // (Fixed by the backend in contract 1.1.0; the 1.0.0 seed left location_name, country, client … without one.)
   const all = await records(request);
   expect(await unsourcedSummaries(page, warnings, all.length), 'values shown without a provenance entry').toEqual([]);
 });

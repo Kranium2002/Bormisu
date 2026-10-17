@@ -1,11 +1,10 @@
 /**
- * M1 work items of FRONTEND.md section 5 checked against the live stack: F4 routes and deep links
- * (landed), F6 live events (still marked as an expected failure, knownBug, until it lands: the
- * marker gets removed then).
+ * M1 work items of FRONTEND.md section 5 checked against the live stack: F4 routes and deep links,
+ * F6 live events.
  *
  * Seed state needed: the fictional seed (`python -m app.seed`). Read-only.
  */
-import { expect, knownBug, openApp, openUrl, records, reload, test } from './fixtures';
+import { expect, openApp, openUrl, records, reload, test } from './fixtures';
 
 const heading = (page: import('@playwright/test').Page, name: string) => page.getByRole('heading', { level: 1, name, exact: true });
 
@@ -50,7 +49,6 @@ test('M1-ROUTER (F4): an unknown uid says "Borehole not found" with a link to th
 });
 
 test('M1-SSE (F6): the app follows GET /api/v1/events for live updates', async ({ page }) => {
-  knownBug('M1-SSE', 'no EventSource yet: documents in progress are polled every 2 s');
   const events = page.waitForRequest((req) => req.url().includes('/api/v1/events'), { timeout: 10_000 });
   await openApp(page);
   expect((await events).headers()['accept']).toContain('text/event-stream');
