@@ -99,7 +99,7 @@
     filter: blur(1.2px) saturate(0.8);
   }
   .bgsheet img { display: block; width: 100%; height: auto; }
-  .is-active .bgsheet { animation: bgin .7s var(--ease) var(--d) forwards, drift 9s ease-in-out calc(var(--d) + .7s) infinite alternate; }
+  .is-active .bgsheet { animation: bgin .47s var(--ease) var(--d) forwards, drift 6s ease-in-out calc(var(--d) + .47s) infinite alternate; }
   @keyframes bgin { from { opacity: 0; transform: translateY(-120px) rotate(var(--r)); } to { opacity: .55; transform: rotate(var(--r)); } }
   @keyframes drift { from { opacity: .55; transform: rotate(var(--r)); } to { opacity: .55; transform: translate(14px, -10px) rotate(calc(var(--r) + 2deg)); } }
   .pile .veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 52%, rgba(247,239,227,0.75) 0%, rgba(247,239,227,0) 60%); }
@@ -116,8 +116,8 @@
     background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,0.55) 50%, transparent 58%);
     transform: translateX(-60%); pointer-events: none;
   }
-  .is-active .sheet { animation: drop 1s var(--ease) var(--d) forwards; }
-  .is-active .sheet::after { animation: sheen 5s ease-in-out infinite; animation-delay: calc(var(--d) + 1.2s); }
+  .is-active .sheet { animation: drop .67s var(--ease) var(--d) forwards; }
+  .is-active .sheet::after { animation: sheen 3.33s ease-in-out infinite; animation-delay: calc(var(--d) + .8s); }
   @keyframes drop {
     from { opacity: 0; transform: translateY(160px) rotate(calc(var(--r) * -2)) scale(0.85); }
     to { opacity: 1; transform: rotate(var(--r)); }
@@ -225,39 +225,39 @@
   <!-- 07 REPORTS — a crowd of real pages behind; the three hardest (Norwegian handwriting, Spanish, Korean) in front -->
   <section class="pile" data-label="07 Reports">
     <div class="crowd">
-      <figure class="bgsheet" style="--x: -54px; --y: 364px; --r: -2.9deg; --d: 0.02s;"><img src="img/bg/p01.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1049px; --y: -95px; --r: 1.6deg; --d: 0.04s;"><img src="img/bg/p02.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 593px; --y: 717px; --r: -2.3deg; --d: 0.06s;"><img src="img/bg/p03.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1744px; --y: -85px; --r: 2.0deg; --d: 0.08s;"><img src="img/bg/p04.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1520px; --y: -77px; --r: -11.1deg; --d: 0.10s;"><img src="img/bg/p05.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1521px; --y: 704px; --r: -3.6deg; --d: 0.12s;"><img src="img/bg/p06.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1070px; --y: 298px; --r: 1.8deg; --d: 0.14s;"><img src="img/bg/p07.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: -51px; --y: 706px; --r: -0.1deg; --d: 0.16s;"><img src="img/bg/p08.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1744px; --y: 734px; --r: 7.8deg; --d: 0.18s;"><img src="img/bg/p09.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 164px; --y: 754px; --r: 11.9deg; --d: 0.20s;"><img src="img/bg/p10.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 833px; --y: 328px; --r: -7.0deg; --d: 0.22s;"><img src="img/bg/p11.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1271px; --y: 711px; --r: -11.7deg; --d: 0.24s;"><img src="img/bg/p12.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1279px; --y: 357px; --r: -0.1deg; --d: 0.26s;"><img src="img/bg/p13.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1056px; --y: 737px; --r: -5.9deg; --d: 0.28s;"><img src="img/bg/p14.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: -86px; --y: -85px; --r: 0.3deg; --d: 0.30s;"><img src="img/bg/p15.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1270px; --y: -57px; --r: -9.7deg; --d: 0.32s;"><img src="img/bg/p16.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1516px; --y: 343px; --r: -12.9deg; --d: 0.34s;"><img src="img/bg/p17.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 852px; --y: 689px; --r: 7.4deg; --d: 0.36s;"><img src="img/bg/p18.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 396px; --y: 330px; --r: -4.5deg; --d: 0.38s;"><img src="img/bg/p19.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 607px; --y: -24px; --r: -0.1deg; --d: 0.40s;"><img src="img/bg/p20.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 1761px; --y: 348px; --r: -12.1deg; --d: 0.42s;"><img src="img/bg/p21.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 365px; --y: -66px; --r: -0.7deg; --d: 0.44s;"><img src="img/bg/p22.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 177px; --y: -92px; --r: -12.3deg; --d: 0.46s;"><img src="img/bg/p23.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 404px; --y: 719px; --r: 4.1deg; --d: 0.48s;"><img src="img/bg/p24.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 628px; --y: 347px; --r: -6.0deg; --d: 0.50s;"><img src="img/bg/p25.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 834px; --y: -56px; --r: -13.4deg; --d: 0.52s;"><img src="img/bg/p26.jpg" alt="" /></figure>
-      <figure class="bgsheet" style="--x: 164px; --y: 335px; --r: -9.3deg; --d: 0.54s;"><img src="img/bg/p27.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: -54px; --y: 364px; --r: -2.9deg; --d: 0.013s;"><img src="img/bg/p01.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1049px; --y: -95px; --r: 1.6deg; --d: 0.027s;"><img src="img/bg/p02.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 593px; --y: 717px; --r: -2.3deg; --d: 0.040s;"><img src="img/bg/p03.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1744px; --y: -85px; --r: 2.0deg; --d: 0.053s;"><img src="img/bg/p04.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1520px; --y: -77px; --r: -11.1deg; --d: 0.067s;"><img src="img/bg/p05.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1521px; --y: 704px; --r: -3.6deg; --d: 0.080s;"><img src="img/bg/p06.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1070px; --y: 298px; --r: 1.8deg; --d: 0.093s;"><img src="img/bg/p07.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: -51px; --y: 706px; --r: -0.1deg; --d: 0.107s;"><img src="img/bg/p08.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1744px; --y: 734px; --r: 7.8deg; --d: 0.120s;"><img src="img/bg/p09.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 164px; --y: 754px; --r: 11.9deg; --d: 0.133s;"><img src="img/bg/p10.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 833px; --y: 328px; --r: -7.0deg; --d: 0.147s;"><img src="img/bg/p11.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1271px; --y: 711px; --r: -11.7deg; --d: 0.160s;"><img src="img/bg/p12.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1279px; --y: 357px; --r: -0.1deg; --d: 0.173s;"><img src="img/bg/p13.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1056px; --y: 737px; --r: -5.9deg; --d: 0.187s;"><img src="img/bg/p14.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: -86px; --y: -85px; --r: 0.3deg; --d: 0.200s;"><img src="img/bg/p15.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1270px; --y: -57px; --r: -9.7deg; --d: 0.213s;"><img src="img/bg/p16.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1516px; --y: 343px; --r: -12.9deg; --d: 0.227s;"><img src="img/bg/p17.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 852px; --y: 689px; --r: 7.4deg; --d: 0.240s;"><img src="img/bg/p18.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 396px; --y: 330px; --r: -4.5deg; --d: 0.253s;"><img src="img/bg/p19.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 607px; --y: -24px; --r: -0.1deg; --d: 0.267s;"><img src="img/bg/p20.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 1761px; --y: 348px; --r: -12.1deg; --d: 0.280s;"><img src="img/bg/p21.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 365px; --y: -66px; --r: -0.7deg; --d: 0.293s;"><img src="img/bg/p22.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 177px; --y: -92px; --r: -12.3deg; --d: 0.307s;"><img src="img/bg/p23.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 404px; --y: 719px; --r: 4.1deg; --d: 0.320s;"><img src="img/bg/p24.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 628px; --y: 347px; --r: -6.0deg; --d: 0.333s;"><img src="img/bg/p25.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 834px; --y: -56px; --r: -13.4deg; --d: 0.347s;"><img src="img/bg/p26.jpg" alt="" /></figure>
+      <figure class="bgsheet" style="--x: 164px; --y: 335px; --r: -9.3deg; --d: 0.360s;"><img src="img/bg/p27.jpg" alt="" /></figure>
     </div>
     <div class="veil"></div>
     <div class="front">
-      <figure class="sheet" style="--x: 170px;  --y: 150px; --w: 520px; --r: -6deg; --d: 0.9s;"><img src="img/r2-norway-hand.jpg" alt="Handwritten Norwegian borehole sheet" /></figure>
-      <figure class="sheet" style="--x: 1230px; --y: 140px; --w: 520px; --r: 5deg;  --d: 1.2s;"><img src="img/r1-korean.jpg" alt="Korean drill log" /></figure>
-      <figure class="sheet" style="--x: 560px;  --y: 230px; --w: 800px; --r: -1deg; --d: 1.5s;"><img src="img/r4-spanish.jpg" alt="Spanish soil probe sheet" /></figure>
+      <figure class="sheet" style="--x: 170px;  --y: 150px; --w: 520px; --r: -6deg; --d: 0.6s;"><img src="img/r2-norway-hand.jpg" alt="Handwritten Norwegian borehole sheet" /></figure>
+      <figure class="sheet" style="--x: 1230px; --y: 140px; --w: 520px; --r: 5deg;  --d: 0.8s;"><img src="img/r1-korean.jpg" alt="Korean drill log" /></figure>
+      <figure class="sheet" style="--x: 560px;  --y: 230px; --w: 800px; --r: -1deg; --d: 1.0s;"><img src="img/r4-spanish.jpg" alt="Spanish soil probe sheet" /></figure>
     </div>
   </section>
 
