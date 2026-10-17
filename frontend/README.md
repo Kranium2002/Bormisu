@@ -1,6 +1,6 @@
 # Bormisu frontend
 
-Bormisu turns messy geotechnical reports into reviewed borehole data for Herrenknecht. This is its web app:
+Bormisu turns messy geotechnical reports into reviewed borehole data. This is its web app:
 
 - **Upload & queue:** drop PDFs, DOCX files or images. Watch each document go from *classifying* to *extracting* to *needs review*, with a page map and a completeness check (boreholes the report names but no log was found for).
 - **Review:** every extracted value sits next to the scanned page with its box highlighted, shown as printed and as normalised, with its method (Read, OCR, Derived, Guessed, Edited). You can approve, edit (the AI value stays visible, struck through), flag, mark "not in source" or "illegible", approve all clean values at once, and confirm the coordinate system once for the whole report on a map preview.
@@ -17,12 +17,14 @@ React 19 + TypeScript + Vite, zustand for state, Leaflet for maps, exceljs for t
 
 ## Quick start
 
+Needs Node 22.12 or newer (`.nvmrc`).
+
 ```bash
-npm install
+npm ci
 npm run dev:sample   # demo mode: fictional sample data, no backend needed → http://localhost:5173
 ```
 
-With the backend (FastAPI, see `docs/design/api-contract.md`):
+With the backend (FastAPI, API contract in `../contracts/openapi.yaml`):
 
 ```bash
 npm run dev          # API mode: proxies /api to http://127.0.0.1:8000
@@ -40,7 +42,44 @@ The data source is chosen once, in `src/data/createDataSource.ts`, from `VITE_DA
 | `api` (default) | the FastAPI backend under `VITE_API_BASE` (default `/api/v1`) | `npm run dev`, `npm run build` |
 | `sample` | fictional demo data in `src/sample/`, in memory; uploads are simulated | `npm run dev:sample` (loads `.env.sample`) |
 
-Sample mode shows a *DEMO* banner that can't be dismissed. The sample data is made up: no file in this repo comes from the challenge dataset. Only `createDataSource.ts` imports `src/sample/`, lazily and behind the flag, so an API build contains no sample data at all. See [.env.example](.env.example) for the variables. The frontend holds no API keys.
+Sample mode shows a *DEMO* banner that can't be dismissed. The sample data is made up: no file in this repo comes from the challenge dataset. Only `createDataSource.ts` imports `src/sample/`, lazily and behind the flag, so an API build contains no sample data at all; `npm run check:dist` proves it for every build. See [.env.example](.env.example) for the variables. The frontend holds no API keys.
+
+## Configuration
+
+Build-time settings, read once in `src/config.ts`. They end up in the public JavaScript, so none of them may be a secret. Locally they come from `.env.local`; in Docker they are build args.
+
+| Variable | Default | What it sets |
+|---|---|---|
+| `VITE_APP_NAME` | `Bormisu` | Product name in the header and the browser tab |
+| `VITE_TILE_URL` | OpenStreetMap standard tiles | Basemap tile URL template (`{z}/{x}/{y}`) for every map |
+| `VITE_TILE_ATTRIBUTION` | the OpenStreetMap attribution | Attribution HTML the tile source requires; set it with `VITE_TILE_URL` |
+| `VITE_DATA_SOURCE` | `api` | `api` or `sample` (dev and tests only; Docker always builds `api`) |
+| `VITE_API_BASE` | `/api/v1` | API base path as the browser sees it |
+| `VITE_API_PROXY` | `http://127.0.0.1:8000` | Dev server only: where `/api` is proxied |
+
+The OpenStreetMap tile servers suit light use only; for heavier use point `VITE_TILE_URL` at another tile source.
+
+## Docker
+
+`Dockerfile` builds the web image from the **repository root** (the DIN 4023 patterns live in `../assets/din4023_patterns`); compose runs it as the `web` service.
+
+```bash
+docker build -f frontend/Dockerfile -t bormisu-web .            # from the repository root
+docker build -f frontend/Dockerfile --build-arg VITE_APP_NAME="Borehole Desk" \
+  --build-arg VITE_TILE_URL="https://tiles.example.org/{z}/{x}/{y}.png" \
+  --build-arg VITE_TILE_ATTRIBUTION="© Example Tiles" -t bormisu-web .
+```
+
+- **Stage 1** (`node:22-alpine`): `npm ci`, then `npm run build` in API mode (`VITE_DATA_SOURCE=api`, `VITE_API_BASE=/api/v1`) and `npm run check:dist`, which fails the build if sample data got in. `Dockerfile.dockerignore` sends only `frontend/` and `assets/din4023_patterns/` and never any `.env` file.
+- **Stage 2** (`nginx:1.30.6-alpine`): serves `dist/` with `nginx.conf`. No keys or secrets are in the image.
+- **nginx:** client-side routes fall back to `index.html` (deep links work); hashed `/assets/` are cached for a year, `index.html` is revalidated; text, JSON, SVG and GeoJSON are gzipped. `/api/` goes to the API with a 200 MB upload limit (a larger upload gets the API's JSON 413, `code: too_large`). `/api/v1/events` and `/api/v1/chat` stream unbuffered with an hour's read timeout.
+- **API upstream:** `API_UPSTREAM` (default `http://api:8000`, scheme, host and port only) and `API_RESOLVER` (default `127.0.0.11`, Docker's DNS) are read at container start. The host is resolved per request, so the web container starts and serves the app while the API is down; `/api` then answers 502 and the app shows "backend unreachable".
+- **Health check:** `GET /healthz` inside the container.
+
+```bash
+docker run --rm -p 8080:80 --network <compose network> bormisu-web     # needs an "api" host on that network
+docker run --rm -p 8080:80 -e API_UPSTREAM=http://host.docker.internal:8000 bormisu-web
+```
 
 ## Scripts
 
@@ -49,9 +88,11 @@ Sample mode shows a *DEMO* banner that can't be dismissed. The sample data is ma
 | `npm run dev` | Vite dev server, API mode |
 | `npm run dev:sample` | Vite dev server, sample mode |
 | `npm run build` | Type check (`tsc -b`, including the e2e tests) and production build to `dist/` |
+| `npm run check:dist` | Fails if `dist/` (or the folder given) contains sample data or a sample chunk |
 | `npm run preview` | Serves the production build |
 | `npm test` | Vitest unit tests |
-| `npm run e2e` | Playwright smoke tests in sample mode, with the system Chrome |
+| `npm run e2e` | Playwright smoke tests in sample mode: system Chrome locally, bundled Chromium when `CI` is set |
+| `npm run gen:api` | Regenerates `src/data/api-types.gen.ts` from `../contracts/openapi.yaml` |
 
 ## Folder overview
 
@@ -107,9 +148,10 @@ npm test         # unit tests: domain rules, schema, API adapters + error handli
                  # store flows (approve all clean, edit vs flag, states, CRS confirmation, search,
                  # uploads, export scope), xlsx/CSV builders, screen view models
 npm run e2e      # Playwright, sample mode, system Chrome (channel: 'chrome'); PORT sets the port (default 5174)
+E2E_BASE_URL=http://localhost:8080 npm run e2e   # against a running app instead (no dev server is started)
 ```
 
-The e2e suite starts `npm run dev:sample` itself and stops it afterwards. Map tiles are stubbed, so it runs offline, and every test fails on any console error. It covers:
+The e2e suite starts `npm run dev:sample` itself and stops it afterwards, unless `E2E_BASE_URL` is set. In CI (`CI` set) it uses Playwright's bundled Chromium (`npx playwright install --with-deps chromium`). `.github/workflows/frontend.yml` runs the unit tests, `gen:api` with a diff check, the build, `check:dist`, the e2e suite and the Docker build. Map tiles are stubbed, so it runs offline, and every test fails on any console error. It covers:
 
 - **Map:** pins, legend counts, the *Not on map* list, a results row and a pin popup opening the detail, and search ("EQ-03" flies to the pin; "BK-13" explains why it isn't on the map).
 - **Detail:** the profile; the R marker opens the source panel with the highlighted box; the tidy CSV downloads; the standard xlsx downloads, and its sheets and row-1 field names are checked with exceljs.
