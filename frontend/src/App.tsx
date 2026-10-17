@@ -1,6 +1,7 @@
 import { useEffect, type ComponentType } from 'react';
 import styles from './App.module.css';
 import { DemoBanner, SampleBanner } from './components/Banner';
+import { DinPatternDefs } from './components/DinPatternDefs';
 import { EmptyState } from './components/EmptyState';
 import { Header } from './components/Header';
 import { SidePanel } from './components/SidePanel';
@@ -43,7 +44,8 @@ function Body() {
 
 /**
  * App shell: header, the mode banner (SAMPLE DATA in sample mode, demo mode when the backend has no
- * provider keys), the active screen and the overlays (side panel, CRS dialog, toast).
+ * provider keys), the active screen and the overlays (side panel, CRS dialog, toast). The DIN 4023
+ * patterns are inlined once here, so every profile can fill with `url(#<pattern_id>)`.
  */
 export function App() {
   const init = useAppStore((s) => s.init);
@@ -66,6 +68,7 @@ export function App() {
 
   return (
     <div className={styles.app}>
+      <DinPatternDefs />
       <Header />
       {sampleBanner && <SampleBanner />}
       {demoMode && !sampleBanner && <DemoBanner />}
