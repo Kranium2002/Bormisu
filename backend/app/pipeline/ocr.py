@@ -17,9 +17,10 @@ from pathlib import Path
 from typing import Protocol
 
 import pypdfium2 as pdfium
+from PIL import Image
 from sqlalchemy import select
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db.models import Document, OcrPage, OcrRun, Page
 from app.db.session import get_sessionmaker
 from app.ids import new_id
@@ -133,6 +134,7 @@ async def _store_results(doc_id: str, run: OcrRun, chunk: Sequence[int], respons
 
 
 async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
+    global _MISTRAL_REFUSED
     settings = get_settings()
     async with get_sessionmaker()() as session:
         doc = await session.get(Document, document_id)
@@ -157,22 +159,27 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
     if not todo:
         await update_progress(document_id, emit=True)
         return
-    if engine is None:
-        from app.providers.ocr_mistral import MistralOcrClient
+    route = "custom" if engine is not None else (settings.ocr_route or "mistral")
+    if route == "mistral" and _MISTRAL_REFUSED and _falls_back_possible(settings):
+        route = "openrouter"
+    engine, model, provider = _engine_for(route, engine)
 
-        engine = MistralOcrClient()
-    model = settings.mistral_ocr_model
-    if source is not None:
-        chunks = plan_chunks(
-            todo,
+    def plan(pages_left: list[int]) -> list[list[int]]:
+        if source is None or route == "openrouter":
+            return [[n] for n in pages_left]  # images, and the OpenRouter route: one page per request
+        return plan_chunks(
+            pages_left,
             sizes,
             max_pages=settings.ocr_max_pages_per_request,
             max_bytes=settings.ocr_max_request_mb * 1024 * 1024,
         )
-    else:
-        chunks = [[n] for n in todo]  # images: one page per request
+
+    queue = plan(todo)
+    attempted = 0
     failures: list[ProviderError] = []
-    for chunk in chunks:
+    while queue:
+        chunk = queue.pop(0)
+        attempted += 1
         key = params_hash(model, sha256, chunk)
         async with get_sessionmaker()() as session:
             stored = await session.scalar(
@@ -186,7 +193,7 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
                 run = stored or OcrRun(
                     id=new_id("ocr"),
                     document_id=document_id,
-                    provider="mistral",
+                    provider=provider,
                     model=model,
                     params_hash=key,
                     pages=list(chunk),
@@ -198,30 +205,89 @@ async def stage_ocr(document_id: str, engine: OcrEngine | None = None) -> None:
                 response = None
         if response is None:
             try:
-                if source is not None:
-                    data = await asyncio.to_thread(sub_pdf, source, chunk)
-                    response = await engine.ocr(
-                        data, "application/pdf", document_id=document_id, page_count=len(chunk)
-                    )
-                else:
-                    data = await asyncio.to_thread(get_storage().get_bytes, render_keys[chunk[0]] or "")
-                    response = await engine.ocr(data, "image/png", document_id=document_id, page_count=1)
+                # Always our own renders, rebuilt as a PDF: broken structure, odd fonts, huge embedded images
+                # and rotation metadata of the original never reach the provider, and the provider's page
+                # geometry is the render's, so its boxes line up with the page images.
+                data = await asyncio.to_thread(renders_pdf, [render_keys[n] for n in chunk])
+                if hasattr(engine, "current_pages"):
+                    engine.current_pages = list(chunk)  # test doubles read the original's text layer
+                response = await engine.ocr(
+                    data, "application/pdf", document_id=document_id, page_count=len(chunk)
+                )
             except ProviderError as exc:
+                await _mark_failed(document_id, run.id, chunk, str(exc))
+                if _falls_back(route, exc, settings):
+                    # The Mistral key is refused: go on through OpenRouter for this and every later page,
+                    # and for later documents of this worker process.
+                    if not _MISTRAL_REFUSED:
+                        logger.warning(
+                            "Mistral OCR refused the key (%s); using OCR through OpenRouter", exc.status
+                        )
+                    _MISTRAL_REFUSED = True
+                    route = "openrouter"
+                    engine, model, provider = _engine_for(route, None)
+                    queue = plan(sorted({n for c in [chunk, *queue] for n in c}))
+                    continue
                 logger.warning("OCR failed for %s pages %s: %s", document_id, chunk, exc)
                 failures.append(exc)
-                async with get_sessionmaker()() as session:
-                    for n in chunk:
-                        page = await session.get(Page, (document_id, n))
-                        if page is not None:
-                            page.ocr_status = "failed"
-                    failed = await session.get(OcrRun, run.id)
-                    if failed is not None:
-                        failed.status, failed.error = "failed", str(exc)
-                    await session.commit()
                 if not exc.retryable:
                     break
                 continue
         await _store_results(document_id, run, chunk, response)
         await update_progress(document_id, emit=True)
-    if failures and len(failures) == len(chunks):
+    if failures and len(failures) == attempted:
         raise failures[0]
+
+
+def _engine_for(route: str, engine: OcrEngine | None) -> tuple[OcrEngine, str, str]:
+    """(engine, model tag for the run cache key, provider name) of an OCR route."""
+    settings = get_settings()
+    if route == "custom" and engine is not None:
+        return engine, settings.mistral_ocr_model, "mistral"
+    if route == "openrouter":
+        from app.providers.ocr_openrouter import MODEL_TAG, OpenRouterOcrClient
+
+        return OpenRouterOcrClient(), MODEL_TAG, "openrouter"
+    from app.providers.ocr_mistral import MistralOcrClient
+
+    return MistralOcrClient(), settings.mistral_ocr_model, "mistral"
+
+
+# Set when the Mistral key was refused in this process (auto mode then goes straight to OpenRouter).
+_MISTRAL_REFUSED = False
+OCR_PDF_DPI = 150.0  # page size of the rebuilt PDF; the pixels are the stored render's
+
+
+def renders_pdf(render_keys: Sequence[str | None]) -> bytes:
+    """A PDF with one page per stored render, in order."""
+    storage = get_storage()
+    images = []
+    for key in render_keys:
+        if not key:
+            raise ProviderError("A page has no rendered image to read.", retryable=False)
+        with Image.open(io.BytesIO(storage.get_bytes(key))) as img:
+            images.append(img.convert("RGB"))
+    out = io.BytesIO()
+    images[0].save(out, format="PDF", save_all=True, append_images=images[1:], resolution=OCR_PDF_DPI)
+    return out.getvalue()
+
+
+def _falls_back_possible(settings: Settings) -> bool:
+    return settings.ocr_provider == "auto" and settings.openrouter_api_key is not None
+
+
+def _falls_back(route: str, exc: ProviderError, settings: Settings) -> bool:
+    """auto mode only: a refused Mistral key (401/403) switches to OpenRouter when it is configured."""
+    return route == "mistral" and exc.status in (401, 403) and _falls_back_possible(settings)
+
+
+async def _mark_failed(document_id: str, run_id: str, chunk: Sequence[int], error: str) -> None:
+    async with get_sessionmaker()() as session:
+        for n in chunk:
+            page = await session.get(Page, (document_id, n))
+            if page is not None:
+                page.ocr_status = "failed"
+        failed = await session.get(OcrRun, run_id)
+        if failed is not None:
+            failed.status, failed.error = "failed", error
+        await session.commit()

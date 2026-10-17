@@ -32,7 +32,14 @@ from app.pipeline.schemas import PageLabel
 from app.pipeline.types import ExtractionOutcome, PageGroup
 from app.providers import ocr_mistral
 from app.providers.base import ProviderError
-from app.providers.fakes import FakeClassifier, FakeExtractor, FakeOcrEngine, FakeRereader, label
+from app.providers.fakes import (
+    FakeClassifier,
+    FakeExtractor,
+    FakeOcrEngine,
+    FakeRereader,
+    _original_pages,
+    label,
+)
 from app.providers.ocr_mistral import OcrResponse
 from tests.contract_utils import validate_response
 from tests.pdf_factory import TextItem, make_pdf
@@ -523,10 +530,15 @@ class FlakyOcr:
     inner: FakeOcrEngine
     marker: str
     failed: list[int] = field(default_factory=list)
+    # Set by the OCR stage: the request is an image-only PDF of renders, so the text is read from these
+    # pages of the original (like FakeOcrEngine does).
+    current_pages: list[int] | None = None
 
     async def ocr(self, data: bytes, mime: str, *, document_id: str | None, page_count: int) -> OcrResponse:
         texts: list[str] = []
-        pdf = pdfium.PdfDocument(io.BytesIO(data))
+        original = await _original_pages(document_id, self.current_pages)
+        self.inner.current_pages = self.current_pages
+        pdf = pdfium.PdfDocument(io.BytesIO(original if original is not None else data))
         try:
             for index in range(len(pdf)):
                 page = pdf[index]
