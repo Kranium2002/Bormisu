@@ -7,7 +7,7 @@ import { progress } from '../../domain/review';
 import { CLEAN_CONFIDENCE } from '../../domain/status';
 import type { Borehole } from '../../domain/types';
 import { useT } from '../../i18n';
-import { sheetPath } from '../../routing/urlState';
+import { sheetPath, verifyPath } from '../../routing/urlState';
 import { useAppStore, useDocument } from '../../store/appStore';
 import { fill, plural } from './fill';
 import styles from './ReviewScreen.module.css';
@@ -187,6 +187,9 @@ export function ReviewHeader({ b }: { b: Borehole }) {
 
       <Link className={styles.sheetLink} to={sheetPath(b.uid)} title={t('The borehole sheet, ready to print')}>
         {t('SHEET ›')}
+      </Link>
+      <Link className={styles.sheetLink} to={verifyPath(b.uid, reviewPage)} title={t('The original page next to the extracted values')}>
+        {t('SIDE BY SIDE ›')}
       </Link>
 
       <button type="button" className={styles.detailBtn} onClick={() => openBorehole(b.uid)}>

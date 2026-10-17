@@ -28,4 +28,6 @@ export const verify: Record<string, string> = {
   CANCEL: 'ABBRECHEN',
   'Why is it flagged?': 'Warum markiert?',
   'as printed': 'wie gedruckt',
+  'SIDE BY SIDE ›': 'NEBENEINANDER ›',
+  'The original page next to the extracted values': 'Die Originalseite neben den ausgelesenen Werten',
 };
