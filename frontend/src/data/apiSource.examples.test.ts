@@ -1,20 +1,21 @@
 /**
  * The API data source against a fictional backend that answers with the backend's own contract
  * examples (<repo>/contracts/examples): pagination, the ValuePatch bodies, every Error code, health,
- * CRS candidates and the UploadAccepted answers (including a duplicate upload, through the store).
- * fetch is mocked; nothing leaves the process. Skips while the examples are not on this branch.
+ * CRS candidates, the UploadAccepted answers of an upload (including a duplicate) and following a
+ * document the backend deleted. fetch and XMLHttpRequest are mocked; nothing leaves the process.
+ * Skips while the examples are not on this branch. The event examples are in liveEvents.test.ts.
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { K } from '../domain/keys';
-import type { DocumentSummary, ValuePatch } from '../domain/types';
-import { duplicateText } from '../screens/queue/queueView';
+import type { LiveEvent, ValuePatch } from '../domain/types';
 import { useAppStore } from '../store/appStore';
 import { readyStore } from '../store/testing';
 import { EXAMPLES, EXAMPLES_MISSING, EXAMPLES_PRESENT, example, examplesOf, schemaFiles } from '../test/contract/examples';
 import { contractErrors } from '../test/contract/schema';
-import type { WireBorehole, WireBoreholeList, WireDocument, WireDocumentList, WireError, WireUploadAccepted, WireValuePatch } from './adapters';
+import type { WireBorehole, WireBoreholeList, WireDocumentList, WireError, WireUploadAccepted, WireValuePatch } from './adapters';
 import { createApiSource, MAX_BACKOFF_MS, SPT_N_ONLY } from './apiSource';
 import { ApiError, SaveError } from './errors';
+import { MockXhr } from './testing';
 
 const BASE = '/api/v1';
 /** BoreholeRecord.full.json (revision 4), the record the ValuePatch examples target. */
@@ -439,107 +440,99 @@ describe.skipIf(!EXAMPLES_PRESENT)(`API source on the backend examples${EXAMPLES
     });
   });
 
-  describe('uploads', () => {
-    it('UploadAccepted.queued: a new card for the new document, not a duplicate', async () => {
-      const accepted = example<WireUploadAccepted>('UploadAccepted.queued.json');
-      examplesBackend((c) => (c.method === 'POST' ? json(202, accepted) : undefined));
-      const updates: DocumentSummary[] = [];
-      await createApiSource(BASE).upload([pdf('fictional-new-log.pdf')], (d) => updates.push(d), { project: 'Fictional Harbour Link' });
-      expect(updates[0]).toMatchObject({ id: accepted.document_id, status: 'queued', uploaded: true, duplicateOf: null, project: 'Fictional Harbour Link' });
+  describe('uploads (XMLHttpRequest)', () => {
+    beforeEach(() => {
+      MockXhr.reset();
+      vi.stubGlobal('XMLHttpRequest', MockXhr);
     });
 
-    it('UploadAccepted.duplicate: the answer is the earlier document itself, never "a duplicate of itself"', async () => {
+    it('UploadAccepted.queued: a new document named after the file, not a duplicate', async () => {
+      const accepted = example<WireUploadAccepted>('UploadAccepted.queued.json');
+      const handle = createApiSource(BASE).upload(pdf('fictional-new-log.pdf'), { project: 'Fictional Harbour Link' });
+      expect(MockXhr.last.form.get('project')).toBe('Fictional Harbour Link');
+      MockXhr.last.respondJson(202, accepted);
+      const { document, duplicate } = await handle.done;
+      expect(duplicate).toBe(false);
+      expect(document).toMatchObject({
+        id: accepted.document_id, name: 'fictional-new-log.pdf', status: accepted.status, uploaded: true, duplicateOf: null, project: 'Fictional Harbour Link',
+      });
+      expect(document.uploadedAgain).toBeUndefined();
+    });
+
+    it('UploadAccepted.duplicate: the answer is the earlier document as loaded, never "a duplicate of itself"', async () => {
       const accepted = example<WireUploadAccepted>('UploadAccepted.duplicate.json');
       expect(accepted.duplicate_of).toBe(accepted.document_id);
-      examplesBackend((c) => (c.method === 'POST' ? json(200, accepted) : undefined));
+      examplesBackend();
       const api = createApiSource(BASE);
       await api.load();
-      const updates: DocumentSummary[] = [];
-      await api.upload([pdf('copy-of-fictional-vector-log.pdf')], (d) => updates.push(d), { project: null });
-      await vi.waitFor(() => expect(updates.length).toBeGreaterThanOrEqual(2));
-      for (const u of updates) {
-        expect(u.id).toBe(DONE_DOC);
-        expect(u.duplicateOf, 'a document is never a duplicate of itself').not.toBe(u.id);
-      }
+      const handle = api.upload(pdf('copy-of-fictional-vector-log.pdf'), { project: null });
+      MockXhr.last.respondJson(200, accepted);
+      const { document, duplicate } = await handle.done;
+      expect(duplicate).toBe(true);
+      expect(document.id).toBe(DONE_DOC);
+      expect(document.duplicateOf, 'a document is never a duplicate of itself').not.toBe(document.id);
       // The earlier document as the source knows it: its name, pages and counts are not blanked.
-      expect(updates[0]).toMatchObject({ name: 'fictional-vector-log.pdf', status: 'done', counts: { boreholes: 1 } });
-      expect(updates[0].pages).toHaveLength(2);
+      expect(document).toMatchObject({ name: 'fictional-vector-log.pdf', status: 'done', counts: { boreholes: 1 }, uploadedAgain: true });
+      expect(document.pages).toHaveLength(2);
     });
 
-    it('UploadAccepted.duplicate through the store: one card, unchanged, without "Same file as" itself', async () => {
+    it('UploadAccepted.duplicate before the document was loaded: the earlier document is fetched once', async () => {
       const accepted = example<WireUploadAccepted>('UploadAccepted.duplicate.json');
-      const { calls } = examplesBackend((c) => (c.method === 'POST' ? json(200, accepted) : undefined));
-      await readyStore(createApiSource(BASE));
-      const before = useAppStore.getState().documents;
-      const seen: DocumentSummary[][] = [];
-      const unsubscribe = useAppStore.subscribe((s) => seen.push(s.documents));
-      await useAppStore.getState().addFiles([pdf('copy-of-fictional-vector-log.pdf')]);
-      await vi.waitFor(() => expect(calls.filter((c) => c.url === `${BASE}/documents/${DONE_DOC}`)).toHaveLength(1));
-      await new Promise((r) => setTimeout(r, 0));
-      unsubscribe();
-      const after = useAppStore.getState().documents;
-      expect(useAppStore.getState().dropError).toBe('');
-      expect(after.map((d) => d.id)).toEqual(before.map((d) => d.id));
-      for (const docs of seen) {
-        const card = docs.find((d) => d.id === DONE_DOC) as DocumentSummary;
-        expect(docs.filter((d) => d.id === DONE_DOC)).toHaveLength(1);
-        expect(duplicateText(card, docs)).not.toBe(`Same file as ${card.name}`);
-        expect(card.name).toBe('fictional-vector-log.pdf');
-        expect(card.pages).toHaveLength(2);
-      }
-    });
-
-    it('a file the server refuses does not stop the files after it; the error names that file', async () => {
-      const { calls } = examplesBackend((c) => {
-        if (c.method === 'POST') {
-          const name = (c.form?.get('file') as File).name;
-          if (name === 'b.pdf') return apiError('unsupported_type');
-          return json(202, { document_id: `doc_FICT_${name}`, status: 'done', duplicate_of: null });
-        }
-        const m = /\/documents\/(doc_FICT_[^/]+)$/.exec(c.url);
-        if (m) return json(200, { ...example<WireDocument>('Document.done.json'), document_id: m[1] });
-        return undefined;
+      const { calls } = examplesBackend();
+      const handle = createApiSource(BASE).upload(pdf('copy-of-fictional-vector-log.pdf'), { project: null });
+      MockXhr.last.respondJson(200, accepted);
+      await expect(handle.done).resolves.toMatchObject({
+        duplicate: true, document: { id: DONE_DOC, name: 'fictional-vector-log.pdf', status: 'done', duplicateOf: null, uploadedAgain: true },
       });
-      const updates: DocumentSummary[] = [];
-      const failed = await createApiSource(BASE).upload([pdf('a.pdf'), pdf('b.pdf'), pdf('c.pdf')], (d) => updates.push(d)).catch((e: unknown) => e);
-      expect(calls.filter((c) => c.method === 'POST').map((c) => (c.form?.get('file') as File).name)).toEqual(['a.pdf', 'b.pdf', 'c.pdf']);
-      expect(new Set(updates.map((u) => u.id))).toEqual(new Set(['doc_FICT_a.pdf', 'doc_FICT_c.pdf']));
-      expect(failed).toBeInstanceOf(ApiError);
-      expect(failed).toMatchObject({ code: 'unsupported_type', status: 415 });
-      expect((failed as ApiError).message).toBe(`b.pdf: ${example<WireError>('Error.unsupported_type.json').detail}`);
+      expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([`GET /api/v1/documents/${DONE_DOC}`]);
     });
 
-    it('demo mode stops at the first file: every other file would be refused the same way', async () => {
-      const { calls } = examplesBackend((c) => (c.method === 'POST' ? apiError('demo_mode') : undefined));
-      const failed = await createApiSource(BASE).upload([pdf('a.pdf'), pdf('b.pdf')], () => undefined).catch((e: unknown) => e);
-      expect(failed).toMatchObject({ name: 'ApiError', code: 'demo_mode' });
-      expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+    it.each(['demo_mode', 'too_large', 'unsupported_type', 'validation_error'])('Error.%s.json answers the upload as an ApiError with that code', async (code) => {
+      const body = example<WireError>(`Error.${code}.json`);
+      const handle = createApiSource(BASE).upload(pdf('a.pdf'), { project: null });
+      MockXhr.last.respondJson(STATUS[code], body);
+      const e = await handle.done.catch((x: unknown) => x);
+      expect(e).toBeInstanceOf(ApiError);
+      expect(e).toMatchObject({ code, status: STATUS[code], detail: body.detail, message: body.detail, errors: body.errors ?? [] });
     });
   });
 
-  describe('following a document', () => {
-    it('stops following a document the backend no longer has (deleted meanwhile)', async () => {
+  describe('following a document (polling fallback, no EventSource)', () => {
+    it('a document the backend no longer has (deleted meanwhile) becomes document.deleted and is no longer followed', async () => {
       vi.useFakeTimers();
-      const { calls } = examplesBackend((c) => (c.url.endsWith('/documents/doc_01M54JJDG0JCBXQ9XZPN88864Y') ? apiError('document_not_found') : undefined));
-      const onUpdate = vi.fn();
-      createApiSource(BASE).watch?.('doc_01M54JJDG0JCBXQ9XZPN88864Y', onUpdate);
+      const gone = 'doc_01M54JJDG0JCBXQ9XZPN88864Y';
+      const { calls } = examplesBackend((c) => (c.url.endsWith(`/documents/${gone}`) ? apiError('document_not_found') : undefined));
+      const api = createApiSource(BASE);
+      api.follow(gone);
+      const events: LiveEvent[] = [];
+      const unsubscribe = api.subscribe((e) => events.push(e), () => undefined);
       await vi.advanceTimersByTimeAsync(20 * MAX_BACKOFF_MS);
       expect(calls).toHaveLength(1);
-      expect(onUpdate).not.toHaveBeenCalled();
+      expect(events).toEqual([{ type: 'document.deleted', documentId: gone }]);
       expect(String(warn.mock.calls.at(-1)?.[0])).toMatch(/doc_01M54JJDG0JCBXQ9XZPN88864Y.*no longer/);
+      unsubscribe();
     });
 
-    it('a document deleted meanwhile can be followed again once it exists (a later watch is not ignored)', async () => {
+    it('a document deleted meanwhile can be followed again once it exists (a later follow is not ignored)', async () => {
+      vi.useFakeTimers();
       let gone = true;
       const { calls } = examplesBackend((c) => (gone && c.url.endsWith(`/documents/${DONE_DOC}`) ? apiError('document_not_found') : undefined));
       const api = createApiSource(BASE);
-      api.watch?.(DONE_DOC, () => undefined);
-      await vi.waitFor(() => expect(calls).toHaveLength(1));
-      await new Promise((r) => setTimeout(r, 0));
+      const events: LiveEvent[] = [];
+      const unsubscribe = api.subscribe((e) => events.push(e), () => undefined);
+      api.follow(DONE_DOC);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls).toHaveLength(1);
       gone = false;
-      const onUpdate = vi.fn();
-      api.watch?.(DONE_DOC, onUpdate);
-      await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+      api.follow(DONE_DOC);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(calls).toHaveLength(2);
+      expect(events.map((e) => e.type)).toEqual(['document.deleted', 'document.updated']);
+      expect(events[1]).toMatchObject({ document: { id: DONE_DOC, status: 'done' } });
+      // Done: a terminal status, so it is no longer followed.
+      await vi.advanceTimersByTimeAsync(10 * MAX_BACKOFF_MS);
+      expect(calls).toHaveLength(2);
+      unsubscribe();
     });
   });
 });

@@ -11,7 +11,7 @@ import { applyValuePatch } from '../domain/review';
 import type { Borehole, CrsCandidate, DocumentSummary } from '../domain/types';
 import { makeBorehole, makeDocument, makeValue } from '../test/fixtures';
 import { CONFLICT_TEXT } from './reviewSlice';
-import { fakeSource, makeHealth, readyStore, settle } from './testing';
+import { fakeSource, makeHealth, manualLive, readyStore, settle } from './testing';
 
 /** init() asks createDataSource once; it gets a proxy that forwards to the current fake source. */
 let current: DataSource;
@@ -238,16 +238,15 @@ describe('init and health', () => {
     expect(st()).toMatchObject({ loadState: 'error', loadError: 'Backend unreachable' });
   });
 
-  it('c15: documents still being extracted when the app loads keep updating', async () => {
+  it('c15: documents still being extracted when the app loads keep updating (live updates after load)', async () => {
     const extracting = makeDocument({ id: 'doc_TEST_EX', name: 'ex.pdf', status: 'extracting', step: 1, reviewBoreholeUid: null });
     const later = makeBorehole({ uid: 'bh_TEST_EX_31', id: 'TB-31', documentId: extracting.id });
-    const watch = vi.fn<NonNullable<DataSource['watch']>>();
-    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc, extracting] }, { watch });
+    const live = manualLive();
+    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc, extracting] }, { subscribe: live.subscribe });
     await st().init();
-    expect(watch).toHaveBeenCalledTimes(1);
-    expect(watch.mock.calls[0][0]).toBe(extracting.id);
+    expect(live.subscriptions).toHaveLength(1);
     current.documentBoreholes = async () => [later];
-    watch.mock.calls[0][1]({ ...extracting, project: '', status: 'needs_review', step: 2 });
+    live.emit({ type: 'document.updated', document: { ...extracting, project: '', status: 'needs_review', step: 2 } });
     await vi.waitFor(() => expect(st().documents.find((d) => d.id === extracting.id)?.reviewBoreholeUid).toBe(later.uid));
     expect(st().documents.find((d) => d.id === extracting.id)?.project).toBe('Test Project (fictional)');
   });
@@ -258,12 +257,18 @@ describe('document updates', () => {
     const upDoc: DocumentSummary = makeDocument({ id: 'doc_TEST_UP', name: 'up.pdf', status: 'queued', step: 0, reviewBoreholeUid: null, uploaded: true });
     const extracted = makeBorehole({ uid: 'bh_TEST_UP_21', id: 'TB-21', documentId: upDoc.id });
     const lint = [{ severity: 'warning' as const, boreholeId: 'TB-21', message: 'Gap between layers' }];
-    let push: (d: DocumentSummary) => void = () => undefined;
     let answer: (b: Borehole[]) => void = () => undefined;
-    const fake = await ready({ upload: async (_f, onUpdate) => void (push = onUpdate) });
+    const live = manualLive();
+    const fake = await ready({
+      upload: () => ({ done: Promise.resolve({ document: upDoc, duplicate: false }), cancel: () => undefined }),
+      subscribe: live.subscribe,
+    });
+    st().startLive();
+    const push = (d: DocumentSummary) => live.emit({ type: 'document.updated', document: d });
     fake.documentBoreholes = () => new Promise((r) => (answer = r));
     fake.getDocument = async () => ({ ...upDoc, step: 2, completeness: { listed: 1, idPrefix: '', missing: [], unexpected: [], lint } });
-    await st().addFiles([new File(['x'], 'up.pdf')]);
+    st().addFiles([new File(['x'], 'up.pdf')]);
+    await settle();
     push(upDoc);
     push({ ...upDoc, status: 'needs_review', step: 2 });
     // The reviewer saves an edit of another document's borehole while the reload is on its way.
@@ -276,15 +281,15 @@ describe('document updates', () => {
 
   it('retry re-queues a failed document and follows it again', async () => {
     const failed = makeDocument({ id: 'doc_TEST_F', name: 'bad.pdf', status: 'failed', step: 1, error: 'OCR timeout' });
-    const watch = vi.fn<NonNullable<DataSource['watch']>>();
+    const follow = vi.fn<DataSource['follow']>();
     const retry = vi.fn<DataSource['retry']>(async () => undefined);
-    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc, failed] }, { retry, watch });
+    current = fakeSource({ boreholes: [makeBorehole()], documents: [doc, failed] }, { retry, follow });
     current.getDocument = async () => ({ ...failed, status: 'queued', step: 0, error: null });
     await readyStore(current, UID);
     await st().retryDocument(failed.id);
     expect(retry).toHaveBeenCalledWith(failed.id);
     expect(st().documents.find((d) => d.id === failed.id)).toMatchObject({ status: 'queued', error: null });
-    expect(watch.mock.calls[0][0]).toBe(failed.id);
+    expect(follow).toHaveBeenCalledWith(failed.id);
   });
 
   it('a refused retry explains itself', async () => {

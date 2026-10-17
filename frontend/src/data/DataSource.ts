@@ -4,7 +4,11 @@ import type {
   CrsConfirmation,
   DocumentSummary,
   Health,
+  LiveEvent,
+  LiveStatus,
   PageContent,
+  UploadProgress,
+  UploadResult,
   ValuePatch,
 } from '../domain/types';
 
@@ -13,6 +17,19 @@ export interface LoadResult { boreholes: Borehole[]; documents: DocumentSummary[
 export interface UploadOptions {
   /** Project label shared by files dropped together (typed by the user, else the dropped folder's name). */
   project: string | null;
+  /** Byte progress while the file is sent. */
+  onProgress?(progress: UploadProgress): void;
+}
+
+/** One running upload. */
+export interface UploadHandle {
+  /**
+   * The server's answer: the new document, or the earlier one for bytes uploaded before. Rejects
+   * with ApiError / UnreachableError, or with UploadCancelledError after cancel().
+   */
+  readonly done: Promise<UploadResult>;
+  /** Aborts the transfer; no effect once the server has answered. */
+  cancel(): void;
 }
 
 /**
@@ -33,13 +50,23 @@ export interface DataSource {
   getDocument(documentId: string): Promise<DocumentSummary>;
   /** One rendered page of a document (1-based). */
   getPage(documentId: string, page: number): Promise<PageContent>;
-  /** Uploads files; `onUpdate` fires for every status change of each new document. */
-  upload(files: File[], onUpdate: (doc: DocumentSummary) => void, options?: UploadOptions): Promise<void>;
+  /** URL of a small page image for the page strip (width 200), or null when the source has no page images. */
+  thumbnailUrl(documentId: string, page: number): string | null;
+  /** Uploads one file with byte progress (the store runs two at a time). */
+  upload(file: File, options: UploadOptions): UploadHandle;
   /**
-   * Follows a document that is still being worked on when the app loads (e.g. a reload during
-   * extraction); `onUpdate` fires for every status change. One watcher per document at a time.
+   * Live updates. API: EventSource on GET /events, which reconnects by itself and resends
+   * Last-Event-ID; after three failures within a minute the source polls the documents it follows
+   * (2 s, backing off to 30 s, never giving up after one error) and keeps trying the stream, which
+   * takes over again once it works. `onEvent` gets each update, `onStatus` each change of transport.
+   * Returns the unsubscribe function. One subscription per app.
    */
-  watch?(documentId: string, onUpdate: (doc: DocumentSummary) => void): void;
+  subscribe(onEvent: (event: LiveEvent) => void, onStatus: (status: LiveStatus) => void): () => void;
+  /**
+   * Marks a document as being processed (after an upload or a retry, or one still running at load),
+   * so the polling fallback follows it until it reaches a terminal status.
+   */
+  follow(documentId: string): void;
   /**
    * Saves one review action on one value and resolves with the borehole as the source now holds it
    * (in API mode the record of the last PATCH answer). Saves of one borehole are applied in call

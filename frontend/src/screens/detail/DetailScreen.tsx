@@ -1,7 +1,9 @@
 import { useCallback } from 'react';
+import { Link } from 'react-router';
 import { EmptyState } from '../../components/EmptyState';
 import { StatusChip } from '../../components/StatusChip';
 import { displayStatus } from '../../domain/status';
+import { mapHref } from '../../routing/navLinks';
 import { useAppStore, useIsReviewable, useSelectedBorehole } from '../../store/appStore';
 import { depthOriginText, reviewedText } from './detailModel';
 import { ExportMenu } from './ExportMenu';
@@ -24,6 +26,7 @@ export function DetailScreen() {
   const openSource = useAppStore((s) => s.openSource);
   const openReview = useAppStore((s) => s.openReview);
   const go = useAppStore((s) => s.go);
+  const mapTo = useAppStore(mapHref);
   const isSample = useAppStore((s) => s.source?.kind === 'sample');
   const reviewable = useIsReviewable(b?.uid);
   const uid = b?.uid;
@@ -49,9 +52,10 @@ export function DetailScreen() {
       <header className={styles.header}>
         <div className={styles.titleBlock}>
           <nav className={styles.crumbs} aria-label="Breadcrumb">
-            <button type="button" className={styles.crumbLink} onClick={() => go('map')}>
+            {/* Back to the last map view (the URL's at), as the header's MAP link. */}
+            <Link className={styles.crumbLink} to={mapTo}>
               Map
-            </button>
+            </Link>
             <span aria-hidden="true">›</span>
             <span>
               {b.project || 'Unnamed project'}

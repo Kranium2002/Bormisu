@@ -1,0 +1,8 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "event:clarification.resolved",
+  "example": {
+    "clarification_id": "cl_01JFICT00000000000000CL01",
+    "status": "skipped"
+  }
+}

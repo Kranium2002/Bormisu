@@ -1,15 +1,18 @@
 /**
- * API mode against a fictional backend (fetch mocked, payloads from src/test/contract): error mapping
- * by code, pagination, review saves, documents, uploads and polling. Never falls back to sample data.
+ * API mode against a fictional backend (fetch and XMLHttpRequest mocked, payloads from
+ * src/test/contract): error mapping by code, pagination, review saves, documents, uploads with byte
+ * progress and the documents the source follows. Live events and the polling fallback are in
+ * liveEvents.test.ts. Never falls back to sample data.
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { K } from '../domain/keys';
-import type { DocumentSummary } from '../domain/types';
+import type { LiveEvent, UploadProgress } from '../domain/types';
 import { contractErrors } from '../test/contract/schema';
 import { fixture } from '../test/contract/wire';
-import type { WireBorehole, WireBoreholeList, WireDocument, WireDocumentList, WireError } from './adapters';
-import { createApiSource, MAX_BACKOFF_MS, POLL_MS, unreachableMessage } from './apiSource';
-import { ApiError, SaveError, UnreachableError } from './errors';
+import type { WireBorehole, WireBoreholeList, WireDocumentList, WireError } from './adapters';
+import { createApiSource, POLL_MS, unreachableMessage } from './apiSource';
+import { ApiError, SaveError, UnreachableError, UploadCancelledError } from './errors';
+import { MockXhr } from './testing';
 
 const BASE = '/api/v1';
 const D1 = 'doc_01JFICT0000000000000000D1';
@@ -451,126 +454,223 @@ describe('document actions', () => {
   });
 });
 
-describe('uploads', () => {
-  const file = () => new File(['%PDF-1.4 fictional'], 'tamarind_quay_logs.pdf', { type: 'application/pdf' });
+describe('uploads (XMLHttpRequest, one file per call)', () => {
+  const file = (name = 'tamarind_quay_logs.pdf') => new File(['%PDF-1.4 fictional upload'], name, { type: 'application/pdf' });
 
-  it('sends the project with the file, reports the new document and follows it', async () => {
-    const { calls } = backend((c) => {
-      if (c.method === 'POST' && c.url.endsWith('/documents')) return json(202, fixture('upload-accepted'));
-      if (c.url.endsWith(`/documents/${D5}`)) return json(200, { ...fixture<WireDocumentList>('documents').documents[4], status: 'done' });
-      return undefined;
+  beforeEach(() => {
+    MockXhr.reset();
+    vi.stubGlobal('XMLHttpRequest', MockXhr);
+  });
+
+  it('sends the file and the project as a multipart POST and reports byte progress', async () => {
+    const progress: UploadProgress[] = [];
+    const handle = createApiSource(BASE).upload(file(), { project: 'Tamarind Quay Outfall (fictional)', onProgress: (p) => progress.push(p) });
+    const xhr = MockXhr.last;
+    expect([xhr.method, xhr.url, xhr.requestHeaders.Accept]).toEqual(['POST', '/api/v1/documents', 'application/json']);
+    expect((xhr.form.get('file') as File).name).toBe('tamarind_quay_logs.pdf');
+    expect(xhr.form.get('project')).toBe('Tamarind Quay Outfall (fictional)');
+    xhr.progress(10, 40);
+    xhr.progress(40, 40);
+    expect(progress).toEqual([{ loaded: 10, total: 40 }, { loaded: 40, total: 40 }]);
+    xhr.respondJson(202, fixture('upload-accepted'));
+    await expect(handle.done).resolves.toEqual({
+      duplicate: false,
+      document: {
+        id: D5, name: 'tamarind_quay_logs.pdf', project: 'Tamarind Quay Outfall (fictional)', status: 'queued', pages: [], step: 0,
+        progress: null, counts: null, completeness: null, reviewBoreholeUid: null, openClarifications: 0, duplicateOf: null, error: null,
+        uploaded: true,
+      },
     });
-    const updates: DocumentSummary[] = [];
-    await createApiSource(BASE).upload([file()], (d) => updates.push(d), { project: 'Tamarind Quay Outfall (fictional)' });
-    const form = calls[0].form as FormData;
-    expect((form.get('file') as File).name).toBe('tamarind_quay_logs.pdf');
-    expect(form.get('project')).toBe('Tamarind Quay Outfall (fictional)');
-    expect(updates[0]).toMatchObject({ id: D5, name: 'tamarind_quay_logs.pdf', status: 'queued', step: 0, uploaded: true, duplicateOf: null, error: null });
-    await vi.waitFor(() => expect(updates).toHaveLength(2));
-    expect(updates[1]).toMatchObject({ id: D5, status: 'done', step: 3, uploaded: true });
   });
 
-  it('omits the project when there is none', async () => {
-    const { calls } = backend((c) => (c.method === 'POST' ? json(202, fixture('upload-accepted')) : undefined));
-    await createApiSource(BASE).upload([file()], () => undefined, { project: null });
-    expect((calls[0].form as FormData).has('project')).toBe(false);
+  it('omits the project when there is none, and reports the file size as total when the length is not computable', async () => {
+    const progress: UploadProgress[] = [];
+    const f = file();
+    const handle = createApiSource(BASE).upload(f, { project: null, onProgress: (p) => progress.push(p) });
+    expect(MockXhr.last.form.has('project')).toBe(false);
+    MockXhr.last.progress(7, 0, false);
+    expect(progress).toEqual([{ loaded: 7, total: f.size }]);
+    MockXhr.last.respondJson(202, fixture('upload-accepted'));
+    await expect(handle.done).resolves.toMatchObject({ document: { project: '' }, duplicate: false });
   });
 
-  it('reports a duplicate upload as the earlier document itself (never a duplicate of itself) and follows it', async () => {
-    backend((c) => (c.method === 'POST' ? json(200, fixture('upload-duplicate')) : undefined));
-    const updates: DocumentSummary[] = [];
-    await createApiSource(BASE).upload([file()], (d) => updates.push(d), { project: null });
-    expect(updates[0]).toMatchObject({ id: D1, duplicateOf: null, status: 'needs_review', uploaded: true });
-    await vi.waitFor(() => expect(updates).toHaveLength(2));
-    expect(updates[1]).toMatchObject({ id: D1, duplicateOf: null, uploaded: true, status: 'needs_review', name: 'harbourline_GI_report.pdf' });
+  it('cancel() aborts the transfer and rejects with UploadCancelledError; no progress after it', async () => {
+    const onProgress = vi.fn();
+    const handle = createApiSource(BASE).upload(file(), { project: null, onProgress });
+    const xhr = MockXhr.last;
+    handle.cancel();
+    expect(xhr.aborted).toBe(true);
+    await expect(handle.done).rejects.toBeInstanceOf(UploadCancelledError);
+    await expect(handle.done).rejects.toThrow('Upload of tamarind_quay_logs.pdf cancelled');
+    xhr.progress(5, 10);
+    expect(onProgress).not.toHaveBeenCalled();
+    handle.cancel();
   });
 
-  it('keeps a duplicate answer that names another document', async () => {
-    backend((c) => {
-      if (c.method === 'POST') return json(200, { document_id: D5, status: 'queued', duplicate_of: D1 });
-      if (c.url.endsWith(`/documents/${D5}`)) return json(200, { ...fixture<WireDocumentList>('documents').documents[4], status: 'done' });
-      return undefined;
-    });
-    const updates: DocumentSummary[] = [];
-    await createApiSource(BASE).upload([file()], (d) => updates.push(d), { project: null });
-    expect(updates[0]).toMatchObject({ id: D5, duplicateOf: D1 });
-    await vi.waitFor(() => expect(updates).toHaveLength(2));
-    expect(updates[1]).toMatchObject({ id: D5, duplicateOf: D1, status: 'done' });
+  it('cancel() has no effect once the server has answered', async () => {
+    const handle = createApiSource(BASE).upload(file(), { project: null });
+    const xhr = MockXhr.last;
+    xhr.respondJson(202, fixture('upload-accepted'));
+    handle.cancel();
+    expect(xhr.aborted).toBe(false);
+    await expect(handle.done).resolves.toMatchObject({ document: { id: D5 } });
   });
 
-  it('rejects in demo mode with code demo_mode', async () => {
-    backend((c) => (c.method === 'POST' ? apiError(409, 'demo_mode') : undefined));
-    await expect(createApiSource(BASE).upload([file()], () => undefined)).rejects.toMatchObject({ name: 'ApiError', code: 'demo_mode', status: 409 });
+  it.each([
+    [409, 'demo_mode'], [413, 'too_large'], [415, 'unsupported_type'], [422, 'validation_error'], [500, 'internal_error'],
+  ])('a JSON %i answer becomes an ApiError with code %s and the detail as message', async (status, code) => {
+    const handle = createApiSource(BASE).upload(file(), { project: null });
+    MockXhr.last.respondJson(status, errorBody(code));
+    const e = await handle.done.catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(ApiError);
+    expect(e).toMatchObject({ status, code, detail: errorBody(code).detail, message: errorBody(code).detail, errors: errorBody(code).errors ?? [] });
+  });
+
+  it('names the endpoint for route_not_found', async () => {
+    const handle = createApiSource(BASE).upload(file(), { project: null });
+    MockXhr.last.respondJson(404, errorBody('route_not_found'));
+    await expect(handle.done).rejects.toMatchObject({ code: 'route_not_found', message: 'Backend endpoint not available: POST /api/v1/documents' });
   });
 
   it("maps nginx's HTML 413 answer to too_large", async () => {
-    backend(() => text(413, '<html><body>413 Request Entity Too Large</body></html>'));
-    await expect(createApiSource(BASE).upload([file()], () => undefined)).rejects.toMatchObject({ name: 'ApiError', code: 'too_large', status: 413 });
+    const handle = createApiSource(BASE).upload(file(), { project: null });
+    MockXhr.last.respond(413, '<html><body>413 Request Entity Too Large</body></html>', 'text/html');
+    await expect(handle.done).rejects.toMatchObject({ name: 'ApiError', code: 'too_large', status: 413 });
+  });
+
+  it('reports an unreachable backend on a network failure, a non-JSON 5xx and HTML or broken JSON where JSON was expected', async () => {
+    const api = createApiSource(BASE);
+    const answers: ((x: MockXhr) => void)[] = [
+      (x) => x.fail(),
+      (x) => x.respond(502, '<html>Bad Gateway</html>', 'text/html'),
+      (x) => x.respond(504, '', null),
+      (x) => x.respond(200, '<!doctype html>', 'text/html'),
+      (x) => x.respond(202, '{"document_id":', 'application/json'),
+    ];
+    for (const answer of answers) {
+      const handle = api.upload(file(), { project: null });
+      answer(MockXhr.last);
+      await expect(handle.done).rejects.toThrow(new UnreachableError(unreachableMessage(BASE)));
+    }
+  });
+
+  it('gives other non-JSON answers a code from the status', async () => {
+    const handle = createApiSource(BASE).upload(file(), { project: null });
+    MockXhr.last.respond(404, 'Not Found', 'text/plain');
+    await expect(handle.done).rejects.toMatchObject({ code: 'http_404', status: 404 });
+  });
+
+  it('a duplicate the source knows is that document as loaded, marked uploaded again, never a duplicate of itself', async () => {
+    backend();
+    const api = createApiSource(BASE);
+    const { documents } = await api.load();
+    const handle = api.upload(file('copy of harbourline.pdf'), { project: 'Another label (fictional)' });
+    MockXhr.last.respondJson(200, fixture('upload-duplicate'));
+    const { document, duplicate } = await handle.done;
+    expect(duplicate).toBe(true);
+    expect(document).toEqual({ ...documents[0], uploaded: true, uploadedAgain: true, duplicateOf: null });
+    expect(document).toMatchObject({ id: D1, name: 'harbourline_GI_report.pdf', status: 'needs_review', reviewBoreholeUid: HL01 });
+    expect(document.pages).toHaveLength(9);
+  });
+
+  it('a duplicate the source does not know yet is fetched once (no update will bring it: nothing is reprocessed)', async () => {
+    const { calls } = backend();
+    const handle = createApiSource(BASE).upload(file('copy of harbourline.pdf'), { project: 'Another label (fictional)' });
+    MockXhr.last.respondJson(200, fixture('upload-duplicate'));
+    const { document, duplicate } = await handle.done;
+    expect(duplicate).toBe(true);
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([`GET /api/v1/documents/${D1}`]);
+    expect(document).toMatchObject({
+      id: D1, name: 'harbourline_GI_report.pdf', project: 'Harbourline Tunnel (fictional)', status: 'needs_review',
+      uploaded: true, uploadedAgain: true, duplicateOf: null,
+    });
+    expect(document.pages).toHaveLength(9);
+  });
+
+  it('when that fetch fails, the duplicate is a summary named after the file with the answer status, without the typed project', async () => {
+    backend((c) => {
+      if (c.method === 'GET') throw new TypeError('Failed to fetch');
+      return undefined;
+    });
+    const handle = createApiSource(BASE).upload(file('copy of harbourline.pdf'), { project: 'Another label (fictional)' });
+    MockXhr.last.respondJson(200, fixture('upload-duplicate'));
+    const { document, duplicate } = await handle.done;
+    expect(duplicate).toBe(true);
+    expect(document).toMatchObject({
+      id: D1, name: 'copy of harbourline.pdf', project: '', status: 'needs_review', step: 2, uploaded: true, uploadedAgain: true,
+      duplicateOf: null, pages: [],
+    });
+  });
+
+  it('keeps a duplicate answer that names another document', async () => {
+    backend();
+    const handle = createApiSource(BASE).upload(file(), { project: null });
+    MockXhr.last.respondJson(200, { document_id: D5, status: 'queued', duplicate_of: D1 });
+    const { document, duplicate } = await handle.done;
+    expect(duplicate).toBe(true);
+    expect(document).toMatchObject({ id: D5, name: 'tamarind_quay_logs.xlsx', duplicateOf: D1, uploadedAgain: true });
+  });
+
+  it('follows every accepted upload that is still being processed; a finished duplicate is not followed', async () => {
+    vi.useFakeTimers();
+    const { calls } = backend((c) =>
+      c.url.endsWith(`/documents/${D5}`) ? json(200, { ...fixture<WireDocumentList>('documents').documents[4], status: 'classifying' }) : undefined,
+    );
+    const api = createApiSource(BASE);
+    // Without EventSource the source polls what it follows.
+    const events: LiveEvent[] = [];
+    const unsubscribe = api.subscribe((e) => events.push(e), () => undefined);
+    const accepted = api.upload(file(), { project: null });
+    MockXhr.last.respondJson(202, fixture('upload-accepted'));
+    await accepted.done;
+    const again = api.upload(file('copy of harbourline.pdf'), { project: null });
+    MockXhr.last.respondJson(200, fixture('upload-duplicate'));
+    await again.done;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(events).toMatchObject([{ type: 'document.updated', document: { id: D5, status: 'classifying' } }]);
+    await vi.advanceTimersByTimeAsync(2 * POLL_MS);
+    // D1 was fetched once for the duplicate answer (needs review: not followed); D5 is polled.
+    const urls = calls.map((c) => c.url);
+    expect(urls.filter((u) => u.endsWith(D1))).toEqual([`/api/v1/documents/${D1}`]);
+    expect(urls.filter((u) => u.endsWith(D5))).toHaveLength(3);
+    unsubscribe();
+  });
+});
+
+describe('page thumbnails', () => {
+  it('are the page images at 200 px, the id encoded', () => {
+    const api = createApiSource(BASE);
+    expect(api.thumbnailUrl(D1, 4)).toBe(`/api/v1/documents/${D1}/pages/4.png?w=200`);
+    expect(api.thumbnailUrl('doc a/b', 12)).toBe('/api/v1/documents/doc%20a%2Fb/pages/12.png?w=200');
   });
 });
 
 describe('following documents', () => {
-  it('watches a document once, however often it is asked to', async () => {
-    const { calls } = backend();
+  it('load() follows every document still being processed, retry() its document', async () => {
+    vi.useFakeTimers();
+    const { calls } = backend((c) => (c.url.endsWith('/retry') ? json(202, fixture('retry-accepted')) : undefined));
     const api = createApiSource(BASE);
     await api.load();
-    const onUpdate = vi.fn();
-    api.watch?.(D1, onUpdate);
-    api.watch?.(D1, onUpdate);
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
-    expect(onUpdate.mock.calls[0][0]).toMatchObject({ id: D1, step: 2, reviewBoreholeUid: HL01 });
-    expect(onUpdate.mock.calls[0][0].uploaded).toBeUndefined();
-    expect(calls.filter((c) => c.url.endsWith(`/documents/${D1}`))).toHaveLength(1);
-  });
-
-  it('backs off after errors and keeps polling until the document is done; errors never fail the document', async () => {
-    vi.useFakeTimers();
-    const extracting = fixture<WireDocumentList>('documents').documents[1];
-    let polls = 0;
-    backend((c) => {
-      if (!c.url.endsWith(`/documents/${D2}`)) return undefined;
-      polls += 1;
-      if (polls === 1) return json(200, extracting);
-      if (polls <= 4) throw new TypeError('Failed to fetch');
-      return json(200, { ...extracting, status: 'needs_review' } satisfies WireDocument);
-    });
-    const onUpdate = vi.fn();
-    createApiSource(BASE).watch?.(D2, onUpdate);
+    await api.retry(D3);
+    const unsubscribe = api.subscribe(() => undefined, () => undefined);
     await vi.advanceTimersByTimeAsync(0);
-    expect([polls, onUpdate.mock.calls.length]).toEqual([1, 1]);
-    await vi.advanceTimersByTimeAsync(POLL_MS); // t = 2 s: fails
-    await vi.advanceTimersByTimeAsync(POLL_MS); // t = 4 s: fails again after 2 s
-    expect(polls).toBe(3);
-    await vi.advanceTimersByTimeAsync(2 * POLL_MS - 1);
-    expect(polls).toBe(3);
-    await vi.advanceTimersByTimeAsync(1); // t = 8 s: third failure, next wait 8 s
-    expect(polls).toBe(4);
-    await vi.advanceTimersByTimeAsync(4 * POLL_MS); // t = 16 s: answers again
-    expect(polls).toBe(5);
-    expect(onUpdate).toHaveBeenCalledTimes(2);
-    expect(onUpdate.mock.calls.map((c) => [c[0].status, c[0].error])).toEqual([['extracting', null], ['needs_review', null]]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(10 * MAX_BACKOFF_MS);
-    expect(polls).toBe(5); // done: no more polls
+    const polled = calls.filter((c) => c.method === 'GET' && /\/documents\/[^/]+$/.test(c.url)).map((c) => c.url);
+    // D2 extracting and D5 queued (load), D3 (retry); D1 and D4 need review: not followed.
+    expect(polled.sort()).toEqual([D2, D3, D5].map((id) => `/api/v1/documents/${id}`));
+    unsubscribe();
   });
 
-  it('never stops for good while the backend stays away; the wait is capped at 30 s', async () => {
+  it('follow() of a document already followed is one follow', async () => {
     vi.useFakeTimers();
-    let polls = 0;
-    backend((c) => {
-      if (!c.url.includes('/documents/')) return undefined;
-      polls += 1;
-      throw new TypeError('Failed to fetch');
-    });
-    const onUpdate = vi.fn();
-    createApiSource(BASE).watch?.(D2, onUpdate);
-    // Waits after each failure: 2, 4, 8, 16, 30, 30 s.
-    await vi.advanceTimersByTimeAsync(2_000 + 4_000 + 8_000 + 16_000 + 30_000 + 30_000 - 1);
-    expect(polls).toBe(6);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(polls).toBe(7);
-    await vi.advanceTimersByTimeAsync(MAX_BACKOFF_MS);
-    expect(polls).toBe(8);
-    expect(onUpdate).not.toHaveBeenCalled();
+    const { calls } = backend();
+    const api = createApiSource(BASE);
+    api.follow(D2);
+    api.follow(D2);
+    const unsubscribe = api.subscribe(() => undefined, () => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(POLL_MS);
+    expect(calls).toHaveLength(2);
+    unsubscribe();
   });
 });

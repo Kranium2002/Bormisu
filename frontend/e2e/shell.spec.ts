@@ -1,4 +1,4 @@
-import { APP_NAME, expect, nav, test } from './fixtures';
+import { APP_NAME, expect, mainNav, nav, navLink, test } from './fixtures';
 
 // Console errors fail the test via the shared fixture.
 test('shell renders in sample mode without console errors', async ({ page }) => {
@@ -8,11 +8,14 @@ test('shell renders in sample mode without console errors', async ({ page }) => 
   await expect(banner.getByText(APP_NAME, { exact: true })).toBeVisible();
   await expect(banner.getByText('Borehole Intelligence', { exact: true })).toBeVisible();
   await expect(page.getByText('Demo mode: fictional sample loaded. Live extraction needs an API key.')).toBeVisible();
-  const main = page.getByRole('navigation', { name: 'Main' });
-  await expect(main.getByRole('button', { name: /^UPLOAD & QUEUE/ })).toContainText('1');
+  // The navigation is links; no inbox before M2.
+  await expect(mainNav(page).getByRole('link')).toHaveText(['MAP', /^UPLOAD & QUEUE/, 'REVIEW']);
+  await expect(navLink(page, 'UPLOAD & QUEUE')).toContainText('1');
+  await expect(mainNav(page).getByText(/inbox/i)).toHaveCount(0);
 
   await nav(page, 'REVIEW');
-  await expect(main.getByRole('button', { name: 'REVIEW', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(navLink(page, 'REVIEW')).toHaveAttribute('aria-current', 'page');
+  await expect(navLink(page, 'MAP')).not.toHaveAttribute('aria-current', 'page');
 
   await page.getByLabel('Search project or borehole ID').fill('nothing-here');
   await page.keyboard.press('Enter');

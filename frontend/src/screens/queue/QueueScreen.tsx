@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LiveStatus } from '../../components/LiveStatus';
 import { useAppStore } from '../../store/appStore';
 import { retryBlockedReason } from '../../store/uploads';
 import { PAGE_LEGEND } from '../../theme';
 import { DocumentCard } from './DocumentCard';
 import { DropZone } from './DropZone';
+import type { ThumbnailUrl } from './PageStrip';
 import styles from './QueueScreen.module.css';
+import { UploadList } from './UploadList';
 
-/** How long a card stays highlighted after a "Same file as …" link pointed at it. */
+/** How long a card stays highlighted after a "Same file as …" or SHOW DOCUMENT link pointed at it. */
 const HIGHLIGHT_MS = 2000;
 
 /**
@@ -46,9 +49,20 @@ function useRefuseStrayDrops() {
   }, []);
 }
 
-/** Upload & queue: drop zone plus one card per document with status, progress, checks, counts and page map. */
+/** Smooth scrolling unless the user asked for reduced motion. */
+const scrollBehavior = (): ScrollBehavior =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
+/**
+ * Upload & queue: the live-update status, the drop zone with the project field, the upload queue,
+ * and one card per document with status, progress, checks, counts and page map.
+ */
 export function QueueScreen() {
   const documents = useAppStore((s) => s.documents);
+  const liveStatus = useAppStore((s) => s.liveStatus);
+  const jobFailures = useAppStore((s) => s.jobFailures);
+  const source = useAppStore((s) => s.source);
+  const thumbnailUrl = useMemo<ThumbnailUrl | null>(() => (source ? (id, n) => source.thumbnailUrl(id, n) : null), [source]);
   // RETRY needs a working extraction: off in demo mode, with the reason.
   const retryBlocked = useAppStore((s) => retryBlockedReason(s.health));
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -57,9 +71,11 @@ export function QueueScreen() {
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  /** Scrolls to a document's card and highlights it for a moment. */
+  /** Scrolls to a document's card, moves focus to it and highlights it for a moment. */
   const showDocument = useCallback((id: string) => {
-    document.querySelector(`[data-doc-id="${CSS.escape(id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const card = document.querySelector<HTMLElement>(`[data-doc-id="${CSS.escape(id)}"]`);
+    card?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+    card?.focus({ preventScroll: true });
     setHighlight(id);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setHighlight(null), HIGHLIGHT_MS);
@@ -69,10 +85,14 @@ export function QueueScreen() {
     <div className={styles.scroll} data-screen-label="Upload & queue">
       <div className={styles.page}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>UPLOAD &amp; QUEUE</h1>
+          <div className={styles.titleGroup}>
+            <h1 className={styles.title}>UPLOAD &amp; QUEUE</h1>
+            <LiveStatus status={liveStatus} />
+          </div>
           <PageTypeLegend />
         </div>
         <DropZone />
+        <UploadList onShowDocument={showDocument} />
         <div className={styles.columns} aria-hidden="true">
           <div>DOCUMENT</div>
           <div>STATUS</div>
@@ -86,6 +106,8 @@ export function QueueScreen() {
                 doc={d}
                 highlighted={highlight === d.id}
                 retryBlocked={retryBlocked}
+                failure={jobFailures[d.id] ?? null}
+                thumbnailUrl={thumbnailUrl}
                 onShowDocument={showDocument}
               />
             ))

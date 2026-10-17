@@ -15,47 +15,10 @@ import {
   schemaNameOf,
 } from '../test/contract/examples';
 import examplesSource from '../test/contract/examples.ts?raw';
-import { contractErrors, hasSchema, inlineErrors, openapi } from '../test/contract/schema';
+import { contractErrors, EVENT_SCHEMAS, hasSchema, inlineErrors, openapi } from '../test/contract/schema';
 import { FIXTURES } from '../test/contract/wire';
 import wireSource from '../test/contract/wire.ts?raw';
-
-/**
- * The `data` of each server-sent event (realtime-and-chat.md section 1): `document.updated` carries a
- * full Document, `clarification.created` a full Clarification, the others the small objects of the
- * table. Extra fields are allowed (additive changes inside 1.x); a renamed or missing field is not.
- */
-const EVENT_SCHEMAS: Record<string, object> = {
-  'document.updated': { $ref: '#/components/schemas/Document' },
-  'document.deleted': {
-    type: 'object', required: ['document_id'], properties: { document_id: { type: 'string', minLength: 1 } },
-  },
-  'borehole.created': {
-    type: 'object',
-    required: ['uid', 'document_id', 'revision', 'plotted'],
-    properties: {
-      uid: { type: 'string', minLength: 1 }, document_id: { type: 'string', minLength: 1 },
-      revision: { type: 'integer', minimum: 1 }, plotted: { type: 'boolean' },
-    },
-  },
-  'borehole.updated': {
-    type: 'object',
-    required: ['uid', 'revision'],
-    properties: { uid: { type: 'string', minLength: 1 }, revision: { type: 'integer', minimum: 1 } },
-  },
-  'clarification.created': { $ref: '#/components/schemas/Clarification' },
-  'clarification.resolved': {
-    type: 'object',
-    required: ['clarification_id', 'status'],
-    properties: { clarification_id: { type: 'string', minLength: 1 }, status: { enum: ['answered', 'skipped'] } },
-  },
-  'job.failed': {
-    type: 'object',
-    required: ['document_id', 'stage', 'detail', 'retryable'],
-    properties: {
-      document_id: { type: 'string', minLength: 1 }, stage: { type: 'string' }, detail: { type: 'string' }, retryable: { type: 'boolean' },
-    },
-  },
-};
+import { LIVE_EVENT_TYPES } from './adapters';
 
 /** Error codes the contract lists in the Error schema's description. */
 function contractErrorCodes(): string[] {
@@ -80,6 +43,12 @@ describe('contract fixtures (src/test/contract)', () => {
     expect(contractErrors(env.schema, env.example)).toEqual([]);
   });
 
+  it('has one fictional event fixture per event type of realtime-and-chat.md section 1, and the source listens for exactly those', () => {
+    const events = names.filter((n) => FIXTURES[n].schema.startsWith('event:')).map((n) => FIXTURES[n].schema.slice('event:'.length));
+    expect(events.sort()).toEqual(Object.keys(EVENT_SCHEMAS).sort());
+    expect([...LIVE_EVENT_TYPES].sort()).toEqual(Object.keys(EVENT_SCHEMAS).sort());
+  });
+
   it('is checked against contract version 1.x', () => {
     expect(openapi.info.version).toMatch(/^1\./);
   });
@@ -93,6 +62,8 @@ describe('contract fixtures (src/test/contract)', () => {
     expect(contractErrors('response:approveClean:200', { count: -1 }).length).toBeGreaterThan(0);
     expect(inlineErrors(EVENT_SCHEMAS['borehole.updated'], { uid: 'bh_x', rev: 2 }).length).toBeGreaterThan(0);
     expect(inlineErrors(EVENT_SCHEMAS['document.updated'], { document_id: 'doc_x' }).length).toBeGreaterThan(0);
+    expect(contractErrors('event:clarification.resolved', { clarification_id: 'cl_x', status: 'open' }).length).toBeGreaterThan(0);
+    expect(() => contractErrors('event:no.such.event', {})).toThrow(/Unknown schema reference/);
   });
 });
 

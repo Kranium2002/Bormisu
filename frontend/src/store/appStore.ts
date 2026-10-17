@@ -3,15 +3,17 @@
  * - dataSlice: data source, health, load, page cache
  * - reviewSlice: Review screen, saves, approve all clean, CRS dialog
  * - mapSlice: Detail selection, search, map focus
- * - uploadSlice: drop zone, uploads, retries, document updates
+ * - uploadSlice: drop zone, upload queue, retries, document updates
  * - panelSlice: navigation, side panel, export menu, toast, Escape
  * - settingsSlice: the reviewer's name
+ * - eventsSlice: live updates (transport status, event handlers, job failures)
  */
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import type { Borehole, DocumentSummary, ExtractedValue, Health } from '../domain/types';
 import { createContext, isReviewable, pageKey } from './context';
 import { createDataSlice } from './dataSlice';
+import { createEventsSlice } from './eventsSlice';
 import { createMapSlice } from './mapSlice';
 import { createPanelSlice } from './panelSlice';
 import { createReviewSlice } from './reviewSlice';
@@ -44,6 +46,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     ...createUploadSlice(ctx),
     ...createPanelSlice(ctx),
     ...createSettingsSlice(ctx),
+    ...createEventsSlice(ctx),
   };
 });
 

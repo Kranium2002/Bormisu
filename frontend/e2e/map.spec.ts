@@ -1,4 +1,4 @@
-import { AMBER, expect, legendNumber, nav, openApp, pinFills, pins, resultRow, test } from './fixtures';
+import { AMBER, expect, legendNumber, nav, navLink, openApp, pathOf, pinFills, pins, resultRow, test, uidOf } from './fixtures';
 
 test.describe('map', () => {
   test.beforeEach(async ({ page }) => openApp(page));
@@ -52,9 +52,11 @@ test.describe('map', () => {
     await page.waitForTimeout(500);
   });
 
-  test('a results row opens the borehole detail', async ({ page }) => {
+  test('a results row opens the borehole detail at /boreholes/:uid', async ({ page }) => {
+    const uid = await uidOf(page, 'EQ-02');
     await resultRow(page, 'EQ-02').click();
     await expect(page.getByText('EQ-02', { exact: true }).first()).toBeVisible();
+    expect(pathOf(page)).toBe(`/boreholes/${uid}`);
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
     await expect(page.getByRole('button', { name: 'EXPORT ▾' })).toBeVisible();
   });
@@ -81,13 +83,16 @@ test.describe('map', () => {
     await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
   });
 
-  test('search "EQ-03" flies to the pin and opens its popup, from any screen', async ({ page }) => {
+  test('search "EQ-03" flies to the pin and opens its popup, from any screen; the pin goes into the URL', async ({ page }) => {
+    const uid = await uidOf(page, 'EQ-03');
     await nav(page, 'UPLOAD & QUEUE');
     await page.getByLabel('Search project or borehole ID').fill('EQ-03');
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'MAP', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(navLink(page, 'MAP')).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('.leaflet-popup-content')).toContainText('EQ-03');
     await expect(page.locator('.leaflet-popup-content')).toContainText('Elbquerung Ost');
+    await expect.poll(() => new URL(page.url()).searchParams.get('sel')).toBe(uid);
+    expect(new URL(page.url()).pathname).toBe('/map');
   });
 
   test('search "BK-13" explains why it is not on the map', async ({ page }) => {

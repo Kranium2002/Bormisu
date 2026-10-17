@@ -2,13 +2,15 @@ import ExcelJS from 'exceljs';
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import { EXTRA_FIELDS, section } from '../src/schema/targetFormat';
-import { expect, openApp, resultRow, test } from './fixtures';
+import { expect, openApp, openUrl, pathOf, test, uidOf } from './fixtures';
 
-/** Opens BK-07 (the hand-made fictional sample borehole) on the detail screen. */
+/** Opens BK-07 (the hand-made fictional sample borehole) on the detail screen, by its URL. */
 async function openBk07(page: Page) {
   await openApp(page);
-  await resultRow(page, 'BK-07').click();
+  const uid = await uidOf(page, 'BK-07');
+  await openUrl(page, `/boreholes/${encodeURIComponent(uid)}`);
   await expect(page.getByText('DIN 4023 · depth in m bgl')).toBeVisible();
+  expect(pathOf(page)).toBe(`/boreholes/${uid}`);
 }
 
 async function exportAs(page: Page, option: RegExp) {
@@ -52,12 +54,13 @@ test.describe('detail', () => {
 
   test('tidy CSV export downloads a file', async ({ page }) => {
     const download = await exportAs(page, /^Tidy CSV/);
+    // The toast lasts 3.2 s: check it before reading the file, which can take longer on a busy machine.
+    await expect(page.getByText(/^Tidy CSV: \d+ values · approved only$/)).toBeVisible();
     expect(download.suggestedFilename()).toBe('neckarbogen_tidy.csv');
     const text = await readFile(await download.path(), 'utf8');
     expect(text.charCodeAt(0)).toBe(0xfeff); // BOM, so Excel reads umlauts as UTF-8
     const header = text.slice(1).split(/\r?\n/)[0].replaceAll('"', '');
     expect(header).toBe('borehole,field,layer,raw,value,unit,page,method,status,state');
-    await expect(page.getByText(/^Tidy CSV: \d+ values · approved only$/)).toBeVisible();
   });
 
   test('standard xlsx export has the template sheets with the field names in row 1', async ({ page }) => {

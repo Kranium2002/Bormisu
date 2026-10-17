@@ -60,6 +60,10 @@ export interface DataSlice {
   /** Page cache keyed `${documentId}:${page}`. */
   pages: Record<string, PageLoad>;
 
+  /**
+   * Asks health, loads boreholes and documents, then subscribes to live updates. Running it again
+   * (StrictMode, RETRY after an error) ends the earlier subscription first.
+   */
   init(): Promise<void>;
   /** Loads a page into the cache (used by usePage). */
   loadPage(documentId: string, page: number): Promise<void>;
@@ -85,7 +89,16 @@ export interface ReviewSlice {
   crsCandidates: CrsCandidate[];
   crsPick: number;
 
+  /**
+   * Opens Review on a borehole; without one, on the review target (the last reviewed borehole, else
+   * the first document in review). With a navigator this is /review/:uid (or /review when there is
+   * no target).
+   */
   openReview(uid?: string): void;
+  /**
+   * Focuses a value of the review borehole (and its page). With a navigator the key also goes into
+   * the URL (?key=, history replace) once the focus rests, so holding J / K writes it once.
+   */
   focusValue(key: string, scrollList?: boolean): void;
   setReviewPage(n: number): void;
   /** Opens the inline edit or flag input; an edit of a read-only value is refused with its reason. */
@@ -109,37 +122,103 @@ export interface ReviewSlice {
   closeCrsDialog(): void;
 }
 
-/** The Map and Detail screens: selection, header search and the map's fly-to signal. */
+/**
+ * The Map and Detail screens: selection, the map's URL state, header search and the map's fly-to
+ * signal. (Routing types are imported inline so the shared import block above stays as it is.)
+ */
 export interface MapSlice {
+  /** The borehole of the Detail screen (/boreholes/:uid), or the one selected on the map (?sel=). */
   selectedUid: string | null;
+  /** The layer selected on the Detail screen (?layer=). */
   selectedLayer: number;
+  /** The map view the URL holds (?at=); null lets the map fit the pins. Kept when leaving the map. */
+  mapView: import('../routing/urlState').MapView | null;
+  /** Result set id from the map URL (?rs=): reserved for area selection and filters (F10). */
+  resultSetId: string | null;
   query: string;
   searchMessage: string;
   mapFocus: MapFocus | null;
 
+  /** Opens the Detail screen of a borehole (/boreholes/:uid with a navigator). */
   openBorehole(uid: string): void;
+  /** Selects a layer on the Detail screen (?layer=, history replace). */
   selectLayer(n: number): void;
+  /** Pan or zoom ended on the map: the view goes into the map URL (?at=, history replace). */
+  setMapView(view: import('../routing/urlState').MapView): void;
+  /** A pin's popup opened (uid) or closed (null) on the map: the selection goes into ?sel= (history replace). */
+  selectOnMap(uid: string | null): void;
   setQuery(q: string): void;
+  /** Finds a borehole by ID or project: flies the map to it (/map?sel=<uid>) or says why it is not on the map. */
   search(): void;
 }
 
-/** Uploads and documents the backend is still working on. */
+/** The upload queue (F6) and documents the backend is still working on. */
 export interface UploadSlice {
   dropError: string;
   dragActive: boolean;
+  /** The "Project (optional)" label next to the drop zone, sent with the files dropped next. */
+  uploadProject: string;
+  /** The upload queue, in the order the files were added. */
+  uploads: import('./uploads').UploadItem[];
 
-  /** Uploads the files the server accepts (type and size from health); explains the rest in dropError. */
-  addFiles(files: FileList | File[]): Promise<void>;
+  /**
+   * Queues the files the server accepts (type and size from health) and explains the rest in
+   * dropError; refused with the reason in demo mode. Files added together send one project: the
+   * typed label, else `folder` (the dropped folder's name), else the folder picker's folder, else none.
+   * At most two uploads run at a time.
+   */
+  addFiles(files: FileList | File[], options?: { folder?: string | null }): void;
   setDragActive(active: boolean): void;
-  /** A status update of a document (upload or watch): updates its card and loads its boreholes after extraction. */
+  setUploadProject(label: string): void;
+  /** Cancels a queued or running upload. */
+  cancelUpload(id: string): void;
+  /** Removes a finished (done, failed or cancelled) upload from the list. */
+  removeUpload(id: string): void;
+  /** Removes every finished upload from the list. */
+  clearFinishedUploads(): void;
+  /** Queues a failed upload again with the same file and project; refused in demo mode. */
+  retryUpload(id: string): void;
+  /**
+   * A document as the source now reports it (upload answer, live event, refetch): replaces or adds
+   * its card, and loads its boreholes once it reaches needs_review or done without them.
+   */
   documentUpdated(update: DocumentSummary): void;
-  /** Re-queues a failed document and follows it again; refused with the reason in demo mode. */
+  /** Re-queues a failed document and asks the source to follow it; refused with the reason in demo mode. */
   retryDocument(documentId: string): Promise<void>;
 }
 
-/** Navigation and overlays: screen, side panel, export menu, toast and Escape. */
+/** Live updates from the source (event stream or its polling fallback), contracts/realtime-and-chat.md section 1. */
+export interface EventsSlice {
+  /** How updates arrive: connecting, live (stream), polling (fallback) or offline (retrying). */
+  liveStatus: import('../domain/types').LiveStatus;
+  /** The failure the server reported per document (job.failed), until the document runs again. */
+  jobFailures: Record<string, { stage: string; detail: string; retryable: boolean }>;
+
+  /** Subscribes to the source's live updates (init does, after load); ends an earlier subscription first. */
+  startLive(): void;
+  /** Ends the subscription (app teardown, or before init runs again). */
+  stopLive(): void;
+  /** Applies one update. Idempotent; events for ids the store doesn't hold are ignored where that is safe. */
+  applyLiveEvent(event: import('../domain/types').LiveEvent): void;
+}
+
+/**
+ * Navigation and overlays: screen, route, side panel, export menu, toast and Escape.
+ *
+ * In the app the URL is the source of navigation truth: a navigator (the router's, injected once in
+ * main.tsx) changes it, and the route sync applies every location to the store (applyRoute: screen,
+ * selectedUid, reviewUid and the query state). Without a navigator (unit tests) the navigation
+ * actions set the screen directly.
+ */
 export interface PanelSlice {
   screen: Screen;
+  /**
+   * Changes the URL: the router's navigator in the app; null in unit tests, where the navigation
+   * actions set the store directly.
+   */
+  navigator: import('../routing/navigator').AppNavigator | null;
+  /** The route the store shows (set by applyRoute); null without a router. */
+  route: import('../routing/urlState').AppRoute | null;
   /** Always true in sample mode: the SAMPLE DATA banner can't be dismissed. */
   sampleBannerVisible: boolean;
   toast: Toast | null;
@@ -147,6 +226,21 @@ export interface PanelSlice {
   exportOpen: boolean;
   includeUnreviewed: boolean;
 
+  setNavigator(navigator: import('../routing/navigator').AppNavigator | null): void;
+  /**
+   * Shows what a URL names: the screen, its borehole and the state in its query. The route sync calls
+   * it for every location (deep link, reload, Back), so the store follows the URL one way. Leaving
+   * Review drops its transient UI (edit, approve-clean confirmation, CRS dialog); the side panel and
+   * the toast stay. Applying the route the store already shows changes nothing.
+   */
+  applyRoute(route: import('../routing/urlState').AppRoute): void;
+  /**
+   * Goes to a route through the navigator: shows it at once (so the next action sees it) and adds a
+   * history entry, or replaces the current one when only the query changes. Without a navigator it
+   * only shows it.
+   */
+  showRoute(route: import('../routing/urlState').AppRoute): void;
+  /** Goes to a screen (with a navigator: its URL, see showRoute). */
   go(screen: Screen): void;
   showToast(text: string): void;
   /**
@@ -172,4 +266,4 @@ export interface SettingsSlice {
   setReviewerName(name: string): void;
 }
 
-export type AppState = DataSlice & ReviewSlice & MapSlice & UploadSlice & PanelSlice & SettingsSlice;
+export type AppState = DataSlice & ReviewSlice & MapSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice;

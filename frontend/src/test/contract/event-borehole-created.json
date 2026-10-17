@@ -1,0 +1,10 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "event:borehole.created",
+  "example": {
+    "uid": "bh_01JFICT00000000000000KR02",
+    "document_id": "doc_01JFICT0000000000000000D2",
+    "revision": 1,
+    "plotted": false
+  }
+}

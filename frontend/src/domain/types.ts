@@ -252,6 +252,31 @@ export interface CrsConfirmation { code: string; swapAxes: boolean; confirmedBy:
  */
 export type ValuePatch = Partial<Pick<ExtractedValue, 'value' | 'status' | 'state' | 'flag' | 'method'>>;
 
+/** Byte progress of one upload. */
+export interface UploadProgress { loaded: number; total: number }
+/** The server's answer to one uploaded file. */
+export interface UploadResult {
+  document: DocumentSummary;
+  /** The bytes were uploaded before: `document` is that earlier upload, nothing is reprocessed. */
+  duplicate: boolean;
+}
+
+/**
+ * A live update from the server: an event of GET /events (contracts/realtime-and-chat.md section 1)
+ * or, while the stream is down, a document the polling fallback fetched. Every event except
+ * document.updated is a hint to refetch.
+ */
+export type LiveEvent =
+  | { type: 'document.updated'; document: DocumentSummary }
+  | { type: 'document.deleted'; documentId: string }
+  | { type: 'borehole.created'; uid: string; documentId: string; revision: number; plotted: boolean }
+  | { type: 'borehole.updated'; uid: string; revision: number }
+  | { type: 'clarification.created'; clarificationId: string; documentId: string; boreholeUids: string[] }
+  | { type: 'clarification.resolved'; clarificationId: string; status: 'answered' | 'skipped' }
+  | { type: 'job.failed'; documentId: string; stage: string; detail: string; retryable: boolean };
+/** How live updates arrive: the event stream, the polling fallback, or not (yet). */
+export type LiveStatus = 'connecting' | 'live' | 'polling' | 'offline';
+
 /** Labels of the unplotted reason codes. */
 export const UNPLOTTED_LABELS: Record<UnplottedReason, string> = {
   no_coordinates: 'No coordinates in source',

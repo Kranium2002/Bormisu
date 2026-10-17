@@ -54,6 +54,14 @@ export class SaveError extends Error {
   }
 }
 
+/** An upload the user cancelled before the server answered. */
+export class UploadCancelledError extends Error {
+  constructor(fileName: string) {
+    super(`Upload of ${fileName} cancelled`);
+    this.name = 'UploadCancelledError';
+  }
+}
+
 /** True for an ApiError, optionally with the given code. */
 export function isApiError(e: unknown, code?: string): e is ApiError {
   return e instanceof ApiError && (code === undefined || e.code === code);
