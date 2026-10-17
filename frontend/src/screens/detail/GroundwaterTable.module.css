@@ -1,5 +1,12 @@
 .cols {
-  grid-template-columns: 160px 140px minmax(0, 1fr) 84px 30px;
+  grid-template-columns: 160px 160px minmax(0, 1fr);
+}
+
+/* status dot in front of the depth */
+.depth {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .type {

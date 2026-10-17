@@ -53,6 +53,15 @@ export function sourceLink(b: Borehole, key: string | null): SourceLink {
   return { clickable: true, title: 'Show source', dim: !v || v.state === 'not in source' || v.page == null };
 }
 
+/** The status dot of one value: its certainty, and its key for the source page (null = nothing to open). */
+export interface ValueMark { certainty: Certainty; key: string | null }
+
+/** The dot of a value key, or null when the borehole has no such value. */
+function markOf(b: Borehole, key: string): ValueMark | null {
+  const v = valueOf(b, key);
+  return v ? { certainty: certaintyOf(v), key: sourceLink(b, key).clickable ? key : null } : null;
+}
+
 /* ---------- metadata ---------- */
 
 export interface MetaRow {
@@ -149,10 +158,8 @@ export interface LayerRow {
   spt: SptCell | null;
   tcr: string;
   rqd: string;
-  certainty: Certainty;
-  /** Key of the layer's lithology value: the row's source icon opens it. */
-  sourceKey: string | null;
-  source: SourceLink;
+  /** Status dots of the layer's values, per column. */
+  marks: { range: ValueMark | null; lithology: ValueMark | null; spt: ValueMark | null; tcr: ValueMark | null; rqd: ValueMark | null };
 }
 
 function sptCell(b: Borehole, l: Layer, v: ExtractedValue | undefined): SptCell | null {
@@ -182,7 +189,6 @@ export function layerRows(b: Borehole): LayerRow[] {
   return b.layers.map((l) => {
     const lith = valueOf(b, K.lithology(l.n));
     const printed = lith?.raw || l.lithologyAsPrinted;
-    const sourceKey = lith?.key ?? null;
     return {
       n: l.n,
       range: `${l.from.toFixed(2)}–${l.to.toFixed(2)}`,
@@ -192,9 +198,13 @@ export function layerRows(b: Borehole): LayerRow[] {
       spt: sptCell(b, l, valueOf(b, K.spt(l.n))),
       tcr: cell(valueOf(b, K.tcr(l.n))),
       rqd: cell(valueOf(b, K.rqd(l.n))),
-      certainty: certaintyOf(lith ?? l),
-      sourceKey,
-      source: sourceLink(b, sourceKey),
+      marks: {
+        range: markOf(b, K.bottom(l.n)),
+        lithology: lith ? markOf(b, lith.key) : { certainty: certaintyOf(l), key: null },
+        spt: markOf(b, K.spt(l.n)),
+        tcr: markOf(b, K.tcr(l.n)),
+        rqd: markOf(b, K.rqd(l.n)),
+      },
     };
   });
 }

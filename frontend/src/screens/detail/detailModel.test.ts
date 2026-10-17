@@ -121,7 +121,7 @@ describe('sourceLink', () => {
     const none = { clickable: false, title: 'No source page from the backend yet', dim: true };
     expect(sourceLink(b, K.finalDepth)).toEqual(none);
     expect(metadataRows(b).every((r) => !r.source.clickable)).toBe(true);
-    expect(layerRows(b).map((r) => r.source)).toEqual([none, none]);
+    expect(layerRows(b).map((r) => r.marks.lithology?.key ?? null)).toEqual([null, null]);
     expect(layerRows(b)[1].spt).toMatchObject({ source: none });
     expect(layerRows(b)[1].spt?.title).toMatch(/No source page from the backend yet\.$/);
     expect(groundwaterRows(b)[0].source).toEqual(none);
@@ -172,7 +172,7 @@ describe('layerRows', () => {
     expect(r.printed).toBe('As printed: Kies, sandig');
     expect(r.tcr).toBe('74');
     expect(r.rqd).toBe('–');
-    expect(r.sourceKey).toBe(K.lithology(2));
+    expect(r.marks.lithology?.key).toBe(K.lithology(2));
   });
 
   it('has no SPT cell for a layer without a test', () => {

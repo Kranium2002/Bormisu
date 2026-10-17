@@ -10,7 +10,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 84px 28px;
+  grid-template-columns: 150px minmax(0, 1fr);
   align-items: center;
   border-bottom: 1px solid var(--c-line);
   font-size: var(--fs-md);

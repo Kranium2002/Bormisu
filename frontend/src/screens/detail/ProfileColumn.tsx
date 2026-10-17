@@ -262,6 +262,8 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             onKeyDown={onKeyActivate(pick)}
           >
             <title>{label}</title>
+            {/* invisible click area over the whole lane around the level: the line alone is too thin to hit */}
+            <rect x={X.gwFrom} y={gy - 15} width={X.layerX - X.gwFrom} height={19} fill="transparent" />
             <line x1={X.gwFrom} y1={gy} x2={X.layerX} y2={gy} stroke={COL.gw} strokeWidth={sel ? 3 : 1.5} />
             <GwSymbol type={g.type} x={X.gwX} tipY={gy} />
             {sel && <rect className={styles.noHit} x={X.gwX - 2} y={gy - 13} width={16} height={15} fill="none" stroke={COL.accent} strokeWidth="1.5" />}
@@ -282,6 +284,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
           <g key={`s${i}`} className={styles.hit} role="button" tabIndex={0} aria-label={label} aria-pressed={sel}
             onClick={pick} onKeyDown={onKeyActivate(pick)}>
             <title>{label}</title>
+            <rect x={X.sampleX - 3} y={sy - h - 3} width={X.layerX - X.sampleX + 3} height={h + 6} fill="transparent" />
             <line x1={X.sampleX + X.sampleW} y1={sy} x2={X.layerX} y2={sy} stroke={INK} strokeWidth="1" />
             <svg x={X.sampleX} y={sy - h} width={X.sampleW} height={h} viewBox={`0 0 ${sym.w} ${sym.h}`}
               dangerouslySetInnerHTML={{ __html: sym.inner }} />

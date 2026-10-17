@@ -1,31 +1,40 @@
-.mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
+/* Status dot in front of a value (green sure, yellow unsure, red flagged, grey not in the source). */
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  font-size: var(--fs-sm);
-  font-weight: 800;
-  line-height: 1;
+  vertical-align: middle;
+}
+
+.button {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.button:hover {
+  box-shadow: 0 0 0 3px var(--c-line);
+}
+
+.button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .sure {
-  background: var(--c-green-bg);
-  color: var(--c-green-text);
+  background: var(--c-green);
 }
 
 .unsure {
-  background: var(--c-amber-bg);
-  color: var(--c-amber-text);
+  background: var(--c-amber);
 }
 
 .flagged {
-  background: var(--c-red-bg);
-  color: var(--c-red);
+  background: var(--c-red);
 }
 
 .missing {
-  background: var(--c-line);
-  color: var(--c-faint);
+  background: var(--c-border-strong);
 }
