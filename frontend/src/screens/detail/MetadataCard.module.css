@@ -73,3 +73,24 @@
 .locRed {
   color: var(--c-red);
 }
+
+/* Phones: the location map goes under the metadata, and the label column narrows. */
+@media (max-width: 767px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .meta {
+    border-right: 0;
+    border-bottom: 1px solid var(--c-border);
+  }
+
+  .row {
+    grid-template-columns: 112px minmax(0, 1fr) 72px 28px;
+  }
+
+  .label {
+    padding: 7px 10px;
+    overflow-wrap: anywhere;
+  }
+}

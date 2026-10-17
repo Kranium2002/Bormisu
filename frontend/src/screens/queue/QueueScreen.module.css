@@ -86,3 +86,30 @@
   color: var(--c-muted);
   text-align: center;
 }
+
+/* Narrower than 1280 px: a narrower STATUS column, the others share the rest. */
+@media (max-width: 1279px) {
+  .page {
+    --queue-cols: minmax(0, 1fr) 150px minmax(0, 1fr);
+    padding: 22px 24px 48px;
+  }
+}
+
+/* Phones: one column; each card stacks name, status and checks (the column header goes). */
+@media (max-width: 767px) {
+  .page {
+    --queue-cols: minmax(0, 1fr);
+    padding: 16px 16px 40px;
+    gap: 14px;
+  }
+
+  .titleRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .columns {
+    display: none;
+  }
+}

@@ -10,7 +10,12 @@
   border-radius: 2px;
   z-index: var(--z-toast);
   box-shadow: var(--shadow-toast);
-  white-space: nowrap;
+  /* One line while it fits; a long message wraps instead of pushing the page wider. */
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 /* SHOW ON MAP and similar: a light text button inside the dark toast. */

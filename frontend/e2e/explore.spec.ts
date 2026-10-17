@@ -312,7 +312,6 @@ test.describe('explore panel', () => {
   });
 
   test('no horizontal page scroll at 390 px', async ({ page }) => {
-    test.fail(true, 'App shell: App.module.css sets min-width 1280px on .app (and the header does not wrap); the map screen itself fits, see the test above');
     await page.setViewportSize({ width: 390, height: 844 });
     await openApp(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);

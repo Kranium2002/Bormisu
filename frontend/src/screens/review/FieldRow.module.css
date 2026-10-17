@@ -344,3 +344,36 @@
   outline: 2px solid var(--c-green);
   outline-offset: 2px;
 }
+
+/*
+ * Phones: label and actions on top, the value and its method under them, so the value gets the
+ * width. The method cell is the row's only child without a class of its own.
+ */
+@media (max-width: 767px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label actions'
+      'value method';
+    gap: 6px 12px;
+    padding: 10px 12px;
+  }
+
+  .labelCell {
+    grid-area: label;
+    min-width: 0;
+  }
+
+  .valueCell {
+    grid-area: value;
+  }
+
+  .actions {
+    grid-area: actions;
+  }
+
+  .row > div:not(.labelCell, .valueCell, .actions) {
+    grid-area: method;
+    justify-self: end;
+  }
+}

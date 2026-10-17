@@ -278,6 +278,14 @@
   border: 0;
 }
 
+/* 768–1279 px: the band is narrower than the columns need; the table keeps readable columns and
+   scrolls sideways inside its own box (the sticky header scrolls with it). */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .table {
+    min-width: 760px;
+  }
+}
+
 /* Narrow screens: each row is a small card (ID and status, project and depth, CRS and document,
    then the actions); the header keeps its sort buttons and wraps. No horizontal scroll. */
 @media (max-width: 767px) {

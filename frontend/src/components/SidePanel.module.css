@@ -5,12 +5,14 @@
   z-index: var(--z-scrim);
 }
 
+/* A drawer over the screen from the right; never wider than the screen. */
 .panel {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
   width: 600px;
+  max-width: 100%;
   background: var(--c-surface);
   z-index: var(--z-panel);
   box-shadow: var(--shadow-panel);
@@ -219,4 +221,41 @@
 
 .mono {
   font-family: var(--font-mono);
+}
+
+/* Phones: a full-screen sheet over the whole app, header included; the page scrolls inside it. */
+@media (max-width: 767px) {
+  .scrim {
+    position: fixed;
+  }
+
+  .panel {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    box-shadow: none;
+  }
+
+  .head {
+    padding: 12px 16px;
+  }
+
+  .close {
+    /* A comfortable touch target. */
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .scroll {
+    padding: 12px;
+  }
+
+  .foot {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+  }
+
+  .lintRow {
+    grid-template-columns: 60px 56px minmax(0, 1fr);
+  }
 }

@@ -1,5 +1,12 @@
 .cols {
   grid-template-columns: 34px 96px minmax(0, 1fr) 84px 88px 120px 52px 52px 76px 30px;
+  /* Narrow screens: the table keeps its columns and scrolls sideways inside its own box (below). */
+  min-width: 720px;
+}
+
+/* The grid around the header row and the rows is the table's scroll box. */
+[role='grid']:has(> .cols) {
+  overflow-x: auto;
 }
 
 .row {

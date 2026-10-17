@@ -7,3 +7,11 @@
   display: flex;
   flex-direction: column;
 }
+
+/* Phones: never wider than the screen (the inline width is the desktop size). */
+@media (max-width: 767px) {
+  .popover {
+    box-sizing: border-box;
+    max-width: calc(100vw - 32px);
+  }
+}
