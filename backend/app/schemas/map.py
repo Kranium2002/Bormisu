@@ -113,6 +113,8 @@ class FeatureProperties(ApiModel):
     borehole_depth_m: float | None = None
     review_status: str
     crs_status: str
+    crs_code: str | None = None
+    crs_label: str | None = None
     revision: int
     attention: bool
     open_clarifications: int

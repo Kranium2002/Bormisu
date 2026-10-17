@@ -1,4 +1,8 @@
 {
   "clarification_id": "cl_01M54B4CA0W47DXJPWN3VK41D3",
-  "status": "answered"
+  "status": "answered",
+  "document_id": "doc_01M54AV7B076NM6GKCF4BXQMCH",
+  "borehole_uids": [
+    "bh_01M54B3F0GBNJ9N3650KGFT5AE"
+  ]
 }

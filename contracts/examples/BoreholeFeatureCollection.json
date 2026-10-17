@@ -19,6 +19,8 @@
         "borehole_depth_m": 18.0,
         "review_status": "in_review",
         "crs_status": "stated",
+        "crs_code": "EPSG:25832",
+        "crs_label": "ETRS89 / UTM zone 32N",
         "revision": 4,
         "attention": true,
         "open_clarifications": 4
@@ -42,6 +44,8 @@
         "borehole_depth_m": 6.0,
         "review_status": "approved",
         "crs_status": "confirmed",
+        "crs_code": "EPSG:27700",
+        "crs_label": "OSGB36 / British National Grid",
         "revision": 6,
         "attention": false,
         "open_clarifications": 0

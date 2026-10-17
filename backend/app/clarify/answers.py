@@ -15,7 +15,7 @@ from app.clarify.duplicates import apply_duplicate_answer
 from app.clarify.service import resolve_clarification
 from app.db.models import Borehole, Clarification
 from app.errors import ApiError
-from app.geo.crs_service import confirm_crs
+from app.geo.crs_service import VIA_CLARIFICATION, confirm_crs
 from app.review.service import apply_patch, set_manual_location
 from app.schemas.boreholes import ValuePatch
 
@@ -74,6 +74,7 @@ def validate_answer(fields: list[dict[str, Any]], values: dict[str, Any]) -> dic
 async def _apply(session: AsyncSession, row: Clarification, values: dict[str, Any], actor: str) -> None:
     """Kind-specific effects. Kinds without a direct record change only store the answer."""
     if row.kind == "crs_confirm" and isinstance(values.get("crs"), str):
+        # Other questions this confirmation settles are resolved with it; this one gets the person's values.
         await confirm_crs(
             session,
             list(row.borehole_uids),
@@ -81,6 +82,8 @@ async def _apply(session: AsyncSession, row: Clarification, values: dict[str, An
             swap_axes=bool(values.get("swap_axes", False)),
             actor=actor,
             note=f"clarification {row.id}",
+            via=VIA_CLARIFICATION,
+            answering=row.id,
         )
         return
     if row.kind == "choose_reading" and row.path and row.borehole_uids:

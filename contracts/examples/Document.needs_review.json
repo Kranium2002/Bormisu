@@ -4,6 +4,7 @@
   "project": "Fictional Harbour Link",
   "status": "needs_review",
   "error": null,
+  "failed_stage": null,
   "mime_type": "application/pdf",
   "size_bytes": 4812331,
   "sha256": "4420897ac2779975a09c9b37cd55b931457b21fec3e6516bd2976251080a7172",

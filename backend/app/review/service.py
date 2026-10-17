@@ -10,6 +10,9 @@ document's cluster, identical coordinates, confirmed duplicates) is kept in `bor
 merged into `lint` on every recompute and refreshed for the whole document whenever a value of one of its
 boreholes changes and when the document is finalised. A borehole whose document lint changes because of
 another borehole gets a revision of its own (action `checks`).
+
+An edit of a layer's `spt_raw` (review PATCH or clarification answer) parses the text again and updates the
+layer's derived SPT values in the same revision (`rederive_spt`).
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ from app.events.writer import emit
 from app.geo.crs_candidates import crs_label
 from app.geo.plotting import PLOTTABLE_CRS_STATUS, placement, to_wgs84
 from app.ids import new_id
+from app.normalize.spt import parse_spt
 from app.review.paths import (
     PathError,
     ValueParseError,
@@ -81,6 +85,7 @@ _DEPTH_FIELDS = {
     "samples": ("depth_from_m", "depth_to_m"),
 }
 _STRATIGRAPHY_PATH = re.compile(r"^stratigraphy\[(\d+)\]\.(.+)$")
+_SPT_RAW_PATH = re.compile(r"^stratigraphy\[(\d+)\]\.spt_raw$")
 
 _CANON_STRIP = re.compile(r"[\s\-_]+")
 _LEADING_ZEROS = re.compile(r"(?<![0-9])0+(?=[0-9])")
@@ -527,7 +532,15 @@ async def apply_patches(
                 f"The record is at revision {bh.revision}, not {patch.if_revision}. Reload and try again.",
             )
     fvs = await load_field_values(session, uid)
-    applied = [_patch_one(bh, fvs, patch) for patch in patches]
+    applied: list[dict[str, Any]] = []
+    for patch in patches:
+        entry = _patch_one(bh, fvs, patch)
+        index = spt_raw_index(patch.path) if patch.action == "edit" else None
+        if index is not None and entry["before"]["value"] != entry["after"]["value"]:
+            body = copy.deepcopy(bh.record)
+            entry["derived"] = await rederive_spt(session, bh, body, fvs, index)
+            bh.record = body
+        applied.append(entry)
     name: str
     changes: dict[str, Any]
     if len(applied) == 1 and action is None and note is None:
@@ -586,6 +599,104 @@ def _patch_one(bh: Borehole, fvs: dict[str, FieldValue], patch: ValuePatch) -> d
             fv.state = "ok"
     fv.updated_at = _now()
     return {"path": patch.path, "action": patch.action, "before": before, "after": _snapshot(fv)}
+
+
+def spt_raw_index(path: str) -> int | None:
+    """The layer index of a `stratigraphy[i].spt_raw` path; None for every other path."""
+    match = _SPT_RAW_PATH.match(path)
+    return int(match.group(1)) if match else None
+
+
+def spt_values(raw: Any) -> tuple[dict[str, Any], str | None]:
+    """The derived SPT values of a layer as app.normalize.spt reads `raw` on its own, and why any is null.
+
+    spt_raw holds one printed text; a separately printed N column or increment note is not stored, so a
+    re-parse sees the text alone (write the unit of a refusal penetration into it: "50/120mm").
+    """
+    result = parse_spt(raw if isinstance(raw, str) else None)
+    values = {
+        "spt_refusal": result.refusal,
+        "spt_n_value": result.n_value,
+        "spt_increments": list(result.increments) if result.increments is not None else None,
+        "spt_increment_mm": result.increment_mm,
+        "spt_penetration_cm": result.penetration_cm,
+    }
+    return values, result.reason
+
+
+async def _drop_entry(session: AsyncSession, fvs: dict[str, FieldValue], path: str) -> None:
+    fv = fvs.pop(path)
+    if fv in session.new:
+        session.expunge(fv)
+    else:
+        await session.delete(fv)
+
+
+async def rederive_spt(
+    session: AsyncSession, bh: Borehole, body: dict[str, Any], fvs: dict[str, FieldValue], index: int
+) -> dict[str, Any]:
+    """The edited spt_raw of layer `index` (already in `body`) is parsed again; the layer's derived SPT
+    values follow it in `body` and `fvs`, in the caller's revision. Returns that revision's record of it.
+
+    Every value the text yields gets an entry with method `derived` and the page and box of spt_raw; a value
+    that changes is unreviewed again and loses its flag. A value the text no longer yields is removed with
+    its entry, except spt_n_value: null on a refusal (entry created or kept, method derived) and null with
+    its entry kept when the text gives no N, so N stays editable. An spt_n_value a person edited stands
+    unless the text is a refusal.
+    """
+    layer = body["stratigraphy"][index]
+    source = fvs.get(f"stratigraphy[{index}].spt_raw")
+    values, reason = spt_values(layer.get("spt_raw"))
+    refusal = values["spt_refusal"] is True
+    changed: list[dict[str, Any]] = []
+    for name, value in values.items():
+        path = f"stratigraphy[{index}].{name}"
+        fv = fvs.get(path)
+        if name == "spt_n_value" and fv is not None and fv.method == "edited" and not refusal:
+            continue
+        before = _snapshot(fv) if fv is not None else None
+        layer[name] = value
+        keep_null = name == "spt_n_value" and (refusal or fv is not None)
+        if value is None and not keep_null:
+            if fv is not None:
+                await _drop_entry(session, fvs, path)
+                changed.append({"path": path, "before": before, "after": None})
+            continue
+        if fv is None:
+            fv = FieldValue(
+                uid=bh.uid,
+                path=path,
+                value=value,
+                raw=None,
+                document_id=(source.document_id if source else None) or bh.document_id,
+                page=source.page if source else None,
+                box=source.box if source else None,
+                cell=source.cell if source else None,
+                method="derived",
+                confidence=None,
+                status="unreviewed",
+                state="ok",
+                ai_value=None,
+                flag=None,
+                readings=[],
+            )
+            session.add(fv)
+            fvs[path] = fv
+        else:
+            if fv.value != value:
+                fv.value, fv.status, fv.flag = value, "unreviewed", None
+            fv.method, fv.state, fv.raw, fv.confidence = "derived", "ok", None, None
+            if source is not None:
+                fv.document_id, fv.page, fv.box, fv.cell = (
+                    source.document_id,
+                    source.page,
+                    source.box,
+                    source.cell,
+                )
+            fv.updated_at = _now()
+        changed.append({"path": path, "before": before, "after": _snapshot(fv)})
+    await session.flush()
+    return {"values": changed, "reason": reason}
 
 
 def _lint_paths(bh: Borehole) -> set[str]:
@@ -740,6 +851,7 @@ async def set_values(
             value = coerce_value(body, path, raw_value)
         except ValueParseError as exc:
             raise ApiError(422, "unparseable_value", f"The value cannot be used for {path}: {exc}") from exc
+        previous = get_value(body, path)
         set_value(body, path, value)
         source = (sources or {}).get(path)
         fv = fvs.get(path)
@@ -772,7 +884,11 @@ async def set_values(
                 fv.page, fv.box, fv.raw = source.page, source.box, source.raw
             fv.status, fv.state, fv.flag = "approved", "ok", None
             fv.updated_at = _now()
-        applied.append({"path": path, "before": before, "after": _snapshot(fv)})
+        change: dict[str, Any] = {"path": path, "before": before, "after": _snapshot(fv)}
+        index = spt_raw_index(path)
+        if index is not None and previous != value:
+            change["derived"] = await rederive_spt(session, bh, body, fvs, index)
+        applied.append(change)
     bh.record = body
     changes = {"action": action, "values": applied, "note": note}
     await commit_change(session, bh, fvs, actor=actor, action=action, changes=changes)
