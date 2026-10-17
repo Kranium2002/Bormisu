@@ -2,6 +2,18 @@
 
 Rules: inside 1.x only additive changes (new endpoints, new optional fields, new enum values the other side can ignore). Anything else needs a 2.0 and both sessions' agreement in `docs/handover/COORDINATION.md`. Every change gets a dated entry here in the same commit as the change.
 
+## 1.2.2 (2026-10-17)
+
+Additive only: two read-only endpoints and two schemas for evidence referencing (click a value, see its box on the original page; click a box, see the value). Clients built against 1.2.1 keep working.
+
+### Added
+- `GET /api/v1/documents/{document_id}/pages/{n}/words` (`getPageWords`, P1): `PageWord[]` `{t, b: [x,y,w,h], conf, source: text|located|ocr}`, boxes normalised on the page image like provenance. Text-layer pages give their PDF words; scans, photos and handwriting give the boxes located for the extracted values (else OCR words). Empty when a page has no words yet. 404 `document_not_found` / `page_not_found`.
+- `GET /api/v1/documents/{document_id}/pages/{n}/evidence` (`getPageEvidence`, P0): `EvidenceItem[]` `{borehole_uid, borehole_label, path, label, value_display, raw_text, box, method: read|located|ocr|approximate|page, confidence, review_status}`: every value of every borehole whose provenance cites page n, top to bottom. `borehole_uid` + `path` match `BoreholeRecord.provenance`. 404 as above.
+- Schemas `PageWord`, `EvidenceItem`; examples `PageWord.list.json`, `EvidenceItem.list.json`.
+
+### Changed behaviour (no shape change)
+- Evidence boxes on scans, photos and handwriting are located on the page image where the value's text is found (method `located`); otherwise they are the value's row (and column, when known, method `approximate`) instead of the whole page. `BoreholeRecord.provenance[*].box` carries the same boxes.
+
 ## 1.2.1 (2026-10-17)
 
 Additive only: one new optional field on `Document` and a retry that accepts more documents. Clients built against 1.2.0 keep working.
