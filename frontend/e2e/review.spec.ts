@@ -40,7 +40,7 @@ test.describe('review', () => {
     await expect(elev.getByText('241.40 m NN')).toBeVisible();
     await expect(elev.locator('s')).toHaveText('241.35');
     await expect(elev).toContainText('(AI value)');
-    await expect(elev.getByText('Edited', { exact: true })).toBeVisible();
+    await expect(elev.getByRole('img', { name: 'Reviewed' })).toBeVisible();
     await expect(page.getByText('1 of 30 values reviewed')).toBeVisible();
   });
 

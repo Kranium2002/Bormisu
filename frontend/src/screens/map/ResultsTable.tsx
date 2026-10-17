@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, type MouseEvent } from 'react';
+import { AddColumnMenu, RemovableHeader, useColumns } from '../../components/ColumnChooser';
 import { StatusChip } from '../../components/StatusChip';
-import { FIELD_GROUPS, FIELDS, fieldByKey, type FieldDef } from '../../domain/fields';
+import { FIELDS, fieldByKey, type FieldDef } from '../../domain/fields';
 import { useT } from '../../i18n';
 import type { Borehole, BoreholeStatus } from '../../domain/types';
 import type { NotOnMapReason } from './mapModel';
@@ -26,35 +27,13 @@ const FIXED_MIN = { borehole: 90, project: 180, status: 170, action: 120 };
 const TABLE_PADDING = 24;
 const STORAGE_KEY = 'bormisu.listColumns.v2';
 
-/** The chosen optional columns, remembered in this browser (a convenience: falls back to the default). */
-function useColumns(): [string[], (keys: string[]) => void] {
-  const [keys, setKeys] = useState<string[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-      if (Array.isArray(saved)) return saved.filter((k) => fieldByKey.has(k));
-    } catch {
-      // no storage (private window, blocked site data): the default
-    }
-    return DEFAULT_COLUMNS;
-  });
-  const save = (next: string[]) => {
-    setKeys(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // not remembered, still shown
-    }
-  };
-  return [keys, save];
-}
-
 /**
  * The LIST table: BOREHOLE, PROJECT and STATUS (with NOT ON MAP and its reason), then the columns the user
  * picked (× removes one, + adds one). Every row opens the borehole's detail; for the keyboard and screen
  * readers each row has an OPEN DETAIL › button.
  */
 export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBoreholes, onOpen }: Props) {
-  const [keys, setKeys] = useColumns();
+  const [keys, setKeys] = useColumns(STORAGE_KEY, DEFAULT_COLUMNS, (k) => fieldByKey.has(k));
   const t = useT();
   const shown = keys.map((k) => fieldByKey.get(k)!);
   const hidden = FIELDS.filter((f) => !keys.includes(f.key));
@@ -63,11 +42,6 @@ export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBore
   const mins = [FIXED_MIN.borehole, FIXED_MIN.project, FIXED_MIN.status, ...shown.map((c) => c.min), FIXED_MIN.action];
   const grid = { gridTemplateColumns: mins.map((m) => `minmax(${m}px, 1fr)`).join(' ') };
   const minWidth = mins.reduce((a, m) => a + m, 0) + TABLE_PADDING;
-  const addMenu = useRef<HTMLDetailsElement>(null);
-  const add = (key: string) => {
-    setKeys([...keys, key]);
-    if (addMenu.current) addMenu.current.open = false;
-  };
 
   return (
     <section className={styles.results} aria-label="Boreholes">
@@ -77,32 +51,12 @@ export function ResultsTable({ boreholes, statuses, notOnMap, activeUid, anyBore
             <div key={c} className={styles.cell} role="columnheader">{t(c)}</div>
           ))}
           {shown.map((c) => (
-            <div key={c.key} className={`${styles.cell} ${styles.optionalHead}`} role="columnheader" title={`${c.group} · ${c.column}`}>
-              {t(c.label)}
-              <button type="button" className={styles.removeColumn} aria-label={`Remove column ${c.label}`}
-                onClick={() => setKeys(keys.filter((k) => k !== c.key))}>×</button>
-            </div>
+            <RemovableHeader key={c.key} className={styles.cell} label={c.label} title={`${c.group} · ${c.column}`}
+              onRemove={() => setKeys(keys.filter((k) => k !== c.key))} />
           ))}
           <div className={`${styles.cell} ${styles.addCell}`} role="columnheader" aria-label={t('Add a column')}>
-            {hidden.length > 0 && (
-              <details ref={addMenu} className={styles.addMenu}>
-                <summary className={styles.addButton} aria-label={t('Add a column')} title={t('Add a column')}>+</summary>
-                <ul className={styles.addList}>
-                  {FIELD_GROUPS.filter((g) => hidden.some((f) => f.group === g)).map((g) => (
-                    <li key={g}>
-                      <div className={styles.addGroup}>{t(g)}</div>
-                      <ul className={styles.addGroupList}>
-                        {hidden.filter((f) => f.group === g).map((f) => (
-                          <li key={f.key}>
-                            <button type="button" className={styles.addItem} title={f.column} onClick={() => add(f.key)}>{t(f.label)}</button>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
+            <AddColumnMenu hidden={hidden.map((f) => ({ key: f.key, label: f.label, group: f.group, title: f.column }))}
+              onAdd={(k) => setKeys([...keys, k])} />
           </div>
         </div>
         {boreholes.length === 0 && (

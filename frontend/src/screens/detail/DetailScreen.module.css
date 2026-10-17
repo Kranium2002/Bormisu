@@ -56,7 +56,7 @@
   margin: 0 auto;
   padding: var(--space-5) var(--space-5) var(--space-6);
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-columns: 416px minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
 }

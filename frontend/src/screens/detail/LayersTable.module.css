@@ -1,6 +1,11 @@
-/* DIN and SPT stay narrow (codes like "G, s", "R 50/30"), so a lithology fits one line at 1280 px. */
-.cols {
-  grid-template-columns: 34px 112px minmax(0, 1fr) 60px 108px 64px 64px 76px 30px;
+/* Columns: inline style (they depend on the chosen ones). Too many for the card: it scrolls sideways. */
+.scroll {
+  overflow-x: auto;
+}
+
+.addCell {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .row {

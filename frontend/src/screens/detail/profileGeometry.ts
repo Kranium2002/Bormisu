@@ -1,11 +1,11 @@
 /**
  * Geometry of the DIN 4023 profile column (prototype detail section of renderVals):
- * a 378 x 660 SVG whose depth axis runs from y = 28 (0 m) over 576 px down to the final depth.
+ * a 414 x 660 SVG whose depth axis runs from y = 28 (0 m) over 576 px down to the final depth.
  */
 import { K } from '../../domain/keys';
 import type { Borehole, GroundwaterReading, Layer } from '../../domain/types';
 
-export const PROFILE_W = 378;
+export const PROFILE_W = 414;
 export const PROFILE_H = 660;
 /** y of 0 m. */
 export const PROFILE_TOP = 28;
@@ -19,19 +19,22 @@ export const X = {
   stratX: 52,
   stratW: 36,
   stratMid: 70,
+  /** Lane between Strat. and the lithology: groundwater symbols and the cored line (Table 5). */
   gwFrom: 88,
-  layerX: 104,
+  gwX: 98,
+  layerX: 120,
   layerW: 100,
-  layerMid: 154,
-  /** DIN 4023 Table 6 strip right of the column (consistency, density, weathering, jointing, wet). */
-  propX: 207,
+  layerMid: 170,
+  /** DIN 4023 Table 6 strip right of the column (consistency, density, weathering, jointing, wet), kept clear
+   *  of the selected layer's thick outline. */
+  propX: 230,
   propW: 44,
-  bottomTickTo: 256,
-  bottomLabel: 259,
-  code: 294,
-  rockFrom: 100,
-  rockTo: 344,
-  refusalX: 332,
+  bottomTickTo: 279,
+  bottomLabel: 282,
+  code: 317,
+  rockFrom: 116,
+  rockTo: 367,
+  refusalX: 355,
 } as const;
 
 export interface DepthScale {

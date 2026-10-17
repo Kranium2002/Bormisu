@@ -53,6 +53,11 @@ const DE: Record<string, string> = {
   RESULTS: 'ERGEBNISSE',
   'No test results in source': 'Keine Laborwerte in der Quelle',
   'no values in source': 'keine Werte in der Quelle',
+  CHECK: 'PRÜFUNG',
+  'FROM–TO (m)': 'VON–BIS (m)',
+  LITHOLOGY: 'LITHOLOGIE',
+  Sample: 'Probe',
+  'Lab tests': 'Laborversuche',
 };
 
 function storedLang(): Lang {

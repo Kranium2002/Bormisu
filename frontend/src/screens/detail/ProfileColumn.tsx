@@ -1,9 +1,9 @@
-import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import type { KeyboardEvent } from 'react';
 import { K } from '../../domain/keys';
 import type { Borehole, GroundwaterReading, Layer } from '../../domain/types';
 import { COL, STRAT_COLORS, STRAT_FALLBACK } from '../../theme';
 import { GW_LABEL } from './detailModel';
-import { CORED_PATTERN, CORED_W, explainLayer, explainProperty, GW_SYMBOL, layerFill, MISSING_PATTERN, patternDefs, PROP_K, propertySymbols } from './dinPatterns';
+import { CORED_PATTERN, CORED_W, GW_SYMBOL, layerFill, MISSING_PATTERN, patternDefs, PROP_K, propertySymbols } from './dinPatterns';
 import {
   depthScale,
   depthTicks,
@@ -47,30 +47,12 @@ const onKeyActivate = (fn: () => void) => (e: KeyboardEvent) => {
   }
 };
 
-/** The explanation bubble: what was clicked, where (px in the profile), for which borehole. */
-interface Tip { uid: string; x: number; y: number; text: string }
-
 /**
  * DIN 4023 borehole profile: depth axis with ticks, Strat. column, hatched lithology column
  * (layers clickable), "not logged" band, ET label, rock head, selection, groundwater triangles
  * and the amber R marker of the first SPT refusal (both open the Source panel).
- * No legend: clicking any part shows what it means in a bubble next to it.
  */
 export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpenSource }: Props) {
-  const wrap = useRef<HTMLDivElement>(null);
-  const [tip, setTip] = useState<Tip | null>(null);
-  /** Shows `text` under the clicked element (mouse or keyboard); a click on the explanation's own owner keeps it. */
-  const explain = (text: string) => (e: MouseEvent | KeyboardEvent) => {
-    e.stopPropagation();
-    const box = (e.currentTarget as Element).getBoundingClientRect();
-    const at = wrap.current!.getBoundingClientRect();
-    setTip({ uid: b.uid, x: box.left + box.width / 2 - at.left, y: box.bottom - at.top, text });
-  };
-  /** A non-interactive part made clickable for its explanation (also from the keyboard). */
-  const explainable = (text: string, label: string) => ({
-    className: styles.hit, role: 'button', tabIndex: 0, 'aria-label': `${label}: what is this?`,
-    onClick: explain(text), onKeyDown: (e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), explain(text)(e)),
-  });
   const { depth, s, y } = depthScale(b);
   const ticks = depthTicks(depth);
   const strat = stratBlocks(b.layers);
@@ -92,11 +74,8 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
     return mid > lineY - 4 && mid < lineY + 12 ? lineY - 5 : mid;
   };
 
-  const shown = tip?.uid === b.uid ? tip : null;
   return (
-    <div ref={wrap} className={styles.wrap}>
     <svg
-      onClick={() => setTip(null)}
       className={styles.svg}
       width={PROFILE_W}
       height={PROFILE_H}
@@ -129,9 +108,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
       {strat.map((blk) => {
         const h = (blk.to - blk.from) * s;
         return (
-          <g key={`${blk.code}-${blk.from}`} {...explainable(
-            `${blk.code || 'No code'}: stratigraphic unit as printed in the log, ${blk.from.toFixed(2)}–${blk.to.toFixed(2)} m.`,
-            `Stratigraphy ${blk.code || 'not stated'}`)}>
+          <g key={`${blk.code}-${blk.from}`}>
             <title>{`Stratigraphy ${blk.code || 'not stated'}: ${blk.from.toFixed(2)}–${blk.to.toFixed(2)} m`}</title>
             <rect x={X.stratX} y={y(blk.from)} width={X.stratW} height={h} fill={STRAT_COLORS[blk.code] ?? STRAT_FALLBACK} stroke={INK} />
             {h > 14 && (
@@ -149,10 +126,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
         const missing = fills[i].some((f) => f.patternId === MISSING_PATTERN);
         const top = y(l.from);
         let px = X.propX;  // next free x in the Table 6 strip
-        const select = (e: MouseEvent | KeyboardEvent) => {
-          onSelectLayer(l.n);
-          explain(`Layer ${l.n}, ${l.from.toFixed(2)}–${l.to.toFixed(2)} m: ${explainLayer(l)}`)(e);
-        };
+        const select = () => onSelectLayer(l.n);
         return (
           <g
             key={l.n}
@@ -162,7 +136,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             aria-label={`Layer ${l.n}: ${l.lithology}, ${l.from.toFixed(2)}–${l.to.toFixed(2)} m`}
             aria-pressed={l.n === selectedLayer}
             onClick={select}
-            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), select(e))}
+            onKeyDown={onKeyActivate(select)}
           >
             <title>{`Layer ${l.n} · ${l.din} · ${l.lithology}${missing ? ` · no DIN 4023 pattern for "${l.din}"` : ''}`}</title>
             {/* white under the tile: "A" (fill) has no DIN colour; nothing named: plain #E0E0E0 (README) */}
@@ -173,8 +147,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             <rect x={X.layerX} y={top} width={X.layerW} height={h} fill="none" stroke={INK} />
             {/* cored section: double line left of the column (Table 5) */}
             {l.props?.core && (
-              <g transform={`translate(${X.layerX - CORED_W - 2},${top})`}
-                {...explainable('Cored section: a drill core was taken over this layer (DIN 4023 Table 5).', 'Cored section')}>
+              <g transform={`translate(${X.layerX - CORED_W - 2},${top})`}>
                 <title>Cored</title>
                 <rect width={CORED_W} height={h} fill={`url(#${CORED_PATTERN})`} />
               </g>
@@ -184,7 +157,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
               const x = px;
               px += p.w + 2;
               return (
-                <g key={p.key} transform={`translate(${x},${top})`} {...explainable(explainProperty(p), p.label)}>
+                <g key={p.key} transform={`translate(${x},${top})`}>
                   <title>{p.label}</title>
                   {p.patternId ? <rect width={p.w} height={h} fill={`url(#${p.patternId})`} />
                     : <svg width={p.w} height={Math.min(p.h, h)} viewBox={`0 0 ${p.w / PROP_K} ${p.h / PROP_K}`} dangerouslySetInnerHTML={{ __html: p.markup! }} />}
@@ -221,7 +194,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
 
       {/* log ends above the final depth */}
       {nl && (
-        <g {...explainable(`Not logged, ${nl.from.toFixed(2)}–${nl.to.toFixed(2)} m: the log stops above the final depth. A sheet may be missing.`, 'Not logged')}>
+        <g>
           <title>The log stops above the final depth. A sheet may be missing.</title>
           <rect
             x={X.layerX}
@@ -236,15 +209,13 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
         </g>
       )}
 
-      <g {...explainable('ET (Endteufe): the final depth of the borehole.', 'Final depth')}>
-        <text x={X.layerMid} y={etY} fontSize="10" textAnchor="middle" fill={INK}>
-          {b.finalDepth != null && b.finalDepth > 0 ? `ET ${b.finalDepth.toFixed(2)} m` : 'ET not stated'}
-        </text>
-      </g>
+      <text x={X.layerMid} y={etY} fontSize="10" textAnchor="middle" fill={INK}>
+        {b.finalDepth != null && b.finalDepth > 0 ? `ET ${b.finalDepth.toFixed(2)} m` : 'ET not stated'}
+      </text>
 
       {/* rock head */}
       {rockHead != null && (
-        <g {...explainable(`Rock head at ${rockHead.toFixed(2)} m: the top of the rock, soil above.`, 'Rock head')}>
+        <g>
           <title>{`Rock head ${rockHead.toFixed(2)} m`}</title>
           <line x1={X.rockFrom} y1={y(rockHead)} x2={X.rockTo} y2={y(rockHead)} stroke={COL.dark} strokeWidth="1.5" strokeDasharray="6 3" />
           <text x={X.code} y={y(rockHead) + 14} fontSize="10" fill={COL.dark} fontWeight="700">
@@ -284,7 +255,7 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
           >
             <title>{label}</title>
             <line x1={X.gwFrom} y1={gy} x2={X.layerX} y2={gy} stroke={COL.gw} strokeWidth="1.5" />
-            <GwSymbol type={g.type} x={90} tipY={gy} />
+            <GwSymbol type={g.type} x={X.gwX} tipY={gy} />
           </g>
         );
       })}
@@ -317,11 +288,5 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
         </g>
       )}
     </svg>
-    {shown && (
-      <div className={styles.tip} role="status" style={{ left: Math.min(Math.max(shown.x, 110), PROFILE_W - 110), top: shown.y + 6 }}>
-        {shown.text}
-      </div>
-    )}
-    </div>
   );
 }

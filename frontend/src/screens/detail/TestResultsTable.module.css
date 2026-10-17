@@ -1,13 +1,11 @@
-.cols {
-  grid-template-columns: 110px 90px 90px minmax(0, 1fr);
+/* Columns: inline style (they depend on the chosen ones). Too many for the card: it scrolls sideways. */
+.scroll {
+  overflow-x: auto;
 }
 
-.header {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  letter-spacing: var(--ls-caps);
-  color: var(--c-muted);
-  background: var(--c-line);
+.addCell {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .cell {
@@ -17,23 +15,6 @@
 
 .name {
   font-weight: 700;
-}
-
-/* "soil" / "water" after the sample name */
-.type {
-  margin-left: var(--space-2);
-  font-size: var(--fs-xs);
-  color: var(--c-muted);
-}
-
-.values {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-}
-
-.value {
-  white-space: nowrap;
 }
 
 /* Rows select like the LAYERS rows. */

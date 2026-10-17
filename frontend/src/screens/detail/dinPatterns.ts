@@ -151,23 +151,3 @@ export const CORED_K = 0.2;
 const coredSymbol = parse(cored);
 tilePattern(CORED_PATTERN, coredSymbol, CORED_K);
 export const CORED_W = coredSymbol.w * CORED_K;
-
-/* ---------- explanations (shown when a symbol is clicked) ---------- */
-
-const TILE_LABEL = new Map(Object.entries(codes).map(([c, v]) => [v.pattern_id, `${c} · ${v.name_en.toLowerCase()}`]));
-const SYMBOL_LABEL = new Map(Object.entries(codes).map(([c, v]) => [v.symbol_pattern_id, `${c} · ${v.name_en.toLowerCase()}`]));
-const SECONDARY_LABEL = new Map(Object.entries(secondaryCodes).map(([c, v]) => [v.symbol_pattern_id, `${c} · ${v.name_en}`]));
-
-/** What the lithology fill of a layer shows, in one line (DIN 4023 §4.2). */
-export function explainLayer(l: Pick<Layer, 'din' | 'lithology' | 'pattern'>): string {
-  const parts = layerFill(l).filter((f) => f.patternId);
-  if (!parts.length) return 'No lithology in the source: plain grey.';
-  if (parts[0].patternId === MISSING_PATTERN) return `No DIN 4023 pattern for "${l.din}": drawn red.`;
-  const text = parts.map((f) => (f.x0 === 0.5
-    ? `${SECONDARY_LABEL.get(f.patternId!)}, symbol in the right half`
-    : TILE_LABEL.get(f.patternId!) ?? SYMBOL_LABEL.get(f.patternId!))).join('; ');
-  return l.din.trim() ? text : `${text} (guessed from the description, no DIN code in the source)`;
-}
-
-/** What a Table 6 symbol means: "consistency: firm". */
-export const explainProperty = (p: PropertySymbol) => `${p.key.split('_')[0]}: ${p.label} (DIN 4023 Table 6)`;

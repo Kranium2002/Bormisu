@@ -27,7 +27,6 @@ test.describe('detail', () => {
     await expect(page.getByRole('group', { name: 'DIN 4023 profile of BK-07, 6 layers, final depth 18.00 m' })).toBeVisible();
     await expect(page.getByText('0 of 30 values reviewed')).toBeVisible();
     await expect(page.getByText('ET 18.00 m')).toBeVisible();
-    await expect(page.getByText('Log bottom 14.50 m ≠ final depth 18.00 m. Possibly a missing sheet 3.')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Layer 1:/ })).toBeVisible();
   });
 
