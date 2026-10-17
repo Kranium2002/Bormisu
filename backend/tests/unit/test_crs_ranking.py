@@ -154,7 +154,13 @@ def test_world_wide_systems_are_demoted() -> None:
         assert "EPSG:3857" in (ranked[-1].note or "")
 
 
-def test_far_reference_makes_inside_candidates_shifted() -> None:
+def test_far_reference_makes_inside_candidates_shifted(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dataclasses import replace
+
+    import app.geo.crs_candidates as module
+
+    full = replace(module.ranking_config(), max_candidates=1000)  # every candidate, not only the first page
+    monkeypatch.setattr(module, "ranking_config", lambda: full)
     code, lat, lon = CASES["asia"]
     far = Reference(lat + 5.0, lon + 5.0, "Fictional Elsewhere", "geocoder")
     ranked = rank_candidates(_points(code, lat, lon), reference=far)
