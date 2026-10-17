@@ -6,8 +6,11 @@
 
 *(the DIN 4023 profile of one borehole, straight out of Bormisu)*
 
-> This is the key to building tunnels.
+> This glas of dirt and stones the key to building tunnels.
+> Its a soil sample.
+> This is what it looks like on a plan.
 > It tells you exactly what the ground is made of — which material sits at which depth.
+> You can take samples and determine the right 
 > And on these samples you run tests, to see how strong the ground is.
 
 ## 03 · Offenburg (~20 s)
