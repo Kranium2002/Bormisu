@@ -9,11 +9,11 @@ Slide 11 (Team) is skipped for now, so you click straight from 10 to 12.
 
 > Hi, we're **Team Tiramisu**, and this is **Bormisu**.
 
-## 02 · Hook: 3 million hours (~25 s)
+## 02 · Hook: more than 3 million hours (~25 s)
 
-*(the number counts up to 3,000,000 — let it land)*
+*(the number counts up to > 3,000,000 — let it land)*
 
-> 3 million hours.
+> More than 3 million hours.
 > That's how much time the Gotthard Base Tunnel saves its passengers every year.
 > That means goods travel faster.
 > That means the cost of living goes down.
@@ -116,11 +116,11 @@ Slide 11 (Team) is skipped for now, so you click straight from 10 to 12.
 
 ## Sources
 
-### Slide 02 (3 million hours)
+### Slide 02 (more than 3 million hours)
 
 - The tunnel carried on average **16,400 passengers a day** in 2025, and 9,000 a day in 2015 ([swissinfo, SBB figures](https://www.swissinfo.ch/eng/swiss-democracy/the-gotthard-base-tunnel-ten-years-on/91672319)).
 - Time saved: about **30 minutes** from the base tunnel alone ([swissinfo](https://www.swissinfo.ch/eng/business/gotthard-base-tunnel_world-s-longest-rail-tunnel-has-a-way-to-go/42940622)), about **1 hour** on Zurich–Milan together with the Ceneri tunnel ([Gulf News](https://gulfnews.com/amp/story/world%2Feurope%2Fthe-worlds-longest-tunnel-opens-in-switzerland-1.1838836)).
-- **Per year:** 16,400 × 0.5 h × 365 ≈ **2.99 million hours**, rounded to 3 million on the slide. With the full hour saved it would be about 6 million.
+- **Per year:** 16,400 × 0.5 h × 365 ≈ **2.99 million hours** with only the base tunnel's 30 minutes. With the full hour saved on Zurich–Milan it is about **6 million**, so "more than 3 million" holds.
 - Freight time is not counted.
 
 ### Slide 03 (said over the video)

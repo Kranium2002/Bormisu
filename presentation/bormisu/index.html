@@ -54,6 +54,7 @@
   /* 02 Hook: the number counts up when the slide opens */
   .hook { background: #000; color: #fff; }
   .hook .big { font-family: var(--display); font-size: 260px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .hook .gt { color: var(--ladyfinger); margin-right: 0.12em; }
   .hook .unit { font-family: var(--display); font-size: 110px; font-weight: 600; letter-spacing: -0.03em; color: var(--ladyfinger); margin-top: 8px; }
 
   /* 03 Herrenknecht film: blank, just the video */
@@ -203,7 +204,7 @@
 
   <!-- 02 HOOK — time the Gotthard Base Tunnel saves; see Script.md for the figure -->
   <section class="hook center" data-label="02 Hook">
-    <div class="big" data-count="3000000">3,000,000</div>
+    <div class="big"><span class="gt">&gt;</span><span data-count="3000000">3,000,000</span></div>
     <div class="unit" data-anim style="--d: 1400ms;">hours</div>
   </section>
 
