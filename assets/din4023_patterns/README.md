@@ -7,7 +7,9 @@ Everything is keyed by the **DIN code** (e.g. `T` = clay, `Kst` = limestone): th
 assets/din4023_patterns/
 ├── din_codes.json   # DIN code → colour, symbol colour, svg file, pattern id, tile size
 ├── patterns.svg     # all 49 patterns as <pattern> definitions (for SVG)
-└── svg/<file>.svg   # one seamless tile per DIN code (for CSS / images)
+├── svg/<file>.svg   # one seamless tile per DIN code (for CSS / images)
+├── properties.json  # Table 6: property symbols drawn right of the column
+└── properties/<group>_<key>.svg  # vertical tiles (repeat in y)
 ```
 
 ## Look up a DIN code
@@ -79,5 +81,32 @@ File names are `<kind>_<code>` with `ö` → `oe` (e.g. `geological_Loe.svg`), b
 
 Sparse symbols are intended: `Mu` (topsoil), `A` (fill) and `Stk` (hard coal) show one symbol per tile, as in the norm.
 
+## Property symbols (Table 6, right of the column)
+Black vector symbols on transparent, drawn in a strip **next to** the layer, right of the column, over the layer's full height.
+`properties.json` is an array, one entry per symbol:
+```json
+{
+  "group": "density", "key": "dense",
+  "name_de": "dicht", "name_en": "dense",
+  "svg": "properties/density_dense.svg",
+  "tile_width": 47, "tile_height": 47,   // size of ONE tile in user units
+  "repeat_y": true,                      // repeat vertically to the layer height (false only for "wet")
+  "frame": null                          // weathering only: thickness of the top / bottom edge to draw yourself
+}
+```
+**Vertical scaling = repeat, never stretch.** Keep the width fixed and repeat the tile in y to any height (same rules as the fill patterns: one scale factor for both tile sides).
+- CSS: `background:url(properties/density_dense.svg) repeat-y; background-size:<tile_width>px <tile_height>px`. `background-repeat: no-repeat round` instead fits a whole number of tiles (no cut-off dot at the bottom, tile height changes slightly).
+- SVG: `<pattern patternUnits="userSpaceOnUse" width=tile_width height=tile_height>` with the tile inside, `fill="url(#…)"` on a rect as tall as the layer.
+- **Weathering** (`frame` = 7): the tile has the side bars only; draw a top and bottom edge of that thickness at the layer boundaries (e.g. `border-top/bottom: 7px solid #000` at scale 1) to close the box.
+- **`wet`** is a single mark, not a strip: draw it once at its size.
+
+| group | key (DIN term) |
+|---|---|
+| moisture | `wet` (nass) |
+| consistency | `liquid` (flüssig) · `very_soft` (breiig/sehr weich) · `soft` (weich) · `firm` (steif) · `stiff` (halbfest) · `hard` (fest) |
+| density | `loose` (locker bis sehr locker) · `medium_dense` (mitteldicht) · `dense` (dicht) · `very_dense` (sehr dicht) |
+| weathering | `w0` (frisch) · `w1` (schwach) · `w2_3` (mäßig bis stark) · `w4` (vollständig) · `w5` (zersetzt) |
+| jointing | `jointed` (klüftig) · `highly_jointed` (stark klüftig) |
+
 ## Source
-Symbols traced from the tables of DIN 4023:2023-02 (Tables 1–3), colours from its Annex A. The norm itself is published and copyrighted by DIN Media.
+Symbols traced from the tables of DIN 4023:2023-02 (Tables 1–3), colours from its Annex A; Table 6 symbols redrawn as vectors from the norm's measurements. The norm itself is published and copyrighted by DIN Media.
