@@ -2,9 +2,11 @@
 
 Seamless SVG fill patterns for soil and rock layers according to **DIN 4023:2023** (colour + hatch symbol).
 Everything is keyed by the **DIN code** (e.g. `T` = clay, `Kst` = limestone): the code gives you the colour **and** the shape.
+Which data field picks which symbol, with an example per group: [DATA_MAPPING.md](DATA_MAPPING.md).
 
 ```
 assets/din4023_patterns/
+├── DATA_MAPPING.md  # which record field draws which symbol, one example per group
 ├── din_codes.json   # DIN code → colour, symbol colour, svg file, pattern id, tile size
 ├── patterns.svg     # all 49 patterns as <pattern> definitions (for SVG)
 ├── svg/<file>.svg   # one seamless tile per DIN code (for CSS / images)
