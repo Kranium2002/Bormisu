@@ -45,7 +45,7 @@ describe('ProfileColumn', () => {
   it('draws groundwater, rock head and the SPT refusal marker the source states', () => {
     const html = render(borehole());
     expect(html).toContain('GW strike 1.80 m: show source');
-    expect(html).toContain('rock head 2,50');
+    expect(html).toContain('rock head 2.50');
     expect(html).toContain('SPT refusal 50/30 at 4.00 m: show source');
   });
 
@@ -57,7 +57,7 @@ describe('ProfileColumn', () => {
     b = applyValuePatch(b, K.spt(2), { state: 'not in source', status: 'approved' });
     const html = render(b);
     expect(html).not.toContain('GW strike');
-    expect(html).not.toContain('rock head 2,50');
+    expect(html).not.toContain('rock head 2.50');
     expect(html).not.toContain('SPT refusal');
   });
 
@@ -123,7 +123,7 @@ describe('ProfileColumn', () => {
     const b = withLayers([makeLayer({ n: 1, from: 0, to: 3 }), makeLayer({ n: 2, from: 3, to: 7.5, din: 'T', spt })]);
     const html = render(b);
     expect(html).toContain('aria-label="SPT refusal 50/8 depth not stated: show source"');
-    expect(html).toContain('SPT refusal “50/8” depth not stated (layer 2, 3,00–7,50 m)');
+    expect(html).toContain('SPT refusal “50/8” depth not stated (layer 2, 3.00–7.50 m)');
     // Never an invented depth: not the layer middle (5.25 m), in neither notation.
     expect(html).not.toMatch(/5[.,]25/);
     expect(html).not.toMatch(/SPT refusal 50\/8 at /);
@@ -142,8 +142,8 @@ describe('ProfileColumn', () => {
         makeLayer({ n: 3, from: 4, to: 6, stratigraphicName: null }),
       ]),
     );
-    expect(html).toContain('Stratigraphy: Holocene, 0,00–4,00 m');
-    expect(html).toContain('Stratigraphy: not stated, 4,00–6,00 m');
+    expect(html).toContain('Stratigraphy: Holocene, 0.00–4.00 m');
+    expect(html).toContain('Stratigraphy: not stated, 4.00–6.00 m');
     expect(html.match(/>Holocene<\/text>/g)).toHaveLength(1);
   });
 });

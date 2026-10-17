@@ -1,6 +1,7 @@
 /** Panel slice: navigation, the side panel, the export menu, the toast and Escape. */
 import { dataSourceKind } from '../data/createDataSource';
 import { errorText } from '../data/errors';
+import { sourceDocumentId } from '../domain/review';
 import { csvBlob, openQuestionRows, tidyRows } from '../export/csv';
 import { downloadBlob, exportPrefix } from '../export/download';
 import { exportScope } from '../export/scope';
@@ -10,6 +11,9 @@ import { NO_SOURCE_REFERENCE } from './reviewSlice';
 import type { PanelSlice } from './types';
 
 const TOAST_MS = 3200;
+
+/** Why a borehole without pages (e.g. read from a spreadsheet only) has no page to show. */
+export const NO_SOURCE_PAGE = 'No source page for this borehole';
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -38,23 +42,30 @@ export const createPanelSlice: SliceCreator<PanelSlice> = ({ set, get, find }) =
 
   openSource(uid, key) {
     const b = find(uid);
-    if (!b?.documentId) {
+    const v = b?.values.find((x) => x.key === key);
+    // The value's own document when its source is elsewhere (e.g. a lab spreadsheet), else the borehole's.
+    const documentId = b && (v ? sourceDocumentId(b, v) : b.documentId);
+    if (!b || !documentId) {
       get().showToast('No source document for this borehole');
       return;
     }
-    const v = b.values.find((x) => x.key === key);
     if (v && !v.hasProvenance) {
       get().showToast(NO_SOURCE_REFERENCE);
       return;
     }
     // A spreadsheet value points at a cell, not at a page.
     if (v?.cell) {
-      set({ panel: { kind: 'source', uid, key, documentId: b.documentId, page: null, box: null, cell: v.cell } });
+      set({ panel: { kind: 'source', uid, key, documentId, page: null, box: null, cell: v.cell } });
+      return;
+    }
+    // Without a value the borehole's first page is shown; a borehole without pages has none to show.
+    if (!v && b.primaryPage == null) {
+      get().showToast(NO_SOURCE_PAGE);
       return;
     }
     // A value whose source entry names no page (guessed, derived) is on no page: none is made up for it.
     const page = v ? v.page : b.primaryPage;
-    set({ panel: { kind: 'source', uid, key, documentId: b.documentId, page, box: v?.box ?? null } });
+    set({ panel: { kind: 'source', uid, key, documentId, page, box: v?.box ?? null } });
   },
 
   openPage(documentId, page) {

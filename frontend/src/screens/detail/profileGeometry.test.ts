@@ -95,7 +95,7 @@ describe('labels', () => {
 describe('notLogged', () => {
   it('flags a log that ends above the final depth', () => {
     const b = makeBorehole({ finalDepth: 18, logBottom: 14.5 });
-    expect(notLogged(b)).toEqual({ from: 14.5, to: 18, label: 'log ends 14,50 ≠ ET 18,00' });
+    expect(notLogged(b)).toEqual({ from: 14.5, to: 18, label: 'log ends 14.50 ≠ ET 18.00' });
   });
 
   it('is null when the log reaches the final depth, the final depth is unknown or there are no layers', () => {

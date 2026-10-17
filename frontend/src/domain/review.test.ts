@@ -229,4 +229,18 @@ describe('SPT edits', () => {
     expect(spt(back)?.spt?.n).toBe(8);
     expect(spt(back)?.lint?.message).toBe('Increments 4 + 5 = 9 ≠ N 8');
   });
+
+  it('the increment lint it recomputes is the app’s own check: never attention', () => {
+    const b = applyValuePatch(withSpt(), K.spt(1), { value: 'N = 7', method: 'Edited' });
+    expect(spt(b)?.lint).toEqual({ severity: 'error', message: 'Increments 4 + 5 = 9 ≠ N 7', client: true });
+    expect(displayStatus(b)).toBe('unreviewed');
+  });
+
+  it('a backend lint on the SPT stays as it was', () => {
+    const server = { severity: 'error' as const, message: 'Refusal recorded with an N value' };
+    const b = withSpt();
+    const linted = { ...b, values: b.values.map((v) => (v.key === K.spt(1) ? { ...v, lint: server } : v)) };
+    const edited = applyValuePatch(linted, K.spt(1), { value: 'N = 9', method: 'Edited', status: 'approved' });
+    expect(spt(edited)?.lint).toEqual(server);
+  });
 });

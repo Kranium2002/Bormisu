@@ -262,6 +262,12 @@ describe('layerLint', () => {
   it('is null without an open lint on the final depth', () => {
     expect(layerLint(makeBorehole())).toBeNull();
   });
+
+  it('DV-11-UI: counts only the sheets of the borehole’s own document', () => {
+    const b = shortLog();
+    b.values = [...b.values, makeValue({ key: K.tcr(1), group: 'layer', layer: 1, value: '80', page: 3, documentId: 'doc_FICTIONAL_LAB_0000000000001' })];
+    expect(layerLint(b)?.text).toBe('Log bottom 14.50 m ≠ final depth 18.00 m. Possibly a missing sheet 3.');
+  });
 });
 
 describe('groundwaterRows', () => {
@@ -293,5 +299,31 @@ describe('export menu counts', () => {
     expect(excludedText(0, false)).toBe('All values reviewed: nothing left out');
     expect(excludedText(272, false, 13)).toBe('272 unreviewed values in 13 boreholes excluded');
     expect(excludedText(1, true, 2)).toBe('1 unreviewed value in 2 boreholes included · file stamped DRAFT');
+  });
+});
+
+describe('lint texts', () => {
+  const own = (b: Borehole, key: string) =>
+    b.values.map((v) => (v.key === key && v.lint ? { ...v, lint: { ...v.lint, client: true } } : v));
+
+  it('the SPT hover names its lint; a lint the app added itself says so', () => {
+    const b = shortLog();
+    expect(layerRows(b)[0].spt?.title).toContain('Increments 4 + 5 = 9 ≠ N 8.');
+    b.values = own(b, K.spt(1));
+    expect(layerRows(b)[0].spt?.title).toContain('Increments 4 + 5 = 9 ≠ N 8 (checked by the app, not the backend).');
+  });
+
+  it('a LINT chip of the app’s own check says so', () => {
+    const b = shortLog();
+    b.values = own(b, K.finalDepth);
+    expect(row(b, 'Final depth')?.chips).toEqual([
+      { label: 'LINT', tone: 'red', title: 'Log bottom 14.50 m ≠ final depth 18.00 m (checked by the app, not the backend)' },
+    ]);
+  });
+
+  it('an approved borehole whose only lint is the app’s own does not "need attention"', () => {
+    const b = shortLog();
+    b.values = own({ ...b, values: own(b, K.finalDepth) }, K.spt(1)).map((v) => ({ ...v, status: 'approved' as const }));
+    expect(reviewedText(b)).toBe('all values reviewed');
   });
 });

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { makeHealth } from './testing';
-import { acceptAttribute, checkUploads, DEMO_UPLOAD_REASON, fileExtension, uploadBlockedReason, uploadHint } from './uploads';
+import {
+  acceptAttribute,
+  checkUploads,
+  DEMO_UPLOAD_REASON,
+  fileExtension,
+  retryBlockedReason,
+  uploadBlockedReason,
+  uploadHint,
+} from './uploads';
 
 const file = (name: string, bytes = 1) => new File([new Uint8Array(bytes)], name);
 const limits = { maxMb: 2, extensions: ['.pdf', '.docx', '.png'] };
@@ -37,5 +45,12 @@ describe('upload rules from health', () => {
     expect(uploadBlockedReason(makeHealth({ mode: 'live' }))).toBeNull();
     expect(uploadBlockedReason(makeHealth({ mode: 'sample' }))).toBeNull();
     expect(uploadBlockedReason(null)).toBeNull();
+  });
+
+  it('BE-RETRY-1: blocks RETRY in demo mode only, with the same reason', () => {
+    expect(retryBlockedReason(makeHealth({ mode: 'demo' }))).toBe('Live extraction needs API keys');
+    expect(retryBlockedReason(makeHealth({ mode: 'live' }))).toBeNull();
+    expect(retryBlockedReason(makeHealth({ mode: 'sample' }))).toBeNull();
+    expect(retryBlockedReason(null)).toBeNull();
   });
 });

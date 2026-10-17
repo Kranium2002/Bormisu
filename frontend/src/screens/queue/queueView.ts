@@ -4,7 +4,7 @@
  */
 import { pageUsageText, PAGE_ROLE_LABELS } from '../../domain/pages';
 import type { DocumentPage, DocumentProgress, DocumentStep, DocumentSummary } from '../../domain/types';
-import { PAGE_TYPE_META } from '../../theme';
+import { pageMeta } from '../../theme';
 
 export const STEP_LABELS = ['classifying', 'extracting', 'needs review', 'done'] as const;
 
@@ -124,14 +124,16 @@ export function questionsText(d: DocumentSummary): string | null {
 export function pageTitle(p: DocumentPage, documentId: string): string {
   const usage = pageUsageText(p);
   if (!p.classified) return `p.${p.n} · ${usage}`;
+  const name = pageMeta(p).name;
   const role = p.role ? PAGE_ROLE_LABELS[p.role] : '';
   // The usage text names the duplicated page; say when that page is in another document.
   const elsewhere = p.duplicateOf && p.duplicateOf.documentId !== documentId ? `page ${p.duplicateOf.n} of another document` : '';
   return [
     `p.${p.n}`,
-    PAGE_TYPE_META[p.type].name,
+    name,
     usage,
-    role && !usage.includes(role) ? `role: ${role}` : '',
+    // A classified page without a type is named by its role already.
+    role && role !== name && !usage.includes(role) ? `role: ${role}` : '',
     p.sheetLabel ? `sheet ${p.sheetLabel}` : '',
     p.ocr ? `OCR ${p.ocr}` : '',
     p.handwriting && p.handwriting !== 'none' ? `handwriting: ${p.handwriting}` : '',

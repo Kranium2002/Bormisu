@@ -42,4 +42,31 @@ describe('FieldRow', () => {
     expect(html).toContain('reader A: “1,80” · 82 %');
     expect(html).toContain('reader B: “1,30”');
   });
+
+  it('READONLY: a read-only value can’t be edited (the reason is the title and description); the rest works', () => {
+    const reason = 'Set through the CRS dialog only';
+    const html = render(makeValue({ key: K.crs, label: 'CRS', value: 'EPSG:0001', readOnlyReason: reason }), true);
+    const edit = html.match(/<button[^>]*aria-label="Edit CRS"[^>]*>/)?.[0] ?? '';
+    expect(edit).toContain('disabled=""');
+    expect(edit).toContain(`title="${reason}"`);
+    expect(edit).toContain(`aria-description="${reason}"`);
+    // Approve, flag, the two state buttons and the larger source view stay enabled.
+    expect(html.match(/disabled=""/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="Approve CRS"');
+    expect(html).toContain('aria-label="Flag CRS"');
+  });
+
+  it('a value without provenance stays fully read-only, also with a read-only reason', () => {
+    const v = makeValue({ key: K.casing, label: 'Casing', value: '3.00', hasProvenance: false, method: null, page: null, readOnlyReason: 'x' });
+    const html = render(v, true);
+    expect(html.match(/disabled=""/g)).toHaveLength(6);
+    expect(html.split(`title="${NO_SOURCE_REFERENCE}"`).length - 1).toBe(6);
+  });
+
+  it('marks a lint the app added itself, so it is not mistaken for a backend finding', () => {
+    const own = makeValue({ key: K.spt(1), label: 'SPT', lint: { severity: 'error', message: 'Increments 4 + 5 = 9 ≠ N 8', client: true } });
+    expect(render(own)).toContain('✕ Increments 4 + 5 = 9 ≠ N 8 (checked by the app, not the backend)');
+    const server = makeValue({ key: K.finalDepth, label: 'Final depth', lint: { severity: 'warning', message: 'Log ends early' } });
+    expect(render(server)).toContain('⚠ Log ends early<');
+  });
 });

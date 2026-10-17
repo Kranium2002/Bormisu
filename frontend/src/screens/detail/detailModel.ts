@@ -3,9 +3,9 @@
  * groundwater row shows. One code path for every borehole (sample or API); displayed values always
  * come from the borehole's ExtractedValues, with the borehole's metadata only where no value exists.
  */
-import { crsLabel, printedCoordinates, unplottedText } from '../../domain/format';
+import { crsLabel, lintText, printedCoordinates, unplottedText } from '../../domain/format';
 import { K } from '../../domain/keys';
-import { progress } from '../../domain/review';
+import { fromOtherDocument, progress } from '../../domain/review';
 import { formatSpt, refusalTitle, sptDepthText } from '../../domain/spt';
 import { displayStatus } from '../../domain/status';
 import type { Borehole, DepthOrigin, ExtractedValue, GroundwaterReading, Layer, Lint, Method, Spt } from '../../domain/types';
@@ -40,7 +40,7 @@ function cell(v: ExtractedValue | undefined): string {
 /** Chips every value can carry: an open lint (red error / amber warning) and a review flag. */
 function reviewChips(v: ExtractedValue | undefined): Chip[] {
   const chips: Chip[] = [];
-  if (hasOpenLint(v)) chips.push({ label: 'LINT', tone: v.lint.severity === 'error' ? 'red' : 'amber', title: v.lint.message });
+  if (hasOpenLint(v)) chips.push({ label: 'LINT', tone: v.lint.severity === 'error' ? 'red' : 'amber', title: lintText(v.lint) });
   if (v?.status === 'flagged') chips.push({ label: 'FLAGGED', tone: 'amber', ...(v.flag ? { title: v.flag } : {}) });
   return chips;
 }
@@ -257,7 +257,7 @@ export interface SptCell {
   refusal: boolean;
   /** Red text: the SPT has an open lint (e.g. increments don't add up to N). */
   lint: boolean;
-  /** Tooltip: depth ("depth not stated" when the source has none) and, for a refusal, what was printed. */
+  /** Tooltip: depth ("depth not stated" when the source has none), for a refusal what was printed, and an open lint. */
   title: string;
 }
 
@@ -294,7 +294,9 @@ function sptCell(l: Layer, v: ExtractedValue | undefined): SptCell | null {
   const printed = v?.method === 'Edited' ? v.value : v?.raw || spt?.raw;
   const text = v && v.state !== 'ok' ? v.state : refusal ? (printed || DASH) : (v?.value || (spt ? formatSpt(spt) : DASH));
   const where = spt ? `SPT ${sptAt(spt)}.` : 'SPT.';
-  const title = [where, refusal && spt ? refusalTitle(spt) : '', 'Click for source.'].filter(Boolean).join(' ');
+  // The red text explains itself on hover: the lint, marked when the app checked it itself.
+  const lint = hasOpenLint(v) ? `${lintText(v.lint).replace(/\.\s*$/, '')}.` : '';
+  const title = [where, refusal && spt ? refusalTitle(spt) : '', lint, 'Click for source.'].filter(Boolean).join(' ');
   return { key: v?.key ?? K.spt(l.n), text, refusal, lint: hasOpenLint(v), title };
 }
 
@@ -331,10 +333,12 @@ export function layerRows(b: Borehole): LayerRow[] {
 export function layerLint(b: Borehole): { text: string; severity: Lint['severity'] } | null {
   const fd = valueOf(b, K.finalDepth);
   if (!hasOpenLint(fd)) return null;
-  const msg = fd.lint.message.replace(/\.\s*$/, '');
+  const msg = lintText(fd.lint).replace(/\.\s*$/, '');
   if (b.finalDepth == null || b.logBottom >= b.finalDepth) return { text: `${msg}.`, severity: fd.lint.severity };
   // The log stops before the final depth: most likely a continuation sheet is missing.
-  const sheets = new Set(b.values.filter((v) => v.group === 'layer' && v.page != null).map((v) => v.page)).size;
+  const sheets = new Set(
+    b.values.filter((v) => v.group === 'layer' && v.page != null && !fromOtherDocument(b, v)).map((v) => v.page),
+  ).size;
   const hint = sheets > 0 ? ` Possibly a missing sheet ${sheets + 1}.` : ' Possibly a missing log sheet.';
   return { text: `${msg}.${hint}`, severity: fd.lint.severity };
 }

@@ -3,6 +3,7 @@
  * and taking boreholes, the pending-save tracker). Created once per store in appStore.ts.
  */
 import type { StoreApi } from 'zustand';
+import { fromOtherDocument } from '../domain/review';
 import type { Borehole, DocumentSummary, ExtractedValue } from '../domain/types';
 import { SaveTracker } from './saves';
 import type { AppState } from './types';
@@ -82,9 +83,14 @@ export function isReviewable(b: Borehole | undefined): boolean {
   return !!b?.documentId && b.values.some((v) => v.page != null || v.cell != null);
 }
 
-/** Review page for a value, as in the prototype: jump to its page when it has a box or isn't on page 1. */
-export function pageFor(v: ExtractedValue | undefined, current: number): number {
-  return v?.page && (v.box || v.page !== 1) ? v.page : current;
+/**
+ * Review page for a value, as in the prototype: jump to its page when it has a box or isn't on page 1.
+ * A value whose source is in another document keeps the page: its page numbers are that document's.
+ * `current` is null for a borehole without pages, which then shows no page.
+ */
+export function pageFor(b: Borehole, v: ExtractedValue | undefined, current: number | null): number | null {
+  if (!v || fromOtherDocument(b, v)) return current;
+  return v.page && (v.box || v.page !== 1) ? v.page : current;
 }
 
 /**

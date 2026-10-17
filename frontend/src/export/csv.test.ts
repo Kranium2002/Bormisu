@@ -60,6 +60,27 @@ describe('openQuestionRows', () => {
     const b = makeBorehole({ crs: { name: null, code: null, status: 'unknown' } });
     expect(openQuestionRows([b], null)[1][2]).toMatch(/Coordinate system unknown/);
   });
+
+  it('PRIMARY-PAGE-NULL: a borehole without pages gets no page number; a spreadsheet CRS names its cell', () => {
+    const unknown = makeBorehole({ pages: [], primaryPage: null, crs: { name: null, code: null, status: 'unknown' }, values: [] });
+    expect(openQuestionRows([unknown], null)[1]).toEqual(['TB-01', null, 'Coordinate system unknown. Please supply it, or the transformation to a known one.']);
+    const inferred = makeBorehole({
+      pages: [], primaryPage: null, crs: { name: null, code: null, status: 'inferred' },
+      values: [makeValue({ key: K.crs, kind: 'crs', page: null, cell: 'Logdata!B2' })],
+    });
+    expect(openQuestionRows([inferred], null)[1]).toEqual(['all', 'Logdata!B2', 'Coordinate system not stated. Please confirm.']);
+    const bare = { ...inferred, values: [] };
+    expect(openQuestionRows([bare], null)[1][1]).toBeNull();
+  });
+
+  it('names the value of a lint the app added itself, whose message does not', () => {
+    const b = makeBorehole();
+    b.values = [
+      ...b.values,
+      makeValue({ key: K.spt(1), label: 'SPT @ 1.50 m', page: 3, lint: { severity: 'error', message: 'Increments 4 + 5 = 9 ≠ N 8', client: true } }),
+    ];
+    expect(openQuestionRows([b], null).slice(1)).toEqual([['TB-01', 3, 'SPT @ 1.50 m: Increments 4 + 5 = 9 ≠ N 8']]);
+  });
 });
 
 describe('toCsv', () => {

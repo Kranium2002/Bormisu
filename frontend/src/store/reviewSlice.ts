@@ -72,7 +72,7 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
   return {
     reviewUid: null,
     focusKey: null,
-    reviewPage: 1,
+    reviewPage: null,
     editing: null,
     confirmCleanOpen: false,
     cleanCount: null,
@@ -98,15 +98,16 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
         reviewUid: target,
         focusKey,
         editing: null,
-        reviewPage: b ? pageFor(b.values.find((v) => v.key === focusKey), b.primaryPage) : 1,
+        reviewPage: b ? pageFor(b, b.values.find((v) => v.key === focusKey), b.primaryPage) : null,
       });
     },
 
     focusValue(key, scrollList) {
-      const v = reviewValue(key);
+      const b = find(get().reviewUid);
+      const v = b?.values.find((x) => x.key === key);
       set((s) => ({
         focusKey: key,
-        reviewPage: pageFor(v, s.reviewPage),
+        reviewPage: b ? pageFor(b, v, s.reviewPage) : s.reviewPage,
         listScroll: scrollList ? { key, nonce: nextNonce() } : s.listScroll,
         // Moving to another value drops an unsaved inline edit, so only one row is ever in edit mode.
         editing: s.editing && s.editing.key !== key ? null : s.editing,
@@ -121,6 +122,11 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       get().focusValue(key);
       const v = reviewable(key);
       if (!v) return;
+      // A value the backend sets elsewhere (e.g. the CRS through its dialog) can't be edited; approve and flag still work.
+      if (mode === 'edit' && v.readOnlyReason) {
+        get().showToast(v.readOnlyReason);
+        return;
+      }
       set({ editing: { key, mode, text: mode === 'edit' ? v.value : '' } });
     },
 
@@ -133,6 +139,11 @@ export const createReviewSlice: SliceCreator<ReviewSlice> = ({ set, get, find, r
       const v = e && reviewValue(e.key);
       set({ editing: null });
       if (!e || !v?.hasProvenance) return;
+      // The value became read-only while the edit was open (a newer record): the edit is not sent.
+      if (e.mode === 'edit' && v.readOnlyReason) {
+        get().showToast(v.readOnlyReason);
+        return;
+      }
       save(e.key, e.mode === 'edit' ? editPatch(v, e.text) : flagPatch(e.text));
     },
 

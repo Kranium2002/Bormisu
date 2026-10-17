@@ -8,6 +8,19 @@ import { parseSptText, sptLint } from './spt';
 import { deriveReviewStatus } from './status';
 import type { Borehole, Completeness, ExtractedValue, Spt, ValuePatch } from './types';
 
+/** The document a value's source is in: its own document when it names one (e.g. a lab spreadsheet), else the borehole's. */
+export function sourceDocumentId(b: Pick<Borehole, 'documentId'>, v: Pick<ExtractedValue, 'documentId'>): string | null {
+  return v.documentId ?? b.documentId;
+}
+
+/**
+ * True when a value's source is in another document than the borehole's: its page and box belong to
+ * that document, so they are never shown on the borehole's own pages.
+ */
+export function fromOtherDocument(b: Pick<Borehole, 'documentId'>, v: Pick<ExtractedValue, 'documentId'>): boolean {
+  return !!v.documentId && v.documentId !== b.documentId;
+}
+
 /**
  * Approved values out of the reviewable ones. A value without a provenance entry can't be reviewed
  * (it isn't a valid save path), so it doesn't count.
@@ -109,9 +122,12 @@ function syncSpt(b: Borehole, v: ExtractedValue, n: number): Borehole {
   const spt: Spt = parseSptText(v.value, prev) ?? {
     raw: prev.raw, depth: prev.depth, refusal: false, ...(prev.increments ? { increments: prev.increments } : {}),
   };
-  // A lint from elsewhere (e.g. the backend) stays; the increment check follows the new N.
+  // A lint from elsewhere (e.g. the backend) stays; the increment check follows the new N. That check
+  // is the app's own, so it never counts as attention (status.ts).
   const recompute = !v.lint || v.lint.message === sptLint(prev)?.message;
-  const next: ExtractedValue = { ...v, spt, refusal: spt.refusal, lint: recompute ? sptLint(spt) : v.lint };
+  const own = sptLint(spt);
+  const lint = recompute ? (own && { ...own, client: true }) : v.lint;
+  const next: ExtractedValue = { ...v, spt, refusal: spt.refusal, lint };
   return {
     ...b,
     values: b.values.map((x) => (x.key === v.key ? next : x)),

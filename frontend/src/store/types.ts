@@ -69,7 +69,8 @@ export interface DataSlice {
 export interface ReviewSlice {
   reviewUid: string | null;
   focusKey: string | null;
-  reviewPage: number;
+  /** Page of the review borehole's document shown in the scan pane; null when it has no page (e.g. a spreadsheet). */
+  reviewPage: number | null;
   editing: EditingState | null;
   /** The "approve all clean" confirmation is open. */
   confirmCleanOpen: boolean;
@@ -87,6 +88,7 @@ export interface ReviewSlice {
   openReview(uid?: string): void;
   focusValue(key: string, scrollList?: boolean): void;
   setReviewPage(n: number): void;
+  /** Opens the inline edit or flag input; an edit of a read-only value is refused with its reason. */
   startEdit(key: string, mode: EditMode): void;
   setEditText(text: string): void;
   saveEdit(): void;
@@ -131,7 +133,7 @@ export interface UploadSlice {
   setDragActive(active: boolean): void;
   /** A status update of a document (upload or watch): updates its card and loads its boreholes after extraction. */
   documentUpdated(update: DocumentSummary): void;
-  /** Re-queues a failed document and follows it again. */
+  /** Re-queues a failed document and follows it again; refused with the reason in demo mode. */
   retryDocument(documentId: string): Promise<void>;
 }
 
@@ -147,6 +149,10 @@ export interface PanelSlice {
 
   go(screen: Screen): void;
   showToast(text: string): void;
+  /**
+   * Opens a value's source in the side panel: in the value's own document when it names one, else
+   * in the borehole's. Without a value, the borehole's first page (a toast when it has none).
+   */
   openSource(uid: string, key: string): void;
   openPage(documentId: string, page: number): void;
   openCompleteness(documentId: string): void;

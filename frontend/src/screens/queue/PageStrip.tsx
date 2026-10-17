@@ -1,14 +1,15 @@
 import type { MouseEvent } from 'react';
 import type { DocumentSummary } from '../../domain/types';
 import { useAppStore } from '../../store/appStore';
-import { PAGE_TYPE_META } from '../../theme';
+import { pageMeta } from '../../theme';
 import { canOpenPage, pageTitle } from './queueView';
 import styles from './PageStrip.module.css';
 
 /**
- * Page map of a document from its classified pages: one swatch per page by type, a tooltip with
- * what the backend reported (usage, role, sheet, OCR, handwriting, duplicate). Click a classified
- * page to open it in the Source panel; unused pages are drawn faded.
+ * Page map of a document from its classified pages: one swatch per page by type (white while not
+ * classified, neutral grey for a classified page without a type), a tooltip with what the backend
+ * reported (usage, role, sheet, OCR, handwriting, duplicate). Click a classified page to open it in
+ * the Source panel; unused pages are drawn faded.
  */
 export function PageStrip({ doc }: { doc: DocumentSummary }) {
   const openPage = useAppStore((s) => s.openPage);
@@ -19,7 +20,7 @@ export function PageStrip({ doc }: { doc: DocumentSummary }) {
   return (
     <div className={styles.strip} role="group" aria-label={`Page map of ${doc.name}`}>
       {doc.pages.map((p) => {
-        const meta = PAGE_TYPE_META[p.type];
+        const meta = pageMeta(p);
         const title = pageTitle(p, doc.id);
         const openable = canOpenPage(p);
         const onClick = (e: MouseEvent) => {

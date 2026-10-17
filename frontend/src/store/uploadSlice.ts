@@ -2,7 +2,7 @@
 import { errorCode, errorText } from '../data/errors';
 import { withReviewTarget, type SliceCreator } from './context';
 import type { UploadSlice } from './types';
-import { checkUploads, DEMO_UPLOAD_REASON, uploadBlockedReason } from './uploads';
+import { checkUploads, DEMO_UPLOAD_REASON, retryBlockedReason, uploadBlockedReason } from './uploads';
 
 export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBoreholes }) => ({
   dropError: '',
@@ -58,8 +58,13 @@ export const createUploadSlice: SliceCreator<UploadSlice> = ({ set, get, takeBor
   },
 
   async retryDocument(documentId) {
-    const source = get().source;
+    const { source, health } = get();
     if (!source) return;
+    const blocked = retryBlockedReason(health);
+    if (blocked) {
+      get().showToast(blocked);
+      return;
+    }
     try {
       await source.retry(documentId);
     } catch (e) {

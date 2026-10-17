@@ -1,9 +1,25 @@
 /** Formatting and parsing for display: depths, numbers and short status texts. */
-import { UNPLOTTED_LABELS, type Borehole } from './types';
+import { UNPLOTTED_LABELS, type Borehole, type Lint } from './types';
 
-/** Formats a number with a decimal comma (the profile drawing's labels): 18 -> "18,00". */
+/**
+ * Formats a number with a decimal comma: 18 -> "18,00". Only for text as a source prints it (the
+ * fictional sample's logs); the app shows numbers with a decimal point (`decimal`).
+ */
 export function decimalComma(v: number, digits = 2): string {
   return v.toFixed(digits).replace('.', ',');
+}
+
+/** Formats a number with the app's decimal point: 18 -> "18.00" (the profile labels use it too). */
+export function decimal(v: number, digits = 2): string {
+  return v.toFixed(digits);
+}
+
+/**
+ * A lint as text. A check the app adds itself (e.g. SPT increments) says so: it is no backend
+ * finding and never makes a borehole "needs attention".
+ */
+export function lintText(l: Lint): string {
+  return l.client ? `${l.message} (checked by the app, not the backend)` : l.message;
 }
 
 /** Formats a depth in metres: 11.2 -> "11.20 m". Null gives an empty string (a blank never means 0). */

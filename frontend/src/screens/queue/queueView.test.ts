@@ -132,4 +132,14 @@ describe('page strip', () => {
     expect(canOpenPage(placeholderPage(2))).toBe(false);
     expect(canOpenPage(makePage({ n: 2, type: 'photo' }))).toBe(true);
   });
+
+  it('FE-QUEUE-1: a classified page of unknown type is named by its role, never "not classified yet"', () => {
+    const dup = makePage({ n: 2, type: 'unknown', role: 'duplicate', used: false, ocr: 'skipped', sheetLabel: 'SHEET 1 OF 1', duplicateOf: { documentId: 'doc_A', n: 3 } });
+    expect(pageTitle(dup, 'doc_A')).toBe('p.2 · duplicate page · unused: duplicate of page 3 · sheet SHEET 1 OF 1 · OCR skipped');
+    const blank = makePage({ n: 5, type: 'unknown', role: 'blank', used: false, ocr: null, handwriting: 'none' });
+    expect(pageTitle(blank, 'doc_A')).toBe('p.5 · blank page · unused: blank page');
+    const noRole = makePage({ n: 6, type: 'unknown', role: null, used: false, ocr: null, handwriting: 'none' });
+    expect(pageTitle(noRole, 'doc_A')).toBe('p.6 · type unknown · unused: type unknown');
+    expect(canOpenPage(dup)).toBe(true);
+  });
 });
