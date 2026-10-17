@@ -34,10 +34,26 @@ def _read(p: Path) -> Optional[Any]:
 
 
 def _write(p: Path, data: Any) -> None:
+    """Atomic replace with retries: on Windows a rename fails with PermissionError while another thread
+    (the UI's status poll) still has the target open for reading."""
+    import time
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(p.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
-    tmp.replace(p)
+    text = json.dumps(data, ensure_ascii=False, indent=1, default=str)
+    tmp = p.with_name(f"{p.stem}.{threading.get_ident()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    for attempt in range(8):
+        try:
+            tmp.replace(p)
+            return
+        except PermissionError:
+            time.sleep(0.05 * (attempt + 1))
+    try:
+        p.write_text(text, encoding="utf-8")          # last resort: direct write
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
 
 
 def slug(s: str) -> str:
@@ -52,10 +68,10 @@ class Store:
         self.data_root = Path(data_root) if data_root else None
         for d in ("documents", "results", "review", "crs", "uploads"):
             (self.root / d).mkdir(parents=True, exist_ok=True)
-        self._locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
+        self._locks: dict[str, threading.RLock] = defaultdict(threading.RLock)   # re-entrant: callers may read under their own lock
         self._locks_guard = threading.Lock()
 
-    def lock(self, document_id: str) -> threading.Lock:
+    def lock(self, document_id: str) -> threading.RLock:
         with self._locks_guard:
             return self._locks[document_id]
 
@@ -64,18 +80,21 @@ class Store:
         return sorted(p.stem for p in (self.root / "documents").glob("*.json"))
 
     def document(self, document_id: str) -> Optional[dict]:
-        return _read(self.root / "documents" / f"{document_id}.json")
+        with self.lock(document_id):
+            return _read(self.root / "documents" / f"{document_id}.json")
 
     def save_document(self, doc: dict) -> None:
-        _write(self.root / "documents" / f"{doc['document_id']}.json", doc)
+        # callers that already hold the document lock use _write directly (update_document)
+        with self.lock(doc["document_id"]):
+            _write(self.root / "documents" / f"{doc['document_id']}.json", doc)
 
     def update_document(self, document_id: str, **fields) -> Optional[dict]:
         with self.lock(document_id):
-            doc = self.document(document_id)
+            doc = _read(self.root / "documents" / f"{document_id}.json")
             if doc is None:
                 return None
             doc.update(fields)
-            self.save_document(doc)
+            _write(self.root / "documents" / f"{document_id}.json", doc)
             return doc
 
     def new_document_id(self, file_name: str) -> str:

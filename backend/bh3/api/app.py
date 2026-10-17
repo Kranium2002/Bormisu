@@ -108,6 +108,12 @@ def run_extraction(store: Store, document_id: str, path: Path) -> None:
                 store.update_document(document_id, status="extracting")
         # document-level smoothing lives in process_document; re-run cheaply from cache for the page list
         results = process_document(doc, vlm, cfg, store.workdir)
+        refused = [e for e in vlm.ledger.errors if "401" in e or "Invalid API Key" in e or "authentication" in e.lower()]
+        if refused and not any(r.is_log for r in results):
+            # the model backend rejected the key: nothing was read, so say that instead of "0 boreholes"
+            store.update_document(document_id, status="failed",
+                                  error="The model backend refused the API key (401). Put a valid LLM_API_KEY / MISTRAL_API_KEY in backend/.env, restart the API and retry this document.")
+            return
         out_dir = store.result_dir(document_id)
         bhs = finish([(doc, results)], llm, out_dir)
         holes = json.loads((out_dir / "boreholes.json").read_text(encoding="utf-8"))
@@ -118,7 +124,6 @@ def run_extraction(store: Store, document_id: str, path: Path) -> None:
                     expected.append(n)
         from ..assemble import _name_key
         from ..reconcile import clean_name
-        found_keys = {_name_key((b.get("metadata") or {}).get("BoreholeName")) for b in holes}
         seen_keys: set = set()
         expected_ids = []
         for n in (clean_name(n) for n in expected):
@@ -297,6 +302,21 @@ def _routes(app: FastAPI, prefix: str, store: Store, svc: Service) -> None:
     @app.get(prefix + "/documents/{document_id}")
     def get_document(document_id: str):
         return public_document(doc_or_404(document_id))
+
+    @app.post(prefix + "/documents/{document_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+    def retry_document(document_id: str):
+        """Run the extraction again for a stored upload (after a failure, or with a new model key)."""
+        d = doc_or_404(document_id)
+        src = d.get("source_path")
+        if not src or not Path(src).exists():
+            raise HTTPException(409, detail="the source file of this document is not on this server")
+        if d.get("status") in ("queued", "classifying", "extracting"):
+            raise HTTPException(409, detail="this document is being processed")
+        if not live_mode():
+            raise HTTPException(409, detail="demo_mode")
+        store.update_document(document_id, status="queued", error=None)
+        threading.Thread(target=run_extraction, args=(store, document_id, Path(src)), daemon=True, name=f"extract-{document_id}").start()
+        return {"document_id": document_id, "status": "queued"}
 
     @app.get(prefix + "/documents/{document_id}/boreholes")
     def document_boreholes(document_id: str):
