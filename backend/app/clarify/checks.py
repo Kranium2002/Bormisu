@@ -82,6 +82,13 @@ def needs_location(record: dict[str, Any]) -> str | None:
     return location.strip() if isinstance(location, str) and location.strip() else None
 
 
+def unreadable_coordinates(record: dict[str, Any]) -> bool:
+    """Coordinates are printed, but no position could be read from them."""
+    coords = (record.get("metadata") or {}).get("coordinates") or {}
+    printed = any(coords.get(key) not in (None, "") for key in ("x_raw", "y_raw"))
+    return printed and coords.get("local_x") is None and coords.get("latitude") is None
+
+
 def unplaceable_system(record: dict[str, Any]) -> str:
     """How to name the printed system of coordinates that no listed system places."""
     coords = (record.get("metadata") or {}).get("coordinates") or {}
@@ -125,6 +132,8 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         grid = local_grid_of(bh.record, bh.crs_status)
         if grid is None and bh.crs_status == "inferred" and bh.uid not in covered:
             grid = unplaceable_system(bh.record)  # printed values no coordinate system places
+        if grid is None and bh.crs_status == "unknown" and unreadable_coordinates(bh.record):
+            grid = "coordinates printed but not readable"  # e.g. a garbled digit: placed by a person
         location = needs_location(bh.record) if grid is None else grid
         if location is None:
             continue
