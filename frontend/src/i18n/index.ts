@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { alignment } from './de/alignment';
 import { base } from './de/base';
 import { detail } from './de/detail';
 import { list } from './de/list';
@@ -23,7 +24,7 @@ export const LANGS: readonly Lang[] = ['en', 'de'];
 
 const STORAGE_KEY = 'bormisu.lang';
 
-const DE: Record<string, string> = { ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue, ...verify };
+const DE: Record<string, string> = { ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue, ...verify, ...alignment };
 
 function storedLang(): Lang {
   try {

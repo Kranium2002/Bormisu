@@ -1,4 +1,6 @@
 import type {
+  Alignment,
+  AlignmentResult,
   Borehole,
   BoreholeFilter,
   Clarification,
@@ -46,6 +48,22 @@ export interface UploadHandle {
   cancel(): void;
 }
 
+/** Optional form fields of a planned-line upload (contract 1.3.0 uploadAlignment). */
+export interface AlignmentUploadOptions {
+  /** Display name; default the line's name in the file, else the file name. */
+  name?: string | null;
+  /** Default search distance stored with the line (server default 100 m). */
+  bufferM?: number | null;
+  /** EPSG code of a CSV's x/y columns; positions are never guessed. */
+  epsg?: number | null;
+}
+
+/** A query of the boreholes along a line: bufferM null uses the line's own. */
+export interface AlignmentQueryOptions {
+  bufferM: number | null;
+  includeUnreviewed: boolean;
+}
+
 /**
  * Where the app gets and saves its data: the FastAPI backend (`api`) or fictional demo data
  * (`sample`). Errors are ApiError / UnreachableError / SaveError from ./errors.
@@ -66,6 +84,19 @@ export interface DataSource {
   getResultSet(id: string): Promise<ResultSet>;
   /** Map features of a result set's plotted members (GET /result-sets/{id}/geojson). */
   resultSetFeatures(id: string): Promise<MapFeature[]>;
+  /**
+   * Uploads a planned line (POST /alignments, multipart): GeoJSON, KML, GPX or CSV. Throws ApiError
+   * alignment_invalid / epsg_required / crs_invalid / too_large / unsupported_type with a readable detail.
+   */
+  uploadAlignment(file: File, options?: AlignmentUploadOptions): Promise<Alignment>;
+  /** The planned lines uploaded so far, newest first (GET /alignments). */
+  listAlignments(): Promise<Alignment[]>;
+  /** One planned line (GET /alignments/{id}); 404 alignment_not_found. */
+  getAlignment(id: string): Promise<Alignment>;
+  /** Deletes a planned line (DELETE /alignments/{id}); 404 alignment_not_found. */
+  deleteAlignment(id: string): Promise<void>;
+  /** The boreholes within the search distance of a line, by chainage, stored as a result set (POST /alignments/{id}/query). */
+  queryAlignment(id: string, options: AlignmentQueryOptions): Promise<AlignmentResult>;
   /** Place search on submit (GET /geocode): uploaded places first, then the geocoder; may be empty. */
   geocode(query: string): Promise<PlaceCandidate[]>;
   /** Clarification questions, oldest first (default: status open). */

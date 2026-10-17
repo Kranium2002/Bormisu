@@ -341,6 +341,21 @@ export const createMapDataSlice: SliceCreator<MapDataSlice> = (ctx) => {
       return promise;
     },
 
+    async presentResultSet(rs, options) {
+      const source = get().source;
+      if (!source) return;
+      const run = ++resultRun;
+      showing = null;
+      set({ resultSetBusy: true, resultSetError: null });
+      try {
+        const features = await source.resultSetFeatures(rs.id);
+        if (run !== resultRun || get().source !== source) return;
+        present(rs, features, options?.fit === true, false);
+      } catch (e) {
+        if (run === resultRun) set({ resultSetBusy: false, resultSetError: resultFailure(e) });
+      }
+    },
+
     clearResultSet() {
       resultRun += 1;
       showing = null;

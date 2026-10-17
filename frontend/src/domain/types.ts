@@ -387,6 +387,70 @@ export interface ResultSet {
   createdAt: string;
 }
 
+/** A planned line (tunnel, pipeline, drilling line) uploaded as a file (contract 1.3.0 Alignment). */
+export interface Alignment {
+  id: string;
+  name: string;
+  fileName: string;
+  format: 'geojson' | 'kml' | 'gpx' | 'csv';
+  /** The system the file's coordinates were in, e.g. "EPSG:4326" or "EPSG:25832". */
+  sourceCrs: string;
+  /** The line's parts in path order, each a list of [lng, lat] in WGS84. */
+  parts: [number, number][][];
+  /** Length on the WGS84 ellipsoid in m, all parts. */
+  lengthM: number;
+  vertexCount: number;
+  partCount: number;
+  /** [min_lon, min_lat, max_lon, max_lat]; null only when the server sent no usable geometry. */
+  bbox: [number, number, number, number] | null;
+  /** Search distance given at upload: the default of a query. */
+  bufferM: number;
+  createdAt: string;
+}
+
+/** Side of the line looking from its first vertex towards its last; `on` closer than 0.5 m. */
+export type AlignmentSide = 'left' | 'right' | 'on';
+
+/** A borehole within the search distance of a line (contract AlignmentHit). */
+export interface AlignmentHit {
+  uid: string;
+  /** BoreholeID as printed. */
+  id: string;
+  documentId: string;
+  project: string | null;
+  /** Final depth in m, null when not stated. */
+  depth: number | null;
+  reviewStatus: BoreholeReviewStatus;
+  crsStatus: string;
+  lat: number;
+  lng: number;
+  /** Shortest distance to the line in m. */
+  offsetM: number;
+  /** Distance along the line from its first vertex in m. */
+  chainageM: number;
+  side: AlignmentSide;
+}
+
+/** The boreholes along a line (contract AlignmentResult). */
+export interface AlignmentResult {
+  alignmentId: string;
+  bufferM: number;
+  includeUnreviewed: boolean;
+  lengthM: number;
+  /** The metric system chainage and side were computed in, e.g. "EPSG:32632". */
+  metricCrs: string;
+  /** The band within bufferM of the line: polygons, each a list of rings of [lng, lat]. */
+  band: [number, number][][][];
+  /** Sorted by chainage, then offset. */
+  hits: AlignmentHit[];
+  /** Boreholes inside the band left out because includeUnreviewed was false. */
+  excludedUnreviewed: number;
+  /** Boreholes in the review scope without a confirmed position: they cannot be checked against the line. */
+  notOnMap: number;
+  /** The hits as a stored result set (map highlight, LIST, chat context). */
+  resultSet: ResultSet;
+}
+
 /** A place found by GET /geocode: uploaded places first, then the server's geocoder. */
 export interface PlaceCandidate {
   label: string;

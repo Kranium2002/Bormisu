@@ -1,6 +1,7 @@
 /**
  * Area selection with leaflet-geoman (FRONTEND.md F10): rectangle, polygon and circle, one area at a
- * time. A finished shape becomes the contract's Area (mapModel.areaFromDrawn) and is handed to
+ * time; and a planned line (geoman's Line mode, finished with a double-click or Enter), handed to
+ * `onLine` as [lng, lat] points. Only one draw mode runs at a time (starting one ends the other). A finished shape becomes the contract's Area (mapModel.areaFromDrawn) and is handed to
  * `onArea` (the store's selectArea); geoman's own layer is removed at once, because the map draws
  * the selected area itself from the store (shapes.ts), so it stays while its result set is active
  * and goes with a reset. Escape cancels drawing (and only that: it does not also close a panel).
@@ -18,10 +19,10 @@ import type { Area } from '../../../domain/types';
 import { COL } from '../../../theme';
 import { areaFromDrawn, type DrawnLayer } from '../mapModel';
 
-export type DrawShape = 'rectangle' | 'polygon' | 'circle';
+export type DrawShape = 'rectangle' | 'polygon' | 'circle' | 'line';
 
-const PM_SHAPE: Record<DrawShape, string> = { rectangle: 'Rectangle', polygon: 'Polygon', circle: 'Circle' };
-const SHAPE_OF: Record<string, DrawShape> = { Rectangle: 'rectangle', Polygon: 'polygon', Circle: 'circle' };
+const PM_SHAPE: Record<DrawShape, string> = { rectangle: 'Rectangle', polygon: 'Polygon', circle: 'Circle', line: 'Line' };
+const SHAPE_OF: Record<string, DrawShape> = { Rectangle: 'rectangle', Polygon: 'polygon', Circle: 'circle', Line: 'line' };
 
 const LINE: L.PathOptions = { color: COL.dark, weight: 2, opacity: 0.9 };
 
@@ -46,8 +47,17 @@ type PmMapClass = new (map: L.Map) => L.PM.PMMap;
 export interface DrawToolsOptions {
   /** A shape was finished: its Area (never called for an unusable shape). */
   onArea(area: Area): void;
+  /** A line was finished: its points as [lng, lat] (at least two). */
+  onLine?(points: [number, number][]): void;
   /** Drawing started (the shape) or ended (null). */
   onMode(shape: DrawShape | null): void;
+}
+
+/** The [lng, lat] points of a drawn polyline (a nested list of a multi-line is flattened). */
+function lineFromDrawn(layer: L.Layer): [number, number][] {
+  const raw = (layer as L.Polyline).getLatLngs?.() ?? [];
+  const flat = (raw as unknown[]).flat(2) as L.LatLng[];
+  return flat.filter((p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lng)).map((p) => [p.lng, p.lat]);
 }
 
 export class DrawTools {
@@ -92,6 +102,7 @@ export class DrawTools {
       pm.enableDraw(PM_SHAPE[shape], {
         tooltips: false,
         continueDrawing: false,
+        ...(shape === 'line' ? { finishOn: 'dblclick' as const } : {}),
         allowSelfIntersection: false,
         finishOnEnter: true,
         snappable: false,
@@ -129,6 +140,13 @@ export class DrawTools {
   };
 
   private readonly onCreate = (e: { shape: string; layer: L.Layer }) => {
+    if (e.shape === 'Line') {
+      // The server's line replaces geoman's: its layer goes at once.
+      const points = lineFromDrawn(e.layer);
+      e.layer.remove();
+      if (points.length >= 2) this.o.onLine?.(points);
+      return;
+    }
     const area = areaFromDrawn(e.shape, e.layer as unknown as DrawnLayer);
     e.layer.remove();
     if (area) this.o.onArea(area);

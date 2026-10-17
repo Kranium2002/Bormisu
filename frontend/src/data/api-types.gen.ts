@@ -428,6 +428,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/alignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Planned lines uploaded so far, newest first (1.3.0). */
+        get: operations["listAlignments"];
+        put?: never;
+        /**
+         * Upload the path of a planned tunnel, pipeline or drilling line (1.3.0).
+         * @description Accepted files (at most 10 MB, parsed on the server, XML parsed safely):
+         *     - GeoJSON (.geojson, .json): LineString, MultiLineString, or a Feature, FeatureCollection or
+         *       GeometryCollection holding them, in WGS84 longitude/latitude (RFC 7946). Points next to the
+         *       line are ignored.
+         *     - KML (.kml): LineString elements, also inside Placemark or MultiGeometry.
+         *     - GPX (.gpx): tracks (each trkseg is one part) and routes.
+         *     - CSV (.csv): one vertex per row in path order, with a header naming lon/lat columns
+         *       (lon, lng, long, longitude / lat, latitude) or x/y columns (x, easting, east, rechtswert,
+         *       ostwert / y, northing, north, hochwert, nordwert). x/y columns need `epsg`: positions are
+         *       never guessed, so x/y without `epsg` is refused with `epsg_required`. Comma, semicolon or tab
+         *       separated; a decimal comma is read when the separator is not a comma.
+         *     Several lines in one file become the parts of one alignment, in file order; chainage runs on
+         *     across the parts. Coordinates must be in range; a line needs at least two distinct vertices.
+         *     Files with only points or only polygons, and unreadable files, are refused with
+         *     `alignment_invalid` and a readable `detail`.
+         */
+        post: operations["uploadAlignment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alignments/{alignment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alignment_id: components["parameters"]["AlignmentId"];
+            };
+            cookie?: never;
+        };
+        get: operations["getAlignment"];
+        put?: never;
+        post?: never;
+        /** Deletes the line. Result sets issued for it stay valid until they expire. */
+        delete: operations["deleteAlignment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/alignments/{alignment_id}/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alignment_id: components["parameters"]["AlignmentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Boreholes within buffer_m of the line, sorted by chainage (1.3.0).
+         * @description Boreholes on the map (confirmed position) within `buffer_m` metres of the line, measured on the
+         *     WGS84 ellipsoid (PostGIS ST_DWithin on geography). `include_unreviewed` false (default) keeps
+         *     approved boreholes only, as in BoreholeFilter; matches it leaves out are counted in
+         *     `excluded_unreviewed`. The hits are also stored as a result set (`result_set`), so the map
+         *     highlight, `GET /result-sets/{id}/geojson` and chat context work as for any other selection.
+         */
+        post: operations["queryAlignment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/geocode": {
         parameters: {
             query?: never;
@@ -587,9 +667,10 @@ export interface components {
             /**
              * @description Stable machine code. Codes in v1: validation_error, route_not_found, document_not_found,
              *     page_not_found, borehole_not_found, path_not_found, result_set_not_found,
-             *     clarification_not_found, demo_mode, too_large, unsupported_type, not_failed,
-             *     revision_conflict, unparseable_value, crs_invalid, already_resolved, answer_invalid,
-             *     chat_unavailable, geocoder_unavailable, rate_limited, internal_error.
+             *     clarification_not_found, alignment_not_found, demo_mode, too_large, unsupported_type,
+             *     not_failed, revision_conflict, unparseable_value, crs_invalid, alignment_invalid,
+             *     epsg_required, already_resolved, answer_invalid, chat_unavailable, geocoder_unavailable,
+             *     rate_limited, internal_error.
              */
             code: string;
             /** @description Field errors, only with code validation_error. */
@@ -1104,6 +1185,101 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /**
+         * @description A planned line (tunnel, pipeline, drilling line) uploaded as a file (1.3.0). The geometry is
+         *     stored in WGS84; `source_crs` names the system the file's coordinates were in.
+         */
+        Alignment: {
+            /** @description aln_<ULID>. */
+            alignment_id: string;
+            name: string;
+            file_name: string;
+            /** @enum {string} */
+            format: "geojson" | "kml" | "gpx" | "csv";
+            /** @description e.g. EPSG:4326, or EPSG:25832 for a CSV with x/y columns. */
+            source_crs: string;
+            /** @description GeoJSON LineString (one part) or MultiLineString in WGS84, vertices in path order. */
+            geometry: {
+                /** @enum {string} */
+                type: "LineString" | "MultiLineString";
+                coordinates: unknown[];
+            };
+            /** @description Length on the WGS84 ellipsoid, all parts. */
+            length_m: number;
+            vertex_count: number;
+            part_count: number;
+            /** @description [min_lon, min_lat, max_lon, max_lat] */
+            bbox: number[];
+            /** @description Search distance given at upload; the default of queryAlignment. */
+            buffer_m: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        AlignmentList: {
+            alignments: components["schemas"]["Alignment"][];
+        };
+        AlignmentQuery: {
+            /** @description Search distance in metres either side of the line. null or absent uses the alignment's buffer_m (100 unless given at upload). */
+            buffer_m?: number | null;
+            /**
+             * @description false keeps only boreholes whose review_status is approved (as in BoreholeFilter).
+             * @default false
+             */
+            include_unreviewed: boolean;
+        };
+        AlignmentHit: {
+            uid: string;
+            borehole_id: string;
+            document_id: string;
+            project_name?: string | null;
+            borehole_depth_m?: number | null;
+            /** @enum {string} */
+            review_status: "unreviewed" | "in_review" | "approved";
+            crs_status: string;
+            /** @description [lon, lat] in WGS84. */
+            position: number[];
+            /** @description Shortest distance to the line on the WGS84 ellipsoid. */
+            offset_m: number;
+            /**
+             * @description Distance along the line from its first vertex to the foot of the perpendicular from the
+             *     borehole (parts in order). Measured in `AlignmentResult.metric_crs` and scaled to the
+             *     ellipsoidal length, so the last vertex has chainage `length_m`.
+             */
+            chainage_m: number;
+            /**
+             * @description Side of the line looking from its first vertex towards its last; `on` closer than 0.5 m.
+             * @enum {string}
+             */
+            side: "left" | "right" | "on";
+        };
+        AlignmentResult: {
+            alignment_id: string;
+            buffer_m: number;
+            include_unreviewed: boolean;
+            length_m: number;
+            /**
+             * @description The local metric system chainage and side are computed in: the UTM zone (WGS84) of the line's
+             *     centre, e.g. EPSG:32632.
+             */
+            metric_crs: string;
+            /** @description The band within buffer_m of the line, a GeoJSON Polygon or MultiPolygon in WGS84, for drawing. */
+            buffer_polygon: {
+                /** @enum {string} */
+                type: "Polygon" | "MultiPolygon";
+                coordinates: unknown[];
+            };
+            /** @description Sorted by chainage_m, then offset_m. */
+            hits: components["schemas"]["AlignmentHit"][];
+            /** @description Boreholes inside the band left out because include_unreviewed was false. */
+            excluded_unreviewed: number;
+            /**
+             * @description Boreholes in the same review scope (approved, or all with include_unreviewed) that have no
+             *     confirmed position, so they cannot be checked against the line: the "Not on map" list
+             *     (`GET /boreholes?plotted=false`, with `include_unreviewed` as here).
+             */
+            not_on_map: number;
+            result_set: components["schemas"]["ResultSet"];
+        };
         BoreholeFeatureCollection: {
             /** @constant */
             type: "FeatureCollection";
@@ -1227,6 +1403,7 @@ export interface components {
         DocumentId: string;
         /** @description Opaque borehole uid, URL-encoded. */
         Uid: string;
+        AlignmentId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1905,6 +2082,202 @@ export interface operations {
                 };
                 content: {
                     "application/geo+json": components["schemas"]["BoreholeFeatureCollection"];
+                };
+            };
+        };
+    };
+    listAlignments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Alignment list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlignmentList"];
+                };
+            };
+        };
+    };
+    uploadAlignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    /** @description Display name. Default the line's name in the file, else the file name without extension. */
+                    name?: string | null;
+                    /**
+                     * @description Default search distance for queryAlignment, stored with the line.
+                     * @default 100
+                     */
+                    buffer_m?: number;
+                    /**
+                     * @description EPSG code of the file's coordinates, for CSV x/y columns (e.g. 25832 for ETRS89 / UTM
+                     *     zone 32N). With lon/lat columns it names a geographic system other than WGS84.
+                     *     Ignored for GeoJSON, KML and GPX, which are WGS84 by definition.
+                     */
+                    epsg?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Alignment"];
+                };
+            };
+            /** @description File larger than 10 MB. code too_large. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not a .geojson, .json, .kml, .gpx or .csv file. code unsupported_type. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description The file holds no usable line (code alignment_invalid: points or polygons only, fewer than
+             *     two distinct vertices, coordinates out of range, unreadable JSON/XML/CSV), CSV x/y columns
+             *     came without `epsg` (code epsg_required), `epsg` is not a known EPSG code (code
+             *     crs_invalid), or a form field is invalid (code validation_error).
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getAlignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alignment_id: components["parameters"]["AlignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The stored line. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Alignment"];
+                };
+            };
+            /** @description Unknown id. code alignment_not_found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    deleteAlignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alignment_id: components["parameters"]["AlignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown id. code alignment_not_found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    queryAlignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alignment_id: components["parameters"]["AlignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AlignmentQuery"];
+            };
+        };
+        responses: {
+            /** @description Hits, buffer band and counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlignmentResult"];
+                };
+            };
+            /** @description Unknown id. code alignment_not_found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description buffer_m out of range. code validation_error. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

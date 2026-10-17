@@ -5,6 +5,8 @@
  */
 import type { DataSource } from '../data/DataSource';
 import type {
+  Alignment,
+  AlignmentResult,
   Area,
   Borehole,
   BoreholeFilter,
@@ -353,6 +355,11 @@ export interface MapDataSlice {
   selectArea(area: Area): Promise<void>;
   /** Shows a stored result set (URL rs=, chat show_result_set); fit flies the map to its bbox. */
   showResultSet(id: string, options?: { fit?: boolean }): Promise<void>;
+  /**
+   * Shows a result set the store already holds (a planned line's hits) with its plotted members, as
+   * showResultSet does, without asking for the set again; the filter panel stays as it is.
+   */
+  presentResultSet(rs: ResultSet, options?: { fit?: boolean }): Promise<void>;
   /** "Reset": clears the result set, the area and the filter panel. */
   clearResultSet(): void;
   /** Place search on submit: one candidate flies there, several are listed, none says so. */
@@ -457,4 +464,45 @@ export interface ChatSlice {
   addChatClarification(question: Clarification): void;
 }
 
-export type AppState = DataSlice & ReviewSlice & MapSlice & MapDataSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice & ClarificationsSlice & AuthSlice & ChatSlice;
+/** A failed planned-line request: the server's code (e.g. epsg_required) and the text to show. */
+export interface AlignmentError { code: string | null; text: string }
+
+/**
+ * Planned lines (contract 1.3.0): the line shown on the map with its search band, the boreholes along
+ * it (also the active result set), the search distance and review scope, and the earlier lines.
+ */
+export interface AlignmentSlice {
+  /** Lines uploaded earlier, newest first; null until listed. */
+  alignments: Alignment[] | null;
+  /** The line shown on the map, or null. */
+  alignment: Alignment | null;
+  /** The boreholes along it for the current distance and scope; null before its first answer. */
+  alignmentResult: AlignmentResult | null;
+  /** Search distance either side of the line in m (default 100, at most 1000). */
+  alignmentBufferM: number;
+  /** false keeps approved boreholes only (the contract's default). */
+  alignmentIncludeUnreviewed: boolean;
+  /** What runs: an upload, a query, a delete; null when idle. */
+  alignmentBusy: 'upload' | 'query' | 'delete' | null;
+  alignmentError: AlignmentError | null;
+  /** True while a line is being drawn on the map (only one draw mode at a time). */
+  alignmentDrawing: boolean;
+
+  /** Lists the earlier lines (failures are logged; the list stays as it was). */
+  listAlignments(): Promise<void>;
+  /** Uploads a line file and shows it with its boreholes; resolves true when it was stored. */
+  uploadAlignment(file: File, options?: { epsg?: number | null; name?: string | null }): Promise<boolean>;
+  /** Shows an earlier line with its boreholes. */
+  openAlignment(id: string): Promise<void>;
+  /** Sets the search distance (0 < m ≤ 1000) and asks again. */
+  setAlignmentBuffer(m: number): Promise<void>;
+  /** Sets the review scope and asks again. */
+  setAlignmentIncludeUnreviewed(on: boolean): Promise<void>;
+  /** Deletes a line; the shown one is cleared from the map. */
+  deleteAlignment(id: string): Promise<void>;
+  /** Takes the line off the map (it stays stored), with its result set. */
+  clearAlignment(): void;
+  setAlignmentDrawing(on: boolean): void;
+}
+
+export type AppState = DataSlice & ReviewSlice & MapSlice & MapDataSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice & ClarificationsSlice & AuthSlice & ChatSlice & AlignmentSlice;
