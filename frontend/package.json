@@ -10,6 +10,7 @@
     "dev": "vite",
     "dev:sample": "vite --mode sample",
     "build": "tsc -b && vite build",
+    "check:dist": "node scripts/check-dist.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "playwright test",

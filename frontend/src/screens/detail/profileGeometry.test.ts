@@ -4,11 +4,15 @@ import {
   depthScale,
   depthTicks,
   firstRefusal,
+  fitText,
   gwTriangle,
+  layerLabel,
   notLogged,
   PROFILE_DEPTH_PX,
   PROFILE_TOP,
+  refusalMarkerDepth,
   stratBlocks,
+  textWidth,
   tickStep,
 } from './profileGeometry';
 
@@ -26,7 +30,7 @@ describe('depthScale', () => {
   });
 
   it('never divides by zero for a borehole without depth', () => {
-    const { y, s } = depthScale({ finalDepth: 0, logBottom: 0 });
+    const { y, s } = depthScale({ finalDepth: null, logBottom: 0 });
     expect(Number.isFinite(s)).toBe(true);
     expect(Number.isFinite(y(1))).toBe(true);
   });
@@ -47,24 +51,44 @@ describe('depth ticks', () => {
 });
 
 describe('stratBlocks', () => {
-  it('merges consecutive layers with the same stratigraphy code', () => {
+  it('merges consecutive layers with the same stratigraphic name', () => {
     const layers = [
-      makeLayer({ n: 1, from: 0, to: 0.4, strat: 'qh' }),
-      makeLayer({ n: 2, from: 0.4, to: 2.1, strat: 'y' }),
-      makeLayer({ n: 3, from: 2.1, to: 4.8, strat: 'qh' }),
-      makeLayer({ n: 4, from: 4.8, to: 8.2, strat: 'qh' }),
-      makeLayer({ n: 5, from: 8.2, to: 11.2, strat: 'qp' }),
+      makeLayer({ n: 1, from: 0, to: 0.4, stratigraphicName: 'Holocene' }),
+      makeLayer({ n: 2, from: 0.4, to: 2.1, stratigraphicName: null }),
+      makeLayer({ n: 3, from: 2.1, to: 4.8, stratigraphicName: 'Holocene' }),
+      makeLayer({ n: 4, from: 4.8, to: 8.2, stratigraphicName: 'Holocene ' }),
+      makeLayer({ n: 5, from: 8.2, to: 11.2, stratigraphicName: 'Pleistocene' }),
+      makeLayer({ n: 6, from: 11.2, to: 12, stratigraphicName: '' }),
+      makeLayer({ n: 7, from: 12, to: 13, stratigraphicName: null }),
     ];
     expect(stratBlocks(layers)).toEqual([
-      { code: 'qh', from: 0, to: 0.4 },
-      { code: 'y', from: 0.4, to: 2.1 },
-      { code: 'qh', from: 2.1, to: 8.2 },
-      { code: 'qp', from: 8.2, to: 11.2 },
+      { name: 'Holocene', from: 0, to: 0.4 },
+      { name: null, from: 0.4, to: 2.1 },
+      { name: 'Holocene', from: 2.1, to: 8.2 },
+      { name: 'Pleistocene', from: 8.2, to: 11.2 },
+      { name: null, from: 11.2, to: 13 },
     ]);
   });
 
   it('is empty without layers', () => {
     expect(stratBlocks([])).toEqual([]);
+  });
+});
+
+describe('labels', () => {
+  it('keeps a text that fits and cuts one that does not, with an ellipsis', () => {
+    expect(fitText('qh', 30, 10)).toBe('qh');
+    const cut = fitText('Upper Freshwater Molasse', 60, 10);
+    expect(cut.endsWith('…')).toBe(true);
+    expect(textWidth(cut, 10)).toBeLessThanOrEqual(60);
+    expect(fitText('Holocene', 8, 10)).toBe('');
+  });
+
+  it('prefers the DIN notation when it fits, else the code, else nothing', () => {
+    expect(layerLabel({ din: 'U', dinNotation: "U, t, s'" }, 120)).toBe("U, t, s'");
+    expect(layerLabel({ din: 'U', dinNotation: "U, t, s'" }, 20)).toBe('U');
+    expect(layerLabel({ din: 'U', dinNotation: null }, 120)).toBe('U');
+    expect(layerLabel({ din: null, dinNotation: null }, 120)).toBe('');
   });
 });
 
@@ -74,8 +98,9 @@ describe('notLogged', () => {
     expect(notLogged(b)).toEqual({ from: 14.5, to: 18, label: 'log ends 14,50 ≠ ET 18,00' });
   });
 
-  it('is null when the log reaches the final depth or there are no layers', () => {
+  it('is null when the log reaches the final depth, the final depth is unknown or there are no layers', () => {
     expect(notLogged(makeBorehole())).toBeNull();
+    expect(notLogged(makeBorehole({ finalDepth: null }))).toBeNull();
     expect(notLogged(makeBorehole({ layers: [], logBottom: 0 }))).toBeNull();
   });
 });
@@ -96,5 +121,13 @@ describe('markers', () => {
     expect(r?.depth).toBe(3.5);
     expect(r?.raw).toBe('50/30');
     expect(firstRefusal(layers.slice(0, 1))).toBeNull();
+  });
+
+  it('keeps a refusal without a stated depth null, and places its marker mid-layer as unstated', () => {
+    const layer = makeLayer({ n: 4, from: 6, to: 9, spt: { raw: '50/5', depth: null, refusal: true, blows: 50, penetrationCm: 5 } });
+    const r = firstRefusal([layer]);
+    expect(r?.depth).toBeNull();
+    expect(refusalMarkerDepth(r!)).toEqual({ at: 7.5, stated: false });
+    expect(refusalMarkerDepth({ layer, depth: 6.4, raw: '50/5' })).toEqual({ at: 6.4, stated: true });
   });
 });
