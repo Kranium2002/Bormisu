@@ -11,6 +11,7 @@ import type {
   CrsCandidate,
   DocumentPage,
   DocumentSummary,
+  ExtractedValue,
   Health,
   PageContent,
   PageItem,
@@ -72,6 +73,12 @@ function buildSample(): { boreholes: Borehole[]; drawn: Map<string, DrawnPage>; 
     return borehole;
   });
   return { boreholes, drawn, printed };
+}
+
+/** A value without its flag reason. */
+function withoutFlag(v: ExtractedValue): ExtractedValue {
+  const { flag: _flag, ...rest } = v;
+  return rest;
 }
 
 /** A borehole after a change: next revision, review status derived like the backend does. */
@@ -205,7 +212,10 @@ export function createSampleSource(): DataSource {
       if (!b.values.some((v) => v.key === key)) {
         throw new SaveError(`Value ${key} of ${b.id} not found.`, structuredClone(b), 'path_not_found');
       }
-      const next = revised(applyValuePatch(b, key, patch));
+      const patched = applyValuePatch(b, key, patch);
+      // Like the backend, approve and reset clear the value's flag.
+      const unflag = patch.status === 'approved' || patch.status === 'unreviewed';
+      const next = revised(unflag ? { ...patched, values: patched.values.map((v) => (v.key === key ? withoutFlag(v) : v)) } : patched);
       byUid.set(uid, next);
       return structuredClone(next);
     },
@@ -233,13 +243,15 @@ export function createSampleSource(): DataSource {
       return structuredClone(candidatesOf(documentId));
     },
 
-    async confirmCrs(documentId, { code }) {
-      const c = candidatesOf(documentId).find((x) => x.code === code);
+    async confirmCrs(documentId, { code, swapAxes }) {
+      const c = candidatesOf(documentId).find((x) => x.code === code && x.swapAxes === swapAxes);
       if (!c || c.verdict === 'out_of_range') {
         throw new ApiError(422, 'crs_invalid', `${code} cannot place the boreholes of this document.`);
       }
+      // Like the backend, only boreholes with printed coordinates get the system; the count says how many.
       let updated = 0;
       for (const b of ofDocument(documentId)) {
+        if (b.meta.localX == null || b.meta.localY == null) continue;
         byUid.set(b.uid, confirmOn(b, c));
         updated += 1;
       }
