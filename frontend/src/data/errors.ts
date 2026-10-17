@@ -14,6 +14,8 @@ export class ApiError extends Error {
   readonly code: string;
   readonly detail: string;
   readonly errors: FieldError[];
+  /** Seconds to wait before trying again (the Retry-After header of a 429), when the server said. */
+  retryAfter: number | null = null;
 
   constructor(status: number, code: string, detail: string, errors: FieldError[] = [], message: string = detail) {
     super(message);
@@ -23,6 +25,15 @@ export class ApiError extends Error {
     this.detail = detail;
     this.errors = errors;
   }
+}
+
+/** The wait of a Retry-After header in seconds (a number of seconds or an HTTP date), else null. */
+export function parseRetryAfter(value: string | null | undefined, now = Date.now()): number | null {
+  const v = value?.trim();
+  if (!v) return null;
+  if (/^\d+$/.test(v)) return Number(v);
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - now) / 1000));
 }
 
 /**

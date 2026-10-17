@@ -531,9 +531,6 @@ export function createSampleSource(): DataSource {
       throw new Error('The sample has no sign-in');
     },
     async signOut() {},
-    async changePassword() {
-      throw new Error('The sample has no sign-in');
-    },
     setSessionListener() {},
   };
 }
