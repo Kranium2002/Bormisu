@@ -40,6 +40,20 @@ TEXT_LAYER_CHARS = 1500
 PROGRESS_EVERY = 5
 
 PROMPT_VERSION = "1"
+BLANK_LABEL = PageLabel(
+    role="blank",
+    borehole_labels=[],
+    sheet_label=None,
+    sheet_index=None,
+    sheet_total=None,
+    handwriting="none",
+    language=None,
+    has_coordinates=False,
+    has_depth_scale=False,
+    is_continuation=False,
+    confidence=1.0,
+    reason="Almost no ink and no embedded text on the page.",
+)
 
 
 @lru_cache
@@ -77,6 +91,30 @@ class OpenRouterClassifier:
             estimate_usd=0.01 if escalate else 0.002,
         )
         return result.data
+
+
+@lru_cache(maxsize=1)
+def _blank_rule() -> tuple[float, int, int]:
+    import yaml
+
+    with (get_settings().data_dir / "page_roles.yaml").open(encoding="utf-8") as handle:
+        rule = (yaml.safe_load(handle) or {}).get("blank_page") or {}
+    return (
+        float(rule.get("max_ink_share", 0.0)),
+        int(rule.get("dark_below", 0)),
+        int(rule.get("max_text_chars", 0)),
+    )
+
+
+def is_blank(png: bytes, text: str | None) -> bool:
+    """Almost no ink and no embedded text (data/page_roles.yaml blank_page): a blank page, no model needed."""
+    max_ink, dark_below, max_chars = _blank_rule()
+    if max_ink <= 0 or len((text or "").strip()) > max_chars:
+        return False
+    with Image.open(io.BytesIO(png)) as img:
+        histogram = img.convert("L").histogram()  # full size: a thin faint stroke survives
+    dark = sum(histogram[:dark_below])
+    return dark / max(1, sum(histogram)) <= max_ink
 
 
 def _shrink(png: bytes) -> bytes:
@@ -223,6 +261,10 @@ async def classify_page(document_id: str, n: int, classifier: Classifier) -> Non
             _shrink, await asyncio.to_thread(storage.get_bytes, page.render_key or "")
         )
         text = await asyncio.to_thread(_text_for, page)
+        if await asyncio.to_thread(is_blank, png, text):
+            apply_label(page, BLANK_LABEL)  # nothing on the page: no classifier call, no OCR
+            await session.commit()
+            return
         label = await classifier.label(page, png, text, escalate=False)
         if label.confidence < get_settings().classifier_min_confidence:
             label = await classifier.label(page, png, text, escalate=True)

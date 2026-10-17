@@ -6,7 +6,8 @@ stand in for Mistral OCR output. Four document families are covered: a German me
 ETRS89 / UTM system, an Australian-style scanned log with an MGA zone and AHD levels, a US-style log in
 feet without a printed system, and a log with degrees and decimal minutes whose depths carry no unit.
 A fifth, a vector PDF generated at test time, has a text layer while the OCR returns one coarse block per
-page: its evidence boxes shrink to the printed words.
+page: its evidence boxes shrink to the printed words. A sixth, a Danish-style log in System 34 Sjælland,
+prints a westward-growing easting; the German log is also printed with its northing first.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from app.clarify.answers import answer_clarification
 from app.db.models import Borehole, Clarification, Document, Page
 from app.db.session import get_sessionmaker
 from app.geo.crs_candidates import rank_candidates
+from app.geo.plotting import to_wgs84
 from app.pipeline import textlayer
 from app.pipeline.finalize import (
     RecordDraft,
@@ -663,6 +665,73 @@ def test_a_printed_system_that_does_not_fit_the_values_is_not_trusted() -> None:
     assert any("does not place the point inside its area of use" in w for w in draft.warnings)
 
 
+def de_swapped_result() -> ExtractionResult:
+    """The German log with its northing printed first under X / Y labels."""
+    res = de_result()
+    coordinates = res.header.coordinates.model_copy(
+        update={
+            "x_raw": rv("5 316 044,2", "p2.b9"),
+            "y_raw": rv("413 210,5", "p2.b8"),
+            "labels_raw": rv("X, Y", "p2.b9", "p2.b8"),
+        }
+    )
+    return res.model_copy(update={"header": res.header.model_copy(update={"coordinates": coordinates})})
+
+
+def test_a_printed_system_that_fits_only_with_swapped_axes_stays_stated_and_reads_them_swapped() -> None:
+    plain = build_record("doc_X", DE_GROUP, outcome(de_result(), DE_BLOCKS))
+    assert (plain.crs_status, plain.crs_code, plain.swap_axes) == ("stated", "EPSG:25832", False)
+
+    draft = build_record("doc_X", DE_GROUP, outcome(de_swapped_result(), DE_BLOCKS))
+    assert draft.body is not None
+    assert (draft.crs_status, draft.crs_code, draft.swap_axes) == ("stated", "EPSG:25832", True)
+    coords = draft.body["metadata"]["coordinates"]
+    assert (coords["local_x"], coords["local_y"]) == (5316044.2, 413210.5)  # kept in the printed order
+    assert coords["crs_code"] == "EPSG:25832"
+    assert draft.crs_note is not None and "swapped" in draft.crs_note
+    assert any("axes swapped" in w for w in draft.warnings)
+
+    # Neither order inside the area of use: asked as before.
+    res = de_swapped_result()
+    coordinates = res.header.coordinates.model_copy(
+        update={"system_raw": rv("British National Grid", "p2.b10")}
+    )
+    head = res.header.model_copy(update={"coordinates": coordinates})
+    neither = build_record("doc_X", DE_GROUP, outcome(res.model_copy(update={"header": head}), DE_BLOCKS))
+    assert (neither.crs_status, neither.crs_code, neither.swap_axes) == ("inferred", None, False)
+
+
+# ----------------------------------------------------------------------------------------------
+# Family 5: Danish-style log in System 34 Sjælland (the printed easting grows westward)
+# ----------------------------------------------------------------------------------------------
+
+
+def dk_outcome(page: int, label: str, east: str, north: str, system: str | None) -> ExtractionOutcome:
+    p = f"p{page}"
+    blocks = block_map(
+        [
+            blk(f"{p}.b0", f"Boring {label}", (0.05, 0.03, 0.2, 0.02), quality=None),
+            blk(f"{p}.b1", f"E {east}", (0.55, 0.05, 0.2, 0.02), quality=None),
+            blk(f"{p}.b2", f"N {north}", (0.55, 0.07, 0.2, 0.02), quality=None),
+            blk(f"{p}.b3", system or "", (0.78, 0.05, 0.15, 0.02), quality=None),
+            blk(f"{p}.b4", "Dybde (m)", (0.05, 0.15, 0.08, 0.02), quality=None),
+            blk(f"{p}.b5", "0,0 2,5 Ler, sandet, brunt", (0.05, 0.2, 0.5, 0.02), quality=None),
+        ]
+    )
+    head = header(
+        borehole_label=rv(label, f"{p}.b0"),
+        x_raw=rv(east, f"{p}.b1"),
+        y_raw=rv(north, f"{p}.b2"),
+        labels_raw=rv("E, N", f"{p}.b1", f"{p}.b2"),
+        system_raw=rv(system, f"{p}.b3") if system else absent(),
+        depth_unit=rv("Dybde (m)", f"{p}.b4"),
+    )
+    layers = [
+        layer(rv("0,0", f"{p}.b5"), rv("2,5", f"{p}.b5"), rv("Ler, sandet, brunt", f"{p}.b5"), language="da")
+    ]
+    return outcome(result(head, layers), blocks)
+
+
 # ----------------------------------------------------------------------------------------------
 # Database tests
 # ----------------------------------------------------------------------------------------------
@@ -931,6 +1000,83 @@ async def test_us_feet_without_system_one_crs_question_per_project(db: None) -> 
         )
     doc = await document(US_DOC_B)
     assert doc.status == "needs_review" and doc.completeness is None  # no summary table printed
+
+
+DE_SWAP_DOC = "doc_01JFINAL000000000000000DE2"
+DK_DOC_A = "doc_01JFINAL000000000000000DKA"
+DK_DOC_B = "doc_01JFINAL000000000000000DKB"
+
+
+@pytest.mark.db
+async def test_a_stated_system_read_with_swapped_axes_plots_where_the_log_is(db: None) -> None:
+    await make_document(
+        DE_SWAP_DOC, pages={2: ("log_sheet", ["KB 3"], 0.95), 3: ("log_continuation", [], 0.4)}
+    )
+    uid = await finalize_group(DE_SWAP_DOC, DE_GROUP, outcome(de_swapped_result(), DE_BLOCKS))
+    assert uid is not None
+    rec = await record_of(uid)
+    coords = rec.metadata.coordinates
+    assert (rec.crs_status, coords.crs_code, rec.plotted, rec.unplotted_reason) == (
+        "stated",
+        "EPSG:25832",
+        True,
+        None,
+    )
+    assert (coords.local_x, coords.local_y) == (5316044.2, 413210.5)  # as printed
+    expected = to_wgs84("EPSG:25832", 413210.5, 5316044.2)  # the easting read as the easting
+    assert expected is not None
+    assert (coords.latitude, coords.longitude) == pytest.approx(expected, abs=1e-6)
+    async with get_sessionmaker()() as session:
+        bh = await session.get(Borehole, uid)
+        assert bh is not None and bh.swap_axes is True
+    await finalize_document(DE_SWAP_DOC)
+    assert await clarifications("crs_confirm") == []  # stated: nothing to ask
+
+
+@pytest.mark.db
+async def test_system_34_sjaelland_is_stated_or_confirmed_and_plots_on_sjaelland(db: None) -> None:
+    # Printed with its name: stated, the west-orientated easting negated, plotted on Sjælland.
+    await make_document(DK_DOC_A, pages={1: ("log_sheet", ["B1"], None)})
+    group = PageGroup(key="g-B1", label_raw="B1", label_canonical="B1", pages=(1,))
+    uid = await finalize_group(
+        DK_DOC_A, group, dk_outcome(1, "B1", "72 048,15", "140 505,76", "System 34 Sjælland")
+    )
+    assert uid is not None
+    rec = await record_of(uid)
+    coords = rec.metadata.coordinates
+    assert (rec.crs_status, coords.crs_code, coords.crs_label, rec.plotted) == (
+        "stated",
+        "EPSG:10250",
+        "System 34 Sjælland (S34S)",
+        True,
+    )
+    assert (coords.latitude, coords.longitude) == pytest.approx((55.676, 12.568), abs=1e-3)
+
+    # Printed without a system: asked, System 34 Sjælland offered first, and confirming it plots.
+    await make_document(DK_DOC_B, pages={1: ("log_sheet", ["B2"], None), 2: ("log_sheet", ["B3"], None)})
+    uids = []
+    for page, label, east, north in (
+        (1, "B2", "72 210,40", "140 702,05"),
+        (2, "B3", "71 880,90", "140 330,60"),
+    ):
+        group = PageGroup(key=f"g-{label}", label_raw=label, label_canonical=label, pages=(page,))
+        new_uid = await finalize_group(DK_DOC_B, group, dk_outcome(page, label, east, north, None))
+        assert new_uid is not None
+        uids.append(new_uid)
+        assert (await record_of(new_uid)).crs_status == "inferred"
+    await finalize_document(DK_DOC_B)
+    (question,) = await clarifications("crs_confirm")
+    assert question.fields[0]["options"][0]["value"] == "EPSG:10250"
+    assert question.fields[1]["default"] is False
+    async with get_sessionmaker()() as session:
+        await answer_clarification(session, question.id, {"crs": "EPSG:10250", "swap_axes": False}, "tester")
+        await session.commit()
+    for new_uid in uids:
+        rec = await record_of(new_uid)
+        assert (rec.crs_status, rec.plotted) == ("confirmed", True)
+        assert (rec.metadata.coordinates.latitude, rec.metadata.coordinates.longitude) == pytest.approx(
+            (55.676, 12.568), abs=0.01
+        )
 
 
 @pytest.mark.db

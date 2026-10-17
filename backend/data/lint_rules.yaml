@@ -70,6 +70,9 @@ rules:
     # position, so a second site with several boreholes is never an outlier.
     min_distance_km: 25
     median_factor: 20
+    # ... but never more than this: a position farther than max_distance_km from the centre and from every
+    # other position is implausible however spread out the others are (a misread digit, not a second site).
+    max_distance_km: 100
     # More outliers than this share of the positions: no clear cluster, nothing is flagged.
     max_outlier_share: 0.34
     message: "This position lies {distance} km from the other boreholes of the document (typical spread {spread} km); check the printed coordinates and the coordinate system."

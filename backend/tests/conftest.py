@@ -24,6 +24,8 @@ TEST_DATABASE_URL = os.environ.get(
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["STORAGE_DIR"] = str(_STORAGE)
 os.environ["GEOCODER"] = "none"
+# The classic extractor unless a test opts into bh3 with a fake bridge (bh3 would call a vision model).
+os.environ["EXTRACTOR"] = "classic"
 for _key in ("OPENROUTER_API_KEY", "OPEN_ROUTER_KEY", "MISTRAL_API_KEY", "OPENAI_API_KEY"):
     os.environ[_key] = ""
 

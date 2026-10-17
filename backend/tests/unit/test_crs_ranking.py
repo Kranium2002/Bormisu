@@ -22,6 +22,7 @@ from app.geo.crs_candidates import (
     reference_queries,
 )
 from app.geo.land import near_land
+from app.geo.plotting import validate_crs
 from app.normalize.coordinates import parse_coordinates
 from app.schemas.documents import CrsCandidate
 
@@ -105,6 +106,25 @@ def test_degrees_without_an_axis_order_put_the_reading_on_land_first(labels: str
     assert (best.points[0].lat, best.points[0].lon) == (-32.929816, 27.437978)
     other = next(c for c in ranked if c.crs == "EPSG:4326" and c.swap_axes is not swap)
     assert other.score == best.score and "from land" in (other.note or "")
+
+
+def test_west_orientated_system_34_points_rank_their_reconstruction_first() -> None:
+    """A fictional site near Copenhagen printed in System 34 Sjælland, whose easting grows westward."""
+    to_grid = Transformer.from_crs("EPSG:4326", "EPSG:10250", always_xy=True)  # east-orientated
+    points = []
+    for i, (dlat, dlon) in enumerate(((0.0, 0.0), (0.004, 0.006), (-0.003, 0.009))):
+        east, north = to_grid.transform(12.568 + dlon, 55.676 + dlat)
+        points.append((f"bh_fictional_{i}", round(-east, 2), round(north, 2)))  # as printed: westward
+    assert all(x > 0 for _, x, _ in points)
+    ranked = rank_candidates(points)
+    best = ranked[0]
+    assert (best.crs, best.swap_axes, best.verdict) == ("EPSG:10250", False, "match")
+    assert best.label == crs_label("EPSG:10250") == "System 34 Sjælland (S34S)"
+    assert (best.points[0].lat, best.points[0].lon) == pytest.approx((55.676, 12.568), abs=1e-4)
+    # The Jutland reconstruction has the same projection but its area of use does not hold the points.
+    jutland = [c for c in ranked if c.crs == "EPSG:10160"]
+    assert all(c.verdict != "match" for c in jutland)
+    assert validate_crs("epsg:10250") == "EPSG:10250"  # a person can confirm it
 
 
 def test_ties_between_datums_of_one_zone_go_to_the_smaller_area() -> None:

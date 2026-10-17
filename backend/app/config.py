@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-LlmRoute = Literal["openrouter", "openai"]
+LlmRoute = Literal["mistral", "openrouter", "openai"]
 OcrRoute = Literal["mistral", "openrouter", "openai"]
 ModelRole = Literal["classifier", "extractor"]
 OPENAI_BASE_URL = "https://api.openai.com/v1"
@@ -58,16 +58,27 @@ class Settings(BaseSettings):
     mistral_base_url: str = "https://api.mistral.ai/v1"
     # The variable the openai SDK (chat) reads; structured calls and OCR with an OpenAI key use it too.
     openai_base_url: str = OPENAI_BASE_URL
-    # Which provider runs the classifier, extractor, second reads and sheet mapping: openrouter, openai, or
-    # auto (openrouter when its key is set, else openai; a 401/403 on one moves to the other when that one
-    # is configured, remembered per process).
-    llm_provider: Literal["auto", "openrouter", "openai"] = "auto"
+    # Which provider runs the classifier, extractor, second reads, sheet mapping and bh3's page reading:
+    # mistral (direct API), openrouter, openai, or auto (mistral -> openrouter -> openai, the first whose key
+    # is set; a 401/403 on one moves to the next configured one, remembered until the worker restarts).
+    llm_provider: Literal["auto", "mistral", "openrouter", "openai"] = "auto"
+    # Mistral model ids (direct API; calls are priced from data/prices.yaml, Mistral reports no cost)
+    mistral_classifier_model: str = "mistral-small-latest"
+    mistral_extractor_model: str = "mistral-medium-latest"
+    mistral_bh3_model: str = "mistral-medium-latest"
     # OpenRouter model ids
     classifier_model: str = "mistralai/mistral-small-2603"
     extractor_model: str = "mistralai/mistral-large-4-0"
     # OpenAI model ids (unset or blank: CHAT_MODEL)
     openai_classifier_model: str | None = None
     openai_extractor_model: str | None = None
+    # Extraction of log pages: bh3 (app.bh3: the page is read as a picture, depths anchored to the depth
+    # scale, vector pages parsed from their text layer; MAIN_VS_BH3.md) or classic (the OCR-text extractor).
+    # bh3 hands a page it cannot read to classic, and every page when app.bh3 is not installed.
+    extractor: Literal["bh3", "classic"] = "bh3"
+    # Vision model bh3 reads pages with: on OpenRouter, and on OpenAI (unset or blank: CHAT_MODEL).
+    bh3_model: str = "mistralai/mistral-large-4-0"
+    openai_bh3_model: str | None = None
     openai_ocr_model: str | None = None
     mistral_ocr_model: str = "mistral-ocr-latest"
     ocr_fallback: Literal["openrouter", "none"] = "openrouter"
@@ -101,7 +112,9 @@ class Settings(BaseSettings):
     # Rate limits (429): a provider call waits (honouring Retry-After, else backing off) until this many
     # seconds of waiting are used. OCR pages still refused then are tried again later in the same job, after
     # a cooldown, up to OCR_RATE_LIMIT_ROUNDS more times; only then is a page left unread (retry reads it).
-    rate_limit_wait_s: float = 150.0
+    rate_limit_wait_s: float = 600.0
+    # Every provider request ends after this many seconds (then retried), so no call can hang a job.
+    request_timeout_s: float = 120.0
     ocr_rate_limit_rounds: int = 2
     ocr_rate_limit_cooldown_s: float = 30.0
     # OCR requests in flight at once on the OpenRouter route, per worker process.
@@ -142,6 +155,7 @@ class Settings(BaseSettings):
         "openai_classifier_model",
         "openai_extractor_model",
         "openai_ocr_model",
+        "openai_bh3_model",
         mode="before",
     )
     @classmethod
@@ -219,18 +233,21 @@ class Settings(BaseSettings):
     def llm_routes(self) -> list[LlmRoute]:
         """The providers LLM_PROVIDER allows for structured model calls with the keys at hand, in order."""
         keys: dict[LlmRoute, SecretStr | None] = {
+            "mistral": self.mistral_api_key,
             "openrouter": self.openrouter_api_key,
             "openai": self.openai_api_key,
         }
         if self.llm_provider != "auto":
             return [self.llm_provider] if keys[self.llm_provider] is not None else []
-        return [route for route in ("openrouter", "openai") if keys[route] is not None]
+        return [route for route in ("mistral", "openrouter", "openai") if keys[route] is not None]
 
     def llm_model(self, role: ModelRole, provider: LlmRoute) -> str:
         """The model id of the classifier or the extractor on a provider."""
         if provider == "openai":
             chosen = self.openai_extractor_model if role == "extractor" else self.openai_classifier_model
             return chosen or self.chat_model
+        if provider == "mistral":
+            return self.mistral_extractor_model if role == "extractor" else self.mistral_classifier_model
         return self.extractor_model if role == "extractor" else self.classifier_model
 
     @property

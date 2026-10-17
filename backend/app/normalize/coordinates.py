@@ -354,6 +354,24 @@ def _label_roles(labels_raw: str | None) -> tuple[list[Role], bool, bool, list[i
     return roles, projected, geographic, signs
 
 
+_TRAILING_NOTE = re.compile(r"\s*\((?=[^()]*[^\W\d_])[^()]*\)\s*$")
+
+
+def _parse_axis_noted(text: str, style: NumberStyle | None, notes: list[str]) -> _Axis | str:
+    """One coordinate; a value that only reads without a note in parentheses after it, e.g. the system
+    printed next to the number ("5 819 600.0 (55H MGA94)"), is read without the note."""
+    axis = _parse_axis(text, style)
+    if isinstance(axis, _Axis):
+        return axis
+    bare = _TRAILING_NOTE.sub("", text)
+    if bare != text and bare.strip():
+        retried = _parse_axis(bare.strip(), style)
+        if isinstance(retried, _Axis):
+            notes.append(f"text in parentheses after '{bare.strip()}' is not part of the coordinate")
+            return retried
+    return axis
+
+
 def _split_pair(text: str, style: NumberStyle | None) -> tuple[str, str] | str | None:
     """Two coordinates printed in one field."""
     if len(text) > 120:
@@ -397,10 +415,10 @@ def parse_coordinates(
         x_text, y_text = pair
         notes.append("both coordinates printed in one field")
 
-    x_axis = _parse_axis(x_text, style)
+    x_axis = _parse_axis_noted(x_text, style, notes)
     if isinstance(x_axis, str):
         return _result_none(f"first coordinate '{x_text}': {x_axis}", notes)
-    y_axis = _parse_axis(y_text, style)
+    y_axis = _parse_axis_noted(y_text, style, notes)
     if isinstance(y_axis, str):
         return _result_none(f"second coordinate '{y_text}': {y_axis}", notes)
     if x_axis.value == 0 and y_axis.value == 0:

@@ -1176,7 +1176,8 @@ async def refresh_document_status(session: AsyncSession, document_id: str) -> No
     statuses = (
         await session.scalars(select(Borehole.review_status).where(Borehole.document_id == document_id))
     ).all()
-    new_status = "done" if statuses and all(s == "approved" for s in statuses) else "needs_review"
+    # done when every borehole is approved, and when there is nothing to review (no borehole logs found)
+    new_status = "done" if all(s == "approved" for s in statuses) else "needs_review"
     if new_status != doc.status:
         doc.status = new_status
         doc.updated_at = _now()

@@ -26,12 +26,12 @@ Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on th
 
 | Mode | When | What works |
 |---|---|---|
-| `demo` | Neither `OPENROUTER_API_KEY` nor `OPENAI_API_KEY` is set (`MISTRAL_API_KEY` alone covers OCR only) | Everything except processing new uploads: `POST /documents` answers `409 demo_mode`. Review, map, clarifications and place search work on existing (for example seeded) data. |
-| `live` | Any one of `OPENROUTER_API_KEY` or `OPENAI_API_KEY` is set | Uploads are processed in the background. |
+| `demo` | None of `MISTRAL_API_KEY`, `OPENROUTER_API_KEY` or `OPENAI_API_KEY` is set | Everything except processing new uploads: `POST /documents` answers `409 demo_mode`. Review, map, clarifications and place search work on existing (for example seeded) data. |
+| `live` | Any one of `MISTRAL_API_KEY`, `OPENROUTER_API_KEY` or `OPENAI_API_KEY` is set | Uploads are processed in the background. |
 
 `GET /api/health` reports the mode and which providers are configured. Keys are read only by the backend from the environment; they never reach the browser, logs or git. The chat assistant needs `OPENAI_API_KEY`.
 
-Which provider does what: the classifier and extractor run on OpenRouter, or on OpenAI when only that key is set (`LLM_PROVIDER`). OCR runs on Mistral directly, else Mistral OCR through OpenRouter, else an OpenAI vision model (`OCR_PROVIDER`). In `auto` mode a refused key (401/403) moves on to the next configured provider.
+Which provider does what: every model call goes to Mistral directly by default (`MISTRAL_API_KEY`): OCR, the page classifier, the extractor and bh3's page reading. OpenRouter, then OpenAI, are the fallbacks (`LLM_PROVIDER`, `OCR_PROVIDER`); in `auto` mode a refused key (401/403) moves on to the next configured provider. Log pages are read by bh3 (`EXTRACTOR=bh3`: the page as a picture, depths anchored to the depth scale; vector pages from their text layer), with the OCR-text extractor as the fallback.
 
 ## How it works
 

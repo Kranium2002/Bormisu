@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: GeoMemory API
-  version: 1.2.1
+  version: 1.2.2
   description: |
     Contract v1 between the backend session and the frontend session. This file is the single
     source of truth for HTTP shapes. Streams (server-sent events and the chat stream) are specified
@@ -218,6 +218,72 @@ paths:
               schema: { type: string, format: binary }
         "404":
           description: Unknown document or page.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/documents/{document_id}/pages/{n}/words:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+      - name: n
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      tags: [documents]
+      operationId: getPageWords
+      x-priority: P1
+      summary: Every word of a page with its box (1.2.2), for highlighting evidence on the original page.
+      description: |
+        Words in reading order. Pages with a usable PDF text layer give its words (`source` text,
+        `conf` 1). Scans, photos and handwriting give the boxes the server located for the extracted
+        values (`source` located, one entry per value text), else the words of an OCR read with boxes
+        (`source` ocr). Boxes use the provenance convention: [x, y, w, h] normalised 0-1 on the page image
+        (`pages/{n}.png`), top-left origin. An empty list when the page has no words yet.
+      responses:
+        "200":
+          description: The page's words.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PageWord" }
+        "404":
+          description: Unknown document (document_not_found) or page (page_not_found).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/documents/{document_id}/pages/{n}/evidence:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+      - name: n
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      tags: [documents]
+      operationId: getPageEvidence
+      x-priority: P0
+      summary: Every extracted value whose evidence is on this page, across the document's boreholes (1.2.2).
+      description: |
+        One item per value path whose provenance cites this page (the same entries as
+        `BoreholeRecord.provenance`), in page order (top to bottom). Clicking a value in the record and
+        clicking its box on the page are the same item: `borehole_uid` + `path`. `method` says how good
+        the box is: read = the printed words of the PDF text layer; located = a scan, photo or handwriting
+        where the server located the value's text on the page image; ocr = an OCR block of a scan (can be
+        large); approximate = the row (and column, when known) the value was read from, when its text could
+        not be located; page = only the page is known (`box` null).
+      responses:
+        "200":
+          description: The page's evidence.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EvidenceItem" }
+        "404":
+          description: Unknown document (document_not_found) or page (page_not_found).
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -939,6 +1005,44 @@ components:
               reader: { type: string }
               text: { type: string }
               confidence: { type: [number, "null"] }
+
+    PageWord:
+      type: object
+      required: [t, b, conf, source]
+      description: One word of a page (1.2.2).
+      properties:
+        t: { type: string, description: 'The word as printed or as the OCR read it.' }
+        b:
+          type: array
+          description: "[x, y, w, h] normalised 0-1, top-left origin, on the page image."
+          items: { type: number, minimum: 0, maximum: 1 }
+          minItems: 4
+          maxItems: 4
+        conf: { type: [number, "null"], minimum: 0, maximum: 1 }
+        source: { type: string, enum: [text, located, ocr], description: 'PDF text layer; a value located on the page image; an OCR read.' }
+
+    EvidenceItem:
+      type: object
+      required: [borehole_uid, borehole_label, path, label, value_display, raw_text, box, method, confidence, review_status]
+      description: One extracted value and where it is on the page (1.2.2).
+      properties:
+        borehole_uid: { type: string }
+        borehole_label: { type: string, description: 'The borehole label as printed (BoreholeRecord metadata.borehole_id).' }
+        path: { type: string, description: 'Value path as in BoreholeRecord.provenance, e.g. "stratigraphy[2].depth_to_m".' }
+        label: { type: string, description: 'Readable name of the value, e.g. "Layer 3 · bottom depth".' }
+        value_display: { type: [string, "null"], description: 'The value as the record shows it, with its unit, e.g. "3.40 m".' }
+        raw_text: { type: [string, "null"], description: 'Text exactly as printed or written (provenance raw).' }
+        box:
+          description: "[x, y, w, h] normalised 0-1, top-left origin; null when only the page is known."
+          oneOf:
+            - type: array
+              items: { type: number, minimum: 0, maximum: 1 }
+              minItems: 4
+              maxItems: 4
+            - type: "null"
+        method: { type: string, enum: [read, located, ocr, approximate, page], description: 'How precise the box is (see getPageEvidence).' }
+        confidence: { type: [number, "null"], minimum: 0, maximum: 1 }
+        review_status: { type: string, enum: [unreviewed, approved, flagged] }
 
     Lint:
       type: object

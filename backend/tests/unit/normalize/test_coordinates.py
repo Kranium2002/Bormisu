@@ -232,3 +232,10 @@ def test_coordinate_like_garbage_is_deterministic(x: str, y: str) -> None:
     first = parse_coordinates(x, y)
     assert first == parse_coordinates(x, y)
     assert (first.latitude, first.longitude) != (0, 0)
+
+
+def test_a_note_in_parentheses_after_a_coordinate_is_not_part_of_it() -> None:
+    result = parse_coordinates("314957.000", "5819600.000 (55H MGA94)")  # fictional grid values
+    assert (result.kind, result.local_x, result.local_y) == ("projected", 314957.0, 5819600.0)
+    assert any("parentheses" in note for note in result.notes)
+    assert parse_coordinates("12 (34)", "5").kind is None  # numbers in parentheses are not a note

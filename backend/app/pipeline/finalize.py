@@ -4,7 +4,9 @@ finalize_group(document_id, group, outcome)
     Normalises the model's raw text with app.normalize (Python only), builds the record body and one
     provenance entry per value from the OCR blocks the model cited (app.pipeline.provenance), narrowed to
     the printed words when the page has a trustworthy text layer (app.pipeline.textlayer), decides the
-    coordinate-system status and creates the borehole through app.review.service.create_borehole.
+    coordinate-system status (a printed system whose area of use holds the point only with easting and
+    northing swapped stays stated and is read swapped) and creates the borehole through
+    app.review.service.create_borehole.
     Idempotent per (document, group key). Depths printed without any unit are stored as metres with
     method `guessed` and one `unit_ambiguous` question per document; uncertain page groups get a
     `borehole_boundary` question; a printed depth sign or origin note that the printed layer depths
@@ -188,6 +190,8 @@ class RecordDraft:
     label_box: list[float] | None = None
     guessed_depths: list[GuessedDepth] = field(default_factory=list)
     crs_note: str | None = None
+    # The stated system places the point inside its area of use only with easting and northing swapped.
+    swap_axes: bool = False
     warnings: list[str] = field(default_factory=list)
     # A depth sign or origin note that the printed layer depths contradict, with the depth origin the note
     # states (if any) and where the note and the first depths are printed.
@@ -207,9 +211,9 @@ def _swap_on_land(code: str, x: float, y: float) -> bool:
     )
 
 
-def _inside_area(code: str, x: float, y: float) -> bool:
+def _inside_area(code: str, x: float, y: float, *, swap_axes: bool = False) -> bool:
     """The point transforms with `code` and lies inside its area of use (plus the ranking margin)."""
-    point = to_wgs84(code, x, y)
+    point = to_wgs84(code, x, y, swap_axes=swap_axes)
     if point is None:
         return False
     bounds = area_of_use(code)
@@ -473,7 +477,13 @@ class _Builder:
         meta["inclination_deg"] = value
         self.keep(self.prov, "metadata.inclination_deg", h.inclination, value)
 
-    def coordinates(self, meta: dict[str, Any]) -> tuple[CrsStatusLiteral, str | None, str | None]:
+    def coordinates(self, meta: dict[str, Any]) -> tuple[CrsStatusLiteral, str | None, str | None, bool]:
+        """(crs_status, crs_code, note, swap_axes) of the printed coordinates.
+
+        A printed system is stated when it places the point inside its area of use as read, or only with
+        easting and northing swapped (then read swapped, as a confirmation with swap_axes would); otherwise
+        it is asked as unconfirmed.
+        """
         c = self.result.header.coordinates
         coords: dict[str, Any] = {}
         for key, value in (
@@ -486,12 +496,12 @@ class _Builder:
         meta["coordinates"] = coords
         x_text, y_text = coords["x_raw"], coords["y_raw"]
         if x_text is None and y_text is None:
-            return "unknown", None, None
+            return "unknown", None, None, False
         parsed = coordinates_parser.parse_coordinates(x_text, y_text, coords["axis_labels_raw"], self.style)
         point = self._point(parsed)
         if point is None:
             self.warnings.append(f"coordinates not read: {parsed.reason or 'no position'}")
-            return "unknown", None, None
+            return "unknown", None, None, False
         # Values in the source system (a geographic system's longitude is its easting-like value); the
         # review service derives WGS84 latitude/longitude once the system is stated or confirmed.
         coords["local_x"], coords["local_y"] = point
@@ -499,12 +509,20 @@ class _Builder:
             self.prov[f"metadata.coordinates.{key}"] = self._axis_entry(number, c.x_raw, c.y_raw)
         system = coords["coordinate_system"]
         resolved = crs_parser.resolve_printed_system(system, parsed)
-        order_doubtful = (
-            parsed.order_assumed and resolved.code is not None and _swap_on_land(resolved.code, *point)
-        )
-        if resolved.code is not None and _inside_area(resolved.code, *point) and not order_doubtful:
-            coords["crs_code"] = resolved.code
-            return "stated", resolved.code, resolved.reason
+        code = resolved.code
+        order_doubtful = parsed.order_assumed and code is not None and _swap_on_land(code, *point)
+        inside = code is not None and _inside_area(code, *point)
+        if code is not None and inside and not order_doubtful:
+            coords["crs_code"] = code
+            return "stated", code, resolved.reason, False
+        if code is not None and not inside and _inside_area(code, *point, swap_axes=True):
+            swapped_note = (
+                f"the printed system '{system}' ({code}) places the point inside its area of use only with "
+                "easting and northing swapped; read swapped"
+            )
+            self.warnings.append(f"coordinate axes swapped: {swapped_note}")
+            coords["crs_code"] = code
+            return "stated", code, swapped_note, True
         note: str | None
         if order_doubtful:
             note = (
@@ -520,7 +538,7 @@ class _Builder:
             note = resolved.reason
         if system is not None:
             self.warnings.append(f"coordinate system not stated: {note}")
-        return "inferred", None, note
+        return "inferred", None, note, False
 
     @staticmethod
     def _point(parsed: CoordinateResult) -> tuple[float, float] | None:
@@ -845,7 +863,7 @@ class _Builder:
         self.dates(meta)
         self.elevation(meta)
         self.inclination(meta)
-        crs_status, crs_code, crs_note = self.coordinates(meta)
+        crs_status, crs_code, crs_note, swap_axes = self.coordinates(meta)
 
         layers = [
             item for i, raw in enumerate(self.result.layers) if (item := self.layer(i, raw)) is not None
@@ -877,6 +895,7 @@ class _Builder:
             label_box=label_entry.box,
             guessed_depths=self.guessed,
             crs_note=crs_note,
+            swap_axes=swap_axes,
             warnings=self.warnings,
             datum_finding=finding,
             datum_origin=origin,
@@ -1144,6 +1163,7 @@ async def finalize_group(document_id: str, group: PageGroup, outcome: Extraction
                 provenance=draft.provenance,
                 crs_status=draft.crs_status,
                 crs_code=draft.crs_code,
+                swap_axes=draft.swap_axes,
                 pages=group.pages,
                 actor=ACTOR,
             )
