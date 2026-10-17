@@ -116,7 +116,17 @@ class RawCoordinates(StrictModel):
 
 class ExtractedHeader(StrictModel):
     borehole_label: OptRaw
+    # Added with schema version 3: a default keeps results stored or built before then valid (the strict
+    # schema still lists every field as required).
+    borehole_name: OptRaw = Field(
+        default_factory=RawValue.absent,
+        description="A name of the borehole printed apart from its label; null when none is printed.",
+    )
     project: OptRaw
+    project_id: OptRaw = Field(
+        default_factory=RawValue.absent,
+        description='Project, job or contract number or code as printed, e.g. "Job No. 21-0457".',
+    )
     client: OptRaw
     location: OptRaw
     contractor: OptRaw
@@ -124,6 +134,10 @@ class ExtractedHeader(StrictModel):
     start_date: OptRaw
     end_date: OptRaw
     total_depth: OptRaw
+    borehole_length: OptRaw = Field(
+        default_factory=RawValue.absent,
+        description="Length of the hole along its axis as printed (inclined holes), with its unit.",
+    )
     depth_unit: OptRaw = Field(
         description='Unit of the depth column or depth scale as printed, e.g. "m", "(m)", "ft", "Tiefe [m]".'
     )
@@ -153,6 +167,14 @@ class ExtractedLayer(StrictModel):
     moisture_raw: OptRaw
     weathering_raw: OptRaw
     stratigraphic_name_raw: OptRaw
+    engineering_soil_unit_raw: OptRaw = Field(
+        default_factory=RawValue.absent,
+        description="Engineering soil or rock unit (homogeneous zone, design unit) printed for the stratum.",
+    )
+    geologic_age_raw: OptRaw = Field(
+        default_factory=RawValue.absent,
+        description="Geological age (era, period, epoch or its symbol) printed for the stratum.",
+    )
 
 
 class ExtractedSpt(StrictModel):
@@ -202,5 +224,5 @@ class ExtractionResult(StrictModel):
     tests: list[ExtractedTest]
 
 
-EXTRACTION_SCHEMA_VERSION = "2"
+EXTRACTION_SCHEMA_VERSION = "3"
 CLASSIFIER_SCHEMA_VERSION = "1"

@@ -101,6 +101,12 @@ REQUIRED_FILES = {
     "ClarificationAnswer.choose_reading.json",
     "Stats.json",
     "ChatRequest.json",
+    "User.admin.json",
+    "User.reviewer.json",
+    "UserAnswer.json",
+    "AuthRegisterRequest.json",
+    "AuthLoginRequest.json",
+    "AuthPasswordChange.json",
     "chat/turn.sse",
     "chat/error.sse",
 }
@@ -117,6 +123,10 @@ REQUIRED_ERROR_CODES = {
     "unparseable_value",
     "chat_unavailable",
     "internal_error",
+    "not_authenticated",
+    "invalid_credentials",
+    "forbidden",
+    "email_taken",
 }
 KIND_WIDGETS = {
     "crs_confirm": {"crs_picker"},
@@ -649,6 +659,9 @@ def test_health_examples() -> None:
         )
     demo = _load(EXAMPLES_DIR / "Health.demo.json")["providers"]
     assert not (demo["ocr"] and demo["extractor"])
+    for name in ("live", "demo"):
+        auth = _load(EXAMPLES_DIR / f"Health.{name}.json")["auth"]
+        assert auth == {"enabled": True, "registration": "open"}
 
 
 # --------------------------------------------------------------------------------------------
@@ -1108,8 +1121,21 @@ def test_version_has_a_changelog_entry() -> None:
     headings = re.findall(r"^## (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)$", changelog, flags=re.MULTILINE)
     assert headings and headings[0][0] == version, "the newest CHANGELOG entry names info.version"
     entry = _section(changelog, f"## {version} ", "\n## ")
-    for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
+    for addition in (
+        "/api/v1/auth/register",
+        "/api/v1/auth/login",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/me",
+        "/api/v1/auth/password",
+        "not_authenticated",
+        "Health.auth",
+        "cookieAuth",
+        "confirmed_by",
+    ):
         assert addition in entry, addition
+    previous = _section(changelog, "## 1.2.0 ", "\n## ")
+    for addition in ("failed_stage", "last_event_id", "clarification.resolved", "verdict", "rock_head_m"):
+        assert addition in previous, addition
     older = _section(changelog, "## 1.1.0 ", "\n## ")
     for addition in ("crs_label", "confirmed_by", "/clarifications/{clarification_id}/crs-candidates"):
         assert addition in older, addition
@@ -1169,3 +1195,42 @@ def test_ulid_timestamps_are_plausible() -> None:
         for char in body[:10]:
             ms = ms * 32 + alphabet.index(char)
         assert 2025 <= 1970 + math.floor(ms / 1000 / 31_556_952) <= 2027, doc_id
+
+
+PUBLIC_OPERATIONS = {"getHealth", "getHealthV1", "register", "login"}
+
+
+def test_contract_1_3_sign_in() -> None:
+    """1.3.0: a cookie session on every operation except health, register and login (logout: optional)."""
+    scheme = SPEC["components"]["securitySchemes"]["cookieAuth"]
+    assert (scheme["type"], scheme["in"], scheme["name"]) == ("apiKey", "cookie", "gm_session")
+    assert SPEC["security"] == [{"cookieAuth": []}]
+    not_authenticated = {"$ref": "#/components/responses/NotAuthenticated"}
+    seen = set()
+    for template, item in SPEC["paths"].items():
+        for method, operation in item.items():
+            if method not in ("get", "post", "patch", "delete", "put"):
+                continue
+            op_id = operation["operationId"]
+            seen.add(op_id)
+            if op_id in PUBLIC_OPERATIONS:
+                assert operation["security"] == [], op_id
+            elif op_id == "logout":
+                assert {} in operation["security"] and {"cookieAuth": []} in operation["security"]
+            else:
+                assert "security" not in operation, f"{op_id} overrides the default security"
+                assert "401" in operation["responses"], f"{method.upper()} {template} declares no 401"
+                if op_id != "changePassword":
+                    assert operation["responses"]["401"] == not_authenticated, op_id
+    assert {"register", "login", "logout", "getMe", "changePassword"} <= seen
+    auth = SCHEMAS["Health"]["properties"]["auth"]
+    assert "auth" not in SCHEMAS["Health"]["required"], "additive: optional inside 1.x"
+    assert auth["properties"]["registration"]["enum"] == ["open", "closed"]
+    assert SCHEMAS["User"]["properties"]["role"]["enum"] == ["reviewer", "admin"]
+    assert SCHEMAS["UserAnswer"]["properties"]["user"] == {"$ref": "#/components/schemas/User"}
+    register = SPEC["paths"]["/api/v1/auth/register"]["post"]["responses"]
+    assert {"201", "403", "409", "422", "429"} <= set(register)
+    retry_after = SPEC["components"]["responses"]["RateLimited"]["headers"]["Retry-After"]
+    assert retry_after["schema"]["type"] == "integer"
+    for section in (_section(REALTIME_MD, "## 1.", "## 2."), _section(REALTIME_MD, "## 2.", "### 2.1")):
+        assert "not_authenticated" in section and "gm_session" in section

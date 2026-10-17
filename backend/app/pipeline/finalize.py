@@ -5,10 +5,12 @@ finalize_group(document_id, group, outcome)
     provenance entry per value from the OCR blocks the model cited (app.pipeline.provenance), narrowed to
     the printed words when the page has a trustworthy text layer (app.pipeline.textlayer), decides the
     coordinate-system status and creates the borehole through app.review.service.create_borehole.
-    Idempotent per (document, group key). Depths printed without any unit are stored as metres with
-    method `guessed` and one `unit_ambiguous` question per document; uncertain page groups get a
-    `borehole_boundary` question; a printed depth sign or origin note that the printed layer depths
-    contradict gets one `datum_convention` question per document and kind (app.validate.datum).
+    Idempotent per (document, group key). The target format's BoreholeName, ProjectID, BoreholeLength
+    (along the hole, in metres), EngineeringSoilUnit and GeologicAge are stored only when printed.
+    Depths printed without any unit are stored as metres with method `guessed` and one `unit_ambiguous`
+    question per document; uncertain page groups get a `borehole_boundary` question; a printed depth sign
+    or origin note that the printed layer depths contradict gets one `datum_convention` question per
+    document and kind (app.validate.datum).
 
 finalize_document(document_id)
     Completeness against the labels printed on summary and coordinate tables, `documents.duplicate_of` and
@@ -131,6 +133,7 @@ def _number_raws(result: ExtractionResult) -> list[str]:
     h = result.header
     values: list[RawValue] = [
         h.total_depth,
+        h.borehole_length,
         h.ground_level,
         h.inclination,
         h.coordinates.x_raw,
@@ -289,7 +292,7 @@ class _Builder:
 
     def _depth_raws(self) -> list[str]:
         r = self.result
-        values: list[RawValue] = [r.header.total_depth]
+        values: list[RawValue] = [r.header.total_depth, r.header.borehole_length]
         for layer in r.layers:
             values += [layer.from_raw, layer.to_raw]
         values += [s.depth_raw for s in r.spt]
@@ -553,6 +556,8 @@ class _Builder:
             ("moisture", layer.moisture_raw),
             ("weathering", layer.weathering_raw),
             ("stratigraphic_name", layer.stratigraphic_name_raw),
+            ("engineering_soil_unit", layer.engineering_soil_unit_raw),
+            ("geologic_age", layer.geologic_age_raw),
         ):
             item.data[key] = self.text(item.prov, key, value)
         return item
@@ -801,6 +806,36 @@ class _Builder:
         self.prov["metadata.borehole_depth_m"] = source.model_copy(update={"method": method})
         self.prov["metadata.borehole_depth_source"] = source.model_copy(update={"method": "derived"})
 
+    def length_along_hole(self, meta: dict[str, Any]) -> None:
+        """The printed length along the hole (BoreholeLength), read like a depth: the unit printed with it,
+        else the depth column's unit, else metres marked guessed (asked with the depths). Only printed: it is
+        never computed from the depth and the inclination. Negative values are not stored."""
+        value = self.result.header.borehole_length
+        raw = printed(value)
+        metres, guessed = self.signed_depth(value)
+        if raw is not None and metres is None:
+            self.warnings.append(f"borehole length '{raw}' is not a length")
+        if metres is not None and metres < 0:
+            self.warnings.append(f"borehole length '{raw}' is negative; not stored")
+            metres, guessed = None, False
+        meta["borehole_length_m"] = metres
+        if self.cite.needed(value, metres):
+            entry = self.cite.entry(value, method="guessed" if guessed else None)
+            self.prov["metadata.borehole_length_m"] = entry
+            if guessed and metres is not None and raw is not None:
+                self.guessed.append(GuessedDepth(raw, metres, entry))
+
+    def name(self, meta: dict[str, Any], label: str) -> None:
+        """A borehole name printed apart from the label (BoreholeName); a repeat of the label is not one."""
+        value = self.result.header.borehole_name
+        name = printed(value)
+        if name is not None and canonical_label(name) == canonical_label(label):
+            self.warnings.append(f"borehole name '{name}' repeats the label; not stored")
+            meta["borehole_name"] = None
+            return
+        meta["borehole_name"] = name
+        self.keep(self.prov, "metadata.borehole_name", value, name)
+
     # -- assembly --------------------------------------------------------------------------------
 
     def build(self) -> RecordDraft:
@@ -811,8 +846,10 @@ class _Builder:
             return RecordDraft(None, {}, "unknown", None, None, warnings=self.warnings)
         meta: dict[str, Any] = {"borehole_id": label}
         self.prov["metadata.borehole_id"] = label_entry
+        self.name(meta, label)
         for key, value in (
             ("project_name", h.project),
+            ("project_id", h.project_id),
             ("client", h.client),
             ("location_name", h.location),
             ("drilling_contractor", h.contractor),
@@ -834,6 +871,7 @@ class _Builder:
         self.spt(layers)
         self.core_runs(layers)
         self.total_depth(meta, layers)
+        self.length_along_hole(meta)
         sections = {
             "stratigraphy": layers,
             "groundwater": self.groundwater(),

@@ -42,5 +42,6 @@ Ids are opaque (`doc_`, `bh_`, `rs_`, `cl_` plus a ULID) and are reused across f
 - `ValuePatch.approve_confirmed_by.json` shows the optional `confirmed_by` (1.1.0).
 - `failed_stage` (1.2.0) is `null` on every document except the failed one, where it equals the `stage` of `events/job.failed.json`.
 - `events/clarification.resolved.json` carries the question's `document_id` and `borehole_uids` (1.2.0), the same as in `Clarification.answered.json`.
+- Sign-in (1.3.0): `User.admin.json` (the first account) and `User.reviewer.json` (no display name, so the email is the actor), `UserAnswer.json` (the answer of register, login and me), the request bodies `AuthRegisterRequest.json`, `AuthLoginRequest.json` and `AuthPasswordChange.json`, and `auth` in both `Health` examples. Emails use the reserved `example.org` domain.
 - `review_status` follows the contract: `approved` only when every provenance entry is approved, `unreviewed` when none is reviewed yet, else `in_review`.
 - Clarification widgets per kind: `crs_confirm` uses `crs_picker` (options carry evidence), `locate_borehole` `map_point`, `choose_reading` `choose_reading`, `datum_convention` `select`, `unit_ambiguous` `number_unit` with `unit_options`, `borehole_boundary` `page_range`, `duplicate` `select`/`boolean`, `conflicting_sources` `select` with evidence per option, `chat_parameter` `select`.

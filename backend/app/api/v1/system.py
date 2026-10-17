@@ -1,4 +1,4 @@
-"""Health and stats."""
+"""Health and stats. Both health routes are public; stats needs a session like every other /api/v1 route."""
 
 from __future__ import annotations
 
@@ -7,10 +7,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import __version__
+from app.auth.deps import current_user
 from app.config import get_settings
 from app.db.models import Borehole, BoreholeLayer, Document
 from app.db.session import get_session
-from app.schemas.documents import Health, HealthProviders, HealthUpload, Stats
+from app.schemas.documents import Health, HealthAuth, HealthProviders, HealthUpload, Stats
 
 router = APIRouter()
 
@@ -32,6 +33,7 @@ def build_health() -> Health:
             geocoder=settings.geocoder_configured,
         ),
         upload=HealthUpload(max_mb=settings.max_upload_mb, extensions=settings.extensions),
+        auth=HealthAuth(enabled=settings.auth_enabled, registration=settings.auth_registration),
     )
 
 
@@ -45,7 +47,13 @@ async def get_health_v1() -> Health:
     return build_health()
 
 
-@router.get("/api/v1/stats", response_model=Stats, tags=["system"], operation_id="getStats")
+@router.get(
+    "/api/v1/stats",
+    response_model=Stats,
+    tags=["system"],
+    operation_id="getStats",
+    dependencies=[Depends(current_user)],
+)
 async def get_stats(session: AsyncSession = Depends(get_session)) -> Stats:
     documents = await session.scalar(select(func.count()).select_from(Document))
     boreholes = await session.scalar(select(func.count()).select_from(Borehole))

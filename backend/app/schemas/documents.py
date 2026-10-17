@@ -30,12 +30,20 @@ class HealthUpload(ApiModel):
     extensions: list[str]
 
 
+class HealthAuth(ApiModel):
+    """Sign-in (contract 1.3.0): whether routes need a session, and whether anyone may register."""
+
+    enabled: bool
+    registration: Literal["open", "closed"]
+
+
 class Health(ApiModel):
     status: Literal["ok", "degraded"]
     mode: Literal["live", "demo"]
     version: str
     providers: HealthProviders
     upload: HealthUpload
+    auth: HealthAuth
 
 
 class Stats(ApiModel):

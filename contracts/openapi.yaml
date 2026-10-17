@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: GeoMemory API
-  version: 1.2.0
+  version: 1.3.0
   description: |
     Contract v1 between the backend session and the frontend session. This file is the single
     source of truth for HTTP shapes. Streams (server-sent events and the chat stream) are specified
@@ -24,10 +24,23 @@ info:
     - Changes inside 1.x are additive only. Breaking changes need a new major version and an entry in
       contracts/CHANGELOG.md agreed by both sessions.
     - `x-priority` marks build order: P0 core flow, P1 needed for the demo, P2 stretch.
+    - Sign-in (1.3.0): every operation needs a session (the `gm_session` cookie that register and
+      login set) except getHealth, getHealthV1, register and login; logout answers with or without
+      one. Without a valid session an operation answers 401 `not_authenticated`, including page
+      images, the event stream and chat. Any signed-in user may read and write; `admin` is reserved
+      for user management. A POST, PATCH or DELETE sent by a browser from a page whose origin is
+      neither one of the server's allowed origins (CORS_ORIGINS) nor the server's own host answers
+      403 `forbidden`. With AUTH_ENABLED=false on the server (a local escape hatch, reported as
+      `Health.auth.enabled: false`) no operation needs a session.
+    - Actors (1.3.0): the actor of every revision, `Clarification.answered_by` and the actor of a
+      CRS confirmation is the signed-in user's display name, else their email.
+      `ValuePatch.confirmed_by`, `CrsConfirmRequest.confirmed_by`, `ClarificationAnswer.answered_by`
+      and the approve-clean `confirmed_by` query parameter are still accepted and ignored.
 servers:
   - url: /
 tags:
   - name: system
+  - name: auth
   - name: documents
   - name: boreholes
   - name: map
@@ -35,12 +48,16 @@ tags:
   - name: chat
   - name: events
 
+security:
+  - cookieAuth: []
+
 paths:
   /api/health:
     get:
       tags: [system]
       operationId: getHealth
       x-priority: P0
+      security: []
       summary: Liveness and mode. Also served at /api/v1/health.
       responses:
         "200":
@@ -54,6 +71,7 @@ paths:
       tags: [system]
       operationId: getHealthV1
       x-priority: P0
+      security: []
       responses:
         "200":
           description: Same body as /api/health.
@@ -68,11 +86,157 @@ paths:
       x-priority: P2
       summary: Real counts only. No invented metrics.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Counts over accepted and unreviewed data.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Stats" }
+
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      x-priority: P0
+      security: []
+      summary: Create an account and sign it in (1.3.0). The first account becomes admin, later ones reviewer.
+      description: |
+        Sets the session cookie. Answers 403 forbidden when `Health.auth.registration` is closed and an
+        account exists already (accounts are then created on the server: python -m app.users). The
+        server limits registrations per client address (default 10 per hour; 429 with Retry-After).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthRegisterRequest" }
+      responses:
+        "201":
+          description: Account created and signed in (Set-Cookie gm_session).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAnswer" }
+        "403":
+          description: Registration is closed, or the request came from a foreign page (code forbidden).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: An account with this email exists already (code email_taken).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: |
+            A field breaks a rule (code validation_error): one `errors[]` entry per field, `loc` ending
+            with the field name and `msg` a sentence the form shows as it is.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      x-priority: P0
+      security: []
+      summary: Sign in with email and password (1.3.0). Every sign-in starts a new session.
+      description: |
+        Sets the session cookie. An unknown email and a wrong password get the same answer. The server
+        limits failed sign-ins per email (default 5) and per client address (default 20) within 15
+        minutes; above that it answers 429 with Retry-After.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthLoginRequest" }
+      responses:
+        "200":
+          description: Signed in (Set-Cookie gm_session).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAnswer" }
+        "401":
+          description: Email or password wrong (code invalid_credentials).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: The request came from a foreign page (code forbidden).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: Email or password empty (code validation_error, `errors[]` per field).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      x-priority: P0
+      security:
+        - {}
+        - cookieAuth: []
+      summary: Sign out (1.3.0). Ends this session and clears the cookie; 204 with or without a session.
+      responses:
+        "204":
+          description: Signed out (Set-Cookie clears gm_session).
+        "403":
+          description: The request came from a foreign page (code forbidden).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      x-priority: P0
+      summary: The signed-in user (1.3.0).
+      responses:
+        "200":
+          description: The user of this session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAnswer" }
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
+
+  /api/v1/auth/password:
+    post:
+      tags: [auth]
+      operationId: changePassword
+      x-priority: P1
+      summary: Change the signed-in user's password (1.3.0). Ends the account's other sessions; this one stays.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthPasswordChange" }
+      responses:
+        "204":
+          description: Password changed.
+        "401":
+          description: |
+            No valid session (code not_authenticated), or the current password is wrong (code
+            invalid_credentials; the session stays).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Sign-in is turned off on the server, or the request came from a foreign page (code forbidden).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: The new password breaks a rule (code validation_error, `loc` ends with new_password).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /api/v1/documents:
     get:
@@ -81,6 +245,7 @@ paths:
       x-priority: P0
       summary: All documents, newest first.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Document list.
           content:
@@ -113,6 +278,7 @@ paths:
                     the user typed, else the dropped folder's name). The backend groups CRS
                     questions per project, so one answer can place a whole batch.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "202":
           description: Accepted and queued.
           content:
@@ -147,6 +313,7 @@ paths:
       operationId: getDocument
       x-priority: P0
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The document with page map, counts and progress.
           content:
@@ -163,6 +330,7 @@ paths:
       x-priority: P2
       summary: Deletes the document, its artifacts and its boreholes.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "204":
           description: Deleted.
 
@@ -175,6 +343,7 @@ paths:
       x-priority: P1
       summary: Re-queue a failed document from its last successful stage. Stored OCR is reused.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "202":
           description: Re-queued.
           content:
@@ -206,6 +375,7 @@ paths:
       x-priority: P0
       summary: Rendered page image. Same page numbering and orientation as provenance boxes.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: PNG image.
           content:
@@ -225,6 +395,7 @@ paths:
       operationId: listDocumentBoreholes
       x-priority: P0
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: All boreholes extracted from this document.
           content:
@@ -244,8 +415,8 @@ paths:
         in: query
         required: false
         description: |
-          Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
-          cut to 100 characters; "reviewer" when absent or blank.
+          Ignored since 1.3.0: the actor of every revision this call writes is the signed-in user
+          (display name, else email). Before 1.3.0: who approves (1.1.0).
         schema: { type: string }
     post:
       tags: [documents]
@@ -257,6 +428,7 @@ paths:
         and either method is `read`, or method is `ocr` with confidence >= CLEAN_CONFIDENCE
         (server setting, default 0.9). The server is the source of truth for this count.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Number of values approved (or that would be, when dry_run is true).
           content:
@@ -285,6 +457,7 @@ paths:
         Order: verdict, score, smaller area of use, EPSG code. An unavailable geocoder never fails
         this call: the ranking then works without a reference place and says so in `note`.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Candidates, best first. Empty when the document has no coordinates.
           content:
@@ -307,6 +480,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/CrsConfirmRequest" }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Boreholes updated; they become plotted when the transform succeeds.
           content:
@@ -352,6 +526,7 @@ paths:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 5000, default: 5000 } }
         - { name: cursor, in: query, schema: { type: string } }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Matching records.
           content:
@@ -367,6 +542,7 @@ paths:
       x-priority: P0
       summary: One borehole by exact uid (no substring matching).
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The record at its latest revision.
           content:
@@ -392,6 +568,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ValuePatch" }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The updated record.
           content:
@@ -425,6 +602,7 @@ paths:
           schema: { type: boolean, default: true }
         - { name: document_id, in: query, schema: { type: string } }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Point features in WGS84.
           content:
@@ -446,6 +624,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/BoreholeFilter" }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "201":
           description: Stored.
           content:
@@ -468,6 +647,7 @@ paths:
       operationId: getResultSet
       x-priority: P1
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The stored result set.
           content:
@@ -490,6 +670,7 @@ paths:
       operationId: getResultSetGeojson
       x-priority: P1
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Plotted members of the set. Unplotted members are counted in ResultSet only.
           content:
@@ -515,6 +696,7 @@ paths:
           in: query
           schema: { type: integer, minimum: 1, maximum: 10, default: 5 }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Candidates, best first. May be empty.
           content:
@@ -539,6 +721,7 @@ paths:
           schema: { type: string, enum: [open, answered, skipped], default: open }
         - { name: document_id, in: query, schema: { type: string } }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Clarification requests, oldest first.
           content:
@@ -564,6 +747,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ClarificationAnswer" }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The clarification, now answered.
           content:
@@ -597,6 +781,7 @@ paths:
         A skipped question still counts in `open_clarifications` (unresolved) and can be answered later
         with POST /clarifications/{id}/answer. Skipping an answered question returns 409 already_resolved.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: The clarification, now skipped.
           content:
@@ -625,6 +810,7 @@ paths:
         when the clarification is not a crs_confirm question or its boreholes have no printed
         coordinates.
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: Candidates, best first.
           content:
@@ -664,6 +850,7 @@ paths:
           required: false
           schema: { type: string }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: text/event-stream
           content:
@@ -682,6 +869,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ChatRequest" }
       responses:
+        "401": { $ref: "#/components/responses/NotAuthenticated" }
         "200":
           description: text/event-stream with header x-vercel-ai-ui-message-stream v1.
           content:
@@ -707,6 +895,31 @@ components:
       description: Opaque borehole uid, URL-encoded.
       schema: { type: string }
 
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: gm_session
+      description: |
+        Session cookie (1.3.0), set by register and login: HttpOnly, SameSite=Lax, Path=/, Secure
+        when the server runs behind HTTPS. An opaque random token. The session lasts until logout, or
+        until a password change or reset ends the account's other sessions.
+
+  responses:
+    NotAuthenticated:
+      description: No valid session (code not_authenticated, 1.3.0). The client shows the sign-in screen.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many attempts (code rate_limited). Retry-After gives the seconds to wait.
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
   schemas:
     Error:
       type: object
@@ -724,7 +937,8 @@ components:
             page_not_found, borehole_not_found, path_not_found, result_set_not_found,
             clarification_not_found, demo_mode, too_large, unsupported_type, not_failed,
             revision_conflict, unparseable_value, crs_invalid, already_resolved, answer_invalid,
-            chat_unavailable, geocoder_unavailable, rate_limited, internal_error.
+            chat_unavailable, geocoder_unavailable, rate_limited, internal_error, not_authenticated,
+            invalid_credentials, forbidden, email_taken.
         errors:
           type: [array, "null"]
           description: Field errors, only with code validation_error.
@@ -760,6 +974,69 @@ components:
           properties:
             max_mb: { type: integer }
             extensions: { type: array, items: { type: string }, description: 'Lower case with dot, e.g. ".pdf".' }
+        auth:
+          type: object
+          required: [enabled, registration]
+          description: |
+            Sign-in (1.3.0). enabled: every operation except the health checks, register and login
+            needs a session. registration open: anyone may create an account (the first one becomes
+            admin); closed: only the first account can be registered, later ones are created on the
+            server. A server that does not send `auth` has no sign-in.
+          properties:
+            enabled: { type: boolean }
+            registration: { type: string, enum: [open, closed] }
+
+    User:
+      type: object
+      required: [user_id, email, display_name, role, created_at]
+      description: A person who signs in (1.3.0). The server records them as the actor of their changes.
+      properties:
+        user_id: { type: string, description: 'Opaque id usr_<ULID>.' }
+        email: { type: string, description: Trimmed and lower-cased. }
+        display_name:
+          type: [string, "null"]
+          description: At most 80 characters. The actor name of their changes; the email when null.
+        role:
+          type: string
+          enum: [reviewer, admin]
+          description: The first account is admin, later ones reviewer. Every signed-in user may read and write.
+        created_at: { type: string, format: date-time }
+
+    UserAnswer:
+      type: object
+      required: [user]
+      description: The answer of register, login and me (1.3.0).
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+
+    AuthRegisterRequest:
+      type: object
+      required: [email, password]
+      description: |
+        1.3.0. email: trimmed and lower-cased by the server, at most 254 characters, one "@" with text
+        on both sides and no spaces. password: 10 to 128 characters, not the email, not on the
+        server's list of common passwords. display_name: optional, at most 80 characters after
+        trimming; blank means none.
+      properties:
+        email: { type: string }
+        password: { type: string }
+        display_name: { type: [string, "null"] }
+
+    AuthLoginRequest:
+      type: object
+      required: [email, password]
+      description: 1.3.0. The email is compared trimmed and lower-cased.
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    AuthPasswordChange:
+      type: object
+      required: [current_password, new_password]
+      description: 1.3.0. new_password follows the password rules of AuthRegisterRequest (against the account's email).
+      properties:
+        current_password: { type: string }
+        new_password: { type: string }
 
     Stats:
       type: object
@@ -1134,8 +1411,8 @@ components:
         confirmed_by:
           type: [string, "null"]
           description: |
-            Who performed the action (1.1.0). Stored as the revision's actor, trimmed and cut to 100
-            characters; "reviewer" when absent or blank.
+            Ignored since 1.3.0: the revision's actor is the signed-in user (display name, else email).
+            Before 1.3.0: who performed the action (1.1.0).
 
     CrsCandidate:
       type: object
@@ -1177,7 +1454,9 @@ components:
       properties:
         crs: { type: string }
         swap_axes: { type: boolean, default: false }
-        confirmed_by: { type: [string, "null"] }
+        confirmed_by:
+          type: [string, "null"]
+          description: Ignored since 1.3.0; the actor is the signed-in user (display name, else email).
         note: { type: [string, "null"] }
 
     BoreholeFilter:
@@ -1359,7 +1638,9 @@ components:
         fields: { type: array, items: { $ref: "#/components/schemas/FormField" } }
         evidence: { type: array, items: { $ref: "#/components/schemas/Evidence" } }
         answer: {}
-        answered_by: { type: [string, "null"] }
+        answered_by:
+          type: [string, "null"]
+          description: Who answered. Since 1.3.0 the signed-in user's display name, else their email.
         created_at: { type: string, format: date-time }
         resolved_at: { type: [string, "null"], format: date-time }
 
@@ -1370,7 +1651,9 @@ components:
         values:
           type: object
           description: Field name to value, validated against the clarification's fields.
-        answered_by: { type: [string, "null"] }
+        answered_by:
+          type: [string, "null"]
+          description: Ignored since 1.3.0; the server records the signed-in user.
 
     ChatContext:
       type: object

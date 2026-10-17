@@ -11,9 +11,9 @@ cp .env.example .env          # optional: add provider keys for live mode
 docker compose up --build     # db, migrate, api, worker, gotenberg, web
 ```
 
-Open http://localhost:8080. The API is at http://localhost:8000 (docs at `/api/docs`, health at `/api/health`).
+Open http://localhost:8080 and **register the first account**: it becomes the admin. Everyone else registers on the same screen and gets the reviewer role. The API is at http://localhost:8000 (docs at `/api/docs`, health at `/api/health`).
 
-To try the app without uploading anything, load clearly fictional demo data and remove it again later:
+To try the app without uploading anything, load clearly fictional demo data and remove it again later (the seed runs inside the container and needs no sign-in):
 
 ```bash
 make seed      # docker compose exec api python -m app.seed
@@ -21,6 +21,22 @@ make unseed    # docker compose exec api python -m app.seed --remove
 ```
 
 Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on the host.
+
+### Accounts and sign-in
+
+- Sign in with email and password. Every page and every API route except `/api/health`, register and login needs a session. Any signed-in user can read, review and upload; your name (or your email when you set no name) is recorded on every change you make.
+- Sessions last until you sign out. Changing your password signs out your other browsers.
+- More accounts, a forgotten password or a role change are handled on the server, because there is no email verification or reset by email (hackathon scope):
+
+  ```bash
+  docker compose exec api python -m app.users create --email reviewer@example.org --name "A Reviewer"
+  docker compose exec api python -m app.users reset-password --email reviewer@example.org
+  docker compose exec api python -m app.users set-role --email reviewer@example.org --role admin
+  docker compose exec api python -m app.users list
+  ```
+
+  Without `--password` the password is asked for twice. A reset signs that account out everywhere.
+- `AUTH_REGISTRATION=closed` lets only the first account register in the browser. `AUTH_ENABLED=false` turns sign-in off for a local machine; every change is then recorded as "Local user".
 
 ### Demo mode and live mode
 
@@ -95,6 +111,8 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 | `MISTRAL_API_KEY` | — | Mistral OCR on the important pages |
 | `OPENAI_API_KEY` | — | Chat assistant |
 | `MAX_UPLOAD_MB` | `200` | Upload limit (reported in `/api/health`) |
+| `AUTH_ENABLED` / `AUTH_REGISTRATION` | `true` / `open` | Sign-in on or off; who may create accounts (reported in `/api/health`) |
+| `COOKIE_SECURE` | `false` | Set `true` when the app is served over HTTPS |
 | `WEB_PORT` / `API_PORT` / `DB_PORT` | `8080` / `8000` / `5432` | Published host ports |
 
 ## Data rule
@@ -111,3 +129,4 @@ No challenge or customer data is committed: no sample files, no values copied fr
 - **Conflicting values:** a value printed differently in a summary table and in a log is only asked about once the extractor reports both readings; the question type and its answer handling are in place.
 - **Chat units:** the chat tools return metres; feet are converted in the answer text.
 - **ARM machines:** `postgis/postgis` publishes amd64 images only, so on ARM the database runs under emulation.
+- **Accounts:** no email verification and no password reset by email; an admin resets passwords with `python -m app.users`. Sign-in attempt limits are kept in memory per API process, so a restart clears them.

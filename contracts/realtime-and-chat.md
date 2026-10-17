@@ -6,6 +6,8 @@ Companion to `contracts/openapi.yaml`. Both sessions implement exactly this. Cha
 
 Server-sent events (`text/event-stream`). One connection per browser tab. Optional `?document_id=` narrows the stream to one document. Optional `?last_event_id=<integer>` (1.2.0) has the same meaning as the `Last-Event-ID` header below; when both are sent, the header wins.
 
+Since 1.3.0 the stream needs a signed-in session: the `gm_session` cookie, which `EventSource` sends on its own for a same-origin URL. Without one the request answers 401 `not_authenticated` as JSON before any stream starts; `EventSource` only reports an error, so the client then calls `GET /api/v1/auth/me` to learn whether the session ended. Signing out does not close streams that are already open.
+
 **Transport rules (backend)**
 - Response headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`.
 - Every event has `id:` (monotonic integer from the `events` table), `event:` (type below) and one `data:` line holding JSON.
@@ -42,6 +44,7 @@ data: {"uid":"bh_01JABCDXYZ","document_id":"doc_01JABC","revision":1,"plotted":f
 
 The frontend uses `useChat` from `@ai-sdk/react` with `DefaultChatTransport({ api: "/api/v1/chat" })` and sends the `ChatContext` (see OpenAPI) in the request body as `context`. The backend answers with the **AI SDK UI message stream protocol, version 1**:
 
+- Since 1.3.0 the request needs a signed-in session (the `gm_session` cookie); without one it answers 401 `not_authenticated` as JSON, before any stream starts.
 - Status 200, headers `Content-Type: text/event-stream`, `x-vercel-ai-ui-message-stream: v1`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`.
 - Every chunk is one line `data: <json>` followed by a blank line. The stream ends with `data: [DONE]`.
 - Pin the `ai` and `@ai-sdk/react` versions in `package.json` and check the chunk names against that version's protocol page before coding. If a chunk name differs, the protocol page of the pinned version wins and this file is updated.

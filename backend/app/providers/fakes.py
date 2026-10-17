@@ -168,6 +168,10 @@ def label(role: str, **fields: Any) -> PageLabel:
 # The fictional layout of the test PDFs, one printed line per OCR block:
 #   BOREHOLE LOG FX-1
 #   Project: Fictional Depot Extension
+#   Project No.: FX/0042                                              optional
+#   Borehole name: North gate well                                    optional
+#   Location: Fictional Town, Example Road                            optional
+#   Borehole length 6,40 m                                            optional
 #   Easting 413 210,5  Northing 5 316 044,2  (ETRS89 / UTM 32N)     the system in brackets is optional
 #   Depth (m)
 #   0,00 - 1,20  Sand, schluffig
@@ -176,6 +180,10 @@ def label(role: str, **fields: Any) -> PageLabel:
 _BLOCK_LINE = re.compile(r"^\[\[(?P<id>p\d+\.b\d+)\]\] ")
 _LABEL = re.compile(r"^BOREHOLE LOG\s+(?P<value>\S+)$")
 _PROJECT = re.compile(r"^Project:\s*(?P<value>\S.*)$")
+_PROJECT_ID = re.compile(r"^Project No\.:\s*(?P<value>\S.*)$")
+_NAME = re.compile(r"^Borehole name:\s*(?P<value>\S.*)$")
+_LOCATION = re.compile(r"^Location:\s*(?P<value>\S.*)$")
+_LENGTH = re.compile(r"^Borehole length\s+(?P<value>\S.*)$")
 _COORDINATES = re.compile(
     r"^(?P<x_label>Easting)\s+(?P<x>\d[\d ,.]*\d)\s+(?P<y_label>Northing)\s+(?P<y>\d[\d ,.]*\d)"
     r"(?:\s+\((?P<system>[^)]+)\))?$"
@@ -218,6 +226,14 @@ def fake_extraction(inp: ExtractionInput) -> ExtractionResult:
             head.setdefault("borehole_label", _printed(m.group("value"), block_id))
         elif (m := _PROJECT.match(text)) is not None:
             head.setdefault("project", _printed(m.group("value"), block_id))
+        elif (m := _PROJECT_ID.match(text)) is not None:
+            head.setdefault("project_id", _printed(m.group("value"), block_id))
+        elif (m := _NAME.match(text)) is not None:
+            head.setdefault("borehole_name", _printed(m.group("value"), block_id))
+        elif (m := _LOCATION.match(text)) is not None:
+            head.setdefault("location", _printed(m.group("value"), block_id))
+        elif (m := _LENGTH.match(text)) is not None:
+            head.setdefault("borehole_length", _printed(m.group("value"), block_id))
         elif (m := _COORDINATES.match(text)) is not None and not coordinates:
             system = m.group("system")
             coordinates = {

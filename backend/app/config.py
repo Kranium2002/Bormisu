@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -37,6 +37,20 @@ class Settings(BaseSettings):
     accepted_extensions: str = ".pdf,.png,.jpg,.jpeg,.webp,.tif,.tiff,.docx,.xlsx,.csv"
     cors_origins: str = "http://localhost:8080,http://localhost:5173"
     log_level: str = "INFO"
+
+    # Sign-in (contract 1.3.0). AUTH_ENABLED=false is a local escape hatch: every request then acts as
+    # one fixed local admin and no route needs a session. COOKIE_SECURE=true only behind HTTPS.
+    auth_enabled: bool = True
+    cookie_secure: bool = False
+    # "open": anyone may create an account (the first one becomes admin). "closed": only the first
+    # account can be registered in the browser; later ones come from `python -m app.users create`.
+    auth_registration: Literal["open", "closed"] = "open"
+    # Sign-in limits, per API process (in memory). Failed sign-ins per email and per client address
+    # within the window, and registrations per client address within an hour.
+    auth_login_failures_per_email: int = 5
+    auth_login_failures_per_ip: int = 20
+    auth_login_window_s: int = 900
+    auth_registrations_per_ip: int = 10
 
     # Providers (secrets)
     openrouter_api_key: SecretStr | None = Field(
@@ -114,6 +128,20 @@ class Settings(BaseSettings):
     def _blank_path_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("auth_enabled", "cookie_secure", mode="before")
+    @classmethod
+    def _blank_flag_is_default(cls, value: object, info: ValidationInfo) -> object:
+        if isinstance(value, str) and not value.strip():
+            return info.field_name == "auth_enabled"
+        return value
+
+    @field_validator("auth_registration", mode="before")
+    @classmethod
+    def _blank_registration_is_open(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower() or "open"
         return value
 
     # Derived values -------------------------------------------------------------------------

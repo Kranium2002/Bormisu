@@ -8,13 +8,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.deps import CurrentUser, actor_name
 from app.db.models import Borehole, ResultSet
 from app.db.session import get_session
 from app.errors import ApiError, not_found
 from app.geo.filters import filter_conditions
 from app.review.service import apply_patch, to_record, to_records
 from app.schemas.boreholes import BoreholeList, BoreholeRecord, ValuePatch
-from app.schemas.common import review_actor
 from app.schemas.map import BoreholeFilter
 
 router = APIRouter(tags=["boreholes"])
@@ -75,10 +75,11 @@ async def get_borehole(uid: str, session: SessionDep) -> BoreholeRecord:
 
 
 @router.patch("/boreholes/{uid}/values", response_model=BoreholeRecord, operation_id="patchValue")
-async def patch_value(uid: str, patch: ValuePatch, session: SessionDep) -> BoreholeRecord:
+async def patch_value(uid: str, patch: ValuePatch, session: SessionDep, user: CurrentUser) -> BoreholeRecord:
     if patch.action == "flag" and patch.reason is not None and len(patch.reason) > 2000:
         errors = [{"loc": ["body", "reason"], "msg": "At most 2000 characters"}]
         raise ApiError(422, "validation_error", "The flag reason is too long.", errors)
-    bh = await apply_patch(session, uid, patch, actor=review_actor(patch.confirmed_by))
+    # The actor is the signed-in user (contract 1.3.0); ValuePatch.confirmed_by is ignored.
+    bh = await apply_patch(session, uid, patch, actor=actor_name(user))
     await session.commit()
     return await to_record(session, bh)

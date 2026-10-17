@@ -57,7 +57,9 @@ row_types:
 # (never converted: its unit belongs to the coordinate system) or test (a Test Results value; needs test_name).
 targets:
   borehole_id: {scope: borehole, kind: text, description: "Borehole, hole, well, pit or probe identifier as printed."}
-  project_name: {scope: borehole, kind: text, description: "Project name or number."}
+  borehole_name: {scope: borehole, kind: text, description: "A name of the borehole printed apart from its identifier (not the identifier again)."}
+  project_name: {scope: borehole, kind: text, description: "Project name."}
+  project_id: {scope: borehole, kind: text, description: "Project, job, contract or report number or code."}
   client: {scope: borehole, kind: text, description: "Client or owner."}
   location_name: {scope: borehole, kind: text, description: "Site, place, address or location description."}
   drilling_contractor: {scope: borehole, kind: text, description: "Drilling or excavation contractor."}
@@ -70,6 +72,7 @@ targets:
   ground_level: {scope: borehole, kind: length, description: "Ground, collar or seabed elevation."}
   elevation_datum: {scope: borehole, kind: text, description: "Datum of the ground level (e.g. mAOD, NN, AHD)."}
   total_depth: {scope: borehole, kind: length, description: "Final depth of the hole (end of hole, termination depth)."}
+  borehole_length: {scope: borehole, kind: length, description: "Length of the hole along its axis (inclined holes; drilled length), when printed apart from the depth."}
   inclination: {scope: borehole, kind: angle, description: "Inclination of the hole as printed."}
   notes: {scope: borehole, kind: text, description: "Other remarks about the borehole (termination reason, casing, backfill)."}
   depth_from: {scope: row, kind: length, description: "Top depth of the row's interval (see row types)."}
@@ -81,7 +84,9 @@ targets:
   consistency: {scope: row, kind: text, description: "Consistency or relative density."}
   moisture: {scope: row, kind: text, description: "Moisture condition."}
   weathering: {scope: row, kind: text, description: "Weathering grade."}
-  stratigraphic_name: {scope: row, kind: text, description: "Formation, unit or stratigraphic name."}
+  stratigraphic_name: {scope: row, kind: text, description: "Formation, member or stratigraphic name."}
+  engineering_soil_unit: {scope: row, kind: text, description: "Engineering soil or rock unit (homogeneous zone, design or geotechnical unit) of the stratum."}
+  geologic_age: {scope: row, kind: text, description: "Geological age of the stratum (era, period, epoch or its symbol)."}
   spt_depth: {scope: row, kind: length, description: "Depth of an SPT when it has its own column."}
   spt_blows: {scope: row, kind: text, description: "SPT blow counts per increment as printed (e.g. 5/7/9 or 50/120)."}
   spt_n: {scope: row, kind: text, description: "Printed SPT N value."}

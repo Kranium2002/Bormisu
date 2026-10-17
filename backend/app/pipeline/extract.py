@@ -46,7 +46,7 @@ from app.storage import get_storage
 
 logger = logging.getLogger("geomemory.pipeline.extract")
 
-PROMPT_VERSION = "3"
+PROMPT_VERSION = "4"
 PROMPT_FILE = "extractor.txt"
 DIN_PLACEHOLDER = "{{DIN_CODES}}"
 TESTS_PLACEHOLDER = "{{TEST_NAMES}}"

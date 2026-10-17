@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.deps import CurrentUser, actor_name
 from app.clarify.answers import answer_clarification, skip_clarification
 from app.clarify.service import clarification_out
 from app.db.models import Borehole, Clarification
@@ -40,9 +41,10 @@ async def list_clarifications(
     operation_id="answerClarification",
 )
 async def post_answer(
-    clarification_id: str, body: ClarificationAnswer, session: SessionDep
+    clarification_id: str, body: ClarificationAnswer, session: SessionDep, user: CurrentUser
 ) -> ClarificationOut:
-    row = await answer_clarification(session, clarification_id, body.values, body.answered_by)
+    # answered_by is the signed-in user (contract 1.3.0); ClarificationAnswer.answered_by is ignored.
+    row = await answer_clarification(session, clarification_id, body.values, actor_name(user))
     await session.commit()
     await session.refresh(row)
     return clarification_out(row)

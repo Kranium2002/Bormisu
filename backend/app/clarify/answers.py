@@ -1,6 +1,7 @@
 """Answering a clarification: validate values against its form, then apply them via the review service.
 
-Every applied answer becomes a revision with the answering person as actor.
+Every applied answer becomes a revision with the answering person as actor (the signed-in user's name,
+passed in by the route; app.auth.deps.actor_name).
 """
 
 from __future__ import annotations
@@ -18,8 +19,7 @@ from app.errors import ApiError
 from app.geo.crs_service import VIA_CLARIFICATION, confirm_crs
 from app.review.service import apply_patch, set_manual_location
 from app.schemas.boreholes import ValuePatch
-
-ACTOR_DEFAULT = "reviewer"
+from app.schemas.common import review_actor
 
 
 def _invalid(message: str, field: str | None = None) -> ApiError:
@@ -128,8 +128,9 @@ async def _apply(session: AsyncSession, row: Clarification, values: dict[str, An
 
 
 async def answer_clarification(
-    session: AsyncSession, clarification_id: str, values: dict[str, Any], answered_by: str | None
+    session: AsyncSession, clarification_id: str, values: dict[str, Any], actor: str
 ) -> Clarification:
+    """Validate and apply an answer; `actor` (who answers) is stored as answered_by and revision actor."""
     row = await session.scalar(
         select(Clarification).where(Clarification.id == clarification_id).with_for_update()
     )
@@ -138,9 +139,9 @@ async def answer_clarification(
     if row.status == "answered":
         raise ApiError(409, "already_resolved", "This question has already been answered.")
     accepted = validate_answer(list(row.fields or []), values)
-    actor = (answered_by or "").strip()[:100] or ACTOR_DEFAULT
-    await _apply(session, row, accepted, actor)
-    await resolve_clarification(session, row, status="answered", answer=accepted, answered_by=actor)
+    who = review_actor(actor)
+    await _apply(session, row, accepted, who)
+    await resolve_clarification(session, row, status="answered", answer=accepted, answered_by=who)
     return row
 
 

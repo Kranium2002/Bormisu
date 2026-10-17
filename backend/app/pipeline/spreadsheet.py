@@ -100,7 +100,8 @@ logger = logging.getLogger("geomemory.pipeline.spreadsheet")
 DATA_FILE = "spreadsheet.yaml"
 PROMPT_FILE = "sheet_mapping.txt"
 PROMPT_VERSION = "1"
-MAPPING_SCHEMA_VERSION = "1"
+# 2: targets borehole_name, project_id, borehole_length, engineering_soil_unit and geologic_age.
+MAPPING_SCHEMA_VERSION = "2"
 MAPPING_GROUP = "sheet-mapping"
 RUN_DONE = "done"
 ACTOR = "pipeline"
@@ -120,7 +121,9 @@ TargetScope = Literal["borehole", "row", "any"]
 TARGET_SUPPORT = frozenset(
     {
         "borehole_id",
+        "borehole_name",
         "project_name",
+        "project_id",
         "client",
         "location_name",
         "drilling_contractor",
@@ -133,6 +136,7 @@ TARGET_SUPPORT = frozenset(
         "ground_level",
         "elevation_datum",
         "total_depth",
+        "borehole_length",
         "inclination",
         "notes",
         "depth_from",
@@ -145,6 +149,8 @@ TARGET_SUPPORT = frozenset(
         "moisture",
         "weathering",
         "stratigraphic_name",
+        "engineering_soil_unit",
+        "geologic_age",
         "spt_depth",
         "spt_blows",
         "spt_n",
@@ -1931,7 +1937,9 @@ class _Result:
             )
         header = ExtractedHeader(
             borehole_label=c.raw(self.bh.label),
+            borehole_name=c.raw(h.get("borehole_name")),
             project=c.raw(h.get("project_name")),
+            project_id=c.raw(h.get("project_id")),
             client=c.raw(h.get("client")),
             location=c.raw(h.get("location_name")),
             contractor=c.raw(h.get("drilling_contractor")),
@@ -1939,6 +1947,7 @@ class _Result:
             start_date=c.raw(h.get("start_date")),
             end_date=c.raw(h.get("end_date")),
             total_depth=c.raw(h.get("total_depth")),
+            borehole_length=c.raw(h.get("borehole_length")),
             depth_unit=RawValue.absent(),  # each depth carries its column's printed unit
             ground_level=c.raw(h.get("ground_level")),
             elevation_datum=c.raw(h.get("elevation_datum")),
@@ -2012,6 +2021,8 @@ class _Result:
                 moisture_raw=c.raw(row.first("moisture")),
                 weathering_raw=c.raw(row.first("weathering")),
                 stratigraphic_name_raw=c.raw(row.first("stratigraphic_name")),
+                engineering_soil_unit_raw=c.raw(row.first("engineering_soil_unit")),
+                geologic_age_raw=c.raw(row.first("geologic_age")),
             )
         )
 

@@ -6,7 +6,9 @@ stand in for Mistral OCR output. Four document families are covered: a German me
 ETRS89 / UTM system, an Australian-style scanned log with an MGA zone and AHD levels, a US-style log in
 feet without a printed system, and a log with degrees and decimal minutes whose depths carry no unit.
 A fifth, a vector PDF generated at test time, has a text layer while the OCR returns one coarse block per
-page: its evidence boxes shrink to the printed words.
+page: its evidence boxes shrink to the printed words. The target format's BoreholeName, ProjectID,
+BoreholeLength, EngineeringSoilUnit and GeologicAge are checked on the German, Australian-style and US-style
+families (plus the unit-less family for a guessed length).
 """
 
 from __future__ import annotations
@@ -117,6 +119,8 @@ def layer(
             "moisture_raw",
             "weathering_raw",
             "stratigraphic_name_raw",
+            "engineering_soil_unit_raw",
+            "geologic_age_raw",
         )
     }
     assert not extra
@@ -1280,3 +1284,272 @@ async def test_missing_or_untrusted_text_layers_are_skipped(db: None) -> None:
     assert uid is not None
     rec = await record_of(uid)
     assert rec.provenance["metadata.borehole_depth_m"].box == [0.6, 0.07, 0.2, 0.02]
+
+
+# ----------------------------------------------------------------------------------------------
+# Target-format fields: BoreholeName, ProjectID, BoreholeLength, EngineeringSoilUnit, GeologicAge
+# ----------------------------------------------------------------------------------------------
+
+
+def with_target_fields(
+    res: ExtractionResult, head: dict[str, RawValue], layers: dict[int, dict[str, RawValue]]
+) -> ExtractionResult:
+    """`res` with more header values and more values on some of its layers (by printed order)."""
+    new_layers = [item.model_copy(update=layers.get(i, {})) for i, item in enumerate(res.layers)]
+    return res.model_copy(update={"header": res.header.model_copy(update=head), "layers": new_layers})
+
+
+DE_TARGET_BLOCKS = {
+    **DE_BLOCKS,
+    **block_map(
+        [
+            blk("p2.b18", "Bezeichnung: Brunnen Nord (fiktiv)", (0.3, 0.04, 0.25, 0.02), quality=0.95),
+            blk("p2.b19", "Projekt-Nr. 2024-117", (0.3, 0.07, 0.2, 0.02), quality=0.95),
+            blk("p2.b20", "Bohrlänge 6,40 m", (0.6, 0.18, 0.2, 0.02), quality=0.95),
+            blk("p2.b21", "Neigung 70°", (0.6, 0.2, 0.15, 0.02), quality=0.95),
+            blk("p2.b22", "Homogenbereich B1", (0.7, 0.25, 0.15, 0.02), quality=0.95),
+            blk("p2.b23", "Holozän", (0.86, 0.25, 0.1, 0.02), quality=0.95),
+            blk("p2.b24", "Homogenbereich B2", (0.7, 0.32, 0.15, 0.02), quality=0.95, conf=0.89),
+            blk("p2.b25", "Pleistozän", (0.86, 0.32, 0.1, 0.02), quality=0.95),
+            blk("p3.b3", "Tertiär", (0.86, 0.3, 0.1, 0.02), quality=0.4, conf=0.83),
+        ]
+    ),
+}
+
+
+def de_target_result() -> ExtractionResult:
+    # Printed order of de_result's layers: gravel (1,20-3,40), topsoil (0,00-1,20), clay, unreadable.
+    return with_target_fields(
+        de_result(),
+        {
+            "borehole_name": rv("Brunnen Nord (fiktiv)", "p2.b18"),
+            "project_id": rv("2024-117", "p2.b19"),
+            "borehole_length": rv("6,40 m", "p2.b20"),
+            "inclination": rv("70°", "p2.b21"),
+        },
+        {
+            0: {
+                "engineering_soil_unit_raw": rv("Homogenbereich B2", "p2.b24"),
+                "geologic_age_raw": rv("Pleistozän", "p2.b25"),
+            },
+            1: {
+                "engineering_soil_unit_raw": rv("Homogenbereich B1", "p2.b22"),
+                "geologic_age_raw": rv("Holozän", "p2.b23"),
+            },
+            2: {"geologic_age_raw": rv("Tertiär", "p3.b3")},
+        },
+    )
+
+
+AU_TARGET_BLOCKS = {
+    **AU_BLOCKS,
+    **block_map(
+        [
+            blk("p1.b15", "Project No. AUX-0457", (0.05, 0.06, 0.2, 0.02), quality=None),
+            blk("p1.b17", "Length along hole 9.80 m", (0.55, 0.13, 0.25, 0.02), quality=None, conf=0.9),
+            blk("p1.b18", "Unit 2", (0.9, 0.3, 0.06, 0.02), quality=None),
+            blk("p1.b19", "Unit 3", (0.9, 0.5, 0.06, 0.02), quality=None),
+            blk("p1.b20", "Triassic", (0.9, 0.52, 0.08, 0.02), quality=None, conf=0.87),
+        ]
+    ),
+}
+
+
+def au_target_result() -> ExtractionResult:
+    return with_target_fields(
+        au_result(),
+        {
+            # The model repeated the label as the name: a repeat of the label is not a name.
+            "borehole_name": rv("BH-07", "p1.b0"),
+            "project_id": rv("AUX-0457", "p1.b15"),
+            "borehole_length": rv("9.80 m", "p1.b17"),
+        },
+        {
+            1: {"engineering_soil_unit_raw": rv("Unit 2", "p1.b18")},
+            2: {
+                "engineering_soil_unit_raw": rv("Unit 3", "p1.b19"),
+                "geologic_age_raw": rv("Triassic", "p1.b20"),
+            },
+        },
+    )
+
+
+def us_target_blocks(page: int) -> dict[str, BlockRef]:
+    q = 0.97
+    return {
+        **us_blocks(page, "B-1", "212,345.6", "1,012,345.2"),
+        **block_map(
+            [
+                blk(f"p{page}.b13", "Boring name: Abutment A", (0.3, 0.03, 0.2, 0.02), quality=q),
+                blk(f"p{page}.b14", "Project No. 23-118", (0.3, 0.05, 0.15, 0.02), quality=q),
+                blk(f"p{page}.b15", "Boring length 21.5", (0.05, 0.82, 0.2, 0.02), quality=q),
+                blk(f"p{page}.b16", "Stratum I", (0.6, 0.22, 0.08, 0.02), quality=q),
+                blk(f"p{page}.b17", "Stratum II", (0.6, 0.4, 0.08, 0.02), quality=q),
+                blk(f"p{page}.b18", "Pleistocene", (0.7, 0.4, 0.1, 0.02), quality=q),
+            ]
+        ),
+    }
+
+
+def us_target_result(page: int) -> ExtractionResult:
+    p = f"p{page}"
+    return with_target_fields(
+        us_result(page, "B-1", "212,345.6", "1,012,345.2"),
+        {
+            "borehole_name": rv("Abutment A", f"{p}.b13"),
+            "project_id": rv("23-118", f"{p}.b14"),
+            "borehole_length": rv("21.5", f"{p}.b15"),  # no unit of its own: the depth column's (ft)
+        },
+        {
+            0: {"engineering_soil_unit_raw": rv("Stratum I", f"{p}.b16")},
+            1: {
+                "engineering_soil_unit_raw": rv("Stratum II", f"{p}.b17"),
+                "geologic_age_raw": rv("Pleistocene", f"{p}.b18"),
+            },
+        },
+    )
+
+
+US_GROUP_B1 = PageGroup(key="g-B-1", label_raw="B-1", label_canonical="B1", pages=(1,))
+
+
+def test_target_fields_german_log() -> None:
+    draft = build_record("doc_X", DE_GROUP, outcome(de_target_result(), DE_TARGET_BLOCKS))
+    assert draft.body is not None
+    meta, prov = draft.body["metadata"], draft.provenance
+    assert (meta["borehole_id"], meta["borehole_name"], meta["project_id"]) == (
+        "KB 3",
+        "Brunnen Nord (fiktiv)",
+        "2024-117",
+    )
+    assert meta["project_name"] == "Neubau Lagerhalle Fiktivweiler"  # the name stays apart from the id
+    # Along the hole of an inclined hole: printed, never computed from the depth and the inclination.
+    assert (meta["borehole_length_m"], meta["borehole_depth_m"], meta["inclination_deg"]) == (6.4, 6.0, 70.0)
+    length = prov["metadata.borehole_length_m"]
+    assert (length.page, length.box, length.raw, length.method) == (
+        2,
+        [0.6, 0.18, 0.2, 0.02],
+        "6,40 m",
+        "ocr",
+    )
+    assert prov["metadata.borehole_name"].box == [0.3, 0.04, 0.25, 0.02]
+    assert prov["metadata.project_id"].raw == "2024-117"
+    # Layers are stored in depth order; their unit and age move with them.
+    layers = draft.body["stratigraphy"]
+    assert [(la["engineering_soil_unit"], la["geologic_age"]) for la in layers] == [
+        ("Homogenbereich B1", "Holozän"),
+        ("Homogenbereich B2", "Pleistozän"),
+        (None, "Tertiär"),
+    ]
+    assert prov["stratigraphy[0].engineering_soil_unit"].box == [0.7, 0.25, 0.15, 0.02]
+    assert prov["stratigraphy[1].engineering_soil_unit"].confidence == 0.89
+    age = prov["stratigraphy[2].geologic_age"]
+    assert (age.page, age.raw, age.confidence) == (3, "Tertiär", 0.83)
+    assert "stratigraphy[2].engineering_soil_unit" not in prov  # not printed: null, no entry
+    assert draft.guessed_depths == []
+
+
+def test_target_fields_australian_style_log() -> None:
+    draft = build_record("doc_X", AU_GROUP, outcome(au_target_result(), AU_TARGET_BLOCKS))
+    assert draft.body is not None
+    meta, prov = draft.body["metadata"], draft.provenance
+    assert meta["borehole_name"] is None and "metadata.borehole_name" not in prov  # repeated the label
+    assert any("repeats the label" in w for w in draft.warnings)
+    assert (meta["project_id"], meta["project_name"]) == ("AUX-0457", None)
+    assert meta["borehole_length_m"] == 9.8 and meta["borehole_depth_m"] == 8.5
+    assert prov["metadata.borehole_length_m"].confidence == 0.9
+    layers = draft.body["stratigraphy"]
+    assert [la["engineering_soil_unit"] for la in layers] == [None, "Unit 2", "Unit 3"]
+    assert [la["geologic_age"] for la in layers] == [None, None, "Triassic"]
+    assert prov["stratigraphy[2].geologic_age"].model_dump(include={"page", "box", "raw", "method"}) == {
+        "page": 1,
+        "box": [0.9, 0.52, 0.08, 0.02],
+        "raw": "Triassic",
+        "method": "ocr",
+    }
+
+
+def test_target_fields_us_log_in_feet() -> None:
+    draft = build_record("doc_X", US_GROUP_B1, outcome(us_target_result(1), us_target_blocks(1)))
+    assert draft.body is not None
+    meta, prov = draft.body["metadata"], draft.provenance
+    assert (meta["borehole_name"], meta["project_id"]) == ("Abutment A", "23-118")
+    # Printed without a unit: the depth column's unit (ft) applies, converted to metres; raw kept.
+    assert meta["borehole_length_m"] == pytest.approx(21.5 * 0.3048)
+    length = prov["metadata.borehole_length_m"]
+    assert (length.raw, length.method) == ("21.5", "ocr")
+    layers = draft.body["stratigraphy"]
+    assert [(la["engineering_soil_unit"], la["geologic_age"]) for la in layers] == [
+        ("Stratum I", None),
+        ("Stratum II", "Pleistocene"),
+    ]
+    assert draft.guessed_depths == []
+
+
+def test_borehole_length_without_any_unit_is_guessed_and_odd_lengths_are_not_stored() -> None:
+    group = PageGroup(key="g-S1", label_raw="S1", label_canonical="S1", pages=(1,))
+    blocks = {
+        **dm_blocks(1, "S1", "N 47°25.512'", "E 8°31.204'"),
+        **block_map([blk("p1.b8", "Longueur 2.30", (0.5, 0.1, 0.15, 0.02), quality=None)]),
+    }
+    base = dm_result(1, "S1", "N 47°25.512'", "E 8°31.204'")
+
+    def draft_with(length: RawValue) -> Any:
+        res = with_target_fields(base, {"borehole_length": length}, {})
+        return build_record("doc_X", group, outcome(res, blocks))
+
+    # No unit printed anywhere: metres, method guessed, and part of the depth-unit question.
+    guessed = draft_with(rv("2.30", "p1.b8"))
+    assert guessed.body is not None and guessed.body["metadata"]["borehole_length_m"] == 2.3
+    entry = guessed.provenance["metadata.borehole_length_m"]
+    assert entry.method == "guessed"
+    assert any(g.provenance is entry and g.raw == "2.30" for g in guessed.guessed_depths)
+
+    # Negative or not a length: no value, a warning, and the printed text kept for the reviewer.
+    for raw, warning in (("-2.30", "is negative"), ("see plan", "is not a length")):
+        draft = draft_with(rv(raw, "p1.b8"))
+        assert draft.body is not None and draft.body["metadata"]["borehole_length_m"] is None
+        assert any(warning in w for w in draft.warnings), draft.warnings
+        assert draft.provenance["metadata.borehole_length_m"].raw == raw
+        assert all(g.raw != raw for g in draft.guessed_depths)
+
+    # Not printed: null and no provenance entry, never 0 or the depth.
+    plain = draft_with(absent())
+    assert plain.body is not None and plain.body["metadata"]["borehole_length_m"] is None
+    assert "metadata.borehole_length_m" not in plain.provenance
+    for key in ("borehole_name", "project_id"):
+        assert plain.body["metadata"][key] is None and f"metadata.{key}" not in plain.provenance
+    assert all(
+        la["engineering_soil_unit"] is None and la["geologic_age"] is None
+        for la in plain.body["stratigraphy"]
+    )
+
+
+@pytest.mark.db
+async def test_target_fields_reach_the_record_with_provenance(db: None) -> None:
+    await make_document(DE_DOC, pages={2: ("log_sheet", ["KB 3"], 0.95), 3: ("log_continuation", [], 0.4)})
+    await make_document(US_DOC_A, pages={1: ("log_sheet", ["B-1"], 0.97)})
+    de_uid = await finalize_group(DE_DOC, DE_GROUP, outcome(de_target_result(), DE_TARGET_BLOCKS))
+    us_uid = await finalize_group(US_DOC_A, US_GROUP_B1, outcome(us_target_result(1), us_target_blocks(1)))
+    assert de_uid is not None and us_uid is not None
+    de, us = await record_of(de_uid), await record_of(us_uid)  # both validate against the contract
+    assert (de.metadata.borehole_name, de.metadata.project_id, de.metadata.borehole_length_m) == (
+        "Brunnen Nord (fiktiv)",
+        "2024-117",
+        6.4,
+    )
+    assert [la.geologic_age for la in de.stratigraphy] == ["Holozän", "Pleistozän", "Tertiär"]
+    assert de.stratigraphy[0].engineering_soil_unit == "Homogenbereich B1"
+    for path in (
+        "metadata.borehole_name",
+        "metadata.project_id",
+        "metadata.borehole_length_m",
+        "stratigraphy[0].engineering_soil_unit",
+        "stratigraphy[2].geologic_age",
+    ):
+        entry = de.provenance[path]
+        assert (entry.document_id, entry.status, entry.state) == (DE_DOC, "unreviewed", "ok"), path
+        assert entry.page is not None and entry.box is not None, path
+    assert us.metadata.borehole_length_m == pytest.approx(6.5532)
+    assert us.provenance["metadata.borehole_length_m"].raw == "21.5"
+    assert [la.engineering_soil_unit for la in us.stratigraphy] == ["Stratum I", "Stratum II"]

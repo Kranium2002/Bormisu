@@ -521,6 +521,91 @@ def test_rows_are_grouped_by_id_with_merges_and_fill_down(tmp_path: Path) -> Non
     )
 
 
+def target_fields_workbook() -> bytes:
+    """A sheet per borehole whose header block prints a name, a project number and a length along the hole
+    in feet, above a log table with an engineering-unit and an age column (fictional values)."""
+
+    def build(book: openpyxl.Workbook) -> None:
+        ws = book.active
+        assert ws is not None
+        ws.title = "LogT"
+        block = [
+            ("Hole:", "TX-1"),
+            ("Name:", "Fictional east well"),
+            ("Project No.:", "P-881"),
+            ("Length along hole (ft):", 32.5),
+        ]
+        for r, (name, value) in enumerate(block, start=1):
+            ws[f"A{r}"], ws[f"B{r}"] = name, value
+        for col, title in zip("ABCDE", ["From [m]", "To [m]", "Soil", "Unit", "Age"], strict=True):
+            ws[f"{col}6"] = title
+        rows = [(0, 2.5, "Clay, soft", "U1", "Holocene"), (2.5, 9.5, "Marl, hard", "U2", None)]
+        for r, row in enumerate(rows, start=7):
+            for col, value in zip("ABCDE", row, strict=True):
+                if value is not None:
+                    ws[f"{col}{r}"] = value
+
+    return xlsx_bytes(build)
+
+
+def test_target_fields_are_read_from_their_cells(tmp_path: Path) -> None:
+    book = workbook_of(tmp_path, "family-targets.xlsx", target_fields_workbook())
+    preview = build_preview(book)
+    plan = mapping(
+        region(
+            "LogT",
+            6,
+            [
+                column("A", "depth_from", unit="m", unit_cell="A6"),
+                column("B", "depth_to", unit="m", unit_cell="B6"),
+                column("C", "description"),
+                column("D", "engineering_soil_unit"),
+                column("E", "geologic_age"),
+            ],
+            [
+                header_cell("A1", "B1", "borehole_id"),
+                header_cell("A2", "B2", "borehole_name"),
+                header_cell("A3", "B3", "project_id"),
+                header_cell("A4", "B4", "borehole_length", unit="ft", unit_cell="A4"),
+            ],
+            language="en",
+        )
+    )
+    drafts, warnings = sheets.plan_drafts("doc_X", plan, book, preview)
+    assert drafts is not None and len(drafts) == 1, warnings
+    draft = drafts[0]
+    assert draft.body is not None
+    meta, prov = draft.body["metadata"], draft.provenance
+    assert (meta["borehole_id"], meta["borehole_name"], meta["project_id"]) == (
+        "TX-1",
+        "Fictional east well",
+        "P-881",
+    )
+    assert meta["project_name"] is None  # a number is not a name
+    # The length carries its own printed unit (ft) and is converted; the cell keeps the stored text.
+    assert meta["borehole_length_m"] == pytest.approx(32.5 * FT)
+    length = prov["metadata.borehole_length_m"]
+    assert (length.cell, length.raw, length.method) == ("LogT!B4", "32.5", "read")
+    assert meta["borehole_depth_m"] == 9.5  # the depth stays the depth (last layer)
+    layers = draft.body["stratigraphy"]
+    assert [(la["engineering_soil_unit"], la["geologic_age"]) for la in layers] == [
+        ("U1", "Holocene"),
+        ("U2", None),
+    ]
+    assert (
+        prov["stratigraphy[1].engineering_soil_unit"].cell,
+        prov["stratigraphy[0].geologic_age"].cell,
+    ) == (
+        "LogT!D8",
+        "LogT!E7",
+    )
+    assert "stratigraphy[1].geologic_age" not in prov  # blank cell: null, no entry
+    assert draft.guessed == []
+    prompt = system_prompt()
+    for target in ("borehole_name", "project_id", "borehole_length", "engineering_soil_unit", "geologic_age"):
+        assert f"\n{target} [" in prompt, target
+
+
 # ----------------------------------------------------------------------------------------------
 # Upload to review (database)
 # ----------------------------------------------------------------------------------------------

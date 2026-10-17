@@ -28,6 +28,7 @@ from app.chat.registry import function_tools
 from app.config import get_settings
 from app.db.models import ProviderCall
 from app.db.session import get_sessionmaker
+from tests.auth_utils import register
 from tests.contract.test_examples import _tool_names
 from tests.contract_utils import EXAMPLES_DIR, validate_response
 from tests.test_chat_stream import check_protocol, parse_frames
@@ -206,11 +207,13 @@ def chat_key(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 @pytest.fixture
 async def api(db: None) -> AsyncIterator[tuple[httpx.AsyncClient, FastAPI]]:
+    """The app and a client signed in as the fictional reviewer (chat needs a session since 1.3.0)."""
     from app.main import create_app
 
     app = create_app(open_queue=False)
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        await register(client)
         yield client, app
     app.dependency_overrides.clear()
 
