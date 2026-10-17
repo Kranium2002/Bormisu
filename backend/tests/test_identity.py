@@ -155,3 +155,19 @@ def test_without_a_table_parts_of_one_label_merge_unless_they_print_other_positi
     assert [i.group.key for i in reconcile(same, {})] == ["BH-1:p1-p2"]
     other = [_at(sheets[0], "270,631.7", "171,703.9"), _at(sheets[1], "271,546.0", "172,097.8")]
     assert [i.group.key for i in reconcile(other, {})] == ["BH-1:p1", "BH-1:p2"]
+
+
+def test_without_coordinates_logs_of_one_label_that_each_start_at_the_top_stay_apart() -> None:
+    """A form numbered per site ("HA-1" beside every main hole): logs over the same depths are other holes;
+    a further sheet read on its own goes on below and still merges."""
+    top = [("0.00", "0.80", "Topsoil"), ("0.80", "3.00", "Silty clay")]
+    deeper = [("3.00", "6.50", "Sandy silt")]
+    parts = [
+        pair("HA-1", (3,), [block(3, 1, "HA-1")], top),
+        pair("HA-1", (4,), [block(4, 1, "HA-1")], deeper),  # its further sheet
+        pair("HA-1", (9,), [block(9, 1, "HA-1")], [("0.00", "1.20", "Fill"), ("1.20", "2.50", "Clay")]),
+        pair("HA-1", (14,), [block(14, 1, "HA-1")], top),
+    ]
+    items = reconcile(parts, {})
+    assert [i.group.key for i in items] == ["HA-1:p3-p4", "HA-1:p9", "HA-1:p14"]
+    assert [layer.from_raw.raw for layer in items[0].outcome.result.layers] == ["0.00", "0.80", "3.00"]
