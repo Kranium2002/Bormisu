@@ -1,0 +1,1610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Lawfeine — badenova Workshop</title>
+<script src="deck-stage.js"></script>
+<style>
+  :root {
+    /* Apple palette */
+    --primary: #0066cc;
+    --primary-on-dark: #2997ff;
+    --ink: #1d1d1f;
+    --ink-muted-80: #333333;
+    --ink-muted-48: #7a7a7a;
+    --hairline: #e0e0e0;
+    --canvas: #ffffff;
+    --parchment: #f5f5f7;
+    --tile-1: #272729;
+    --tile-2: #2a2a2c;
+    --tile-3: #252527;
+    --black: #000000;
+    --on-dark: #ffffff;
+    --body-muted: #cccccc;
+
+    /* Cluster tints (mermaid) */
+    --cluster-blue:   #cfe6ff;
+    --cluster-blue-2: #2997ff;
+    --cluster-green:   #d2efd6;
+    --cluster-green-2: #2e9a4a;
+    --cluster-orange:  #fbe5b8;
+    --cluster-orange-2:#d97706;
+    --cluster-purple:  #e6d8f5;
+    --cluster-purple-2:#7a3fb8;
+
+    /* Type scale */
+    --type-mega: 168px;
+    --type-hero: 96px;
+    --type-title: 64px;
+    --type-subtitle: 44px;
+    --type-lead: 36px;
+    --type-body: 28px;
+    --type-caption: 22px;
+    --type-eyebrow: 24px;
+
+    --pad-x: 120px;
+    --pad-top: 110px;
+    --pad-bottom: 100px;
+    --gap-title: 56px;
+    --gap-item: 28px;
+
+    --display: "SF Pro Display", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --text:    "SF Pro Text",   system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    --serif:   "New York", "Times New Roman", "Times", serif;
+  }
+
+  html, body { margin: 0; padding: 0; background: #000; }
+  body { font-family: var(--text); color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  deck-stage section {
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .light { background: var(--canvas); color: var(--ink); }
+  .parchment { background: var(--parchment); color: var(--ink); }
+  .dark { background: var(--tile-1); color: var(--on-dark); }
+  .dark-2 { background: var(--tile-2); color: var(--on-dark); }
+  .dark-3 { background: var(--tile-3); color: var(--on-dark); }
+  .black { background: var(--black); color: var(--on-dark); }
+
+  h1, h2, h3, p { margin: 0; }
+  .eyebrow {
+    font-family: var(--text);
+    font-size: var(--type-eyebrow);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+  .dark .eyebrow, .dark-2 .eyebrow, .dark-3 .eyebrow, .black .eyebrow { color: var(--primary-on-dark); }
+
+  .title {
+    font-family: var(--display);
+    font-size: var(--type-title);
+    font-weight: 600;
+    line-height: 1.07;
+    letter-spacing: -0.022em;
+  }
+  .hero {
+    font-family: var(--display);
+    font-size: var(--type-hero);
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.028em;
+  }
+  .subtitle {
+    font-family: var(--display);
+    font-size: var(--type-subtitle);
+    font-weight: 400;
+    line-height: 1.18;
+    letter-spacing: -0.005em;
+  }
+  .lead {
+    font-family: var(--display);
+    font-size: var(--type-lead);
+    font-weight: 400;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+  }
+  .body {
+    font-family: var(--text);
+    font-size: var(--type-body);
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: -0.005em;
+  }
+  .caption {
+    font-family: var(--text);
+    font-size: var(--type-caption);
+    font-weight: 400;
+    color: var(--ink-muted-48);
+  }
+  .dark .caption, .dark-2 .caption, .dark-3 .caption, .black .caption { color: var(--body-muted); }
+
+  .accent { color: var(--primary); }
+  .dark .accent, .dark-2 .accent, .dark-3 .accent, .black .accent { color: var(--primary-on-dark); }
+  .muted { color: var(--ink-muted-48); }
+  .dark .muted, .dark-2 .muted, .dark-3 .muted, .black .muted { color: var(--body-muted); }
+
+  .stack { display: flex; flex-direction: column; }
+  .row { display: flex; flex-direction: row; }
+  .grow { flex: 1; }
+  .center { align-items: center; justify-content: center; text-align: center; }
+
+  /* Slide 1: Title */
+  .slide-title { align-items: center; justify-content: center; text-align: center; }
+  .brandmark {
+    width: 360px;
+    height: 360px;
+    background: url("logo-mark.png") center / contain no-repeat;
+  }
+  .brandmark.on-dark { background-image: url("logo-mark-white.png"); }
+  .brandmark.lg { width: 520px; height: 520px; }
+
+  /* ============================================================
+     SLIDE 1 — Intro logo reveal (3-state: dark → light → dissipate)
+     Plays automatically when the slide becomes active.
+     ============================================================ */
+  .intro-overlay {
+    position: absolute;
+    inset: 0;
+    background: #0c0c0c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    pointer-events: none;
+    visibility: visible;
+  }
+  .intro-card {
+    position: relative;
+    width: 320px;
+    height: 320px;
+    border-radius: 52px;
+    overflow: hidden;
+    will-change: filter, opacity, transform;
+  }
+  .intro-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    will-change: filter;
+  }
+  .intro-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: 52px;
+    pointer-events: none;
+    animation: intro-glow-pulse 3s ease-in-out infinite;
+  }
+  @keyframes intro-glow-pulse {
+    0%, 100% {
+      box-shadow:
+        0 0  6px  2px rgba(255,255,255,0.20),
+        0 0 18px  6px rgba(255,255,255,0.10),
+        0 0 36px 12px rgba(255,255,255,0.04);
+    }
+    50% {
+      box-shadow:
+        0 0 10px  4px rgba(255,255,255,0.90),
+        0 0 28px 10px rgba(255,255,255,0.45),
+        0 0 55px 22px rgba(255,255,255,0.15);
+    }
+  }
+
+  /* Drive the 3-state cycle off .is-active */
+  .is-active .intro-overlay {
+    animation:
+      intro-bg 4400ms cubic-bezier(0.4, 0, 0.2, 1) both,
+      intro-overlay-fade 700ms ease 4300ms both;
+  }
+  @keyframes intro-bg {
+    0%   { background: #0c0c0c; }
+    34%  { background: #0c0c0c; }
+    42%  { background: #f0f0f0; }
+    73%  { background: #f0f0f0; }
+    82%  { background: #ffffff; }
+    100% { background: #ffffff; }
+  }
+  @keyframes intro-overlay-fade {
+    from { opacity: 1; }
+    to   { opacity: 0; visibility: hidden; }
+  }
+
+  .is-active .intro-card img {
+    animation: intro-img 4400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  @keyframes intro-img {
+    0%, 34%  { filter: invert(0); }
+    42%, 73% { filter: invert(1); }
+    82%, 100%{ filter: invert(1); }
+  }
+
+  .is-active .intro-card {
+    animation: intro-dissipate 4400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  @keyframes intro-dissipate {
+    0%, 73% { filter: none; opacity: 1; transform: scale(1); }
+    100%    { filter: blur(55px) brightness(3.5); opacity: 0; transform: scale(1.18); }
+  }
+
+  .is-active .intro-glow {
+    animation:
+      intro-glow-pulse 3s ease-in-out infinite,
+      intro-glow-fade 0.7s ease 3300ms both;
+  }
+  @keyframes intro-glow-fade {
+    to { opacity: 0; }
+  }
+
+  /* Section header (full-bleed) */
+  .section-header { align-items: flex-start; justify-content: center; }
+  .section-header .num {
+    font-family: var(--text);
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--primary-on-dark);
+  }
+  .section-header .head {
+    font-family: var(--display);
+    font-size: 132px;
+    font-weight: 600;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+    margin-top: 32px;
+    max-width: 22ch;
+  }
+  .section-header .sub {
+    font-family: var(--display);
+    font-size: 36px;
+    font-weight: 400;
+    color: var(--body-muted);
+    margin-top: 36px;
+    max-width: 38ch;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+  }
+
+  /* Mega-stat-pair */
+  .stat-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 96px;
+    flex: 1;
+    align-items: center;
+  }
+  .stat-pair .col { display: flex; flex-direction: column; gap: 28px; }
+  .stat-pair .col .n {
+    font-family: var(--display);
+    font-size: 220px;
+    font-weight: 600;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+  }
+  .stat-pair .col .l {
+    font-size: 30px;
+    color: var(--ink-muted-80);
+    line-height: 1.4;
+    max-width: 24ch;
+  }
+  .dark .stat-pair .col .l { color: var(--body-muted); }
+
+  /* Status quo */
+  .status {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    margin-top: 56px;
+    flex: 1;
+    align-items: stretch;
+  }
+  .status .col {
+    padding: 56px 48px;
+    border-right: 1px solid var(--hairline);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .status .col:last-child { border-right: none; }
+  .status .col .h {
+    font-family: var(--display);
+    font-size: 44px;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.018em;
+  }
+  .status .col .strike {
+    color: var(--primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 24px;
+    letter-spacing: 0.2em;
+    margin-top: auto;
+  }
+
+  /* Solution */
+  .reveal {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    flex: 1;
+    gap: 80px;
+  }
+  .reveal .left { display: flex; flex-direction: column; gap: 32px; }
+
+  /* Slide 1 typography */
+  .slide-title .name {
+    font-family: var(--display);
+    font-size: 240px;
+    font-weight: 600;
+    line-height: 0.92;
+    letter-spacing: -0.045em;
+  }
+  .slide-title .tag {
+    margin-top: 32px;
+    font-family: var(--display);
+    font-size: 44px;
+    font-weight: 400;
+    color: var(--ink-muted-48);
+    letter-spacing: -0.005em;
+  }
+  .slide-title .signature {
+    position: absolute;
+    bottom: 64px;
+    left: 0; right: 0;
+    text-align: center;
+    font-family: var(--text);
+    font-size: 24px;
+    color: var(--ink-muted-48);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* Full-bleed video slide */
+  .video-slide {
+    padding: 0;
+    background: #000;
+    align-items: center;
+    justify-content: center;
+  }
+  .old-way-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    display: block;
+  }
+
+  /* Q&A slide — full-bleed looping video backdrop, caption top-left, headline bottom-left */
+  .qa-slide {
+    padding: 0;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+  }
+  .qa-bg-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+  }
+  .qa-overlay {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.45) 38%, rgba(0,0,0,0.1) 72%, rgba(0,0,0,0) 100%),
+      linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.4) 100%);
+    z-index: 1;
+  }
+  .qa-content {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 80px 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    color: #fff;
+    text-align: left;
+  }
+  .qa-caption {
+    font-family: var(--text);
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.85);
+    max-width: 32ch;
+    line-height: 1.35;
+  }
+  .qa-headline-block {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .qa-title {
+    font-family: var(--display);
+    font-size: 140px;
+    font-weight: 600;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+  }
+  .qa-sub {
+    font-family: var(--text);
+    font-size: 28px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.75);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  /* QR code anchor: bottom-right; rises in last, stays for the whole Q&A */
+  .qa-qr {
+    position: absolute;
+    right: 120px;
+    bottom: 80px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .qa-qr img {
+    width: 240px;
+    height: 240px;
+    background: #fff;
+    padding: 16px;
+    border-radius: 18px;
+    display: block;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  .qa-qr-label {
+    font-family: var(--text);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.85);
+  }
+  /* Headline + subtitle fade out 6 s after slide-active so the pixel video
+     and QR own the slide for the rest of the Q&A. */
+  .is-active .qa-headline-block {
+    animation: qa-headline-fadeout 1s ease 6s both;
+  }
+  @keyframes qa-headline-fadeout {
+    from { opacity: 1; }
+    to   { opacity: 0; visibility: hidden; }
+  }
+
+  /* Placeholder note on video slides — remove once the real file is dropped in */
+  .video-note {
+    position: absolute;
+    top: 44px; left: 120px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* Criteria */
+  .criteria {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 36px;
+    margin-top: 64px;
+    max-width: 1500px;
+  }
+  .criteria .row-c {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    gap: 36px;
+    align-items: center;
+    padding: 32px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .criteria .row-c:last-child { border-bottom: none; }
+  .check {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 28px;
+  }
+  .criteria .lead-c {
+    font-family: var(--display);
+    font-size: 38px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  /* Architecture flow (slide 8: Under the hood) */
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 60px 1fr 60px 1fr 60px 1fr;
+    align-items: stretch;
+    gap: 0;
+    margin-top: 48px;
+  }
+  .arch-col {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.10);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 320px;
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .is-active .arch-col { opacity: 1; transform: none; }
+  .is-active .arch > .arch-col:nth-child(1) { transition-delay: 350ms; }
+  .is-active .arch > .arch-col:nth-child(3) { transition-delay: 500ms; }
+  .is-active .arch > .arch-col:nth-child(5) { transition-delay: 650ms; }
+  .is-active .arch > .arch-col:nth-child(7) { transition-delay: 800ms; }
+  .arch .arrow { opacity: 0; transition: opacity 0.5s ease; }
+  .is-active .arch .arrow { opacity: 1; transition-delay: 1000ms; }
+  .arch-col .h {
+    font-family: var(--display);
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .arch-col .tag {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--primary-on-dark);
+  }
+  .arch-col ul {
+    margin: 0;
+    padding-left: 20px;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .arch-col li {
+    font-size: 22px;
+    color: var(--body-muted);
+    line-height: 1.4;
+    position: relative;
+    padding-left: 14px;
+  }
+  .arch-col li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 12px;
+    width: 6px; height: 6px;
+    background: var(--primary-on-dark);
+    border-radius: 50%;
+  }
+  .arch-col .check { width: 40px; height: 40px; font-size: 20px; margin-bottom: 4px; }
+  .arrow {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--primary-on-dark);
+    font-family: var(--display);
+    font-size: 32px;
+  }
+
+  /* Tech logo strip on slide 8 */
+  .tech-strip {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 24px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 26px 28px;
+    align-items: center;
+  }
+  .tech-strip .lg-cell {
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .is-active .tech-strip .lg-cell { opacity: 1; transform: none; }
+  .is-active .tech-strip .lg-cell:nth-child(1) { transition-delay: 1100ms; }
+  .is-active .tech-strip .lg-cell:nth-child(2) { transition-delay: 1220ms; }
+  .is-active .tech-strip .lg-cell:nth-child(3) { transition-delay: 1340ms; }
+  .is-active .tech-strip .lg-cell:nth-child(4) { transition-delay: 1460ms; }
+  .is-active .tech-strip .lg-cell:nth-child(5) { transition-delay: 1580ms; }
+  .tech-logo {
+    max-height: 56px;
+    max-width: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  /* Partner strip variant (production options on the modules slide) */
+  .tech-strip.partners {
+    margin-top: 20px;
+    padding: 18px 28px;
+    background: #f5f5f7;
+    grid-template-columns: auto repeat(5, 1fr);
+  }
+  .tech-strip.partners .strip-label {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-muted-48);
+    padding-right: 12px;
+    justify-content: flex-start;
+  }
+  .tech-strip.partners .tech-logo { max-height: 40px; }
+  .tech-strip.partners .tech-logo.cohere { max-height: 18px; }
+  .is-active .tech-strip .lg-cell:nth-child(6) { transition-delay: 1700ms; }
+
+  /* Team photo */
+  .team-photo-wrap {
+    position: relative;
+    margin-top: 48px;
+    flex: 1;
+    min-height: 0;
+  }
+  .team-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 32%;
+    border-radius: 24px;
+    display: block;
+  }
+  /* Who-is-who chips: name pill + hairline pointer down to the head */
+  .who-chip {
+    position: absolute;
+    color: #fff;
+    font-family: var(--text);
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-shadow: 0 0 2px rgba(0,0,0,0.85), 0 1px 4px rgba(0,0,0,0.7), 0 2px 14px rgba(0,0,0,0.5);
+    white-space: nowrap;
+    z-index: 2;
+    /* own animation — the [data-anim] system clobbers transform and would kill the -50% centering */
+    opacity: 0;
+    transform: translate(-50%, 14px);
+    transition:
+      opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--d, 0ms);
+  }
+  .who-chip .r { font-weight: 400; color: #fff; }
+  /* hairline down from the label… */
+  .who-chip::after {
+    content: "";
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1.5px;
+    height: var(--line, 40px);
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 0 5px rgba(0,0,0,0.35);
+  }
+  /* …ending in a dot above the head */
+  .who-chip::before {
+    content: "";
+    position: absolute;
+    top: calc(100% + 6px + var(--line, 40px));
+    left: 50%;
+    transform: translate(-50%, 0);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.45);
+  }
+  .is-active .who-chip { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) {
+    .who-chip { opacity: 1 !important; transform: translate(-50%, 0) !important; transition: none !important; }
+  }
+  .who-chip .r { font-weight: 400; color: var(--ink-muted-48); }
+  .who-chip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: var(--line, 24px);
+    background: rgba(255,255,255,0.9);
+  }
+
+
+  /* Roadmap note on the film slide — dark pill so it reads over light and dark scenes */
+  .film-note {
+    position: absolute;
+    top: 40px; left: 120px;
+    width: fit-content;
+    padding: 10px 20px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.62);
+    backdrop-filter: blur(6px);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.85);
+    z-index: 2;
+  }
+
+  /* Footer brand line */
+  .brand-row {
+    position: absolute;
+    bottom: 44px; left: 120px; right: 120px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 24px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .light .brand-row, .parchment .brand-row { color: var(--ink-muted-48); }
+  .dark .brand-row, .dark-2 .brand-row, .dark-3 .brand-row, .black .brand-row { color: #8a8a8e; }
+  .brand-row b { font-weight: 600; }
+
+  /* ============================================================
+     SLIDE 7 — Architecture diagram (split: dark band + white panel)
+     ============================================================ */
+  .arch-slide { padding: 0; }
+  .arch-slide .header {
+    background: var(--tile-1);
+    color: #fff;
+    padding: 64px 120px 56px;
+  }
+  .arch-slide .panel {
+    flex: 1;
+    background: #ffffff;
+    color: var(--ink);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mermaid-stage {
+    position: absolute;
+    inset: 0;
+  }
+  .mermaid-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .mermaid-svg path,
+  .mermaid-svg line {
+    stroke: rgba(60,60,67,0.45);
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-dasharray: var(--len, 1000);
+    stroke-dashoffset: var(--len, 1000);
+    transition: stroke-dashoffset 0.7s cubic-bezier(0.65, 0, 0.35, 1);
+    transition-delay: var(--d, 0ms);
+  }
+  .mermaid-svg path.dotted,
+  .mermaid-svg line.dotted {
+    stroke-dasharray: 4 8;
+    stroke-dashoffset: 0;
+    opacity: 0;
+    transition: opacity 0.5s;
+    transition-delay: var(--d, 0ms);
+  }
+  .is-active .mermaid-svg path,
+  .is-active .mermaid-svg line { stroke-dashoffset: 0; }
+  .is-active .mermaid-svg path.dotted,
+  .is-active .mermaid-svg line.dotted { opacity: 1; }
+
+  .m-cluster {
+    position: absolute;
+    border: 1.5px solid rgba(0,0,0,0.18);
+    border-radius: 16px;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.97);
+    transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--d, 0ms);
+  }
+  .is-active .m-cluster { opacity: 1; transform: scale(1); }
+  .m-cluster.frontend { background: var(--cluster-blue);   border-color: var(--cluster-blue-2); }
+  .m-cluster.backend  { background: var(--cluster-green);  border-color: var(--cluster-green-2); }
+  .m-cluster.stores   { background: var(--cluster-orange); border-color: var(--cluster-orange-2); }
+  .m-cluster.llms     { background: var(--cluster-purple); border-color: var(--cluster-purple-2); }
+  .m-cluster .lab {
+    position: absolute;
+    top: 12px; left: 18px;
+    font-family: var(--text);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .m-cluster.frontend .lab { color: #1e40af; }
+  .m-cluster.backend  .lab { color: #166534; }
+  .m-cluster.stores   .lab { color: #92400e; }
+  .m-cluster.llms     .lab { color: #5b21b6; }
+
+  .m-node {
+    position: absolute;
+    box-sizing: border-box;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border: 1.5px solid rgba(0,0,0,0.55);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--ink);
+    font-family: var(--text);
+    font-size: 17px;
+    line-height: 1.25;
+    text-align: center;
+    min-width: 140px;
+    opacity: 0;
+    transition:
+      opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--d, 0ms);
+    transform: translate(-50%, -50%) scale(0.85);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+  }
+  .is-active .m-node { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .m-node.user {
+    border-radius: 999px;
+    width: 130px; height: 130px;
+    display: flex; align-items: center; justify-content: center;
+    border: 2.5px solid #2563eb;
+    color: #1e40af;
+    font-weight: 600;
+  }
+  .m-node.cylinder {
+    border-radius: 50% / 14px;
+    background: #fff;
+    border-color: var(--cluster-orange-2);
+  }
+  .m-node .nm-name { font-weight: 600; display: block; }
+  .m-node .nm-sub { display: block; font-size: 14px; color: var(--ink-muted-48); margin-top: 2px; line-height: 1.2; }
+
+  .m-edge-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    color: var(--ink-muted-48);
+    font-family: var(--text);
+    font-size: 13px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.08);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    transition-delay: var(--d, 0ms);
+  }
+  .is-active .m-edge-label { opacity: 1; }
+
+  @keyframes flow-pulse {
+    0%   { stroke-opacity: 0.35; }
+    50%  { stroke-opacity: 1; }
+    100% { stroke-opacity: 0.35; }
+  }
+  .is-active .mermaid-svg path.flow {
+    animation: flow-pulse 3.4s ease-in-out infinite;
+    animation-delay: 2.5s;
+  }
+
+  /* Step badge on spine nodes — anchors the user-journey order */
+  .m-node .step {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--cluster-green-2); color: #fff;
+    font-size: 13px; font-weight: 700;
+    margin-right: 8px; vertical-align: 2px;
+  }
+  /* Outcome chip at the end of the spine — softer than process nodes */
+  .m-node.outcome {
+    border-style: dashed;
+    background: #fafafa;
+  }
+
+  /* ============================================================
+     SLIDE 11 — Closing "Nett hier" yellow oval
+     ============================================================ */
+  .nett-slide { align-items: center; justify-content: center; padding: 0; }
+  .nett-oval {
+    width: 1000px; height: 580px;
+    border-radius: 50%;
+    background: #ffe600;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    transform: scale(0.2);
+    opacity: 0;
+    transition: transform 1.05s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
+  }
+  .is-active .nett-oval { opacity: 1; transform: scale(1); }
+  .nett-oval .nett {
+    font-family: var(--serif);
+    font-size: 200px;
+    font-weight: 500;
+    color: #000;
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+  }
+  .nett-oval .nett-sub {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 400;
+    color: #000;
+    margin-top: 18px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    transition-delay: 1100ms;
+  }
+  .is-active .nett-oval .nett-sub { opacity: 1; }
+
+  /* ============================================================
+     ANIMATION SYSTEM — runs on .is-active sections
+     ============================================================ */
+  [data-anim] {
+    opacity: 0;
+    will-change: transform, opacity, filter;
+    transition:
+      opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+      filter 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--d, 0ms);
+  }
+  [data-anim="rise"]   { transform: translateY(36px); }
+  [data-anim="fade"]   { transform: none; }
+  [data-anim="left"]   { transform: translateX(-40px); }
+  [data-anim="right"]  { transform: translateX(40px); }
+  [data-anim="scale"]  { transform: scale(0.92); filter: blur(6px); }
+  [data-anim="swell"]  { transform: scale(0.6); }
+
+  .is-active [data-anim] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  @keyframes count-in {
+    from { opacity: 0; transform: translateY(40px) scale(0.92); filter: blur(8px); }
+    to   { opacity: 1; transform: none; filter: none; }
+  }
+  .is-active .stat-pair .col .n {
+    animation: count-in 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--d, 0ms);
+  }
+
+  @keyframes title-rise {
+    from { opacity: 0; transform: translateY(60px) scale(0.96); letter-spacing: -0.025em; }
+    to   { opacity: 1; transform: none; letter-spacing: -0.045em; }
+  }
+  .is-active .slide-title .name {
+    animation: title-rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 4700ms;
+  }
+
+  @keyframes logo-in {
+    0%   { opacity: 0; transform: scale(0.7) rotate(-6deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  .is-active .slide-title .brandmark {
+    animation: logo-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 4400ms;
+  }
+
+  /* Status quo cards stagger */
+  .status .col { opacity: 0; transform: translateY(28px); transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
+  .is-active .status .col { opacity: 1; transform: none; }
+  .is-active .status .col:nth-child(1) { transition-delay: 350ms; }
+  .is-active .status .col:nth-child(2) { transition-delay: 470ms; }
+  .is-active .status .col:nth-child(3) { transition-delay: 590ms; }
+
+  /* Criteria rows stagger */
+  .criteria .row-c { opacity: 0; transform: translateX(-28px); transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1), transform 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
+  .is-active .criteria .row-c { opacity: 1; transform: none; }
+  .is-active .criteria .row-c:nth-child(1) { transition-delay: 350ms; }
+  .is-active .criteria .row-c:nth-child(2) { transition-delay: 500ms; }
+  .is-active .criteria .row-c:nth-child(3) { transition-delay: 650ms; }
+
+  /* Section header animation */
+  .is-active .section-header .head { animation: title-rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: 150ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-anim], .status .col, .criteria .row-c, .arch-col,
+    .m-node, .m-cluster, .m-edge-label, .tech-strip .lg-cell,
+    .nett-oval, .nett-oval .nett-sub {
+      opacity: 1 !important; transform: none !important; filter: none !important;
+      transition: none !important; animation: none !important;
+    }
+    .mermaid-svg path, .mermaid-svg line { stroke-dashoffset: 0 !important; transition: none !important; }
+  }
+
+  /* ============================================================
+     SLIDE 04 — Zielbild "Sovereign Compliance Stack" (z4- namespace)
+     Ported from preview-slide04.html into the deck idiom.
+     ============================================================ */
+  /* header — inline green live dot + mechanism pills */
+  .z4-livedot { color: #2e9a4a; }
+  .z4-mechs { display: flex; gap: 14px; margin-top: 22px; flex-wrap: nowrap; }
+  .z4-mechs span {
+    border: 1px solid rgba(41,151,255,0.45);
+    color: #cfe6ff;
+    border-radius: 999px;
+    padding: 7px 16px;
+    font-size: 17px;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .z4-mechs b { color: #2997ff; font-weight: 600; }
+
+  /* zone bands — reveal like .m-cluster (fade + scale) */
+  .z4-band {
+    position: absolute;
+    top: 4%; height: 88%;
+    border-radius: 16px;
+    border: 1.5px solid rgba(0,0,0,0.14);
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.97);
+    transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1);
+    transition-delay: var(--d, 0ms);
+  }
+  .is-active .z4-band { opacity: 1; transform: scale(1); }
+  .z4-band .z4-lab {
+    position: absolute; top: 14px; left: 18px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .z4-rathaus  { left: 1.5%;  width: 13%;   background: #f3f1ee; }
+  .z4-rathaus  .z4-lab { color: #6b6257; }
+  .z4-tenant   { left: 15.5%; width: 16.5%; background: #eaf3ff; }
+  .z4-tenant   .z4-lab { color: #1e40af; }
+  .z4-platform { left: 33%;   width: 64.5%; background: #f2ecfa; }
+  .z4-platform .z4-lab { color: #5b21b6; }
+  /* stacked-cards motif behind the tenant band (1 -> N municipalities) */
+  .z4-tenant::before, .z4-tenant::after {
+    content: ""; position: absolute; inset: 0;
+    border: 1.5px solid rgba(30,64,175,0.25); border-radius: 16px; z-index: -1;
+  }
+  .z4-tenant::before { transform: translate(6px, -6px); }
+  .z4-tenant::after  { transform: translate(12px, -12px); }
+  .z4-tenant-tab {
+    position: absolute; top: 50px; left: 18px;
+    background: #1e40af; color: #fff; font-size: 14px;
+    padding: 4px 12px; border-radius: 999px; white-space: nowrap;
+  }
+
+  /* boundary top labels (verticals themselves are .dotted svg lines) */
+  .z4-blab {
+    position: absolute; top: 1.2%;
+    transform: translateX(-50%);
+    background: #fff; color: rgba(0,0,0,0.45);
+    font-size: 13px; white-space: nowrap; padding: 0 9px;
+    opacity: 0; transition: opacity 0.5s ease; transition-delay: var(--d, 0ms);
+  }
+  .is-active .z4-blab { opacity: 1; }
+
+  /* node tweaks (base styling + reveal come from .m-node) */
+  .z4-node { max-width: 210px; }
+  .z4-node .nm-name { white-space: nowrap; }
+  .z4-node .nm-sub  { white-space: normal; }
+  .m-node.z4-roadmap {
+    border-style: dashed; border-color: rgba(0,0,0,0.35);
+    color: #7a7a7a; background: #fafafa;
+  }
+  .m-node.z4-solid { border-style: solid; }        /* Answer: outcome look, solid border */
+  .z4-dot, .z4-ring {
+    position: absolute; top: 7px; right: 7px;
+    width: 7px; height: 7px; border-radius: 50%;
+  }
+  .z4-dot  { background: #2e9a4a; }                 /* runs in today's prototype */
+  .z4-ring { background: #fff; border: 1.5px solid rgba(0,0,0,0.35); }  /* built next */
+  .m-node.user .z4-dot, .m-node.user .z4-ring { top: 12px; right: 16px; }
+
+  /* zone / compliance chips */
+  .z4-chip {
+    position: absolute; display: flex; gap: 8px; flex-wrap: wrap;
+    opacity: 0; transition: opacity 0.5s ease; transition-delay: var(--d, 0ms);
+  }
+  .is-active .z4-chip { opacity: 1; }
+  .z4-chip span {
+    background: #fff; border: 1px solid rgba(0,0,0,0.14);
+    border-radius: 999px; padding: 4px 11px; font-size: 13px;
+    color: #333; font-weight: 600; white-space: nowrap;
+  }
+  .z4-chip.z4-legal  span { border-color: rgba(91,33,182,0.35); color: #5b21b6; }
+  .z4-chip.z4-deploy span { border-color: rgba(0,0,0,0.18); color: #555; font-weight: 500; }
+
+  /* glyphs on / around the spine */
+  .z4-glyph {
+    position: absolute; transform: translate(-50%, -50%);
+    font-size: 14px; background: #fff; border: 1px solid rgba(0,0,0,0.15);
+    border-radius: 999px; padding: 3px 10px; color: #444; white-space: nowrap;
+    opacity: 0; transition: opacity 0.5s ease; transition-delay: var(--d, 0ms);
+  }
+  .is-active .z4-glyph { opacity: 1; }
+  .z4-glyph.z4-abstain { color: #d97706; border-color: #d97706; }
+
+  /* legend + kicker (sit above the brand-row) */
+  .z4-legend {
+    position: absolute; left: 2%; bottom: 10px;
+    background: #fff; border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 10px; padding: 7px 14px; font-size: 15px; color: #444;
+    opacity: 0; transition: opacity 0.5s ease; transition-delay: var(--d, 0ms);
+  }
+  .is-active .z4-legend { opacity: 1; }
+  .z4-legend .z4-g { color: #2e9a4a; font-weight: 700; }
+  .z4-kicker {
+    position: absolute; right: 2%; bottom: 10px;
+    font-size: 16px; color: #1d1d1f; font-weight: 600; letter-spacing: -0.01em;
+    background: #fff; padding: 6px 15px; border-radius: 8px; white-space: nowrap;
+    border: 1px solid rgba(0,0,0,0.1);
+    opacity: 0; transition: opacity 0.5s ease; transition-delay: var(--d, 0ms);
+  }
+  .is-active .z4-kicker { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .z4-band, .z4-blab, .z4-chip, .z4-glyph, .z4-legend, .z4-kicker,
+    .z4-mechs span {
+      opacity: 1 !important; transform: none !important; transition: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <!-- 1. TITLE — opens with logo intro, dissipates into the wordmark reveal -->
+  <section class="light slide-title" data-label="01 Title">
+    <div class="intro-overlay" aria-hidden="true">
+      <div class="intro-card">
+        <img src="inverted_logo.png" alt="" />
+        <div class="intro-glow"></div>
+      </div>
+    </div>
+
+    <div class="brandmark" aria-hidden="true"></div>
+    <div class="name">Lawfeine</div>
+    <div class="tag" data-anim="rise" style="--d: 5100ms;">The caffeine for law.</div>
+    <div class="signature" data-anim="fade" style="--d: 5500ms;">Built in Südbaden · For 11,000 municipalities</div>
+  </section>
+
+
+  <!-- 2. OLD WAY — full-bleed video, auto-plays on slide-active -->
+  <section class="black video-slide" data-label="02 Old Way">
+    <video class="old-way-video" src="old-way.mp4" preload="auto" controls muted playsinline></video>
+  </section>
+
+
+  <!-- 3. FILM — the Lawfeine product film (captured from ../marketing-film/, loops).
+       Spoken framing while it plays: the Wächter/Fristen scenes are roadmap, not prototype. -->
+  <section class="black video-slide" data-label="03 Film">
+    <video class="old-way-video" src="lawfeine-film.mp4" preload="auto" controls muted playsinline loop></video>
+    <div class="film-note">Empfehlung: Roadmap · Wächter &amp; Fristen: Kern läuft schon — gleich mehr.</div>
+  </section>
+
+
+  <!-- 7. THINKING THE JOURNEYS — architecture diagram -->
+  <section class="dark arch-slide" data-label="04 Architecture">
+    <div class="header" style="padding: 40px 120px 20px;">
+      <div class="eyebrow" data-anim="rise">Zielbild</div>
+      <div class="title" data-anim="rise" style="--d: 150ms; margin-top: 12px; max-width: 40ch; font-size: 42px; line-height: 1.08;">
+        The Sovereign Compliance Stack.
+      </div>
+      <div class="z4-mechs">
+        <span data-anim="rise" style="--d: 2300ms;"><b>Grounded-or-Silent</b> &middot; keine Quelle, keine Antwort</span>
+        <span data-anim="rise" style="--d: 2420ms;"><b>Living Legal Graph</b> &middot; 5 Gesetze, t&auml;glich versioniert</span>
+        <span data-anim="rise" style="--d: 2540ms;"><b>1&rarr;100 Mandanten-Mesh</b> &middot; white-label f&uuml;r badenova</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="mermaid-stage">
+        <!-- zone bands (reveal first) -->
+        <div class="z4-band z4-rathaus" style="--d: 100ms;">
+          <div class="z4-lab">Rathaus &middot; on-premise</div>
+          <div class="z4-chip z4-legal" style="--d: 2300ms; bottom: 14px; left: 18px;"><span>Datenhoheit vor Ort</span></div>
+        </div>
+        <div class="z4-band z4-tenant" style="--d: 300ms;">
+          <div class="z4-lab">Tenant &middot; per municipality</div>
+          <div class="z4-tenant-tab">&times;N &middot; badenova operator view</div>
+          <div class="z4-chip z4-legal" style="--d: 2350ms; bottom: 14px; left: 18px;"><span>Mandantentrennung</span></div>
+        </div>
+        <div class="z4-band z4-platform" style="--d: 500ms;">
+          <div class="z4-lab">Sovereign platform &middot; badenIT / Komm.ONE</div>
+          <div class="z4-chip z4-legal" style="--d: 2350ms; top: 12px; right: 18px;"><span>AVV &middot; Art.&nbsp;28 DSGVO</span><span>revisionssicheres Audit-Log</span><span>EU AI Act &middot; menschliche Aufsicht</span></div>
+          <div class="z4-chip z4-deploy" style="--d: 2400ms; bottom: 14px; right: 18px;"><span>Container-Deployment</span><span>Postgres-ready</span><span>Provider-Swap per Konfiguration</span></div>
+        </div>
+
+        <!-- spine + relations + boundary verticals -->
+        <svg class="mermaid-svg" viewBox="0 0 1920 720" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(60,60,67,0.55)" stroke="none" />
+            </marker>
+          </defs>
+
+          <!-- ===== Spine: staff → UI → Orchestrator → Retrieve → Agent → Verifier → Answer ===== -->
+          <path d="M 220 360 L 340 360"   style="--len: 120; --d: 800ms;"  marker-end="url(#arrowhead)" />
+          <path d="M 561 360 L 656 360"   style="--len: 95;  --d: 1000ms;" marker-end="url(#arrowhead)" />
+          <path d="M 840 360 L 887 360"   style="--len: 47;  --d: 1200ms;" marker-end="url(#arrowhead)" />
+          <path d="M 1070 360 L 1109 360" style="--len: 39;  --d: 1400ms;" marker-end="url(#arrowhead)" />
+          <path d="M 1289 360 L 1345 360" style="--len: 56;  --d: 1600ms;" marker-end="url(#arrowhead)" />
+          <path d="M 1514 360 L 1596 360" style="--len: 82;  --d: 1800ms;" marker-end="url(#arrowhead)" />
+
+          <!-- ===== Boundary verticals (dotted) ===== -->
+          <line class="dotted" x1="288" y1="14" x2="288" y2="706" style="--d: 500ms;" />
+          <line class="dotted" x1="625" y1="14" x2="625" y2="706" style="--d: 700ms;" />
+
+          <!-- ===== Dotted relations (ported from the mock) ===== -->
+          <!-- staff → Lokale KI-Suche -->
+          <path class="dotted" d="M 144 424 L 144 456"   style="--d: 1900ms;" />
+          <!-- Lokale KI-Suche → UI (recommendation crosses into the tenant) -->
+          <path class="dotted" d="M 210 462 L 350 396"   style="--d: 1950ms; stroke: rgba(30,64,175,0.55);" />
+          <!-- UI → Tenant data -->
+          <path class="dotted" d="M 451 393 L 451 536"   style="--d: 2000ms;" />
+          <!-- Retrieve → Corpora -->
+          <path class="dotted" d="M 979 393 L 979 536"   style="--d: 2050ms;" />
+          <!-- Agent → LLM gateway -->
+          <path class="dotted" d="M 1200 327 L 1240 160" style="--d: 2100ms;" />
+          <!-- Verifier → LLM gateway -->
+          <path class="dotted" d="M 1430 327 L 1320 160" style="--d: 2150ms;" />
+          <!-- Corpora → Wächter -->
+          <path class="dotted" d="M 1090 576 L 1319 576" style="--d: 2200ms; stroke: rgba(180,83,9,0.5);" />
+          <!-- Wächter → Verifier (alerts back up the spine) -->
+          <path class="dotted" d="M 1430 536 L 1430 393" style="--d: 2250ms; stroke: rgba(180,83,9,0.6);" />
+        </svg>
+
+        <!-- ===== Rathaus ===== -->
+        <div class="m-node user z4-node" style="--d: 700ms; left: 7.5%; top: 50%;">
+          Municipal<br/>staff<span class="z4-dot"></span>
+        </div>
+        <div class="m-node z4-node z4-roadmap" style="--d: 1500ms; left: 7.5%; top: 70%; min-width: 150px;">
+          <span class="nm-name">Lokale KI-Suche</span>
+          <span class="nm-sub">Empfehlung &middot; on-device index/LLM &mdash; Dokumente bleiben im Rathaus</span>
+          <span class="z4-ring"></span>
+        </div>
+        <div class="z4-chip z4-legal" style="--d: 2450ms; left: 3%; top: 79.5%; width: 10.5%;">
+          <span style="font-size: 12px; white-space: normal; text-align: center; line-height: 1.35;">Umsetzung nach BSI-Grundschutz &middot; Standards der &ouml;ffentlichen IT</span>
+        </div>
+
+        <!-- ===== Tenant ===== -->
+        <div class="m-node z4-node" style="--d: 900ms; left: 23.5%; top: 50%; min-width: 175px;">
+          <span class="nm-name"><span class="step">1</span>Chat / Template UI</span>
+          <span class="nm-sub">Zustand &middot; SSE</span>
+          <span class="z4-dot"></span>
+        </div>
+        <div class="m-node cylinder z4-node" style="--d: 1300ms; left: 23.5%; top: 80%; min-width: 160px;">
+          <span class="nm-name">Tenant data</span>
+          <span class="nm-sub">contracts in-session &middot; audit log (hash-chained)</span>
+          <span class="z4-dot"></span>
+        </div>
+
+        <!-- ===== Platform spine ===== -->
+        <div class="m-node z4-node" style="--d: 1100ms; left: 39%; top: 50%; min-width: 170px;">
+          <span class="nm-name"><span class="step">2</span>Orchestrator</span>
+          <span class="nm-sub">FastAPI &middot; LangGraph</span>
+          <span class="z4-dot"></span>
+        </div>
+        <div class="m-node z4-node" style="--d: 1300ms; left: 51%; top: 50%; min-width: 165px;">
+          <span class="nm-name"><span class="step">3</span>Retrieve</span>
+          <span class="nm-sub">tree-RAG (PageIndex)</span>
+          <span class="z4-dot"></span>
+        </div>
+        <div class="m-node z4-node" style="--d: 1500ms; left: 62.5%; top: 50%; min-width: 150px;">
+          <span class="nm-name"><span class="step">4</span>Agent</span>
+          <span class="nm-sub">ReAct &middot; cited answers</span>
+          <span class="z4-dot"></span>
+        </div>
+        <div class="m-node z4-node" style="--d: 1700ms; left: 74.5%; top: 50%; min-width: 155px;">
+          <span class="nm-name"><span class="step">5</span>Verifier</span>
+          <span class="nm-sub">per-claim grounding</span>
+          <span class="z4-dot"></span>
+        </div>
+        <div class="m-node outcome z4-node z4-solid" style="--d: 1850ms; left: 89%; top: 50%; min-width: 185px;">
+          <span class="nm-name">Answer + citations</span>
+          <span class="nm-sub">&rarr; back to staff &middot; filled forms (.docx/.xlsx/.pdf)</span>
+          <span class="z4-dot"></span>
+        </div>
+
+        <!-- ===== Rails ===== -->
+        <div class="m-node z4-node" style="--d: 1600ms; left: 65%; top: 16%; min-width: 175px;">
+          <span class="nm-name">LLM gateway &middot; LiteLLM</span>
+          <span class="nm-sub">provider swap by config &middot; target EU: Mistral (Paris)</span>
+          <span class="z4-dot"></span>
+        </div>
+        <div class="m-node cylinder z4-node" style="--d: 1500ms; left: 51%; top: 80%; min-width: 160px;">
+          <span class="nm-name">Corpora</span>
+          <span class="nm-sub">laws + municipal plans &middot; next: F&ouml;rderrichtlinien</span>
+          <span class="z4-dot"></span>
+        </div>
+        <div class="m-node cylinder z4-node" style="--d: 1600ms; left: 74.5%; top: 80%; min-width: 165px;">
+          <span class="nm-name">W&auml;chter &middot; Fristen</span>
+          <span class="nm-sub">monitor + deadline engine run &middot; next: per-form impact</span>
+          <span class="z4-dot"></span>
+        </div>
+
+        <!-- ===== glyphs ===== -->
+        <div class="z4-glyph" style="--d: 2350ms; left: 15%; top: 42%;">&#128274; SSO &middot; OIDC/SAML</div>
+        <div class="z4-glyph z4-abstain" style="--d: 2400ms; left: 82%; top: 42%;">refuses if unsure</div>
+        <div class="z4-glyph" style="--d: 2400ms; left: 20%; top: 61%; color: #1e40af; border-color: rgba(30,64,175,0.4);">schl&auml;gt Dokumente vor &middot; Upload nur bei Anh&auml;ngen</div>
+        <div class="z4-glyph" style="--d: 2450ms; left: 77.5%; top: 64%; color: #b45309; border-color: rgba(180,83,9,0.5);">Alerts an die Kommune</div>
+
+        <!-- ===== boundary labels ===== -->
+        <div class="z4-blab" style="--d: 650ms; left: 15%;">on-premise | tenant</div>
+        <div class="z4-blab" style="--d: 750ms; left: 32.55%;">tenant | sovereign platform</div>
+
+        <!-- ===== legend + kicker ===== -->
+        <div class="z4-legend" style="--d: 2500ms;"><span class="z4-g">&#9679;</span> runs in today&rsquo;s prototype &nbsp;&middot;&nbsp; dashed box = built next, with you &nbsp;&middot;&nbsp; zones &amp; borders = target deployment</div>
+        <div class="z4-kicker" style="--d: 2550ms;">W&auml;rmeplanung ist der Einstieg &mdash; die Plattform tr&auml;gt jede kommunale Pflichtaufgabe.</div>
+      </div>
+    </div>
+
+    <div class="brand-row">
+      <span style="color:#8a8a8e;"><b>Lawfeine</b></span>
+      <span style="color:#8a8a8e;">04 / 10</span>
+    </div>
+  </section>
+
+
+  <!-- 8. UNDER THE HOOD -->
+  <section class="dark" data-label="05 Modules">
+    <div class="eyebrow" data-anim="rise">Under the hood</div>
+    <div class="title" data-anim="rise" style="--d: 150ms; max-width: 28ch; margin-top: 24px;">
+      Four modules from input to output for trust and verifiability.
+    </div>
+
+    <div class="arch">
+      <div class="arch-col">
+        <div class="tag">01 · Updates</div>
+        <div class="h">New content screened daily.</div>
+        <ul>
+          <li>Cron · every 24h</li>
+          <li>SHA-256 change detection</li>
+        </ul>
+      </div>
+      <div class="arrow">→</div>
+      <div class="arch-col">
+        <div class="tag">02 · Indexing</div>
+        <div class="h">Two corpora, two indexes.</div>
+        <ul>
+          <li>Laws &amp; municipal plans (common DB)</li>
+          <li>Contracts (private DB)</li>
+        </ul>
+      </div>
+      <div class="arrow">→</div>
+      <div class="arch-col">
+        <div class="tag">03 · Orchestration</div>
+        <div class="h">Retrieve, answer, verify.</div>
+        <ul>
+          <li>Intent classification</li>
+          <li>Retrieval loop with citation</li>
+          <li>Confidence score for reliable answers</li>
+        </ul>
+      </div>
+      <div class="arrow">→</div>
+      <div class="arch-col">
+        <div class="tag">04 · Filling</div>
+        <div class="h">Forms, filled with sources.</div>
+        <ul>
+          <li>Multi-agent process</li>
+          <li>Any template, any format</li>
+          <li>Filled with citations</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tech-strip" aria-label="Stack">
+      <div class="lg-cell"><img class="tech-logo" src="tech-firecrawl.png" alt="Firecrawl" /></div>
+      <div class="lg-cell"><img class="tech-logo" src="tech-pageindex.png" alt="PageIndex" /></div>
+      <div class="lg-cell"><img class="tech-logo" src="tech-langgraph.png" alt="LangGraph" /></div>
+      <div class="lg-cell"><img class="tech-logo" src="tech-pypdf2.png" alt="PyPDF2" /></div>
+      <div class="lg-cell"><img class="tech-logo" src="tech-openpyxl.png" alt="OpenPyXL" /></div>
+    </div>
+
+    <div class="tech-strip partners" aria-label="Production options">
+      <div class="lg-cell strip-label">Production options</div>
+      <div class="lg-cell"><img class="tech-logo" src="partner-aleph-alpha.png" alt="Aleph Alpha" /></div>
+      <div class="lg-cell"><img class="tech-logo cohere" src="partner-cohere.png" alt="cohere" /></div>
+      <div class="lg-cell"><img class="tech-logo" src="partner-komm-one.png" alt="Komm.ONE" /></div>
+      <div class="lg-cell"><img class="tech-logo" src="partner-codesphere.png" alt="codesphere" /></div>
+      <div class="lg-cell"><img class="tech-logo" src="partner-bmds.png" alt="Bundesministerium für Digitales und Staatsmodernisierung" /></div>
+    </div>
+
+    <div class="brand-row">
+      <span><b>Lawfeine</b></span>
+      <span>05 / 10</span>
+    </div>
+  </section>
+
+
+
+  <!-- 7. DEPLOYMENT — operations & trust: the sim's dealbreakers for municipal/badenova deployment,
+       framed as commitments [Pflichtenheft], not shipped features. Spoken: "none of this is glamour;
+       all of it is what procurement needs." -->
+  <section class="dark" data-label="06 Deployment">
+    <div class="eyebrow" data-anim="rise">Operations &amp; trust</div>
+    <div class="title" data-anim="rise" style="--d: 150ms; max-width: 30ch; margin-top: 24px;">
+      Built to run in your world.
+    </div>
+
+    <div class="arch" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+      <div class="arch-col" style="transition-delay: 350ms; min-height: 240px">
+        <div class="check">✓</div>
+        <div class="tag">01 · Hosting</div>
+        <div class="h">Your data, hosted where you say.</div>
+        <ul>
+          <li>badenIT, Komm.ONE or Aleph Alpha — your choice</li>
+          <li>Standard DSGVO contracts from day one</li>
+        </ul>
+      </div>
+      <div class="arch-col" style="transition-delay: 470ms; min-height: 240px">
+        <div class="check">✓</div>
+        <div class="tag">02 · Nachweis</div>
+        <div class="h">Every answer on the record.</div>
+        <ul>
+          <li>Who asked, which sources, which law version — exportable, live today</li>
+          <li>Can't be edited afterwards</li>
+        </ul>
+      </div>
+      <div class="arch-col" style="transition-delay: 590ms; min-height: 240px">
+        <div class="check">✓</div>
+        <div class="tag">03 · Zurückhaltung</div>
+        <div class="h">Refuses rather than guesses.</div>
+        <ul>
+          <li>Weak sources → it says so and stops</li>
+          <li>A human signs off — always</li>
+        </ul>
+      </div>
+      <div class="arch-col" style="transition-delay: 710ms; min-height: 240px">
+        <div class="check">✓</div>
+        <div class="tag">04 · Integration</div>
+        <div class="h">Fits the IT you already run.</div>
+        <ul>
+          <li>Log in with existing municipal accounts</li>
+          <li>Each municipality strictly separated</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="brand-row">
+      <span><b>Lawfeine</b></span>
+      <span>06 / 10</span>
+    </div>
+  </section>
+
+
+  <!-- 8. TEAM — placeholders: swap avatars for photos, fill in names + roles -->
+  <section class="light" data-label="07 Team">
+    <div class="eyebrow" data-anim="rise">Team Tiramisu</div>
+    <div class="title" data-anim="rise" style="--d: 150ms; margin-top: 28px; max-width: 30ch;">
+      Built in Breisgau.
+    </div>
+
+    <div class="team-photo-wrap" data-anim="rise" style="--d: 350ms;">
+      <img class="team-photo" src="team.jpg" alt="Team Tiramisu winning 1st place at the Black Forest Hackathon" />
+      <div class="who-chip" style="--d: 700ms;  left: 16.7%; top: 2.5%; --line: 36px;">Danill</div>
+      <div class="who-chip" style="--d: 850ms;  left: 29.5%; top: 6.8%; --line: 38px;">Max</div>
+      <div class="who-chip" style="--d: 1000ms; left: 39.0%; top: 2.5%; --line: 30px;">Matheo</div>
+      <div class="who-chip" style="--d: 1150ms; left: 45.3%; top: 6.8%; --line: 44px;">Kritesh</div>
+      <div class="who-chip" style="--d: 1300ms; left: 56.8%; top: 6.8%; --line: 44px;">Vidhu</div>
+      <div class="who-chip" style="--d: 1450ms; left: 72.9%; top: 2.5%; --line: 52px;">Pradyumn</div>
+    </div>
+
+    <div class="brand-row">
+      <span><b>Lawfeine</b></span>
+      <span>07 / 10</span>
+    </div>
+  </section>
+
+
+  <!-- 9. READY — three takeaways -->
+  <section class="light" data-label="08 Ready">
+    <div class="title" data-anim="rise" style="--d: 0ms;">
+      Ready today.
+    </div>
+
+    <div class="criteria">
+      <div class="row-c">
+        <div class="check">✓</div>
+        <div class="lead-c">Company in place</div>
+      </div>
+      <div class="row-c">
+        <div class="check">✓</div>
+        <div class="lead-c">System deployed and running</div>
+      </div>
+      <div class="row-c">
+        <div class="check">✓</div>
+        <div class="lead-c">Local team</div>
+      </div>
+    </div>
+
+    <div class="brand-row">
+      <span><b>Lawfeine</b></span>
+      <span>08 / 10</span>
+    </div>
+  </section>
+
+
+  <!-- 10. CLOSING — Nett hier -->
+  <section class="dark nett-slide" data-label="09 Closing">
+    <div class="nett-oval">
+      <div class="nett">Nett hier.</div>
+      <div class="nett-sub">Data wants to stay in Baden-Württemberg.</div>
+    </div>
+
+    <div class="brand-row">
+      <span><b>Lawfeine</b> · Team Tiramisu</span>
+      <span>Thank you · Q&amp;A</span>
+    </div>
+  </section>
+
+
+  <!-- 10. Q&A — pixel-art backdrop, headline fades after 6s, QR stays visible -->
+  <section class="qa-slide" data-label="10 Questions">
+    <video class="qa-bg-video" src="pixel-life.mp4" loop muted playsinline preload="auto"></video>
+    <div class="qa-overlay"></div>
+    <div class="qa-content">
+      <div class="qa-caption" data-anim="rise">Daily life in a Rathaus<br/>before Lawfeine.</div>
+      <div class="qa-headline-block">
+        <div class="qa-title" data-anim="rise" style="--d: 350ms;">Open for questions.</div>
+        <div class="qa-sub"   data-anim="rise" style="--d: 600ms;">Lawfeine · Team Tiramisu</div>
+      </div>
+    </div>
+  </section>
+
+</deck-stage>
+
+<script>
+  (function () {
+    const stage = document.querySelector('deck-stage');
+    if (!stage) return;
+    const sections = () => Array.from(stage.querySelectorAll(':scope > section'));
+    const setActive = (idx) => {
+      sections().forEach((s, i) => {
+        const v = s.querySelector('video');
+        if (i === idx) {
+          s.classList.remove('is-active');
+          void s.offsetWidth;
+          s.classList.add('is-active');
+          if (v) {
+            try { v.currentTime = 0; } catch (e) {}
+            v.play().catch(() => {});
+          }
+        } else {
+          s.classList.remove('is-active');
+          if (v) v.pause();
+        }
+      });
+    };
+    stage.addEventListener('slidechange', (e) => setActive(e.detail.index));
+    requestAnimationFrame(() => {
+      const all = sections();
+      const visible = all.findIndex(s => getComputedStyle(s).visibility !== 'hidden');
+      setActive(visible >= 0 ? visible : 0);
+    });
+  })();
+</script>
+
+</body>
+</html>
