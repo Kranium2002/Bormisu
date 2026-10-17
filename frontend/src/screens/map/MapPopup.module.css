@@ -1,12 +1,22 @@
-/* Pin popup content (prototype popupHtml). Leaflet's own popup chrome is styled in tokens.css. */
+/* Pin popup content. Leaflet's own popup chrome is styled in tokens.css. */
 .popup {
   font: 12px/1.45 var(--font-sans);
-  min-width: 200px;
+  min-width: 220px;
+  max-width: 260px;
   color: var(--c-text);
 }
 
 .id {
   font: 600 15px var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.project {
+  overflow-wrap: anywhere;
+}
+
+.depth {
+  color: var(--c-text);
 }
 
 .chipRow {
@@ -18,24 +28,54 @@
   color: var(--c-amber-text);
 }
 
-.open {
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
   margin-top: 10px;
-  width: 100%;
-  background: var(--c-green);
-  color: var(--c-on-green);
-  border: 0;
+}
+
+.action {
+  background: var(--c-surface);
+  color: var(--c-dark);
+  border: 1px solid var(--c-dark);
   border-radius: 4px;
-  padding: 8px;
+  padding: 7px 4px;
   font: 700 11px var(--font-sans);
   letter-spacing: 0.06em;
   cursor: pointer;
 }
 
-.open:hover {
+.action:hover:not(:disabled) {
+  background: var(--c-hover);
+}
+
+.primary {
+  background: var(--c-green);
+  color: var(--c-on-green);
+  border-color: var(--c-green);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--c-green);
   filter: brightness(0.92);
 }
 
-.open:focus-visible {
+.action:disabled {
+  cursor: not-allowed;
+  color: var(--c-faint);
+  border-color: var(--c-border);
+  background: var(--c-line);
+}
+
+.action:focus-visible {
   outline: 2px solid var(--c-dark);
   outline-offset: 2px;
+}
+
+.reason {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--c-muted);
 }

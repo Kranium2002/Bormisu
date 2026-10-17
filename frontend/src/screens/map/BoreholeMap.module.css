@@ -1,5 +1,56 @@
-/* Leaflet container. Grayscale tiles and popup chrome are global (tokens.css), as Leaflet owns that DOM. */
-.map {
+/* The map region: Leaflet's element fills it, the area tools sit over its top-right corner. Grayscale
+   tiles and popup chrome are global (tokens.css), as Leaflet owns that DOM. */
+.root {
   position: absolute;
   inset: 0;
+}
+
+/* Keeps Leaflet's pane and control z-indexes (400–1000) inside, under the area tools and the legend. */
+.host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.leaflet {
+  position: absolute;
+  inset: 0;
+}
+
+/* Cluster icon: Leaflet sizes and places the element (iconSize); the ring is the status or
+   depth-class mix as a conic gradient, the white disc in it carries the count. */
+.cluster {
+  background: none;
+  border: 0;
+}
+
+.clusterRing {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  padding: 5px;
+  box-shadow: 0 0 0 1.5px #FFFFFF, 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.clusterLabel {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: 700 12px/1 var(--font-sans);
+}
+
+/* A result set is active: clusters with members get a dark ring, the others step back. */
+.clusterMember .clusterRing {
+  box-shadow: 0 0 0 2px var(--c-dark), 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.clusterDimmed {
+  opacity: 0.4;
 }

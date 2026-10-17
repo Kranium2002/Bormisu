@@ -1,14 +1,75 @@
-/* mapModel.LEGEND_EXTENT mirrors the offsets and size of this box: change both together. */
+/* mapModel.LEGEND_EXTENT mirrors the offsets and the status-mode size of this box: change both together. */
 .legend {
   position: absolute;
   left: 12px;
   bottom: 24px;
   z-index: var(--z-map-overlay);
+  width: 212px;
+  box-sizing: border-box;
   background: var(--c-surface);
-  padding: 10px 12px;
+  color: var(--c-text);
+  padding: 8px 12px 10px;
   font-size: 12px;
   line-height: 1.7;
   box-shadow: var(--shadow-card);
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+
+.switchLabel {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  color: var(--c-muted);
+}
+
+.options {
+  display: inline-flex;
+  border: 1px solid var(--c-dark);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.option {
+  position: relative;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.8;
+  cursor: pointer;
+  background: var(--c-surface);
+  color: var(--c-dark);
+}
+
+.option + .option {
+  border-left: 1px solid var(--c-dark);
+}
+
+.checked {
+  background: var(--c-dark);
+  color: #FFFFFF;
+}
+
+/* The native radio stays focusable and announced; the label is its visible face. */
+.radio {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.option:focus-within {
+  outline: 2px solid var(--c-green);
+  outline-offset: 1px;
 }
 
 .title {
