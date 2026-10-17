@@ -75,7 +75,7 @@ describe('adaptBorehole: identity, position and metadata', () => {
     expect(pick(K.finalDepth)).toEqual(['BoreholeDepth', '15.50', 'm']);
     expect(pick(K.boreholeLength)).toEqual(['BoreholeLength', '15.60', 'm']);
     expect(pick(K.inclination)).toEqual(['Inclination', '85', '°']);
-    expect(pick(K.elevation)).toEqual(['Surface Elevation', '12.40', 'm NZVD2016']);
+    expect(pick(K.elevation)).toEqual(['Surface Elevation', '12.40', 'm']);
     expect(pick(K.elevationDatum)).toEqual(['ElevationDatum', 'NZVD2016', '']);
     expect(pick(K.depthOrigin)).toEqual(['DepthOrigin', 'ground', '']);
     expect(pick(K.casing)).toEqual(['Casing', 'HW casing to 3.0 m', '']);
@@ -174,20 +174,25 @@ describe('adaptBorehole: values and provenance', () => {
     expect(val(hl02, K.lithology(2))).toMatchObject({ value: '', state: 'illegible' });
   });
 
-  it('warns once about a non-null value without provenance and makes it unpatchable', () => {
-    const { borehole: b, targets } = adaptBorehole(caseOf('MP-01'));
+  it('keeps a non-null value without provenance visible and read-only, lists its path and logs nothing', () => {
+    // The contract allows sparse provenance (review_status counts only values with an entry).
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const { borehole: b, targets, unsourced } = adaptBorehole(caseOf('MP-01'));
     expect(val(b, K.notes)).toMatchObject({
       value: 'Note printed without a provenance entry (fictional)', hasProvenance: false, method: null, confidence: null,
       page: null, box: null, status: 'unreviewed', state: 'ok',
     });
     expect(targets[K.notes]).toBeUndefined();
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0][0])).toMatch(/Backend bug.*bh_01JFICT00000000000000MP01.*metadata\.notes/);
+    expect(unsourced).toEqual(['metadata.notes']);
+    expect(warn).not.toHaveBeenCalled();
+    expect(info).not.toHaveBeenCalled();
+    info.mockRestore();
   });
 
-  it('warns for no other fixture record', () => {
-    for (const rec of [hl01(), ...list1().boreholes, kr01(), ...cases()]) adaptBorehole(rec);
-    expect(warn.mock.calls.map((c) => String(c[0]).match(/borehole (\S+)/)?.[1])).toEqual(['bh_01JFICT00000000000000MP01']);
+  it('lists unsourced values for no other fixture record', () => {
+    const listed = [hl01(), ...list1().boreholes, kr01(), ...cases()].map((rec) => [rec.metadata.borehole_id, adaptBorehole(rec).unsourced]);
+    expect(listed.filter(([, u]) => u.length)).toEqual([['MP-01', ['metadata.notes']]]);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('reads wire values at provenance paths', () => {
@@ -245,7 +250,7 @@ describe('adaptBorehole: coordinates and CRS', () => {
     const local = adaptBorehole(caseOf('SP-01')).borehole;
     expect(local.crs).toEqual({ name: 'Malha local da obra', code: null, status: 'unknown' });
     expect(val(local, K.crs)).toMatchObject({ value: 'Malha local da obra', kind: 'crs' });
-    expect(val(local, K.elevation)?.unit).toBe('m COTA');
+    expect(val(local, K.elevation)).toMatchObject({ unit: 'm', note: 'datum: COTA' });
   });
 
   it('shows an approved spreadsheet record as approved', () => {
@@ -506,5 +511,218 @@ describe('patchActions', () => {
       ...patchActions({ status: 'unreviewed' }, depth),
     ];
     for (const body of bodies) expect(contractErrors('ValuePatch', { ...body, if_revision: 3 })).toEqual([]);
+  });
+});
+
+/** HL-01 as the seeded backend sends it: each layer's text tracked at original_description, not english_lithology. */
+function seedShaped(): WireBorehole {
+  const rec = hl01();
+  rec.stratigraphy.forEach((_, i) => {
+    const p = rec.provenance[`stratigraphy[${i}].english_lithology`];
+    if (!p) return;
+    delete rec.provenance[`stratigraphy[${i}].english_lithology`];
+    rec.provenance[`stratigraphy[${i}].original_description`] = p;
+  });
+  return rec;
+}
+
+describe('FE-PROV-1: the layer lithology row', () => {
+  it('takes its provenance and patch path from original_description when english_lithology has no entry', () => {
+    const { borehole: b, targets, unsourced } = adaptBorehole(seedShaped());
+    expect(targets[K.lithology(2)].paths).toEqual(['stratigraphy[1].original_description']);
+    expect(val(b, K.lithology(2))).toMatchObject({
+      hasProvenance: true, value: 'Medium gravel, sandy, dense, grey', raw: 'Medium GRAVEL, sandy, dense, grey (alluvium)',
+      method: 'Read', confidence: 0.95, status: 'flagged', page: 4, kind: 'lithology', din: 'mG',
+    });
+    // The layer's method and confidence come from that row.
+    expect(b.layers.map((l) => [l.method, l.confidence])).toEqual([['Read', 0.97], ['Read', 0.95], ['OCR', null], ['OCR', 0.9]]);
+    // No second, generic "Description as printed" row for the same path.
+    expect(b.values.filter((v) => v.label === 'Description as printed')).toEqual([]);
+    expect(unsourced).toEqual([]);
+  });
+
+  it('can approve it there, but refuses an edit of the English text that would overwrite the printed description', () => {
+    const { borehole: b, targets } = adaptBorehole(seedShaped());
+    expect(val(b, K.lithology(2))?.readOnlyReason).toMatch(/printed description/);
+    expect(patchActions({ status: 'approved' }, targets[K.lithology(2)])).toEqual([{ path: 'stratigraphy[1].original_description', action: 'approve' }]);
+    expect(() => patchActions({ value: 'Gravel, sandy' }, targets[K.lithology(2)])).toThrow(/printed description/);
+  });
+
+  it('shows the description as printed (editable) when the layer has no English lithology', () => {
+    const rec = seedShaped();
+    rec.stratigraphy[1].english_lithology = null;
+    const { borehole: b, targets } = adaptBorehole(rec);
+    expect(val(b, K.lithology(2))).toMatchObject({ value: 'Medium GRAVEL, sandy, dense, grey (alluvium)', hasProvenance: true });
+    expect(val(b, K.lithology(2))?.readOnlyReason).toBeUndefined();
+    expect(patchActions({ value: 'Medium GRAVEL, sandy' }, targets[K.lithology(2)])).toEqual([
+      { path: 'stratigraphy[1].original_description', action: 'edit', value: 'Medium GRAVEL, sandy' },
+    ]);
+    expect(b.layers[1].lithology).toBe('');
+  });
+
+  it('keeps english_lithology as the path when it has an entry; the description then has its own row', () => {
+    const rec = hl01();
+    rec.provenance['stratigraphy[1].original_description'] = { ...rec.provenance['stratigraphy[1].english_lithology'], method: 'read', status: 'unreviewed', flag: null };
+    const { borehole: b, targets } = adaptBorehole(rec);
+    expect(targets[K.lithology(2)].paths).toEqual(['stratigraphy[1].english_lithology']);
+    expect(val(b, K.lithology(2))?.readOnlyReason).toBeUndefined();
+    expect(val(b, 'stratigraphy[1].original_description')).toMatchObject({ label: 'Description as printed', value: 'Medium GRAVEL, sandy, dense, grey (alluvium)', layer: 2 });
+  });
+});
+
+describe('DV-11, DV-14: source document and primary page', () => {
+  it('names the source document of a value read from another document, and only then', () => {
+    const rec = hl01();
+    rec.provenance['test_results[0].value'].document_id = 'doc_01JFICT0000000000000000D9';
+    rec.provenance['metadata.borehole_id'].document_id = rec.document_id;
+    const { borehole: b } = adaptBorehole(rec);
+    expect(val(b, K.test(0))).toMatchObject({ documentId: 'doc_01JFICT0000000000000000D9', cell: 'Lab!D7' });
+    expect(val(b, K.boreholeId)?.documentId).toBeUndefined();
+    expect(b.values.filter((v) => v.documentId).map((v) => v.key)).toEqual([K.test(0)]);
+  });
+
+  it('gives a record without any page no primary page, never page 1', () => {
+    const tq = adaptBorehole(caseOf('TQ-01')).borehole;
+    expect([tq.pages, tq.primaryPage]).toEqual([[], null]);
+    expect(adaptBorehole(hl01()).borehole.primaryPage).toBe(4);
+  });
+});
+
+describe('uiv-B3, uiv-B4: units', () => {
+  it('gives the surface elevation the unit m and puts the datum as printed into the note', () => {
+    const rec = hl01();
+    rec.metadata.elevation_datum = 'm s.n.m.';
+    const { borehole: b } = adaptBorehole(rec);
+    expect(val(b, K.elevation)).toMatchObject({ value: '12.40', unit: 'm', note: 'datum: m s.n.m.' });
+    expect(b.meta.elevationDatum).toBe('m s.n.m.');
+    expect(JSON.stringify(b.values)).not.toContain('m m s.n.m.');
+    rec.metadata.elevation_datum = null;
+    const plain = val(adaptBorehole(rec).borehole, K.elevation);
+    expect([plain?.unit, plain?.note]).toEqual(['m', undefined]);
+  });
+
+  it('says "m bgl" only for depths below ground; any other or no stated origin is plain m', () => {
+    const units = (origin: WireBorehole['metadata']['depth_origin']) => {
+      const rec = hl01();
+      rec.metadata.depth_origin = origin;
+      return adaptBorehole(rec).borehole.values.filter((v) => v.unit.includes('bgl') || v.key === K.gw(0)).map((v) => [v.key, v.unit]);
+    };
+    expect(units('ground')).toEqual([[K.gw(0), 'm bgl'], [K.gw(1), 'm bgl']]);
+    for (const origin of [null, 'relative', 'seabed', 'mudline'] as const) expect(units(origin), String(origin)).toEqual([[K.gw(0), 'm']]);
+  });
+});
+
+describe('uiv-B7: the CRS code is set only through the CRS dialog', () => {
+  const CHOOSE = 'Set the coordinate system with CHOOSE CRS…';
+
+  it('makes a value targeting crs_code read-only for edits; approve still works', () => {
+    const rec = hl01();
+    delete rec.provenance['metadata.coordinates.coordinate_system'];
+    rec.provenance['metadata.coordinates.crs_code'] = { ...rec.provenance['metadata.borehole_id'], method: 'edited', raw: null };
+    const { borehole: b, targets } = adaptBorehole(rec);
+    expect(targets[K.crs].paths).toEqual(['metadata.coordinates.crs_code']);
+    expect(val(b, K.crs)).toMatchObject({ value: 'EPSG:2193', readOnlyReason: CHOOSE, kind: 'crs' });
+    expect(patchActions({ status: 'approved' }, targets[K.crs])).toEqual([{ path: 'metadata.coordinates.crs_code', action: 'approve' }]);
+    expect(() => patchActions({ value: 'EPSG:27700' }, targets[K.crs])).toThrow(CHOOSE);
+    // Other values stay editable.
+    expect(b.values.filter((v) => v.readOnlyReason).map((v) => v.key)).toEqual([K.crs]);
+  });
+
+  it('marks the generic crs_code row read-only too when the printed system has its own row', () => {
+    const rec = hl01();
+    rec.provenance['metadata.coordinates.crs_code'] = { ...rec.provenance['metadata.borehole_id'], method: 'read', raw: null };
+    const { borehole: b } = adaptBorehole(rec);
+    expect(val(b, K.crs)?.readOnlyReason).toBeUndefined();
+    expect(val(b, 'metadata.coordinates.crs_code')).toMatchObject({ value: 'EPSG:2193', readOnlyReason: CHOOSE });
+  });
+});
+
+describe('FE-DISP-2: rows for provenance keys without a dedicated row', () => {
+  it('formats depths like other depths, with the unit m', () => {
+    const rec = hl01();
+    rec.provenance['stratigraphy[1].depth_from_m'] = { ...rec.provenance['stratigraphy[1].depth_to_m'], raw: '1,20', ai_value: 1.2 };
+    rec.stratigraphy[3].spt_depth_m = 10.125;
+    rec.provenance['stratigraphy[3].spt_depth_m'] = { ...rec.provenance['stratigraphy[3].depth_to_m'], raw: '10.125' };
+    const { borehole: b } = adaptBorehole(rec);
+    expect(val(b, 'stratigraphy[1].depth_from_m')).toMatchObject({ label: 'Top depth', value: '1.20', aiValue: '1.20', unit: 'm', raw: '1,20' });
+    expect(val(b, 'stratigraphy[3].spt_depth_m')).toMatchObject({ label: 'SPT depth', value: '10.125', unit: 'm' });
+  });
+
+  it('shows latitude and longitude in degrees: a derived one without transform noise, a read one as sent', () => {
+    const rec = caseOf('TQ-01');
+    const co = rec.metadata.coordinates as NonNullable<WireBorehole['metadata']['coordinates']>;
+    co.latitude = 1.283400123456789;
+    co.longitude = 103.86070000000001;
+    rec.provenance['metadata.coordinates.longitude'].method = 'read';
+    const { borehole: b } = adaptBorehole(rec);
+    expect(val(b, 'metadata.coordinates.latitude')).toMatchObject({ label: 'Latitude', value: '1.2834001', unit: '°', method: 'Derived' });
+    expect(val(b, 'metadata.coordinates.longitude')).toMatchObject({ label: 'Longitude', value: '103.86070000000001', unit: '°', method: 'Read' });
+    co.latitude = 1.2834;
+    expect(val(adaptBorehole(rec).borehole, 'metadata.coordinates.latitude')?.value).toBe('1.2834');
+  });
+
+  it('shows the coordinates as printed exactly as printed', () => {
+    const rec = hl01();
+    rec.provenance['metadata.coordinates.x_raw'] = { ...rec.provenance['metadata.coordinates.local_x'] };
+    rec.provenance['metadata.coordinates.y_raw'] = { ...rec.provenance['metadata.coordinates.local_y'] };
+    const { borehole: b } = adaptBorehole(rec);
+    expect(val(b, 'metadata.coordinates.x_raw')).toMatchObject({ label: 'X as printed', value: '1757412.3 mE', unit: '' });
+    expect(val(b, 'metadata.coordinates.y_raw')).toMatchObject({ label: 'Y as printed', value: '5920530.8 mN', unit: '' });
+  });
+});
+
+describe('DV-15: an SPT row on the N value', () => {
+  const N = 'stratigraphy[1].spt_n_value';
+  const REFUSED = 'Enter N as a whole number. A refusal can only be corrected where the backend tracks the printed SPT text.';
+
+  it('sends a whole number (or "N = 9") as a number', () => {
+    const target: PatchTarget = { paths: [N], type: 'spt' };
+    expect(patchActions({ value: 'N = 9' }, target)).toEqual([{ path: N, action: 'edit', value: 9 }]);
+    expect(patchActions({ value: ' 12 ' }, target)).toEqual([{ path: N, action: 'edit', value: 12 }]);
+  });
+
+  it('sends any other text to spt_raw when that is a provenance key', () => {
+    const rec = hl01();
+    rec.provenance['stratigraphy[1].spt_raw'] = { ...rec.provenance[N], method: 'read', ai_value: '8, 14, 18 (N=32)' };
+    const { targets } = adaptBorehole(rec);
+    expect(targets[K.spt(2)].paths).toEqual([N]);
+    expect(patchActions({ value: '50/12', status: 'approved' }, targets[K.spt(2)])).toEqual([
+      { path: 'stratigraphy[1].spt_raw', action: 'edit', value: '50/12' },
+      { path: N, action: 'approve' },
+    ]);
+    expect(patchActions({ value: 'N = 30' }, targets[K.spt(2)])).toEqual([{ path: N, action: 'edit', value: 30 }]);
+  });
+
+  it('applies the same rules to an N tracked without any SPT data (illegible), on a row labelled SPT N', () => {
+    const rec = hl01();
+    rec.provenance['stratigraphy[0].spt_n_value'] = { ...rec.provenance['stratigraphy[0].depth_to_m'], raw: null, state: 'illegible', confidence: 0.31 };
+    const { borehole: b, targets } = adaptBorehole(rec);
+    expect(val(b, 'stratigraphy[0].spt_n_value')).toMatchObject({ label: 'SPT N', value: '', state: 'illegible', layer: 1 });
+    expect(targets['stratigraphy[0].spt_n_value']).toEqual({ paths: ['stratigraphy[0].spt_n_value'], type: 'spt' });
+    expect(patchActions({ value: 'N = 7' }, targets['stratigraphy[0].spt_n_value'])).toEqual([{ path: 'stratigraphy[0].spt_n_value', action: 'edit', value: 7 }]);
+    expect(() => patchActions({ value: '50/12' }, targets['stratigraphy[0].spt_n_value'])).toThrow(REFUSED);
+    rec.provenance['stratigraphy[0].spt_raw'] = { ...rec.provenance['stratigraphy[0].spt_n_value'] };
+    expect(adaptBorehole(rec).targets['stratigraphy[0].spt_n_value'].sptRaw).toBe('stratigraphy[0].spt_raw');
+  });
+
+  it('refuses any other text before sending when the backend does not track the printed SPT text', () => {
+    const { targets } = adaptBorehole(hl01());
+    expect(targets[K.spt(4)].paths).toEqual(['stratigraphy[3].spt_n_value']);
+    for (const text of ['50/12', 'refusal · 50 blows / 12 cm', '9.5']) {
+      expect(() => patchActions({ value: text }, targets[K.spt(4)]), text).toThrow(REFUSED);
+    }
+  });
+});
+
+describe('CONTRACT-1: the step of a failed document', () => {
+  const failed = () => fixture<WireDocumentList>('documents').documents[2];
+
+  it('failed during extraction once every page was classified, else during classification', () => {
+    expect(adaptDocument(failed())).toMatchObject({ status: 'failed', step: 0, progress: null });
+    const at = (classified: number, total: number) =>
+      adaptDocument({ ...failed(), progress: { pages_total: total, pages_classified: classified, pages_ocr_total: 1, pages_ocr_done: 0, boreholes_extracted: 0 } }).step;
+    expect(at(2, 2)).toBe(1);
+    expect(at(1, 2)).toBe(0);
+    expect(at(0, 0)).toBe(0);
   });
 });

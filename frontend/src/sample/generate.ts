@@ -244,7 +244,7 @@ export function generateBorehole(seed: Seed, at: Placement): Generated {
     { key: K.startDate, field: 'StartDate', label: 'Start date', raw: dateRaw, value: dateIso, box: [356, 94, 80, 20], method: 'Read', confidence: 0.95 },
     { key: K.method, field: EXTRA_FIELDS.drillingMethod, label: 'Drilling method', raw: methRaw, value: methEn, box: [126, 116, textWidth(methRaw), 20], method: 'Read', confidence: 0.92 },
     { key: K.finalDepth, field: 'BoreholeDepth', label: 'Final depth', raw: fdRaw, value: fd.toFixed(2), unit: 'm', box: [376, 116, textWidth(fdRaw), 20], method: 'OCR', confidence: 0.86 },
-    { key: K.elevation, field: 'Surface Elevation', label: 'Surface elevation', raw: elevRaw, value: elev, unit: 'm NN', box: [126, 138, textWidth(elevRaw), 20], method: 'OCR', confidence: 0.84, note: 'datum stored as printed, unconfirmed' },
+    { key: K.elevation, field: 'Surface Elevation', label: 'Surface elevation', raw: elevRaw, value: elev, unit: 'm', box: [126, 138, textWidth(elevRaw), 20], method: 'OCR', confidence: 0.84, note: 'datum: NN (as printed, unconfirmed)' },
     hasCoords
       ? { key: K.xy, field: multiField('X-Coordinate', 'Y-Coordinate'), label: 'X / Y', raw: `${fmtN(A)} · ${fmtN(B)}`, value: `${A} / ${B}`, box: xyBox, method: 'Read', confidence: 0.93 }
       : { key: K.xy, field: multiField('X-Coordinate', 'Y-Coordinate'), label: 'X / Y', raw: '', value: '', box: null, method: 'Read', state: 'not in source' },
