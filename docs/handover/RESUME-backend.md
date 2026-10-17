@@ -7,6 +7,16 @@
   - **Behaviour side:** BE-CRS-1 (`POST /documents/{id}/crs` closes covered `crs_confirm` questions), BE-RETRY-1 (retry answers 409 `demo_mode` in demo mode), and SPT refusal correction through edits of `spt_raw`. Changes are in `api/v1/documents.py`, `geo/crs_service.py`, `review/service.py`, `review/paths.py` and `clarify/answers.py`, plus `tests/test_frontend_requests.py`.
 - **Next steps:** finish and verify 1.2.0, then `ruff`, `mypy`, the full suite and `alembic check`. Commit, merge to `integration`, merge back, and update the request statuses in `COORDINATION.md`.
 
+## To do (user, 2026-10-17): extract the missing target-format fields
+The contract already has fields for these, but the extraction schema does not ask for them, so they are always null today:
+- BoreholeName → `metadata.borehole_name`
+- ProjectID → `metadata.project_id`
+- BoreholeLength → `metadata.borehole_length_m`
+- EngineeringSoilUnit → `stratigraphy[i].engineering_soil_unit`
+- GeologicAge → `stratigraphy[i].geologic_age`
+
+Add them as nullable raw values to `ExtractedHeader` and `ExtractedLayer` in `app/pipeline/schemas.py`, add the rules to `data/prompts/extractor.txt`, and bump the prompt and schema versions. Map them in `app/pipeline/finalize.py`: BoreholeLength goes through `parse_length`, with ft→m conversion. Then map them in the spreadsheet whitelist (`data/spreadsheet.yaml`) and add tests with fakes. Do not run a live test.
+
 ## Rules in force
 - **No more live provider calls in tests** (the user's decision). Mistral/OpenRouter spend is about 0.29 USD of 2 USD; `.env` has `PROVIDER_BUDGET_USD=1.5`.
 - `OPENAI_API_KEY` in `.env` is pasted twice; the user has to fix it.
