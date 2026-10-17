@@ -139,6 +139,7 @@ class _PageInfo:
     height_px: int
     text_quality: float | None
     handwriting: str | None
+    language: str | None = None  # the page classifier's BCP 47 code
 
 
 async def extract_document(document_id: str, bridge: ModuleType | None = None) -> Bh3Read | None:
@@ -162,7 +163,9 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         log_pages = [p.n for p in pages if p.role in LOG_ROLES]
         render_keys = {p.n: p.render_key for p in pages}
         infos = {
-            p.n: _PageInfo(p.n, p.width_px or 0, p.height_px or 0, p.text_layer_quality, p.handwriting)
+            p.n: _PageInfo(
+                p.n, p.width_px or 0, p.height_px or 0, p.text_layer_quality, p.handwriting, p.language
+            )
             for p in pages
         }
     sources = _sources(document_id, storage_key, render_keys)
@@ -257,7 +260,11 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
             "bh3 could not assemble the boreholes of %s; the classic extractor takes them", document_id
         )
         return Bh3Read(failed=log_pages)
-    languages = {int(r.page_no): (getattr(r, "language", "") or None) for r in results}
+    # bh3 names the language of pages it reads by vision; text-layer pages take the page classifier's
+    languages = {
+        int(r.page_no): (getattr(r, "language", "") or None) or _base_language(infos.get(int(r.page_no)))
+        for r in results
+    }
     long_side = _long_sides(pdf_path, infos)
     out = Bh3Read(failed=failed)
     for bh in built:
@@ -267,6 +274,12 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         out.boreholes.append(mapped)
         out.pages.update(mapped[0].pages)
     return out
+
+
+def _base_language(info: _PageInfo | None) -> str | None:
+    """The classifier's language of a page as an ISO 639-1 code ("en-GB" -> "en")."""
+    code = (info.language or "").strip() if info is not None else ""
+    return code.split("-")[0].lower() or None
 
 
 def _int(value: Any) -> int | None:

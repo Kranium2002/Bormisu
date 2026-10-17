@@ -354,3 +354,9 @@ async def test_a_document_without_borehole_logs_is_done_and_says_so(
     doc = await document(client, doc_id)
     assert doc["status"] == "done" and doc["warnings"] == ["No borehole logs were found in this document."]
     assert await records(client, doc_id) == {} and fakes.extractor.calls == 0
+
+
+def test_text_layer_pages_take_the_classifier_language() -> None:
+    info = bh3_adapter._PageInfo(1, 100, 140, 1.0, "none", "en-GB")
+    assert bh3_adapter._base_language(info) == "en"
+    assert bh3_adapter._base_language(bh3_adapter._PageInfo(1, 100, 140, 1.0, "none", None)) is None
