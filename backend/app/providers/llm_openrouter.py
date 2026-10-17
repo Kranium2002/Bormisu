@@ -25,6 +25,10 @@ TIMEOUT_S = 180.0
 T = TypeVar("T", bound=BaseModel)
 
 
+class OutputTruncatedError(ProviderError):
+    """The answer hit max_tokens; a smaller input (fewer pages) may fit."""
+
+
 @dataclass(frozen=True)
 class StructuredResult[M: BaseModel]:
     data: M
@@ -129,7 +133,7 @@ class OpenRouterClient:
                 Usage(PROVIDER, purpose, returned_model, in_tok, out_tok, None, cost_usd, ok), document_id
             )
             if finish == "length":
-                raise ProviderError("The model's answer was cut off (too long).", retryable=False)
+                raise OutputTruncatedError("The model's answer was cut off (too long).", retryable=False)
             if not isinstance(text, str):
                 raise ProviderError("The model sent no answer.", retryable=True)
             try:

@@ -30,7 +30,7 @@ from app.pipeline.extract import (
 )
 from app.pipeline.group import plan_groups
 from app.pipeline.orchestrator import run_pipeline
-from app.pipeline.schemas import ExtractedHeader, ExtractionResult, PageLabel
+from app.pipeline.schemas import EXTRACTION_SCHEMA_VERSION, ExtractedHeader, ExtractionResult, PageLabel
 from app.pipeline.types import ExtractionInput, PageGroup
 from app.providers import ocr_mistral
 from app.providers.base import ProviderError
@@ -374,7 +374,8 @@ async def test_openrouter_extraction_is_stored_and_reused(db: None, keys: Any) -
     run = runs[0]
     assert (run.id, run.status, run.group_id) == (outcome.run_id, "done", "FX11:p2-p4")
     assert run.model == "mistralai/mistral-large-fictional" and run.cost_usd == pytest.approx(0.0061)
-    assert run.prompt_version == extract_module.PROMPT_VERSION and run.schema_version == "1"
+    assert run.prompt_version == extract_module.PROMPT_VERSION
+    assert run.schema_version == EXTRACTION_SCHEMA_VERSION
     assert run.output is not None and run.output["layers"][1]["din4023_code"] == "Sandy gravel"  # as answered
     assert run.input_tokens is not None and run.input_tokens > 0
     assert again.run_id == run.id and again.result == outcome.result and again.warnings == outcome.warnings

@@ -41,12 +41,12 @@ from app.normalize.units import lab_tests, match_lab_test
 from app.pipeline.schemas import EXTRACTION_SCHEMA_VERSION, ExtractionResult
 from app.pipeline.types import BlockRef, ExtractionInput, ExtractionOutcome, PageGroup
 from app.providers.base import ProviderError, token_cost
-from app.providers.llm_openrouter import image_part, text_part
+from app.providers.llm_openrouter import OutputTruncatedError, image_part, text_part
 from app.storage import get_storage
 
 logger = logging.getLogger("geomemory.pipeline.extract")
 
-PROMPT_VERSION = "1"
+PROMPT_VERSION = "2"
 PROMPT_FILE = "extractor.txt"
 DIN_PLACEHOLDER = "{{DIN_CODES}}"
 TESTS_PLACEHOLDER = "{{TEST_NAMES}}"
@@ -727,9 +727,18 @@ async def extract_group(
         run_id, result, returned_model, cost = stored.id, stored.result, stored.model, stored.cost_usd
     else:
         if len(parts) == 1:
-            run = await _call(document_id, group.key, key, inp, get_extractor)
-            run_id, result, returned_model, cost = run.id, run.result, run.model, run.cost_usd
-        else:
+            try:
+                run = await _call(document_id, group.key, key, inp, get_extractor)
+            except OutputTruncatedError:
+                if len(loaded.segments) < 2:
+                    raise
+                # The whole log did not fit in one answer: extract it page by page (each part cached).
+                parts = [[segment] for segment in loaded.segments]
+                warnings.append(f"answer cut off; extracted page by page in {len(parts)} parts")
+                run = None
+            if run is not None:
+                run_id, result, returned_model, cost = run.id, run.result, run.model, run.cost_usd
+        if len(parts) > 1:
             runs: list[_Run] = []
             for i, segments in enumerate(parts, start=1):
                 part_inp = assemble(group, segments, loaded.context, part=(i, len(parts)))

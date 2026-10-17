@@ -9,7 +9,7 @@ INPUT
 RULES
 1. Copy every value exactly as printed: same characters, decimal separators, thousands separators, signs, units, qualifiers (">", "<", "ca.", "approx."), abbreviations and spelling. Never convert units, compute, round, complete, correct or translate a value.
 2. block_ids: the ids of every block the value's text came from, usually one. Use only ids that appear in the input.
-3. A field that is not printed for this borehole: raw null, block_ids [], state "not_in_source". Printed but unreadable: raw null, the ids of the blocks where it is, state "illegible". Otherwise state "ok". Never fill a field with a guess, a typical value, 0 or a value of another borehole.
+3. A field that is not printed for this borehole: null where the schema allows null, otherwise raw null, block_ids [], state "not_in_source". Printed but unreadable: raw null, the ids of the blocks where it is, state "illegible". Otherwise state "ok". Never fill a field with a guess, a typical value, 0 or a value of another borehole. Keep the JSON compact: no indentation or line breaks.
 4. english_lithology is the only translated field: a short, faithful English rendering of the layer description (null when there is no description). Add nothing the description does not say.
 5. din4023_code: the main soil or rock component as one code from the DIN 4023 list below, only when the description clearly names that material; otherwise null. Codes are case-sensitive; use them exactly as listed. din4023_notation: a DIN 4023 short notation only when the log prints one, exactly as printed; otherwise null.
 6. description_language: BCP 47 code of the description text (for example de, en, pt-BR).

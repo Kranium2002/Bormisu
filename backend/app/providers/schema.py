@@ -40,6 +40,8 @@ def _inline(node: Any, defs: dict[str, Any]) -> Any:
         if out.get("type") == "object" and "properties" in out:
             out["additionalProperties"] = False
             out["required"] = list(out["properties"])
+        if out.pop("x-nullable", False):
+            return {"anyOf": [out, {"type": "null"}]}
         return out
     if isinstance(node, list):
         return [_inline(item, defs) for item in node]
