@@ -41,13 +41,14 @@
 ## 07 · Demo (~2:30)
 
 
-## 08 · Under the hood (~20 s)
+## 08 · Under the hood (~25 s)
 
-*(six boxes: Upload → Classify → OCR → Extract → Check → Map)*
+*(the whole stack: Browser · API · Pipeline · Models on top, Maps · Database · Export below)*
 
-> Upload. Mistral Large sorts the pages. OCR only where there's borehole data — Mistral OCR from Paris, the best we found.
-> Then it pulls out every value with its source box — never a finished number.
-> Then plain Python checks it against DIN 4023, and it lands on the map.
+> In the browser: React and Leaflet for the map.
+> Behind it a FastAPI server, and a job pipeline: Word files become PDFs, pages are rendered, Mistral OCR reads them, Mistral Large pulls out every value with its source box.
+> Then plain Python checks coordinates and DIN 4023 — and everything lands in PostgreSQL with PostGIS.
+> Out comes the Herrenknecht xlsx. All of it runs with one Docker Compose command.
 
 ## 09 · Sovereignty (~25 s)
 

@@ -130,13 +130,18 @@
   .demo .dot { display: inline-block; width: 44px; height: 44px; border-radius: 50%; background: #e5484d; margin-right: 36px; vertical-align: middle; animation: rec 1.4s ease-in-out infinite; }
   @keyframes rec { 50% { opacity: 0.25; } }
 
-  /* 09 Tech flow */
-  .flow { display: grid; grid-template-columns: repeat(11, auto); align-items: stretch; justify-content: center; gap: 0 8px; }
-  .node { width: 218px; box-sizing: border-box; background: rgba(255,248,236,0.06); border: 1px solid rgba(255,248,236,0.16); border-radius: 22px; padding: 64px 18px; text-align: center; }
-  .node .h { font-family: var(--display); font-size: 36px; font-weight: 600; }
-  .node .t { margin-top: 18px; font-size: 22px; font-weight: 600; color: var(--ladyfinger); line-height: 1.35; }
-  .node.py { border-color: var(--ladyfinger); }
-  .flow .arrow { display: flex; align-items: center; font-size: 30px; color: var(--ladyfinger); }
+  /* 08 Tech: the whole stack as boxes, names only */
+  .stack2 { display: grid; grid-template-columns: 300px 48px 280px 48px 1fr 48px 300px; grid-template-rows: auto 52px auto; }
+  .box { background: rgba(255,248,236,0.06); border: 1px solid rgba(255,248,236,0.18); border-radius: 20px; padding: 28px 26px; display: flex; flex-direction: column; gap: 16px; }
+  .box.core { border-color: var(--ladyfinger); }
+  .box .bt { font-size: 18px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ladyfinger); }
+  .box .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .box .chips span { background: var(--cream); color: var(--espresso); border-radius: 999px; padding: 9px 18px; font-size: 21px; font-weight: 600; white-space: nowrap; }
+  .box .chips i { font-style: normal; color: var(--ladyfinger); font-size: 22px; align-self: center; }
+  .stack2 .ar { display: flex; align-items: center; justify-content: center; font-size: 30px; color: var(--ladyfinger); }
+  .stack2 .ar.v { grid-row: 2; }
+  .stack-foot { display: flex; gap: 40px; margin-top: 40px; font-size: 20px; color: var(--on-dark-muted); }
+  .stack-foot b { color: var(--ladyfinger); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 17px; margin-right: 12px; }
 
   /* 10 Deployment */
   .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 64px; }
@@ -267,21 +272,51 @@
     <div class="big"><span class="dot"></span>Demo</div>
   </section>
 
-  <!-- 08 TECH — what runs at which stage -->
+  <!-- 08 TECH — the whole stack, names only (from docker-compose, pyproject and package.json on main) -->
   <section class="dark vcenter" data-label="08 Tech">
     <div class="eyebrow" data-anim>Under the hood</div>
-    <div class="flow">
-      <div class="node" data-anim style="--d: 200ms;"><div class="h">Upload</div><div class="t">FastAPI</div></div>
-      <div class="arrow" data-anim style="--d: 280ms;">→</div>
-      <div class="node" data-anim style="--d: 360ms;"><div class="h">Classify</div><div class="t">Mistral Large</div></div>
-      <div class="arrow" data-anim style="--d: 440ms;">→</div>
-      <div class="node" data-anim style="--d: 520ms;"><div class="h">OCR</div><div class="t">Mistral OCR</div></div>
-      <div class="arrow" data-anim style="--d: 600ms;">→</div>
-      <div class="node" data-anim style="--d: 680ms;"><div class="h">Extract</div><div class="t">Mistral Large</div></div>
-      <div class="arrow" data-anim style="--d: 760ms;">→</div>
-      <div class="node py" data-anim style="--d: 840ms;"><div class="h">Check</div><div class="t">Python<br/>DIN 4023</div></div>
-      <div class="arrow" data-anim style="--d: 920ms;">→</div>
-      <div class="node" data-anim style="--d: 1000ms;"><div class="h">Map</div><div class="t">PostGIS<br/>Leaflet</div></div>
+    <div class="stack2">
+      <div class="box" data-anim style="--d: 150ms; grid-column: 1; grid-row: 1;">
+        <div class="bt">Browser</div>
+        <div class="chips"><span>React</span><span>Vite</span><span>Leaflet</span><span>Zustand</span><span>AI SDK</span><span>ExcelJS</span></div>
+      </div>
+      <div class="ar" data-anim style="--d: 250ms; grid-column: 2; grid-row: 1;">⇄</div>
+      <div class="box" data-anim style="--d: 300ms; grid-column: 3; grid-row: 1;">
+        <div class="bt">API</div>
+        <div class="chips"><span>nginx</span><span>FastAPI</span><span>Pydantic</span><span>SSE</span></div>
+      </div>
+      <div class="ar" data-anim style="--d: 400ms; grid-column: 4; grid-row: 1;">→</div>
+      <div class="box core" data-anim style="--d: 450ms; grid-column: 5; grid-row: 1;">
+        <div class="bt">Pipeline · Procrastinate</div>
+        <div class="chips"><span>Gotenberg</span><i>→</i><span>pypdfium2</span><i>→</i><span>Mistral OCR</span><i>→</i><span>Mistral Large</span><i>→</i><span>pyproj</span><i>→</i><span>DIN 4023 checks</span></div>
+      </div>
+      <div class="ar" data-anim style="--d: 550ms; grid-column: 6; grid-row: 1;">⇄</div>
+      <div class="box" data-anim style="--d: 600ms; grid-column: 7; grid-row: 1;">
+        <div class="bt">Models</div>
+        <div class="chips"><span>Mistral OCR</span><span>Mistral Large</span><span>OpenAI</span><span>Qwen3 Embedding</span><span>OpenRouter</span></div>
+      </div>
+
+      <div class="ar v" data-anim style="--d: 700ms; grid-column: 1;">↕</div>
+      <div class="ar v" data-anim style="--d: 700ms; grid-column: 3;">↕</div>
+      <div class="ar v" data-anim style="--d: 700ms; grid-column: 5;">↓</div>
+
+      <div class="box" data-anim style="--d: 800ms; grid-column: 1; grid-row: 3;">
+        <div class="bt">Maps</div>
+        <div class="chips"><span>OpenStreetMap</span><span>Nominatim</span></div>
+      </div>
+      <div class="box" data-anim style="--d: 850ms; grid-column: 3 / 6; grid-row: 3;">
+        <div class="bt">Database</div>
+        <div class="chips"><span>PostgreSQL 16</span><span>PostGIS</span><span>pgvector</span><span>SQLAlchemy</span><span>Alembic</span></div>
+      </div>
+      <div class="box" data-anim style="--d: 900ms; grid-column: 7; grid-row: 3;">
+        <div class="bt">Export</div>
+        <div class="chips"><span>Herrenknecht xlsx</span><span>openpyxl</span><span>CSV</span></div>
+      </div>
+    </div>
+    <div class="stack-foot" data-anim style="--d: 1050ms;">
+      <span><b>Runs on</b>Docker Compose</span>
+      <span><b>Tested with</b>pytest · Vitest · Playwright</span>
+      <span><b>Licence</b>Apache 2.0</span>
     </div>
   </section>
 
