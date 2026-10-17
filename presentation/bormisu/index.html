@@ -54,7 +54,10 @@
   /* 02 Hook: the number counts up when the slide opens */
   .hook { background: #000; color: #fff; }
   .hook .big { font-family: var(--display); font-size: 260px; font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
-  .hook .gt { color: var(--ladyfinger); margin-right: 0.12em; }
+  /* the ">" pops in once the count has reached 3,000,000 (count runs ~1.4 s) */
+  .hook .gt { color: var(--ladyfinger); margin-right: 0.12em; display: inline-block; opacity: 0; }
+  .is-active .hook-gt { animation: gtpop .5s var(--ease) 1.5s forwards; }
+  @keyframes gtpop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: none; } }
   .hook .unit { font-family: var(--display); font-size: 110px; font-weight: 600; letter-spacing: -0.03em; color: var(--ladyfinger); margin-top: 8px; }
 
   /* 03 Herrenknecht film: blank, just the video */
@@ -188,6 +191,7 @@
     .sheet { transform: rotate(var(--r)) !important; }
     .bgsheet { opacity: .55 !important; animation: none !important; }
     .s21-emoji, .hero-img-zoom, .finisher-logo { animation: none !important; }
+    .hook .gt { opacity: 1 !important; }
   }
 </style>
 </head>
@@ -204,7 +208,7 @@
 
   <!-- 02 HOOK — time the Gotthard Base Tunnel saves; see Script.md for the figure -->
   <section class="hook center" data-label="02 Hook">
-    <div class="big"><span class="gt">&gt;</span><span data-count="3000000">3,000,000</span></div>
+    <div class="big"><span class="gt hook-gt">&gt;</span><span data-count="3000000">3,000,000</span></div>
     <div class="unit" data-anim style="--d: 1400ms;">hours</div>
   </section>
 
