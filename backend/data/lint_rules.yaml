@@ -48,6 +48,9 @@ rules:
   coordinates_out_of_range:
     severity: error
     message: "Latitude {lat} / longitude {lon} is outside WGS84 bounds."
+  coordinates_zero:
+    severity: error
+    message: "Latitude 0 / longitude 0 is a placeholder, not a position."
   sample_below_total_depth:
     severity: warning
     message: "Sample {name} at {value} m lies below the total depth of {depth} m."

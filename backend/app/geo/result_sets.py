@@ -12,6 +12,7 @@ from app.db.models import Borehole, Clarification, ResultSet
 from app.errors import not_found
 from app.geo.filters import filter_conditions
 from app.ids import new_id
+from app.review.service import UNRESOLVED_CLARIFICATION
 from app.schemas.map import (
     AreaBbox,
     AreaCircle,
@@ -114,7 +115,7 @@ async def feature_collection(session: AsyncSession, conds: Sequence[Any]) -> Fea
     """Plotted boreholes as light point features (no layers, no provenance)."""
     open_counts = (
         select(func.unnest(Clarification.borehole_uids).label("uid"))
-        .where(Clarification.status == "open")
+        .where(Clarification.status.in_(UNRESOLVED_CLARIFICATION))
         .subquery()
     )
     counts = select(open_counts.c.uid, func.count().label("n")).group_by(open_counts.c.uid).subquery()

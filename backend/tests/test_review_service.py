@@ -10,6 +10,7 @@ from app.errors import ApiError
 from app.geo.crs_service import confirm_crs
 from app.review.service import apply_patch, approve_clean, create_borehole, to_record
 from app.schemas.boreholes import ProvenanceIn, ValuePatch
+from tests.factories import full_provenance
 
 pytestmark = pytest.mark.db
 
@@ -48,6 +49,7 @@ async def _borehole(session, *, crs_status: str = "inferred", crs_code: str | No
         "groundwater": [{"type": "strike", "depth_m": 1.5}],
     }
     prov = {
+        **full_provenance(body),
         "metadata.borehole_id": _prov(method="read"),
         "metadata.borehole_depth_m": _prov(confidence=0.97),
         "metadata.coordinates.local_x": _prov(),
@@ -144,9 +146,10 @@ async def test_approve_clean_rule(session) -> None:
     bh = await _borehole(session)
     # Clean: read, or ocr >= 0.9, unreviewed, state ok, no flag, no lint on the path.
     # Not clean: derived rock head, ocr 0.5 depth, rqd (linted).
+    total = await session.scalar(select(func.count()).select_from(FieldValue).where(FieldValue.uid == bh.uid))
     dry = await approve_clean(session, bh.document_id, dry_run=True, actor="t")
-    assert dry == 7
-    assert await approve_clean(session, bh.document_id, dry_run=False, actor="t") == 7
+    assert dry == total - 3
+    assert await approve_clean(session, bh.document_id, dry_run=False, actor="t") == total - 3
     await session.commit()
     assert await approve_clean(session, bh.document_id, dry_run=True, actor="t") == 0
 

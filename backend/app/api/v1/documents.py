@@ -14,6 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import UploadFile
+from starlette.formparsers import MultiPartException
+from starlette.types import Message
 
 from app.config import get_settings
 from app.db.models import Borehole, Document, Page
@@ -50,6 +52,23 @@ MIN_PAGE_WIDTH, MAX_PAGE_WIDTH = 200, 2400
 ACTOR_API = "api"
 
 
+def _limit_body(request: Request, limit: int, limit_mb: int) -> None:
+    """Abort reading the request body once it passes `limit` bytes."""
+    receive = request._receive
+    seen = 0
+
+    async def counting_receive() -> Message:
+        nonlocal seen
+        message = await receive()
+        if message["type"] == "http.request":
+            seen += len(message.get("body", b""))
+            if seen > limit:
+                raise ApiError(413, "too_large", f"The file is larger than {limit_mb} MB.")
+        return message
+
+    request._receive = counting_receive
+
+
 async def _document(session: AsyncSession, document_id: str) -> Document:
     doc = await session.get(Document, document_id)
     if doc is None:
@@ -77,7 +96,13 @@ async def upload_document(request: Request, session: SessionDep) -> Response:
     length = request.headers.get("content-length")
     if length is not None and length.isdigit() and int(length) > settings.max_upload_bytes + _MULTIPART_SLACK:
         raise ApiError(413, "too_large", f"The file is larger than {settings.max_upload_mb} MB.")
-    form = await request.form(max_files=1, max_fields=5)
+    _limit_body(request, settings.max_upload_bytes + _MULTIPART_SLACK, settings.max_upload_mb)
+    try:
+        form = await request.form(max_files=1, max_fields=5)
+    except MultiPartException as exc:
+        raise ApiError(
+            422, "validation_error", "The upload is not valid multipart form data.", [{"loc": ["body"], "msg": str(exc)}]
+        ) from exc
     try:
         upload = form.get("file")
         if not isinstance(upload, UploadFile):
@@ -174,7 +199,15 @@ async def retry_document(document_id: str, session: SessionDep) -> UploadAccepte
     doc.error = None
     await emit_document_updated(session, doc)
     await session.commit()
-    await enqueue_document(doc.id)
+    try:
+        await enqueue_document(doc.id)
+    except Exception:
+        logger.exception("could not queue document %s", doc.id)
+        doc.status = "failed"
+        doc.error = "Processing could not be queued. Retry the document."
+        await emit_document_updated(session, doc)
+        await session.commit()
+        raise ApiError(503, "internal_error", "Processing could not be queued. Try again shortly.") from None
     return UploadAccepted(document_id=doc.id, status="queued", duplicate_of=None)
 
 

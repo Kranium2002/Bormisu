@@ -66,6 +66,11 @@ async def _http_handler(_: Request, exc: Exception) -> JSONResponse:
         return error_response(404, "route_not_found", "No such route.")
     if exc.status_code == 405:
         return error_response(405, "route_not_found", "Method not allowed on this route.")
+    if exc.status_code == 400:
+        detail = exc.detail if isinstance(exc.detail, str) else "The request is not valid."
+        return error_response(
+            422, "validation_error", "The request is not valid.", [{"loc": ["body"], "msg": detail}]
+        )
     code = "rate_limited" if exc.status_code == 429 else "internal_error"
     detail = exc.detail if isinstance(exc.detail, str) and exc.status_code < 500 else "Request failed."
     return error_response(exc.status_code, code, detail)

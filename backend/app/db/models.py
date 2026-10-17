@@ -13,6 +13,7 @@ from typing import Any
 
 from geoalchemy2 import Geometry
 from sqlalchemy import (
+    DDL,
     BigInteger,
     Boolean,
     DateTime,
@@ -27,6 +28,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.event import listen
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -348,13 +350,44 @@ class ResultSet(Base):
 
 
 class Event(Base):
+    """Live-update log. `seq` is the public SSE id, assigned at commit in commit order (EVENT_SEQ_DDL).
+
+    `id` is allocated at insert, so two transactions can commit out of `id` order and a stream that
+    followed `id` could skip the later commit. `seq` is set by a deferred trigger that holds an advisory
+    lock until its transaction ends, so a lower `seq` is always visible before a higher one.
+    """
+
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    seq: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     type: Mapped[str] = mapped_column(String(40), nullable=False)
     document_id: Mapped[str | None] = mapped_column(String(40), index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = _now_column()
+
+
+EVENT_SEQ_LOCK = 7_342_001
+EVENT_SEQ_DDL = (
+    "CREATE SEQUENCE IF NOT EXISTS events_seq_counter",
+    f"""
+    CREATE OR REPLACE FUNCTION events_assign_seq() RETURNS trigger AS $$
+    BEGIN
+        PERFORM pg_advisory_xact_lock({EVENT_SEQ_LOCK});
+        UPDATE events SET seq = nextval('events_seq_counter') WHERE id = NEW.id;
+        RETURN NULL;
+    END
+    $$ LANGUAGE plpgsql
+    """,  # noqa: S608 (only an integer constant is interpolated)
+    "DROP TRIGGER IF EXISTS events_assign_seq ON events",
+    """
+    CREATE CONSTRAINT TRIGGER events_assign_seq AFTER INSERT ON events
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION events_assign_seq()
+    """,
+)
+
+for _statement in EVENT_SEQ_DDL:
+    listen(Event.__table__, "after_create", DDL(_statement))  # type: ignore[no-untyped-call]
 
 
 class GeocodeCache(Base):

@@ -185,6 +185,8 @@ def coordinate_range(body: dict[str, Any]) -> Iterator[Finding]:
             "coordinates_out_of_range",
             {"lat": _fmt(lat), "lon": _fmt(lon)},
         )
+    elif lat == 0 and lon == 0:
+        yield "metadata.coordinates.latitude", "coordinates_zero", {}
 
 
 RULES: tuple[Rule, ...] = (

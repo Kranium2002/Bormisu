@@ -14,7 +14,7 @@ class ApiModel(BaseModel):
     unknown). Fields listed in `omit_if_none` are dropped from the output when they are None.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config = ConfigDict(extra="ignore", populate_by_name=True, allow_inf_nan=False)
 
     omit_if_none: ClassVar[frozenset[str]] = frozenset()
 

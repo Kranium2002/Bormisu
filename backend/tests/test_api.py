@@ -17,6 +17,7 @@ from app.review.service import create_borehole
 from app.schemas.boreholes import ProvenanceIn
 from app.storage import get_storage, page_render_key
 from tests.contract_utils import validate_response
+from tests.factories import full_provenance
 
 pytestmark = pytest.mark.db
 
@@ -100,6 +101,7 @@ async def _fixture_document(*, crs_status: str = "inferred", crs_code: str | Non
             group_key="g",
             body=body,
             provenance={
+                **full_provenance(body),
                 "metadata.borehole_depth_m": prov,
                 "metadata.coordinates.local_x": prov,
                 "metadata.coordinates.local_y": prov,

@@ -1,6 +1,7 @@
 """Server-sent events from the `events` table (contracts/realtime-and-chat.md section 1).
 
-Replays events after Last-Event-ID, then follows new ones with LISTEN on a dedicated asyncpg connection.
+Event ids are `events.seq` (commit order). Replays events after Last-Event-ID, then follows new ones
+with LISTEN on a dedicated asyncpg connection.
 A `: ping` comment every 15 s keeps proxies from closing the connection.
 """
 
@@ -13,7 +14,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import asyncpg
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.db.models import Event
@@ -33,15 +34,15 @@ def format_event(event_id: int, type_: str, payload: dict[str, Any]) -> str:
 
 async def _events_after(after_id: int, document_id: str | None) -> list[Event]:
     async with get_sessionmaker()() as session:
-        query = select(Event).where(Event.id > after_id)
+        query = select(Event).where(Event.seq > after_id)
         if document_id is not None:
             query = query.where(Event.document_id == document_id)
-        return list((await session.scalars(query.order_by(Event.id).limit(REPLAY_BATCH))).all())
+        return list((await session.scalars(query.order_by(Event.seq).limit(REPLAY_BATCH))).all())
 
 
 async def _latest_id() -> int:
     async with get_sessionmaker()() as session:
-        latest = await session.scalar(select(Event.id).order_by(Event.id.desc()).limit(1))
+        latest = await session.scalar(select(func.max(Event.seq)))
         return int(latest or 0)
 
 
@@ -71,7 +72,7 @@ async def event_stream(
             while True:
                 batch = await _events_after(cursor, document_id)
                 for event in batch:
-                    cursor = int(event.id)
+                    cursor = int(event.seq or cursor)
                     yield format_event(cursor, event.type, event.payload)
                 if len(batch) < REPLAY_BATCH:
                     break

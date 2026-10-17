@@ -72,17 +72,22 @@ class Placement:
     longitude: float | None
 
 
-def placement(coords: dict[str, Any], crs_status: str, *, implausible: bool = False) -> Placement:
+def placement(
+    coords: dict[str, Any], crs_status: str, *, implausible: bool = False, person_placed: bool = False
+) -> Placement:
+    """Plot only WGS84 from a stated or confirmed system, or a point a person placed; never (0, 0)."""
     lat, lon = coords.get("latitude"), coords.get("longitude")
     has_wgs84 = isinstance(lat, int | float) and isinstance(lon, int | float)
     has_any = has_wgs84 or any(coords.get(k) is not None for k in ("local_x", "local_y", "x_raw", "y_raw"))
     if not has_any:
         return Placement(False, "no_coordinates", None, None)
-    if crs_status == "inferred":
+    if person_placed and has_wgs84:
+        pass
+    elif crs_status == "inferred":
         return Placement(False, "crs_unconfirmed", None, None)
-    if crs_status not in PLOTTABLE_CRS_STATUS or not has_wgs84:
+    elif crs_status not in PLOTTABLE_CRS_STATUS or not has_wgs84:
         return Placement(False, "crs_unknown", None, None)
     assert isinstance(lat, int | float) and isinstance(lon, int | float)
-    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or implausible:
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or implausible or (lat == 0 and lon == 0):
         return Placement(False, "implausible", None, None)
     return Placement(True, None, float(lat), float(lon))

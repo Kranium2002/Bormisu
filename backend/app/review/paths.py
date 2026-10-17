@@ -7,6 +7,7 @@ test_results[i].value. Indices are 0-based positions in the record.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -147,10 +148,14 @@ def coerce_value(body: dict[str, Any], path: str | ValuePath, value: Any) -> Any
     if vp.section == "rock_head_m":
         if value is None:
             return None
+        if isinstance(value, bool):
+            raise ValueParseError("rock_head_m needs a number, not true/false")
         try:
             number = float(_prepare_number(value))
         except (TypeError, ValueError) as exc:
             raise ValueParseError("rock_head_m must be a number in metres") from exc
+        if not math.isfinite(number):
+            raise ValueParseError("rock_head_m must be a finite number")
         if number < 0:
             raise ValueParseError("rock_head_m cannot be negative")
         return number
@@ -160,9 +165,16 @@ def coerce_value(body: dict[str, Any], path: str | ValuePath, value: Any) -> Any
         raise PathError(str(vp))
     annotation = str(model.model_fields[vp.field].annotation)
     candidate = value
+    numeric = (
+        ("float" in annotation or "int" in annotation)
+        and "str" not in annotation
+        and "bool" not in annotation
+    )
+    if numeric and isinstance(value, bool):
+        raise ValueParseError(f"{vp.field} needs a number, not true/false")
     if isinstance(value, bool):
         candidate = value
-    elif ("float" in annotation or "int" in annotation) and "str" not in annotation:
+    elif numeric:
         candidate = _prepare_number(value)
     elif "str" in annotation and isinstance(value, int | float):
         candidate = str(value)
@@ -174,6 +186,8 @@ def coerce_value(body: dict[str, Any], path: str | ValuePath, value: Any) -> Any
         messages = "; ".join(e["msg"] for e in exc.errors() if vp.field in [str(p) for p in e["loc"]])
         raise ValueParseError(messages or f"value is not valid for {vp}") from exc
     result = validated.model_dump(mode="json")[vp.field]
+    if isinstance(result, float) and not math.isfinite(result):
+        raise ValueParseError(f"{vp.field} must be a finite number")
     if vp.field == "din4023_code" and result is not None and not is_din_code(result):
         raise ValueParseError("din4023_code must be a DIN 4023 code from din_codes.json (case-sensitive)")
     if vp.field == "spt_n_value" and isinstance(value, float) and not value.is_integer():
@@ -198,3 +212,21 @@ def iter_paths(body: dict[str, Any]) -> Iterator[str]:
             else:
                 for name in model.model_fields:
                     yield f"{section}[{i}].{name}"
+
+
+# Values the server computes itself; they need no provenance entry of their own.
+SERVER_COMPUTED_SUFFIXES = (".thickness_m", ".description_language")
+SERVER_COMPUTED_PATHS = frozenset({"metadata.coordinates.crs_code", "metadata.aliases"})
+
+
+def uncovered_paths(body: dict[str, Any], provenance: dict[str, Any]) -> list[str]:
+    """Paths with a non-null value but no provenance entry (values nobody can check against a source)."""
+    missing = []
+    for path in iter_paths(body):
+        if path in provenance or path in SERVER_COMPUTED_PATHS or path.endswith(SERVER_COMPUTED_SUFFIXES):
+            continue
+        value = get_value(body, path)
+        if value is None or value == [] or value == "":
+            continue
+        missing.append(path)
+    return missing

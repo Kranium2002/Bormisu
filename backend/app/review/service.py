@@ -41,6 +41,7 @@ from app.review.paths import (
     parse_path,
     path_exists,
     set_value,
+    uncovered_paths,
 )
 from app.schemas.boreholes import (
     BoreholeBody,
@@ -57,8 +58,13 @@ LON = "metadata.coordinates.longitude"
 LOCAL_X = "metadata.coordinates.local_x"
 LOCAL_Y = "metadata.coordinates.local_y"
 ROCK_HEAD = "rock_head_m"
+CRS_CODE = "metadata.coordinates.crs_code"
+# Values the server writes itself; they are never edited through PATCH.
+SERVER_MANAGED_PATHS = frozenset({CRS_CODE})
+# Lint rules after which a position is not plotted.
+IMPLAUSIBLE_RULES = frozenset({"coordinates_out_of_range", "coordinates_zero"})
 
-_CANON_STRIP = re.compile(r"[\s\-_./]+")
+_CANON_STRIP = re.compile(r"[\s\-_]+")
 _LEADING_ZEROS = re.compile(r"(?<![0-9])0+(?=[0-9])")
 
 
@@ -71,6 +77,9 @@ def canonical_label(label: str) -> str:
 def _now() -> datetime:
     return datetime.now(UTC)
 
+
+# Clarifications that still mark their records: open ones and those a person skipped for later.
+UNRESOLVED_CLARIFICATION = ("open", "skipped")
 
 # ----------------------------------------------------------------------------------------------
 # Loading
@@ -180,8 +189,7 @@ def _derive_wgs84(
         for path in (LAT, LON):
             if path in fvs:
                 drop.add(path)
-        coords["latitude"] = None
-        coords["longitude"] = None
+                coords[path.rsplit(".", 1)[1]] = None
         return
     lat, lon = round(result[0], 7), round(result[1], 7)
     coords["latitude"], coords["longitude"] = lat, lon
@@ -206,8 +214,8 @@ def _derive_rock_head(
             sources = [fvs.get(f"stratigraphy[{i}].din4023_code"), fvs.get(f"stratigraphy[{i}].depth_from_m")]
             _set_derived(bh, fvs, ROCK_HEAD, value, sources, new_rows)
             return
-    body["rock_head_m"] = None
     if existing is not None:
+        body["rock_head_m"] = None
         drop.add(ROCK_HEAD)
 
 
@@ -254,10 +262,9 @@ def recompute(bh: Borehole, fvs: dict[str, FieldValue]) -> tuple[list[FieldValue
     meta = body["metadata"]
     coords = meta["coordinates"]
     lint = lint_body(body)
-    has_lint_error = any(
-        item["severity"] == "error" and item["rule"] == "coordinates_out_of_range" for item in lint
-    )
-    place = placement(coords, bh.crs_status, implausible=has_lint_error)
+    has_lint_error = any(item["severity"] == "error" and item["rule"] in IMPLAUSIBLE_RULES for item in lint)
+    person_placed = all(fvs.get(p) is not None and fvs[p].method == "edited" for p in (LAT, LON))
+    place = placement(coords, bh.crs_status, implausible=has_lint_error, person_placed=person_placed)
 
     bh.record = body
     bh.lint = lint
@@ -329,6 +336,28 @@ async def _apply_recompute(session: AsyncSession, bh: Borehole, fvs: dict[str, F
 # ----------------------------------------------------------------------------------------------
 
 
+def companion_provenance(
+    data: dict[str, Any], provenance: dict[str, ProvenanceIn]
+) -> dict[str, ProvenanceIn]:
+    """Provenance for a layer's English rendering: the box of its printed description, method guessed."""
+    extra: dict[str, ProvenanceIn] = {}
+    for i, layer in enumerate(data.get("stratigraphy") or []):
+        path = f"stratigraphy[{i}].english_lithology"
+        source = provenance.get(f"stratigraphy[{i}].original_description")
+        if layer.get("english_lithology") is None or path in provenance or source is None:
+            continue
+        extra[path] = ProvenanceIn(
+            document_id=source.document_id,
+            page=source.page,
+            box=source.box,
+            cell=source.cell,
+            raw=None,
+            method="guessed",
+            confidence=source.confidence,
+        )
+    return extra
+
+
 async def create_borehole(
     session: AsyncSession,
     *,
@@ -344,7 +373,8 @@ async def create_borehole(
 ) -> Borehole:
     """Insert a new borehole at revision 1 with its provenance; emits `borehole.created`.
 
-    Every provenance key must be a valid path that exists in `body`; `ai_value` defaults to the value.
+    Every provenance key must be a valid path that exists in `body`, and every non-null value needs a
+    provenance entry (except values the server computes); `ai_value` defaults to the value.
     """
     model = body if isinstance(body, BoreholeBody) else BoreholeBody.model_validate(body)
     data = model.model_dump(mode="json")
@@ -352,6 +382,10 @@ async def create_borehole(
         parse_path(path)
         if not path_exists(data, path):
             raise PathError(f"provenance path {path!r} does not exist in the record")
+    provenance = {**provenance, **companion_provenance(data, provenance)}
+    uncovered = uncovered_paths(data, provenance)
+    if uncovered:
+        raise PathError(f"values without provenance: {', '.join(uncovered[:10])}")
     label = str(data["metadata"]["borehole_id"])
     bh = Borehole(
         uid=new_id("bh"),
@@ -464,6 +498,12 @@ async def apply_patch(session: AsyncSession, uid: str, patch: ValuePatch, *, act
             )
         fv.state = patch.state
     elif patch.action == "edit":
+        if patch.path in SERVER_MANAGED_PATHS:
+            raise ApiError(
+                422,
+                "unparseable_value",
+                f"{patch.path} is set by the server; confirm a system with POST /documents/{{id}}/crs.",
+            )
         body = copy.deepcopy(bh.record)
         try:
             value = coerce_value(body, patch.path, patch.value)
@@ -584,9 +624,6 @@ async def set_manual_location(
         else:
             fv.value, fv.method, fv.status, fv.state, fv.flag = value, "edited", "approved", "ok", None
             fv.updated_at = _now()
-    if bh.crs_status not in PLOTTABLE_CRS_STATUS or not bh.crs_code:
-        bh.crs_status, bh.crs_code, bh.swap_axes = "confirmed", "EPSG:4326", False
-        coords["crs_code"] = "EPSG:4326"
     bh.record = body
     changes = {
         "action": "locate",
@@ -600,7 +637,12 @@ async def set_manual_location(
 
 async def refresh_document_status(session: AsyncSession, document_id: str) -> None:
     """needs_review <-> done: done when every borehole of the document is approved."""
-    doc = await session.get(Document, document_id)
+    doc = await session.scalar(
+        select(Document)
+        .where(Document.id == document_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if doc is None or doc.status not in ("needs_review", "done"):
         return
     statuses = (
@@ -643,7 +685,7 @@ async def open_clarification_counts(session: AsyncSession, uids: Sequence[str]) 
     if not uids:
         return {}
     uid_col = func.unnest(Clarification.borehole_uids).label("uid")
-    sub = select(uid_col).where(Clarification.status == "open").subquery()
+    sub = select(uid_col).where(Clarification.status.in_(UNRESOLVED_CLARIFICATION)).subquery()
     rows = await session.execute(
         select(sub.c.uid, func.count()).where(sub.c.uid.in_(list(uids))).group_by(sub.c.uid)
     )

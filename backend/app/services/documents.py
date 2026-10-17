@@ -118,7 +118,7 @@ async def documents_out(session: AsyncSession, docs: Sequence[Document]) -> list
     groundwater = {str(d): int(n) for d, n in gw_rows.all()}
     clar_rows = await session.execute(
         select(Clarification.document_id, func.count())
-        .where(Clarification.document_id.in_(ids), Clarification.status == "open")
+        .where(Clarification.document_id.in_(ids), Clarification.status.in_(("open", "skipped")))
         .group_by(Clarification.document_id)
     )
     open_clar = {str(d): int(n) for d, n in clar_rows.all()}

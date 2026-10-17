@@ -13,6 +13,7 @@ from typing import Any
 
 import httpx
 from sqlalchemy import func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -155,6 +156,9 @@ async def nominatim(session: AsyncSession, query: str, limit: int) -> list[dict[
         return list(cached.response)
     global _last_call
     async with _lock:
+        cached = await session.get(GeocodeCache, key, populate_existing=True)
+        if cached is not None:
+            return list(cached.response)
         wait = MIN_INTERVAL_S - (time.monotonic() - _last_call)
         if wait > 0:
             await asyncio.sleep(wait)
@@ -181,15 +185,22 @@ async def nominatim(session: AsyncSession, query: str, limit: int) -> list[dict[
             503, "geocoder_unavailable", "The place search service sent an unreadable answer."
         ) from exc
     parsed = _parse_nominatim(items if isinstance(items, list) else [])
-    session.add(GeocodeCache(query_norm=key, response=parsed))
-    await session.flush()
+    await session.execute(
+        pg_insert(GeocodeCache).values(query_norm=key, response=parsed).on_conflict_do_nothing()
+    )
     return parsed
 
 
 async def geocode(session: AsyncSession, query: str, limit: int) -> list[PlaceCandidate]:
     results = await uploaded_places(session, query, limit)
     if len(results) < limit and get_settings().geocoder_configured:
-        for item in await nominatim(session, query, limit - len(results)):
+        try:
+            external = await nominatim(session, query, limit - len(results))
+        except ApiError:
+            if results:
+                return results[:limit]  # uploaded places still answer when the geocoder is down
+            raise
+        for item in external:
             item = dict(item)
             item["borehole_count"] = await _count_inside(session, item.get("bbox"))
             results.append(PlaceCandidate.model_validate(item))
