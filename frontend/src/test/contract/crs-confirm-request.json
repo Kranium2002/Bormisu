@@ -1,0 +1,10 @@
+{
+  "_fictional": "Fictional example for frontend tests; no real data.",
+  "schema": "CrsConfirmRequest",
+  "example": {
+    "crs": "EPSG:31983",
+    "swap_axes": true,
+    "confirmed_by": null,
+    "note": null
+  }
+}
