@@ -1,9 +1,8 @@
-import { MethodBadge } from '../../components/MethodBadge';
+import { CertaintyMark } from '../../components/CertaintyMark';
 import { SourceIcon } from '../../components/SourceIcon';
 import { boreholeStatus } from '../../domain/review';
 import type { Borehole } from '../../domain/types';
 import { pinColor } from '../../theme';
-import { Chips } from './Chips';
 import { locationInfo, metadataRows } from './detailModel';
 import { LocationMap } from './LocationMap';
 import card from './cards.module.css';
@@ -37,9 +36,8 @@ export function MetadataCard({ borehole: b, onOpenSource }: Props) {
               <div className={styles.label}>{r.label}</div>
               <div className={styles.value}>
                 <span className={face}>{r.shown.text}</span>
-                <Chips chips={r.chips} />
               </div>
-              <div>{r.method && <MethodBadge method={r.method} confidence={r.confidence} formula={r.formula} />}</div>
+              <div>{r.certainty && <CertaintyMark certainty={r.certainty} />}</div>
               <div>
                 <SourceIcon
                   dim={r.source.dim}

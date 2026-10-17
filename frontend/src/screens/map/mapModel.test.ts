@@ -16,7 +16,6 @@ import {
   notOnMapSearchTarget,
   outsideSummary,
   placeBoreholes,
-  popupCrsWarning,
   resultsSummary,
   searchStep,
   shortCrsName,
@@ -90,15 +89,6 @@ describe('crsCell', () => {
       title: 'Stated in the source: ETRS89 / UTM zone 32N (EPSG:25832)',
     });
     expect(crsCell({ name: null, code: null, status: 'unknown' })).toMatchObject({ text: 'unknown', warn: true });
-  });
-});
-
-describe('popupCrsWarning', () => {
-  it('warns only for inferred or unknown CRS', () => {
-    expect(popupCrsWarning({ name: 'x', code: null, status: 'inferred' })).toBe('CRS inferred, not stated');
-    expect(popupCrsWarning({ name: null, code: null, status: 'unknown' })).toBe('CRS unknown');
-    expect(popupCrsWarning({ name: 'x', code: null, status: 'stated' })).toBeNull();
-    expect(popupCrsWarning({ name: 'x', code: null, status: 'confirmed' })).toBeNull();
   });
 });
 

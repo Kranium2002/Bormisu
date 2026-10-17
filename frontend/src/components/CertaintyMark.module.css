@@ -1,0 +1,21 @@
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sure {
+  background: var(--c-green-bg);
+  color: var(--c-green-text);
+}
+
+.unsure {
+  background: var(--c-amber-bg);
+  color: var(--c-amber-text);
+}

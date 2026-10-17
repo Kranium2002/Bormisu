@@ -86,13 +86,3 @@ span.sptText {
   color: var(--c-red);
 }
 
-.lint {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--fs-sm);
-  color: var(--c-red);
-  font-weight: 700;
-}
-
-.lintWarn {
-  color: var(--c-amber-text);
-}

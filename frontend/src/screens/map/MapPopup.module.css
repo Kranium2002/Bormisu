@@ -13,11 +13,6 @@
   margin-top: var(--space-1);
 }
 
-.crs {
-  margin-top: 2px;
-  color: var(--c-amber-text);
-}
-
 /* OPEN DETAIL ›: the popup's one primary action, full width. */
 .open {
   composes: primary from '../../styles/buttons.module.css';

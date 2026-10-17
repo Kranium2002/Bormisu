@@ -6,11 +6,8 @@
 import { boreholeStatus, progress } from '../../domain/review';
 import { K } from '../../domain/keys';
 import { formatSpt, refusalTitle } from '../../domain/spt';
-import type { Borehole, ExtractedValue, GroundwaterReading, Layer, Lint, Method } from '../../domain/types';
-
-/** Colour family of a small chip next to a value. */
-export type ChipTone = 'red' | 'amber' | 'green' | 'grey';
-export interface Chip { label: string; tone: ChipTone; title?: string }
+import { certaintyOf, type Certainty } from '../../domain/certainty';
+import type { Borehole, ExtractedValue, GroundwaterReading, Layer, Lint } from '../../domain/types';
 
 /** A value as shown in a table cell. `missing` renders grey italics ("not in source", never 0). */
 export interface Shown { text: string; missing: boolean }
@@ -33,31 +30,6 @@ export function shown(v: ExtractedValue | undefined, missingText = 'not in sourc
 /** Plain cell text for numeric table columns (TCR, RQD): the value or a dash. */
 function cell(v: ExtractedValue | undefined): string {
   return v && v.state === 'ok' && v.value ? v.value : DASH;
-}
-
-/** Chips every value can carry: an open lint (red error / amber warning) and a review flag. */
-function reviewChips(v: ExtractedValue | undefined): Chip[] {
-  const chips: Chip[] = [];
-  if (hasOpenLint(v)) chips.push({ label: 'Lint', tone: v.lint.severity === 'error' ? 'red' : 'amber', title: v.lint.message });
-  if (v?.status === 'flagged') chips.push({ label: 'Flagged', tone: 'amber', ...(v.flag ? { title: v.flag } : {}) });
-  return chips;
-}
-
-/**
- * CRS status chip: Inferred (amber) until confirmed in review, Confirmed green (a reviewer checked
- * it), Stated grey (printed, not checked: green never means "correct"), Unknown red.
- */
-export function crsChip(b: Borehole): Chip {
-  switch (b.crs.status) {
-    case 'inferred':
-      return { label: 'Inferred', tone: 'amber', title: 'Not printed in the source. Confirm it in review.' };
-    case 'confirmed':
-      return { label: 'Confirmed', tone: 'green', title: 'Confirmed in review' };
-    case 'stated':
-      return { label: 'Stated', tone: 'grey', title: 'Printed in the source' };
-    default:
-      return { label: 'Unknown', tone: 'red', title: 'No usable coordinate system' };
-  }
 }
 
 /* ---------- source links ---------- */
@@ -90,26 +62,19 @@ export interface MetaRow {
   shown: Shown;
   /** A number, date or coordinate pair: shown in the mono face. Words stay in the sans. */
   numeric: boolean;
-  chips: Chip[];
-  method: Method | null;
-  confidence?: number;
-  formula?: string;
+  /** ✓ / ? mark; null when there is no value. */
+  certainty: Certainty | null;
   source: SourceLink;
 }
 
-function metaRow(
-  b: Borehole, label: string, key: string, numeric: boolean, extraChips: (v: ExtractedValue | undefined) => Chip[] = () => [],
-): MetaRow {
+function metaRow(b: Borehole, label: string, key: string, numeric: boolean): MetaRow {
   const v = valueOf(b, key);
   return {
     label,
     key: v ? key : null,
     shown: shown(v),
     numeric,
-    chips: [...extraChips(v), ...reviewChips(v)],
-    method: v?.method ?? null,
-    confidence: v?.confidence,
-    formula: v?.formula,
+    certainty: v ? certaintyOf(v) : null,
     source: sourceLink(b, v ? key : null),
   };
 }
@@ -121,16 +86,14 @@ export function metadataRows(b: Borehole): MetaRow[] {
     ? metaRow(b, 'Rock head', K.rockHead, true)
     : // No rock layer in the log: rock head is derived as "not reached", nothing to point at.
       {
-        label: 'Rock head', key: null, shown: { text: 'not reached', missing: true }, numeric: true, chips: [], method: 'Derived',
-        source: sourceLink(b, null),
+        label: 'Rock head', key: null, shown: { text: 'not reached', missing: true }, numeric: true,
+        certainty: { sure: true, title: 'No rock in the log' }, source: sourceLink(b, null),
       };
   return [
     metaRow(b, 'Final depth', K.finalDepth, true),
     rockRow,
-    metaRow(b, 'Surface elevation', K.elevation, true, (v) =>
-      v && v.state === 'ok' ? [{ label: 'Datum unconfirmed', tone: 'grey', title: v.note ?? 'Height datum stored as printed' }] : [],
-    ),
-    metaRow(b, 'CRS', K.crs, false, () => [crsChip(b)]),
+    metaRow(b, 'Surface elevation', K.elevation, true),
+    metaRow(b, 'CRS', K.crs, false),
     metaRow(b, 'Start date', K.startDate, true),
     metaRow(b, 'Drilling method', K.method, false),
     metaRow(b, 'Remarks', K.notes, false),
@@ -186,8 +149,7 @@ export interface LayerRow {
   spt: SptCell | null;
   tcr: string;
   rqd: string;
-  method: Method;
-  confidence: number;
+  certainty: Certainty;
   /** Key of the layer's lithology value: the row's source icon opens it. */
   sourceKey: string | null;
   source: SourceLink;
@@ -230,24 +192,11 @@ export function layerRows(b: Borehole): LayerRow[] {
       spt: sptCell(b, l, valueOf(b, K.spt(l.n))),
       tcr: cell(valueOf(b, K.tcr(l.n))),
       rqd: cell(valueOf(b, K.rqd(l.n))),
-      method: lith?.method ?? l.method,
-      confidence: lith?.confidence ?? l.confidence,
+      certainty: certaintyOf(lith ?? l),
       sourceKey,
       source: sourceLink(b, sourceKey),
     };
   });
-}
-
-/** Note under the layers table when the final depth carries an open lint, e.g. the log ends early. */
-export function layerLint(b: Borehole): { text: string; severity: Lint['severity'] } | null {
-  const fd = valueOf(b, K.finalDepth);
-  if (!hasOpenLint(fd)) return null;
-  const msg = fd.lint.message.replace(/\.\s*$/, '');
-  if (b.finalDepth == null || b.logBottom >= b.finalDepth) return { text: `${msg}.`, severity: fd.lint.severity };
-  // The log stops before the final depth: most likely a continuation sheet is missing.
-  const sheets = new Set(b.values.filter((v) => v.group === 'layer' && v.page != null).map((v) => v.page)).size;
-  const hint = sheets > 0 ? ` Possibly a missing sheet ${sheets + 1}.` : ' Possibly a missing log sheet.';
-  return { text: `${msg}.${hint}`, severity: fd.lint.severity };
 }
 
 /* ---------- groundwater ---------- */
@@ -257,8 +206,7 @@ export interface GroundwaterRow {
   type: string;
   depth: Shown;
   raw: string;
-  method: Method | null;
-  confidence?: number;
+  certainty: Certainty | null;
   source: SourceLink;
 }
 
@@ -275,8 +223,7 @@ export function groundwaterRows(b: Borehole): GroundwaterRow[] {
       type: GW_LABEL[g.type],
       depth: v ? shown(v) : { text: `${g.depth.toFixed(2)} m bgl`, missing: false },
       raw: v?.raw ? `“${v.raw}”` : '',
-      method: v?.method ?? null,
-      confidence: v?.confidence,
+      certainty: v ? certaintyOf(v) : null,
       source: sourceLink(b, g.key),
     };
   });

@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { MethodBadge } from '../../components/MethodBadge';
+import { CertaintyMark } from '../../components/CertaintyMark';
+import { certaintyOf } from '../../domain/certainty';
 import { refusalTitle } from '../../domain/spt';
 import type { ExtractedValue, FieldState } from '../../domain/types';
 import { useAppStore, type EditingState } from '../../store/appStore';
@@ -191,7 +192,7 @@ function FieldRowImpl({ uid, value: v, focused, editing, normText, note, canChoo
       </div>
 
       <div>
-        <MethodBadge method={v.method} confidence={v.confidence} formula={v.formula} />
+        <CertaintyMark certainty={certaintyOf(v)} />
       </div>
 
       <div className={styles.actions} onClick={stop}>

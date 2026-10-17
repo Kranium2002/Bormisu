@@ -233,7 +233,6 @@ export function ProfileColumn({ borehole: b, selectedLayer, onSelectLayer, onOpe
             strokeDasharray="4 3"
           />
           <text x={X.layerMid} y={y((nl.from + nl.to) / 2) + 4} fontSize="10" textAnchor="middle" fill={COL.muted}>not logged</text>
-          <text x={X.bottomLabel} y={y((nl.from + nl.to) / 2) + 4} fontSize="10" fill={COL.red}>{nl.label}</text>
         </g>
       )}
 

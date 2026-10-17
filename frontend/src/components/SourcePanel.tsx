@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useAppStore, useIsReviewable, usePage, useValue, type SourcePanel as SourcePanelState } from '../store/appStore';
 import { PAGE_TYPE_META } from '../theme';
-import { MethodBadge } from './MethodBadge';
+import { certaintyOf } from '../domain/certainty';
+import { CertaintyMark } from './CertaintyMark';
 import { ScanPage } from './ScanPage';
 import { PanelHeader } from './PanelHeader';
 import styles from './SidePanel.module.css';
@@ -66,7 +67,7 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
         </div>
         <div className={styles.sub}>{label}</div>
         <div className={styles.meta}>
-          {value && <MethodBadge method={value.method} confidence={value.confidence} formula={value.formula} />}
+          {value && <CertaintyMark certainty={certaintyOf(value)} />}
           {detail && <span className={styles.raw}>{detail}</span>}
         </div>
         {value && !box && <div className={styles.noBox}>Box not found: page shown</div>}
@@ -88,7 +89,6 @@ export function SourcePanel({ panel }: { panel: SourcePanelState }) {
           <button type="button" className={styles.primary} onClick={openInReview}>
             OPEN IN REVIEW ›
           </button>
-          <span className={styles.sub}>Esc to close</span>
         </div>
       )}
     </>

@@ -38,7 +38,7 @@ import {
   openAreaCentre,
   setCountryLimits,
 } from './focusLayers';
-import { depthText, PIN_RADIUS, popupCrsWarning, type PlottedBorehole } from './mapModel';
+import { depthText, PIN_RADIUS, type PlottedBorehole } from './mapModel';
 import { buildPopup } from './mapPopup';
 import { smoothWheelZoom } from './smoothWheelZoom';
 
@@ -259,7 +259,6 @@ export function BoreholeMap({
           project: b.project,
           depth: depthText(b),
           status: st.get(uid) ?? 'unreviewed',
-          crsWarning: popupCrsWarning(b.crs),
         },
         () => {
           map.closePopup();

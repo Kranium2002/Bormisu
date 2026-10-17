@@ -1,8 +1,8 @@
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { MethodBadge } from '../../components/MethodBadge';
+import { CertaintyMark } from '../../components/CertaintyMark';
 import { SourceIcon } from '../../components/SourceIcon';
 import type { Borehole } from '../../domain/types';
-import { layerLint, layerRows, type SptCell } from './detailModel';
+import { layerRows, type SptCell } from './detailModel';
 import card from './cards.module.css';
 import styles from './LayersTable.module.css';
 import { useT } from '../../i18n';
@@ -44,7 +44,6 @@ function Spt({ spt, onOpen }: { spt: SptCell; onOpen: (e: MouseEvent) => void })
 /** LAYERS table: row click selects the layer (in sync with the profile); SPT and icon open the source. */
 export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenSource }: Props) {
   const rows = layerRows(b);
-  const lint = layerLint(b);
   const openFrom = (key: string) => (e: MouseEvent) => {
     e.stopPropagation();
     onOpenSource(key);
@@ -93,7 +92,7 @@ export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenS
               <div role="cell" className={`${styles.cell} ${card.mono}`}>{r.tcr}</div>
               <div role="cell" className={`${styles.cell} ${card.mono}`}>{r.rqd}</div>
               <div role="cell" className={styles.cell}>
-                <MethodBadge method={r.method} confidence={r.confidence} />
+                <CertaintyMark certainty={r.certainty} />
               </div>
               <div role="cell">
                 <SourceIcon
@@ -107,7 +106,6 @@ export function LayersTable({ borehole: b, selectedLayer, onSelectLayer, onOpenS
         })}
       </div>
       {rows.length === 0 && <div className={card.empty}>No layers in source</div>}
-      {lint && <div className={`${styles.lint} ${lint.severity === 'warning' ? styles.lintWarn : ''}`}>{lint.text}</div>}
     </section>
   );
 }

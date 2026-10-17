@@ -2,7 +2,7 @@
  * TS mirror of the colours that are computed at runtime (pins, chips, badges, page types,
  * profile fills). Static styling lives in CSS modules + src/styles/tokens.css.
  */
-import type { BoreholeStatus, Method, PageType, PatternId } from './domain/types';
+import type { BoreholeStatus, PageType, PatternId } from './domain/types';
 
 /** Core palette (same names as the prototype's COL, plus text tones used in computed styles). */
 export const COL = {
@@ -25,15 +25,6 @@ export const COL = {
   redBg: '#FDE7EA',
   selected: '#F0F0F0',
 } as const;
-
-/** Method badge colours. None of them is green: green must never imply "correct". */
-export const METHOD_COLORS: Record<Method, { bg: string; fg: string }> = {
-  Read: { bg: '#E3E9F3', fg: '#2D4A7A' },
-  OCR: { bg: '#ECE6F3', fg: '#5B3F86' },
-  Derived: { bg: '#F1EADF', fg: '#7A5A2B' },
-  Guessed: { bg: '#FFEFCC', fg: '#8A5300' },
-  Edited: { bg: '#E4E4E4', fg: '#181818' },
-};
 
 /** Fill of the stratigraphy column per stratigraphy code. Unknown codes use STRAT_FALLBACK. */
 export const STRAT_COLORS: Record<string, string> = {

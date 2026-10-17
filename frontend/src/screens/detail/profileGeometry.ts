@@ -77,13 +77,9 @@ export function stratBlocks(layers: Layer[]): StratBlock[] {
 }
 
 /** "Not logged" band when the log stops above the final depth (e.g. a missing sheet). */
-export function notLogged(b: Pick<Borehole, 'finalDepth' | 'logBottom' | 'layers'>): { from: number; to: number; label: string } | null {
+export function notLogged(b: Pick<Borehole, 'finalDepth' | 'logBottom' | 'layers'>): { from: number; to: number } | null {
   if (b.finalDepth == null || !b.layers.length || b.logBottom >= b.finalDepth - 0.005) return null;
-  return {
-    from: b.logBottom,
-    to: b.finalDepth,
-    label: `log ends ${b.logBottom.toFixed(2)} ≠ ET ${b.finalDepth.toFixed(2)}`,
-  };
+  return { from: b.logBottom, to: b.finalDepth };
 }
 
 /**

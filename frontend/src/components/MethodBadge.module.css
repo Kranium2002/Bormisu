@@ -1,5 +1,0 @@
-/* Colours are runtime values (METHOD_COLORS); none of them is green. */
-.badge {
-  composes: chip from '../styles/chips.module.css';
-  cursor: default;
-}

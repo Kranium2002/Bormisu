@@ -1,4 +1,4 @@
-import { MethodBadge } from '../../components/MethodBadge';
+import { CertaintyMark } from '../../components/CertaintyMark';
 import { SourceIcon } from '../../components/SourceIcon';
 import type { Borehole } from '../../domain/types';
 import { groundwaterRows } from './detailModel';
@@ -23,7 +23,7 @@ export function GroundwaterTable({ borehole: b, onOpenSource }: Props) {
           <div className={styles.type}>{g.type}</div>
           <div className={`${styles.cell} ${g.depth.missing ? card.missing : card.mono}`}>{g.depth.text}</div>
           <div className={`${styles.cell} ${styles.raw}`}>{g.raw}</div>
-          <div>{g.method && <MethodBadge method={g.method} confidence={g.confidence} />}</div>
+          <div>{g.certainty && <CertaintyMark certainty={g.certainty} />}</div>
           <div>
             <SourceIcon
               dim={g.source.dim}

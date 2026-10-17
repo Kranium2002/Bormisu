@@ -4,10 +4,8 @@ import type { Borehole, Spt } from '../../domain/types';
 import { exportScope } from '../../export/scope';
 import { makeBorehole, makeLayer, makeValue } from '../../test/fixtures';
 import {
-  crsChip,
   excludedText,
   groundwaterRows,
-  layerLint,
   layerRows,
   locationInfo,
   metadataRows,
@@ -63,17 +61,11 @@ describe('metadataRows', () => {
     ]);
   });
 
-  it('shows Lint on an unapproved lint, and drops it once approved', () => {
+  it('shows ? on an unapproved lint, and ✓ once a reviewer approved it', () => {
     const b = shortLog();
-    expect(metadataRows(b)[0].chips.map((c) => c.label)).toEqual(['Lint']);
+    expect(metadataRows(b)[0].certainty?.sure).toBe(false);
     b.values = b.values.map((v) => (v.key === K.finalDepth ? { ...v, status: 'approved' } : v));
-    expect(metadataRows(b)[0].chips).toEqual([]);
-  });
-
-  it('marks the elevation datum as unconfirmed and the CRS by its status', () => {
-    const rows = metadataRows(shortLog());
-    expect(rows[2].chips.map((c) => c.label)).toEqual(['Datum unconfirmed']);
-    expect(rows[3].chips.map((c) => c.label)).toEqual(['Stated']);
+    expect(metadataRows(b)[0].certainty).toEqual({ sure: true, title: 'Reviewed' });
   });
 
   it('says "not reached" for a missing rock head, with nothing to point at', () => {
@@ -81,7 +73,7 @@ describe('metadataRows', () => {
     const rock = metadataRows(b)[1];
     expect(rock.shown).toEqual({ text: 'not reached', missing: true });
     expect(rock.key).toBeNull();
-    expect(rock.method).toBe('Derived');
+    expect(rock.certainty?.sure).toBe(true);
   });
 
   it('fades the source icon for values that are not in the source', () => {
@@ -90,25 +82,10 @@ describe('metadataRows', () => {
     expect(remarks.source).toEqual({ clickable: true, title: 'Show source', dim: true });
   });
 
-  it('shows a flag as a chip', () => {
+  it('shows a flagged value as ? with the reason', () => {
     const b = shortLog();
     b.values = b.values.map((v) => (v.key === K.crs ? { ...v, status: 'flagged', flag: 'check zone' } : v));
-    expect(metadataRows(b)[3].chips.map((c) => c.label)).toEqual(['Stated', 'Flagged']);
-  });
-});
-
-describe('crsChip', () => {
-  const chip = (status: Borehole['crs']['status']) => crsChip(makeBorehole({ crs: { name: 'x', code: null, status } }));
-
-  it('maps every CRS status to a sentence-case chip', () => {
-    expect([chip('inferred'), chip('confirmed'), chip('stated'), chip('unknown')].map((c) => c.label)).toEqual([
-      'Inferred', 'Confirmed', 'Stated', 'Unknown',
-    ]);
-  });
-
-  // Green means reviewed, never "correct": a CRS printed in the report is not checked yet.
-  it('is green only once a reviewer confirmed the CRS', () => {
-    expect([chip('inferred'), chip('confirmed'), chip('stated'), chip('unknown')].map((c) => c.tone)).toEqual(['amber', 'green', 'grey', 'red']);
+    expect(metadataRows(b)[3].certainty).toEqual({ sure: false, title: 'Flagged: check zone' });
   });
 });
 
@@ -203,24 +180,11 @@ describe('layerRows', () => {
   });
 });
 
-describe('layerLint', () => {
-  it('suggests the next sheet when the log ends above the final depth', () => {
-    expect(layerLint(shortLog())).toEqual({
-      text: 'Log bottom 14.50 m ≠ final depth 18.00 m. Possibly a missing sheet 3.',
-      severity: 'error',
-    });
-  });
-
-  it('is null without an open lint on the final depth', () => {
-    expect(layerLint(makeBorehole())).toBeNull();
-  });
-});
-
 describe('groundwaterRows', () => {
   it('shows type, depth and the raw text', () => {
     expect(groundwaterRows(shortLog())).toEqual([
       {
-        key: K.gwStrike, type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', method: 'Read', confidence: 0.9,
+        key: K.gwStrike, type: 'Strike', depth: { text: '3.10 m bgl', missing: false }, raw: '“GW 3,10”', certainty: { sure: true, title: 'AI sure (90 %)' },
         source: { clickable: true, title: 'Show source', dim: false },
       },
     ]);

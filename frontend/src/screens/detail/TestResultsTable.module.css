@@ -35,3 +35,24 @@
 .value {
   white-space: nowrap;
 }
+
+/* Rows select like the LAYERS rows. */
+.row {
+  cursor: pointer;
+  background: var(--c-surface);
+}
+
+.row:hover {
+  background: var(--c-hover);
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.selected,
+.selected:hover {
+  background: var(--c-selected);
+  box-shadow: inset 3px 0 0 var(--c-accent);
+}

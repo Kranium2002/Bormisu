@@ -77,7 +77,7 @@ export function DetailScreen() {
         <div className={styles.right}>
           <MetadataCard borehole={b} onOpenSource={onOpenSource} />
           <LayersTable borehole={b} selectedLayer={selectedLayer} onSelectLayer={selectLayer} onOpenSource={onOpenSource} />
-          <TestResultsTable borehole={b} />
+          <TestResultsTable borehole={b} onSelectLayer={selectLayer} />
           <GroundwaterTable borehole={b} onOpenSource={onOpenSource} />
         </div>
       </div>

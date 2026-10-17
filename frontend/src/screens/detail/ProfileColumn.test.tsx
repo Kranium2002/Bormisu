@@ -74,7 +74,6 @@ describe('ProfileColumn', () => {
     const html = render({ ...borehole(), finalDepth: 18, logBottom: 6 });
     expect(html).toContain('ET 18.00 m');
     expect(html).toContain('final depth 18.00 m');
-    expect(html).toContain('log ends 6.00 ≠ ET 18.00');
     // DIN symbol path data ("C7.3,164.4", "L36,60.5") isn't a depth.
     expect(html.replace(/<pattern[\s\S]*?<\/pattern>/g, '').replace(/ d="[^"]*"/g, '')).not.toMatch(/\d,\d\d/);
   });

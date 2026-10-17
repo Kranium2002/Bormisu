@@ -131,13 +131,6 @@ export function crsCell(crs: Borehole['crs']): CrsCell {
   }
 }
 
-/** One-line CRS warning for the pin popup, or null when the CRS is stated or confirmed. */
-export function popupCrsWarning(crs: Borehole['crs']): string | null {
-  if (crs.status === 'inferred') return 'CRS inferred, not stated';
-  if (crs.status === 'unknown') return 'CRS unknown';
-  return null;
-}
-
 export interface NotOnMapReason {
   text: string;
   /** Amber text for CRS problems, grey for missing coordinates. */

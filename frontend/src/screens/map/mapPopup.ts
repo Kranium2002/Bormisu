@@ -14,7 +14,6 @@ export interface PopupData {
   project: string;
   depth: string;
   status: BoreholeStatus;
-  crsWarning: string | null;
 }
 
 function div(className: string | undefined, text?: string): HTMLDivElement {
@@ -38,8 +37,6 @@ export function buildPopup(data: PopupData, onOpen: () => void): HTMLElement {
   chip.textContent = c.label;
   chipRow.append(chip);
   root.append(chipRow);
-
-  if (data.crsWarning) root.append(div(styles.crs, data.crsWarning));
 
   const button = document.createElement('button');
   button.type = 'button';
