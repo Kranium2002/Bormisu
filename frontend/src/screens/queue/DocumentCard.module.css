@@ -24,6 +24,12 @@
   border-color: var(--c-red);
 }
 
+/* Focused from a "show document" button (tabIndex -1, not in the tab order). */
+.card:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
 /* Pointed at from a duplicate's "Same file as …" link. */
 .highlighted,
 .highlighted:hover {

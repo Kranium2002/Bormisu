@@ -1,0 +1,58 @@
+/* Live-update status line: a dot plus a short text (green live, grey connecting, amber polling, red offline). */
+
+.line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-muted);
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-grey);
+}
+
+/* states (domain LiveStatus) */
+.live {
+  color: var(--c-green-text);
+}
+
+.live .dot {
+  background: var(--c-green);
+}
+
+.polling {
+  color: var(--c-amber-text);
+}
+
+.polling .dot {
+  background: var(--c-amber);
+}
+
+.offline {
+  color: var(--c-red);
+}
+
+.offline .dot {
+  background: var(--c-red);
+}
+
+/* bpulse is the global keyframes in tokens.css */
+.connecting .dot,
+.offline .dot {
+  animation: global(bpulse) 1.2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connecting .dot,
+  .offline .dot {
+    animation: none;
+  }
+}

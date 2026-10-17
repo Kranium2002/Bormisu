@@ -3,11 +3,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { placeholderPage } from '../../domain/pages';
 import type { Health } from '../../domain/types';
-import { makeHealth } from '../../store/testing';
+import { fakeSource, makeHealth } from '../../store/testing';
 import { retryBlockedReason } from '../../store/uploads';
 import { makeDocument, makePage } from '../../test/fixtures';
 import { CLASSIFIED_UNKNOWN_PAGE, PAGE_TYPE_META } from '../../theme';
 import { DocumentCard } from './DocumentCard';
+import { PageTip, THUMBNAIL_WIDTH } from './PageStrip';
+import { NOT_RETRYABLE } from './queueView';
 
 const noop = () => undefined;
 
@@ -58,6 +60,26 @@ describe('DocumentCard', () => {
     });
   });
 
+  describe('a failure reported live (job.failed)', () => {
+    const failed = makeDocument({ status: 'failed', step: 1, error: 'OCR failed' });
+    const render = (retryable: boolean) =>
+      renderToStaticMarkup(
+        <DocumentCard doc={failed} failure={{ stage: 'ocr', detail: 'Text recognition failed on page 2.', retryable }} onShowDocument={noop} />,
+      );
+
+    it('names the stage and the server’s detail, with RETRY', () => {
+      const html = render(true);
+      expect(html).toContain('Extraction failed at ocr: Text recognition failed on page 2.');
+      expect(html.match(/<button[^>]*>RETRY<\/button>/)?.[0]).not.toContain('disabled');
+    });
+
+    it('disables RETRY with the reason when the server says a retry cannot fix it', () => {
+      const retry = render(false).match(/<button[^>]*>RETRY<\/button>/)?.[0];
+      expect(retry).toContain('disabled=""');
+      expect(retry).toContain(`title="${NOT_RETRYABLE}"`);
+    });
+  });
+
   it('FE-QUEUE-1: a classified page of unknown type gets the neutral classified swatch and names its role', () => {
     const doc = makeDocument({
       pages: [
@@ -72,5 +94,44 @@ describe('DocumentCard', () => {
     expect(cells[1]).toContain('aria-label="p.2 · not classified yet"');
     expect(cells[1]).toContain(`background:${PAGE_TYPE_META.unknown.color}`);
     expect(CLASSIFIED_UNKNOWN_PAGE.color).not.toBe(PAGE_TYPE_META.unknown.color);
+  });
+
+  describe('page thumbnails', () => {
+    const doc = makeDocument({ pages: [makePage({ n: 1 }), placeholderPage(2)] });
+
+    it('with page images, a cell keeps its label and leaves the tooltip to the thumbnail card', () => {
+      const thumbnailUrl = (id: string, n: number) => `/api/v1/documents/${id}/pages/${n}.png?w=200`;
+      const html = renderToStaticMarkup(<DocumentCard doc={doc} thumbnailUrl={thumbnailUrl} onShowDocument={noop} />);
+      const cells = html.match(/<button[^>]*aria-label="p\.\d[^"]*"[^>]*>/g) ?? [];
+      expect(cells).toHaveLength(2);
+      for (const c of cells) expect(c).not.toContain(' title=');
+      // A source without page images gives no URL: the native tooltip stays.
+      const none = renderToStaticMarkup(<DocumentCard doc={doc} thumbnailUrl={fakeSource({ boreholes: [], documents: [] }).thumbnailUrl} onShowDocument={noop} />);
+      expect(none).toContain('title="p.1 · log · used: log sheet · OCR done"');
+    });
+
+    it('without page images (sample mode), the swatch keeps its native tooltip', () => {
+      const html = renderToStaticMarkup(<DocumentCard doc={doc} onShowDocument={noop} />);
+      expect(html).toContain('title="p.1 · log · used: log sheet · OCR done"');
+    });
+
+    it('the card shows the image lazily at 200 px with the page number and type as alt text', () => {
+      const html = renderToStaticMarkup(
+        <PageTip id="tip" page={makePage({ n: 3 })} url="/api/v1/documents/doc_X/pages/3.png?w=200" title="p.3 · log" onBroken={noop} />,
+      );
+      expect(THUMBNAIL_WIDTH).toBe(200);
+      expect(html).toContain('role="tooltip"');
+      expect(html).toMatch(/<img[^>]*src="\/api\/v1\/documents\/doc_X\/pages\/3\.png\?w=200"/);
+      expect(html).toContain('width="200"');
+      expect(html).toContain('loading="lazy"');
+      expect(html).toContain('alt="Page 3, log"');
+      expect(html).toContain('p.3 · log');
+    });
+
+    it('an image that failed to load is replaced by a text', () => {
+      const html = renderToStaticMarkup(<PageTip id="tip" page={placeholderPage(6)} url={null} title="p.6 · not classified yet" onBroken={noop} />);
+      expect(html).not.toContain('<img');
+      expect(html).toContain('No page image');
+    });
   });
 });

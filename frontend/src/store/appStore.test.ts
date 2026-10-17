@@ -185,32 +185,38 @@ describe('uploads', () => {
   let upload: ReturnType<typeof vi.fn<DataSource['upload']>>;
 
   beforeEach(async () => {
-    upload = vi.fn<DataSource['upload']>(async (files, onUpdate) => {
-      for (const f of files) onUpdate(makeDocument({ id: `doc_${f.name}`, name: f.name, status: 'queued', step: 0, pages: [], uploaded: true }));
-    });
+    upload = vi.fn<DataSource['upload']>((f, options) => ({
+      done: Promise.resolve({
+        document: makeDocument({ id: `doc_${f.name}`, name: f.name, project: options.project ?? '', status: 'queued', step: 0, pages: [], uploaded: true }),
+        duplicate: false,
+      }),
+      cancel: () => undefined,
+    }));
     fake = source({ upload });
     await readyStore(fake, UID);
   });
 
   it('takes the accepted types and the size limit from health and explains the rest', async () => {
     useAppStore.setState({ health: makeHealth({ upload: { maxMb: 1, extensions: ['.pdf', '.png'] } }) });
-    await st().addFiles([file('a.PDF'), file('notes.txt'), file('big.png', 2 * 1024 * 1024), file('scan.png')]);
-    expect(upload.mock.calls[0][0].map((f) => f.name)).toEqual(['a.PDF', 'scan.png']);
+    st().addFiles([file('a.PDF'), file('notes.txt'), file('big.png', 2 * 1024 * 1024), file('scan.png')]);
+    expect(upload.mock.calls.map(([f]) => f.name)).toEqual(['a.PDF', 'scan.png']);
     expect(st().dropError).toBe('File type not supported: notes.txt · Larger than 1 MB: big.png');
+    await settle();
     expect(st().documents.map((d) => d.id).slice(0, 2)).toEqual(['doc_scan.png', 'doc_a.PDF']);
   });
 
-  it('passes every file to the source when the limits are unknown (health failed)', async () => {
+  it('passes every file to the source when the limits are unknown (health failed)', () => {
     useAppStore.setState({ health: null });
-    await st().addFiles([file('notes.txt')]);
-    expect(upload.mock.calls[0][0].map((f) => f.name)).toEqual(['notes.txt']);
+    st().addFiles([file('notes.txt')]);
+    expect(upload.mock.calls.map(([f]) => f.name)).toEqual(['notes.txt']);
     expect(st().dropError).toBe('');
   });
 
-  it('refuses every upload in demo mode with the reason', async () => {
+  it('refuses every upload in demo mode with the reason', () => {
     useAppStore.setState({ health: makeHealth({ mode: 'demo' }) });
-    await st().addFiles([file('a.pdf')]);
+    st().addFiles([file('a.pdf')]);
     expect(upload).not.toHaveBeenCalled();
     expect(st().dropError).toBe(DEMO_UPLOAD_REASON);
+    expect(st().uploads).toEqual([]);
   });
 });

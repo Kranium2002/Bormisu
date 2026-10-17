@@ -1,6 +1,7 @@
 /**
  * What every slice gets: zustand's set / get plus the helpers more than one slice needs (finding
- * and taking boreholes, the pending-save tracker). Created once per store in appStore.ts.
+ * and taking boreholes, the pending-save tracker, documents the server deleted). Created once per
+ * store in appStore.ts.
  */
 import type { StoreApi } from 'zustand';
 import { fromOtherDocument } from '../domain/review';
@@ -21,9 +22,14 @@ export interface StoreContext {
    * Takes boreholes as the source holds them (a refetch). A borehole with pending saves keeps its
    * optimistic state; the record is collected for when its saves settle. A record older than the
    * one shown (lower revision) is ignored. With `documentId`, the records are that document's full
-   * list: its other boreholes are dropped (unless a save of theirs is pending).
+   * list: its other boreholes are dropped (unless a save of theirs is pending). Records of a
+   * document the server deleted (a fetch that answered after document.deleted) are dropped.
    */
   takeBoreholes(records: Borehole[], documentId?: string): void;
+  /** Marks a document the server deleted (document.deleted): late answers about it are ignored from now on. */
+  markDeleted(documentId: string): void;
+  /** True when the current source deleted this document. */
+  isDeleted(documentId: string | null): boolean;
 }
 
 /** A slice creator: builds one part of AppState from the shared context. */
@@ -31,6 +37,10 @@ export type SliceCreator<T> = (ctx: StoreContext) => T;
 
 export function createContext(set: StoreContext['set'], get: StoreContext['get']): StoreContext {
   const saves = new SaveTracker();
+  /** Deleted documents with the source that reported them (a new source, e.g. in tests, starts clean). */
+  const deleted = new Map<string, unknown>();
+  const isDeleted = (documentId: string | null) =>
+    documentId !== null && deleted.has(documentId) && deleted.get(documentId) === get().source;
   const find = (uid: string | null | undefined) => get().boreholes.find((b) => b.uid === uid);
 
   const take = (current: Borehole, incoming: Borehole): Borehole => {
@@ -46,9 +56,12 @@ export function createContext(set: StoreContext['set'], get: StoreContext['get']
     get,
     saves,
     find,
+    markDeleted: (documentId) => void deleted.set(documentId, get().source),
+    isDeleted,
     replaceBorehole: (uid, fn) => set((s) => ({ boreholes: s.boreholes.map((b) => (b.uid === uid ? fn(b) : b)) })),
     takeBoreholes(records, documentId) {
-      const incoming = new Map(records.map((r) => [r.uid, r]));
+      if (documentId !== undefined && isDeleted(documentId)) return;
+      const incoming = new Map(records.filter((r) => !isDeleted(r.documentId)).map((r) => [r.uid, r]));
       const next: Borehole[] = [];
       for (const b of get().boreholes) {
         const r = incoming.get(b.uid);
@@ -103,4 +116,9 @@ export function withReviewTarget(doc: DocumentSummary, prev: DocumentSummary | u
   const uid = prev?.reviewBoreholeUid ?? boreholes.find((b) => b.documentId === doc.id && isReviewable(b))?.uid ?? null;
   const project = doc.project || boreholes.find((b) => b.documentId === doc.id)?.project || '';
   return uid || project !== doc.project ? { ...doc, reviewBoreholeUid: uid, project } : doc;
+}
+
+/** True while the backend still works on a document (queued, classifying, extracting; not failed). */
+export function isProcessing(doc: Pick<DocumentSummary, 'step' | 'error' | 'status'>): boolean {
+  return doc.step < 2 && !doc.error && doc.status !== 'failed';
 }
