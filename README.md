@@ -22,6 +22,8 @@ make unseed    # docker compose exec api python -m app.seed --remove
 
 Requirements: Docker with Compose 2.24 or newer. Nothing else is installed on the host.
 
+**First run without any keys** (what a fresh clone gives you): `docker compose up --build`, open http://localhost:8080, then `make seed` for fictional demo boreholes on the map. Every screen works; uploads answer "demo mode" until a provider key is set in `.env` (any one of `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`), after which a dropped PDF, image, Word file or spreadsheet is processed live.
+
 ### Demo mode and live mode
 
 | Mode | When | What works |
@@ -42,9 +44,11 @@ Which provider does what: every model call goes to Mistral directly by default (
                                                      │                  │
                                                   worker ───────────────┘
                                                      ├─▶ gotenberg (Word → PDF)
-                                                     ├─▶ page classifier (OpenRouter, cheap model)
-                                                     ├─▶ Mistral OCR (only pages that carry borehole data)
-                                                     └─▶ extractor (OpenRouter) → Python normalisation and checks
+                                                     ├─▶ page classifier (Mistral small; OpenRouter/OpenAI fallback)
+                                                     ├─▶ bh3 page reader: text layer for vector pages (no model),
+                                                     │   vision model + depth-scale anchoring for scans (Mistral medium)
+                                                     ├─▶ Mistral OCR (scanned log pages only; classic extractor path)
+                                                     └─▶ Python normalisation, coordinate systems and checks
 ```
 
 1. **Upload.** The file is checked by its content (not its name), stored under its SHA-256, and queued. The same bytes uploaded twice return the existing document.
@@ -93,10 +97,13 @@ Every setting is an environment variable, documented in [`.env.example`](.env.ex
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OPENROUTER_API_KEY` | — | Page classifier, extractor and OCR fallback (alias `OPEN_ROUTER_KEY`) |
-| `MISTRAL_API_KEY` | — | Mistral OCR on the important pages |
-| `OPENAI_API_KEY` | — | Chat assistant; classifier, extractor and OCR when OpenRouter is not configured |
-| `LLM_PROVIDER` / `OCR_PROVIDER` | `auto` / `auto` | Force one provider (`openrouter`, `openai`; OCR also `mistral`) |
+| `MISTRAL_API_KEY` | — | Default for every model call: OCR, page classifier, extractor, bh3 page reading |
+| `OPENROUTER_API_KEY` | — | Fallback for all of the above (alias `OPEN_ROUTER_KEY`) |
+| `OPENAI_API_KEY` | — | Chat assistant; last fallback for the other calls |
+| `LLM_PROVIDER` / `OCR_PROVIDER` | `auto` / `auto` | Order mistral → openrouter → openai; force one with `mistral`, `openrouter` or `openai` |
+| `EXTRACTOR` | `bh3` | `bh3` (page reader with depth-scale anchoring, classic per-page fallback) or `classic` (OCR text extractor) |
+| `PROVIDER_BUDGET_USD` | — | Stops processing before this total provider spend (every call is in a cost ledger) |
+| `REQUEST_TIMEOUT_S` / `RATE_LIMIT_WAIT_S` | `120` / `600` | Per-request timeout; how long rate limits (429) are waited out before a page is deferred |
 | `MAX_UPLOAD_MB` | `200` | Upload limit (reported in `/api/health`) |
 | `WEB_PORT` / `API_PORT` / `DB_PORT` | `8080` / `8000` / `5432` | Published host ports |
 
@@ -108,9 +115,17 @@ No challenge or customer data is committed: no sample files, no values copied fr
 
 `make eval` runs the real pipeline on sample files you point it at (`EVAL_DATA_DIR`, `EVAL_EXPECTED`). It can process page excerpts (`--pages NAME=3-6`), stops before the `--max-usd` cost cap, and writes metrics and failure categories only to `docs/eval/report.md`, never values from the files. See [`docs/eval/README.md`](docs/eval/README.md).
 
+## Credits
+
+The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-backend`, compared in [`MAIN_VS_BH3.md`](MAIN_VS_BH3.md)), ported to pypdfium2 and stripped of per-file rules; the backend calls it through `app/bh3/bridge.py` and falls back to the classic extractor per page.
+
 ## Known limits
 
-- **Scanned tables:** evidence boxes on scanned pages come from the OCR's paragraph or table blocks, so a value in a large scanned table can point at the whole table. Pages with a text layer get word-level boxes.
+- **Evidence boxes on scans:** pages with a text layer get word-level boxes. On scanned pages a value points at its row band or the whole page (the review screens say "no box on this page"); precise boxes on scans need the grounding pass, which is not enabled yet.
+- **Local site grids:** coordinates on a project's own grid (for example "Oslo lokal") cannot be converted to a map position automatically; such boreholes stay in "Not on map" with a question.
+- **Large documents:** every provider request has a timeout and rate limits are waited out, but there is no client-side pacing yet, so a very large upload on a low provider tier can take long.
+- **Handwriting:** fully handwritten logs are read, but recall is lower; check them in review.
+- **Sign-in:** the sign-in screen exists but the server-side login is not enabled in this version.
 - **Conflicting values:** a value printed differently in a summary table and in a log is only asked about once the extractor reports both readings; the question type and its answer handling are in place.
 - **Chat units:** the chat tools return metres; feet are converted in the answer text.
 - **ARM machines:** `postgis/postgis` publishes amd64 images only, so on ARM the database runs under emulation.
