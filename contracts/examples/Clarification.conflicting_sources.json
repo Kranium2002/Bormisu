@@ -1,0 +1,80 @@
+{
+  "clarification_id": "cl_01M54CFD8GX2R3149CRHC3A895",
+  "kind": "conflicting_sources",
+  "status": "open",
+  "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+  "borehole_uids": [
+    "bh_01M54CB4HGT2NXJXQZD6BE0FGK"
+  ],
+  "path": "metadata.surface_elevation_mASL",
+  "question": "The summary table and the log header give different ground levels for FHL-BH01. Which one is right?",
+  "fields": [
+    {
+      "name": "value",
+      "widget": "select",
+      "label": "Ground level (m NHN)",
+      "help": null,
+      "required": true,
+      "options": [
+        {
+          "value": 3.42,
+          "label": "+3,42 m NHN (log header, page 5)",
+          "evidence": {
+            "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+            "page": 5,
+            "box": [
+              0.08,
+              0.13,
+              0.2,
+              0.03
+            ],
+            "snippet": "+3,42 m NHN"
+          }
+        },
+        {
+          "value": 3.24,
+          "label": "3,24 m NHN (summary table, page 3)",
+          "evidence": {
+            "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+            "page": 3,
+            "box": [
+              0.55,
+              0.22,
+              0.08,
+              0.02
+            ],
+            "snippet": "3,24"
+          }
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 5,
+      "box": [
+        0.08,
+        0.13,
+        0.2,
+        0.03
+      ],
+      "snippet": "+3,42 m NHN"
+    },
+    {
+      "document_id": "doc_01M54BPP80DBVM60TJD6V5NPM0",
+      "page": 3,
+      "box": [
+        0.55,
+        0.22,
+        0.08,
+        0.02
+      ],
+      "snippet": "3,24"
+    }
+  ],
+  "answer": null,
+  "answered_by": null,
+  "created_at": "2026-10-17T07:33:30Z",
+  "resolved_at": null
+}

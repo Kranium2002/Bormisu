@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: GeoMemory API
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Contract v1 between the backend session and the frontend session. This file is the single
     source of truth for HTTP shapes. Streams (server-sent events and the chat stream) are specified
@@ -238,6 +238,13 @@ paths:
         in: query
         required: false
         schema: { type: boolean, default: true }
+      - name: confirmed_by
+        in: query
+        required: false
+        description: |
+          Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
+          cut to 100 characters; "reviewer" when absent or blank.
+        schema: { type: string }
     post:
       tags: [documents]
       operationId: approveClean
@@ -266,6 +273,17 @@ paths:
       operationId: listCrsCandidates
       x-priority: P1
       summary: Ranked coordinate-system candidates for the document's printed coordinates.
+      description: |
+        Every system of the server's registry is tried in both axis orders. Evidence: the share of
+        points inside the system's EPSG area of use, the distance of the transformed centroid to a
+        reference place geocoded on the server from the boreholes' location name, project name or
+        country (uploaded places first, then the cached geocoder), the compactness of the points, and
+        how specific the system is (world-wide systems and areas of use far larger than the point
+        spread score lower). Verdict match: every point inside the area of use and, when a reference
+        place was found, the centroid near it; shifted: inside but far from the reference place, or
+        only just outside the area; out_of_range: the rest. Order: verdict, score, smaller area of
+        use, EPSG code. An unavailable geocoder never fails this call: the ranking then works without
+        a reference place and says so in `note`.
       responses:
         "200":
           description: Candidates, best first. Empty when the document has no coordinates.
@@ -552,7 +570,9 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Clarification" }
         "409":
-          description: Already answered or skipped.
+          description: |
+            Already answered (code already_resolved). A skipped question is still unresolved and can
+            be answered: that returns 200.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -573,12 +593,50 @@ paths:
       operationId: skipClarification
       x-priority: P1
       summary: Leave the question open for later; affected records keep their uncertainty badge.
+      description: |
+        A skipped question still counts in `open_clarifications` (unresolved) and can be answered later
+        with POST /clarifications/{id}/answer. Skipping an answered question returns 409 already_resolved.
       responses:
         "200":
           description: The clarification, now skipped.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Clarification" }
+        "409":
+          description: Already answered (code already_resolved).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/clarifications/{clarification_id}/crs-candidates:
+    parameters:
+      - name: clarification_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [clarifications]
+      operationId: listClarificationCrsCandidates
+      x-priority: P1
+      summary: Ranked coordinate-system candidates for every borehole a crs_confirm question covers (1.1.0).
+      description: |
+        Same ranking as GET /documents/{id}/crs-candidates, over all boreholes in the clarification's
+        `borehole_uids`, which may span several documents (one question per upload project). Empty
+        when the clarification is not a crs_confirm question or its boreholes have no printed
+        coordinates.
+      responses:
+        "200":
+          description: Candidates, best first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CrsCandidate" }
+        "404":
+          description: Unknown id (code clarification_not_found).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /api/v1/events:
     get:
@@ -793,7 +851,10 @@ components:
         completeness: { oneOf: [{ $ref: "#/components/schemas/Completeness" }, { type: "null" }] }
         progress: { oneOf: [{ $ref: "#/components/schemas/DocumentProgress" }, { type: "null" }] }
         duplicate_of: { type: [string, "null"] }
-        open_clarifications: { type: integer, minimum: 0 }
+        open_clarifications:
+          type: integer
+          minimum: 0
+          description: Unresolved questions about this document (status open or skipped).
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -861,6 +922,12 @@ components:
         local_y: { type: [number, "null"], description: 'Northing-like value in the source system.' }
         coordinate_system: { type: [string, "null"], description: 'As printed, e.g. "55H MGA94".' }
         crs_code: { type: [string, "null"], description: 'Confirmed or stated EPSG code, e.g. EPSG:28355.' }
+        crs_label:
+          type: [string, "null"]
+          description: |
+            Human-readable name of crs_code (1.1.0), e.g. "GDA94 / MGA zone 55": the server registry's
+            label, else the EPSG name. Set by the server whenever crs_code is set, null otherwise.
+            Server-computed like crs_code: no provenance entry, not a PATCH path.
         x_raw: { type: [string, "null"], description: 'First coordinate exactly as printed.' }
         y_raw: { type: [string, "null"] }
         axis_labels_raw: { type: [string, "null"], description: 'Labels and order as printed, e.g. "N, E".' }
@@ -961,6 +1028,13 @@ components:
     BoreholeRecord:
       type: object
       required: [uid, document_id, source_file, revision, review_status, crs_status, plotted, metadata, stratigraphy, groundwater, provenance, lint]
+      description: |
+        Provenance rule: every non-null value at a path of the ValuePatch grammar has an entry in
+        `provenance`, except the values the server computes itself: stratigraphy[i].thickness_m,
+        stratigraphy[i].description_language, metadata.coordinates.crs_code,
+        metadata.coordinates.crs_label and metadata.aliases. stratigraphy[i].english_lithology, when it
+        is a model's rendering of the printed description, carries method "guessed" with the page and
+        box of stratigraphy[i].original_description.
       properties:
         uid: { type: string }
         document_id: { type: string }
@@ -986,10 +1060,15 @@ components:
         test_results: { type: array, items: { $ref: "#/components/schemas/TestResult" } }
         provenance:
           type: object
-          description: Keyed by value path, e.g. metadata.borehole_depth_m, stratigraphy[2].spt_n_value, groundwater[0].depth_m.
+          description: |
+            Keyed by value path, e.g. metadata.borehole_depth_m, stratigraphy[2].spt_n_value,
+            groundwater[0].depth_m. See the provenance rule in this schema's description.
           additionalProperties: { $ref: "#/components/schemas/Provenance" }
         lint: { type: array, items: { $ref: "#/components/schemas/Lint" } }
-        open_clarifications: { type: integer, minimum: 0 }
+        open_clarifications:
+          type: integer
+          minimum: 0
+          description: Unresolved questions about this borehole (status open or skipped).
 
     BoreholeList:
       type: object
@@ -1020,6 +1099,11 @@ components:
         reason: { type: [string, "null"], description: 'Flag reason.' }
         state: { type: string, enum: [ok, not_in_source, illegible] }
         if_revision: { type: [integer, "null"], description: 'Optional optimistic concurrency check.' }
+        confirmed_by:
+          type: [string, "null"]
+          description: |
+            Who performed the action (1.1.0). Stored as the revision's actor, trimmed and cut to 100
+            characters; "reviewer" when absent or blank.
 
     CrsCandidate:
       type: object
@@ -1152,8 +1236,8 @@ components:
                   revision: { type: integer }
                   attention:
                     type: boolean
-                    description: True when a value is flagged, a lint error exists or a clarification is open.
-                  open_clarifications: { type: integer }
+                    description: True when a value is flagged, a lint error exists or a clarification is unresolved (open or skipped).
+                  open_clarifications: { type: integer, description: 'Unresolved questions (status open or skipped).' }
 
     PlaceCandidate:
       type: object

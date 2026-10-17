@@ -1,0 +1,6 @@
+{
+  "path": "stratigraphy[3].spt_refusal",
+  "action": "flag",
+  "reason": "Refusal is not marked on the sheet; check the field notes.",
+  "if_revision": 4
+}

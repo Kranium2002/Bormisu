@@ -160,6 +160,11 @@ export interface paths {
         parameters: {
             query?: {
                 dry_run?: boolean;
+                /**
+                 * @description Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
+                 *     cut to 100 characters; "reviewer" when absent or blank.
+                 */
+                confirmed_by?: string;
             };
             header?: never;
             path: {
@@ -191,7 +196,19 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Ranked coordinate-system candidates for the document's printed coordinates. */
+        /**
+         * Ranked coordinate-system candidates for the document's printed coordinates.
+         * @description Every system of the server's registry is tried in both axis orders. Evidence: the share of
+         *     points inside the system's EPSG area of use, the distance of the transformed centroid to a
+         *     reference place geocoded on the server from the boreholes' location name, project name or
+         *     country (uploaded places first, then the cached geocoder), the compactness of the points, and
+         *     how specific the system is (world-wide systems and areas of use far larger than the point
+         *     spread score lower). Verdict match: every point inside the area of use and, when a reference
+         *     place was found, the centroid near it; shifted: inside but far from the reference place, or
+         *     only just outside the area; out_of_range: the rest. Order: verdict, score, smaller area of
+         *     use, EPSG code. An unavailable geocoder never fails this call: the ranking then works without
+         *     a reference place and says so in `note`.
+         */
         get: operations["listCrsCandidates"];
         put?: never;
         post?: never;
@@ -419,8 +436,37 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Leave the question open for later; affected records keep their uncertainty badge. */
+        /**
+         * Leave the question open for later; affected records keep their uncertainty badge.
+         * @description A skipped question still counts in `open_clarifications` (unresolved) and can be answered later
+         *     with POST /clarifications/{id}/answer. Skipping an answered question returns 409 already_resolved.
+         */
         post: operations["skipClarification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clarifications/{clarification_id}/crs-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clarification_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Ranked coordinate-system candidates for every borehole a crs_confirm question covers (1.1.0).
+         * @description Same ranking as GET /documents/{id}/crs-candidates, over all boreholes in the clarification's
+         *     `borehole_uids`, which may span several documents (one question per upload project). Empty
+         *     when the clarification is not a crs_confirm question or its boreholes have no printed
+         *     coordinates.
+         */
+        get: operations["listClarificationCrsCandidates"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -589,6 +635,7 @@ export interface components {
             completeness?: components["schemas"]["Completeness"] | null;
             progress?: components["schemas"]["DocumentProgress"] | null;
             duplicate_of?: string | null;
+            /** @description Unresolved questions about this document (status open or skipped). */
             open_clarifications?: number;
             /** Format: date-time */
             created_at: string;
@@ -648,6 +695,12 @@ export interface components {
             coordinate_system?: string | null;
             /** @description Confirmed or stated EPSG code, e.g. EPSG:28355. */
             crs_code?: string | null;
+            /**
+             * @description Human-readable name of crs_code (1.1.0), e.g. "GDA94 / MGA zone 55": the server registry's
+             *     label, else the EPSG name. Set by the server whenever crs_code is set, null otherwise.
+             *     Server-computed like crs_code: no provenance entry, not a PATCH path.
+             */
+            crs_label?: string | null;
             /** @description First coordinate exactly as printed. */
             x_raw?: string | null;
             y_raw?: string | null;
@@ -745,6 +798,14 @@ export interface components {
             sample_name?: string | null;
             depth_m?: number | null;
         };
+        /**
+         * @description Provenance rule: every non-null value at a path of the ValuePatch grammar has an entry in
+         *     `provenance`, except the values the server computes itself: stratigraphy[i].thickness_m,
+         *     stratigraphy[i].description_language, metadata.coordinates.crs_code,
+         *     metadata.coordinates.crs_label and metadata.aliases. stratigraphy[i].english_lithology, when it
+         *     is a model's rendering of the printed description, carries method "guessed" with the page and
+         *     box of stratigraphy[i].original_description.
+         */
         BoreholeRecord: {
             uid: string;
             document_id: string;
@@ -772,11 +833,15 @@ export interface components {
             groundwater: components["schemas"]["GroundwaterReading"][];
             samples?: components["schemas"]["Sample"][];
             test_results?: components["schemas"]["TestResult"][];
-            /** @description Keyed by value path, e.g. metadata.borehole_depth_m, stratigraphy[2].spt_n_value, groundwater[0].depth_m. */
+            /**
+             * @description Keyed by value path, e.g. metadata.borehole_depth_m, stratigraphy[2].spt_n_value,
+             *     groundwater[0].depth_m. See the provenance rule in this schema's description.
+             */
             provenance: {
                 [key: string]: components["schemas"]["Provenance"];
             };
             lint: components["schemas"]["Lint"][];
+            /** @description Unresolved questions about this borehole (status open or skipped). */
             open_clarifications?: number;
         };
         BoreholeList: {
@@ -809,6 +874,11 @@ export interface components {
             state?: "ok" | "not_in_source" | "illegible";
             /** @description Optional optimistic concurrency check. */
             if_revision?: number | null;
+            /**
+             * @description Who performed the action (1.1.0). Stored as the revision's actor, trimmed and cut to 100
+             *     characters; "reviewer" when absent or blank.
+             */
+            confirmed_by?: string | null;
         };
         CrsCandidate: {
             /** @description EPSG code, e.g. EPSG:25832. */
@@ -912,8 +982,9 @@ export interface components {
                     review_status: string;
                     crs_status: string;
                     revision?: number;
-                    /** @description True when a value is flagged, a lint error exists or a clarification is open. */
+                    /** @description True when a value is flagged, a lint error exists or a clarification is unresolved (open or skipped). */
                     attention?: boolean;
+                    /** @description Unresolved questions (status open or skipped). */
                     open_clarifications?: number;
                 };
             }[];
@@ -1306,6 +1377,11 @@ export interface operations {
         parameters: {
             query?: {
                 dry_run?: boolean;
+                /**
+                 * @description Who approves (1.1.0). Stored as the actor of every revision this call writes, trimmed and
+                 *     cut to 100 characters; "reviewer" when absent or blank.
+                 */
+                confirmed_by?: string;
             };
             header?: never;
             path: {
@@ -1696,7 +1772,10 @@ export interface operations {
                     "application/json": components["schemas"]["Clarification"];
                 };
             };
-            /** @description Already answered or skipped. */
+            /**
+             * @description Already answered (code already_resolved). A skipped question is still unresolved and can
+             *     be answered: that returns 200.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1734,6 +1813,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Clarification"];
+                };
+            };
+            /** @description Already answered (code already_resolved). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listClarificationCrsCandidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                clarification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Candidates, best first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrsCandidate"][];
+                };
+            };
+            /** @description Unknown id (code clarification_not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
         };

@@ -1,0 +1,74 @@
+{
+  "id": "chat_fictional_01",
+  "messages": [
+    {
+      "id": "msg_u0",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "text": "Show the Fictional Harbour Link boreholes."
+        }
+      ]
+    },
+    {
+      "id": "msg_a0",
+      "role": "assistant",
+      "parts": [
+        {
+          "type": "text",
+          "text": "The Fictional Harbour Link has 2 uploaded boreholes; 1 is on the map."
+        },
+        {
+          "type": "data-result-set",
+          "id": "rs_01M54KDWD0M4CHNNAS55ZV63FC",
+          "data": {
+            "result_set_id": "rs_01M54KDWD0M4CHNNAS55ZV63FC",
+            "count": 4,
+            "located_count": 2,
+            "unlocated_count": 2,
+            "bbox": [
+              -1.973322,
+              53.672644,
+              8.505846,
+              53.875923
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "msg_u1",
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "text": "Which boreholes near Lindenwick go deeper than 15 m?"
+        }
+      ]
+    }
+  ],
+  "context": {
+    "selected_uids": [
+      "bh_01M54CB4HGT2NXJXQZD6BE0FGK"
+    ],
+    "active_result_set_id": "rs_01M54KDWD0M4CHNNAS55ZV63FC",
+    "filters": {
+      "min_depth_m": 5.0,
+      "include_unreviewed": true,
+      "area": null
+    },
+    "map_view": {
+      "bbox": [
+        8.47,
+        53.85,
+        8.53,
+        53.89
+      ],
+      "zoom": 13
+    },
+    "units": "m",
+    "ui_language": "en",
+    "include_unreviewed": true
+  }
+}

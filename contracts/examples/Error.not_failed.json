@@ -1,0 +1,4 @@
+{
+  "detail": "Only failed documents can be retried.",
+  "code": "not_failed"
+}

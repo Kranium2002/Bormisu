@@ -6,8 +6,9 @@ import { useLocationRoute } from '../routing/RouteSync';
 import { inboxPath, type RouteKind } from '../routing/urlState';
 import { useAppStore } from '../store/appStore';
 import { questionCountText, unresolvedCount } from './clarify/clarifyModel';
+import { ChatButton } from './header/ChatButton';
+import { UserMenu } from './header/UserMenu';
 import styles from './Header.module.css';
-import { ReviewerName } from './ReviewerName';
 
 type Section = 'map' | 'queue' | 'review' | 'inbox';
 
@@ -136,7 +137,8 @@ export function Header() {
           </div>
         )}
       </div>
-      <ReviewerName />
+      <ChatButton />
+      <UserMenu />
     </header>
   );
 }

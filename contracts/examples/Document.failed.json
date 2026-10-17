@@ -1,0 +1,39 @@
+{
+  "document_id": "doc_01M54CVA401HDG3EBKKP6FGY4K",
+  "file_name": "fictional-site-photo.jpg",
+  "project": null,
+  "status": "failed",
+  "error": "Text recognition failed on page 1 after 3 attempts. Retry when the OCR service is reachable.",
+  "mime_type": "image/jpeg",
+  "size_bytes": 3145728,
+  "sha256": "942d2294e83cb82e0dbc8cca102f95242d302a7dd561472737d75157b71a7898",
+  "page_count": 1,
+  "found": null,
+  "pages": [
+    {
+      "n": 1,
+      "type": "log",
+      "role": "log_sheet",
+      "used": true,
+      "unused_reason": null,
+      "borehole_ids": [],
+      "sheet_label": null,
+      "handwriting": "full",
+      "language": "en",
+      "ocr": "failed",
+      "duplicate_of": null
+    }
+  ],
+  "completeness": null,
+  "progress": {
+    "pages_total": 1,
+    "pages_classified": 1,
+    "pages_ocr_total": 1,
+    "pages_ocr_done": 0,
+    "boreholes_extracted": 0
+  },
+  "duplicate_of": null,
+  "open_clarifications": 0,
+  "created_at": "2026-10-17T07:40:00Z",
+  "updated_at": "2026-10-17T07:44:05Z"
+}

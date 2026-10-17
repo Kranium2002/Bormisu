@@ -1,0 +1,60 @@
+# Ignore list for backend/Dockerfile (build context: repository root).
+# BuildKit uses this file instead of a root .dockerignore because it sits next to the Dockerfile.
+
+# VCS, CI and editor state
+.git
+.github
+.agents
+.vscode
+.idea
+
+# Secrets: never in the build context
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+
+# Other session's code and documentation
+frontend/
+docs/
+scripts/
+**/node_modules
+
+# Challenge data, local notes and runtime state (never in an image)
+HKBoreholeChallenge*
+**/*HKBoreholeChallenge*
+local/
+storage/
+backend/storage/
+uploads/
+backend/uploads/
+backend/cache/
+raw_data/
+dataset/
+datasets/
+*.zip
+**/*.zip
+**/*.tar.gz
+**/*.7z
+*.pdf
+**/*.pdf
+
+# Python environments and caches
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.hypothesis
+**/.coverage
+**/htmlcov
+
+# Prototype folders from arav/dev (not part of the image)
+backend/api
+backend/extractor
+backend/models
+backend/reference

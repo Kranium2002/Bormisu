@@ -1,0 +1,99 @@
+# Spreadsheet path (BACKEND.md 7.10, app/pipeline/spreadsheet.py): reading limits, table detection, what the
+# mapping model sees, and the whitelist of target fields a column may be mapped to. Generic for every
+# workbook: no file, project, sheet name, language or layout is named here. Extend by adding entries; a target
+# needs matching support in app/pipeline/spreadsheet.py (TARGET_SUPPORT), which a unit test checks.
+
+reader:
+  # CSV: tried in this order; latin-1 decodes any byte, so it comes last.
+  csv_encodings: [utf-8-sig, cp1252, latin-1]
+  csv_delimiters: [";", ",", "\t", "|"]
+  csv_sniff_lines: 50
+  # Refused with a readable reason above these sizes (never cut silently).
+  max_cells: 2000000
+  max_uncompressed_mb: 1000
+
+detection:
+  scan_rows: 60           # rows (with content) from the top of a sheet searched for a header row
+  min_header_cells: 2     # text cells a header row needs
+  min_text_share: 0.6     # share of text cells among a header row's cells
+  check_rows: 6           # rows below a header candidate; at least one must hold a number under the header
+  unit_cell_max_chars: 20 # a unit row prints short unit texts only
+
+preview:
+  rows_above_header: 15   # title and header-block rows shown above a table's header row
+  rows_without_table: 20  # rows shown of a sheet without a detected table
+  sample_rows: 5          # data rows shown per table (never the whole table)
+  max_columns: 40
+  max_cell_chars: 80
+  max_distinct_values: 8  # short text columns with at most this many distinct values list them (row types)
+  max_distinct_chars: 24
+  max_notes: 20
+  max_layouts: 30         # sheets beyond this many layouts are listed by name only
+  max_further_tables: 5   # further tables lower on a sheet whose titles are shown
+
+mapping:
+  output_tokens_floor: 3000
+  output_tokens_per_layout: 900
+  output_tokens_cap: 12000
+  # Several columns mapped to one text field (e.g. two description columns) are joined with this.
+  text_join: "; "
+  # Rows whose mapped cells repeat the header texts in at least this share of the columns are skipped.
+  header_repeat_share: 0.5
+
+# What a row holds. depth_from / depth_to are read according to the row type.
+row_types:
+  layer: "One stratum per row: depth_from and depth_to are its top and base. SPT, RQD, recovery, sample and test columns on the same row belong to that stratum."
+  spt: "One SPT per row: depth_from is the test depth when there is no spt_depth column."
+  core_run: "One core run per row: depth_from and depth_to are the run; rqd and recovery belong to the run."
+  groundwater: "One water observation per row: depth_from is the water depth when there is no groundwater_depth column."
+  sample: "One sample per row: depth_from and depth_to are the sample's top and base when there are no sample_from / sample_to columns."
+  test: "One row of laboratory or in-situ results: depth_from is the test depth when there is no test_depth column; sample_name names the tested sample."
+  borehole: "One borehole per row (a location, coordinate or summary table): only borehole fields."
+  ignore: "Rows that hold no data (sub-headers, totals, remarks)."
+
+# Target fields. scope: borehole (one value per borehole: header blocks, location tables or repeated on every
+# row; the first printed value is used), row (one value per row) or any (per row, or once in a header block). kind tells Python how to read the cells:
+# text, date, length (converted to metres with the column's printed unit), percent, angle, count, coordinate
+# (never converted: its unit belongs to the coordinate system) or test (a Test Results value; needs test_name).
+targets:
+  borehole_id: {scope: borehole, kind: text, description: "Borehole, hole, well, pit or probe identifier as printed."}
+  project_name: {scope: borehole, kind: text, description: "Project name or number."}
+  client: {scope: borehole, kind: text, description: "Client or owner."}
+  location_name: {scope: borehole, kind: text, description: "Site, place, address or location description."}
+  drilling_contractor: {scope: borehole, kind: text, description: "Drilling or excavation contractor."}
+  drilling_method: {scope: borehole, kind: text, description: "Drilling or excavation method."}
+  start_date: {scope: borehole, kind: date, description: "Date drilling started (or the only date)."}
+  end_date: {scope: borehole, kind: date, description: "Date drilling ended."}
+  x: {scope: borehole, kind: coordinate, description: "First coordinate as printed (easting, Rechtswert, X, longitude ...)."}
+  y: {scope: borehole, kind: coordinate, description: "Second coordinate as printed (northing, Hochwert, Y, latitude ...)."}
+  coordinate_system: {scope: borehole, kind: text, description: "Coordinate system, datum, grid or zone as printed."}
+  ground_level: {scope: borehole, kind: length, description: "Ground, collar or seabed elevation."}
+  elevation_datum: {scope: borehole, kind: text, description: "Datum of the ground level (e.g. mAOD, NN, AHD)."}
+  total_depth: {scope: borehole, kind: length, description: "Final depth of the hole (end of hole, termination depth)."}
+  inclination: {scope: borehole, kind: angle, description: "Inclination of the hole as printed."}
+  notes: {scope: borehole, kind: text, description: "Other remarks about the borehole (termination reason, casing, backfill)."}
+  depth_from: {scope: row, kind: length, description: "Top depth of the row's interval (see row types)."}
+  depth_to: {scope: row, kind: length, description: "Base depth of the row's interval (see row types)."}
+  description: {scope: row, kind: text, description: "Soil or rock description of a stratum."}
+  din4023_code: {scope: row, kind: text, description: "A printed DIN 4023 soil or rock code."}
+  uscs: {scope: row, kind: text, description: "USCS or other group symbol as printed."}
+  colour: {scope: row, kind: text, description: "Colour of the stratum."}
+  consistency: {scope: row, kind: text, description: "Consistency or relative density."}
+  moisture: {scope: row, kind: text, description: "Moisture condition."}
+  weathering: {scope: row, kind: text, description: "Weathering grade."}
+  stratigraphic_name: {scope: row, kind: text, description: "Formation, unit or stratigraphic name."}
+  spt_depth: {scope: row, kind: length, description: "Depth of an SPT when it has its own column."}
+  spt_blows: {scope: row, kind: text, description: "SPT blow counts per increment as printed (e.g. 5/7/9 or 50/120)."}
+  spt_n: {scope: row, kind: text, description: "Printed SPT N value."}
+  spt_increment_note: {scope: row, kind: text, description: "Printed SPT increment scheme (e.g. 3 x 150 mm)."}
+  rqd: {scope: row, kind: percent, description: "Rock quality designation (RQD)."}
+  recovery: {scope: row, kind: percent, description: "Total core recovery (TCR)."}
+  groundwater_depth: {scope: any, kind: length, description: "Depth of a groundwater observation."}
+  groundwater_date: {scope: any, kind: date, description: "Date of a groundwater observation."}
+  sample_name: {scope: row, kind: text, description: "Sample name or number."}
+  sample_type: {scope: row, kind: text, description: "Sample type as printed (e.g. U, D, B, SPT)."}
+  sample_from: {scope: row, kind: length, description: "Top depth of a sample when it has its own column."}
+  sample_to: {scope: row, kind: length, description: "Base depth of a sample when it has its own column."}
+  test_value: {scope: row, kind: test, description: "A laboratory or in-situ test value; test_name names the Test Results field."}
+  test_depth: {scope: row, kind: length, description: "Depth of the test values on the row when it has its own column."}
+  test_sample: {scope: row, kind: text, description: "Name of the tested sample when it has its own column."}

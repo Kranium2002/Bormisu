@@ -347,4 +347,46 @@ export interface ClarificationsSlice {
   skipClarification(id: string): Promise<void>;
 }
 
-export type AppState = DataSlice & ReviewSlice & MapSlice & MapDataSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice & ClarificationsSlice;
+/**
+ * Sign-in (contract 1.3.0). With health.auth.enabled the app loads nothing until a user is signed
+ * in; a 401 not_authenticated at any time ends the session and shows the sign-in on the same route.
+ */
+export interface AuthSlice {
+  /** unknown until checked; disabled when the server has no sign-in; signedOut / signedIn otherwise. */
+  authState: 'unknown' | 'disabled' | 'signedOut' | 'signedIn';
+  user: import('../domain/types').User | null;
+  /** A sign-in, registration, sign-out or password change in flight. */
+  authBusy: boolean;
+  /** The last error to show above the form (detail of the ApiError, or why the backend is unreachable). */
+  authError: string | null;
+  /** Field errors of the last 422 answer, by field name. */
+  authFieldErrors: Record<string, string>;
+
+  signIn(email: string, password: string): Promise<boolean>;
+  register(registration: import('../domain/types').Registration): Promise<boolean>;
+  /** Signs out, stops live updates and forgets every loaded record. */
+  signOut(): Promise<void>;
+  changePassword(currentPassword: string, newPassword: string): Promise<boolean>;
+  /** The session ended (any 401 not_authenticated): stop live updates, keep the route, show the sign-in. */
+  sessionEnded(): void;
+}
+
+/** The chat drawer's state; the conversation itself lives in useChat (FRONTEND.md F14, F15). */
+export interface ChatSlice {
+  chatOpen: boolean;
+  /** The include-unreviewed toggle next to the input (context.include_unreviewed). */
+  chatIncludeUnreviewed: boolean;
+  /** A request_area command: the map is in draw mode with this hint until an area is drawn or cancelled. */
+  chatAreaRequest: { prompt: string } | null;
+  /** The area drawn for the chat; it goes with the next message as context.map_view, then clears. */
+  chatArea: Area | null;
+
+  openChat(): void;
+  closeChat(): void;
+  toggleChat(): void;
+  setChatIncludeUnreviewed(on: boolean): void;
+  requestChatArea(prompt: string): void;
+  setChatArea(area: Area | null): void;
+}
+
+export type AppState = DataSlice & ReviewSlice & MapSlice & MapDataSlice & UploadSlice & PanelSlice & SettingsSlice & EventsSlice & ClarificationsSlice & AuthSlice & ChatSlice;

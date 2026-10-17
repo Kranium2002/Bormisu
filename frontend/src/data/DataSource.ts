@@ -15,6 +15,8 @@ import type {
   ResultSet,
   UploadProgress,
   UploadResult,
+  Registration,
+  User,
   ValuePatch,
 } from '../domain/types';
 
@@ -110,4 +112,16 @@ export interface DataSource {
   crsCandidates(documentId: string): Promise<CrsCandidate[]>;
   /** Confirms one CRS for every borehole of a document; resolves with the number of boreholes updated. */
   confirmCrs(documentId: string, confirmation: CrsConfirmation): Promise<number>;
+  /** The signed-in user (GET /auth/me), or null without a session. */
+  currentUser(): Promise<User | null>;
+  /** Signs in (POST /auth/login); throws ApiError invalid_credentials / rate_limited / validation_error. */
+  signIn(email: string, password: string): Promise<User>;
+  /** Creates an account and signs it in (POST /auth/register); throws email_taken / validation_error / rate_limited. */
+  register(registration: Registration): Promise<User>;
+  /** Signs out (POST /auth/logout); idempotent. */
+  signOut(): Promise<void>;
+  /** Changes the password; the server signs out the user's other sessions. Throws invalid_credentials / validation_error. */
+  changePassword(currentPassword: string, newPassword: string): Promise<void>;
+  /** Called whenever a request answers 401 not_authenticated (the session ended); null removes it. */
+  setSessionListener(listener: (() => void) | null): void;
 }
