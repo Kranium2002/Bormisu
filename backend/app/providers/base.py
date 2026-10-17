@@ -6,6 +6,7 @@ import asyncio
 import email.utils
 import logging
 import random
+import ssl
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -114,7 +115,8 @@ async def post_with_retries(
             )
         except (httpx.TimeoutException, TimeoutError):
             last = ProviderError(f"{provider} did not answer in time.", retryable=True)
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ssl.SSLError, OSError):
+            # a dropped or garbled TLS connection (ssl.SSLError is not always wrapped by httpx) is transient
             last = ProviderError(f"{provider} is not reachable.", retryable=True)
         else:
             status = response.status_code
