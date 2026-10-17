@@ -207,3 +207,16 @@ def test_sheet_numbers(
 ) -> None:
     info = PageInfo(n=1, role="log_sheet", sheet_label=sheet_label, sheet_index=index, sheet_total=total)
     assert sheet_numbers(info) == expected
+
+
+def test_a_printed_borehole_number_prefix_is_not_part_of_the_label() -> None:
+    pages = [
+        log(1, "BORING NO. T01", sheet_label="SHEET 1 OF 2", sheet_index=1, sheet_total=2),
+        cont(2, "T01", sheet_label="SHEET 2 OF 2", sheet_index=2, sheet_total=2),
+        log(3, "Bohrung Nr. 3"),
+        log(4, "BH 4"),  # no number sign: the word is part of the label
+    ]
+    groups = plan_page_groups(pages)
+    assert summary(groups) == [("T1", (1, 2)), ("3", (3,)), ("BH4", (4,))]
+    assert [g.label_raw for g in groups] == ["T01", "3", "BH 4"]
+    assert not any(g.uncertain for g in groups)

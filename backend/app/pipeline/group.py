@@ -24,10 +24,13 @@ import json
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
+import yaml
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.db.models import Page
 from app.db.session import get_sessionmaker
 from app.pipeline.types import PageGroup
@@ -98,11 +101,32 @@ def sheet_numbers(page: PageInfo) -> tuple[int | None, int | None]:
     return index, total
 
 
+@lru_cache(maxsize=1)
+def _label_prefix() -> re.Pattern[str]:
+    """A borehole word with a number sign in front of the label (data/page_roles.yaml label_prefixes)."""
+    with (get_settings().data_dir / "page_roles.yaml").open(encoding="utf-8") as handle:
+        data = (yaml.safe_load(handle) or {}).get("label_prefixes") or {}
+    words = sorted((str(w) for w in data.get("words") or []), key=len, reverse=True)
+    signs = sorted((str(s) for s in data.get("number_signs") or []), key=len, reverse=True)
+    if not words or not signs:
+        return re.compile(r"(?!)")
+    word = "|".join(re.escape(w).replace(r"\ ", r"\s*") for w in words)
+    sign = "|".join(re.escape(s) for s in signs)
+    return re.compile(rf"^\s*(?:{word})\s*(?:{sign})\s*[:.\-]?\s*(?=\S)", re.IGNORECASE)
+
+
+def clean_label(text: str) -> str:
+    """The label without a printed "borehole number" prefix ("BORING NO. T01" -> "T01")."""
+    cleaned = _label_prefix().sub("", text, count=1).strip()
+    return cleaned or text
+
+
 def _labels(raw_labels: Iterable[str]) -> list[tuple[str, str]]:
-    """(canonical, raw) per distinct canonical label, in printed order."""
+    """(canonical, raw) per distinct canonical label, in printed order; a printed "borehole number" prefix
+    is not part of the label."""
     seen: dict[str, str] = {}
     for raw in raw_labels:
-        text = raw.strip()
+        text = clean_label(raw.strip())
         canonical = canonical_label(text) if text else ""
         if canonical and canonical not in seen:
             seen[canonical] = text

@@ -17,3 +17,11 @@ roles:
   other:            { type: unknown, unused_reason: "no borehole data found" }
 # Type of a page that has not been classified yet.
 unclassified_type: unknown
+# A word for "borehole" followed by a number sign is not part of the label: "BORING NO. T01" groups with
+# "T01", "Bohrung Nr. 3" with "3". Without a number sign nothing is removed ("BH 1" stays "BH 1").
+# Compared without case; generic for every language, no document is named here.
+label_prefixes:
+  words: [borehole, bore hole, boring, hole, bh, b.h., drillhole, drill hole, sondage, sondeo, sondaggio,
+          bohrung, bohrloch, perforación, perforacion, perfuração, perfuracao, furo, boorgat, boring nr,
+          borhull, borhål, borehul, sonda]
+  number_signs: ["no.", "no", "nr.", "nr", "n°", "nº", "n.", "#", "number", "núm.", "núm", "num.", "nummer"]

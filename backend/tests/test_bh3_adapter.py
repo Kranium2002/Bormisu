@@ -1,0 +1,287 @@
+"""bh3 as the extraction stage (app.pipeline.bh3_adapter) with a FAKE bridge: no model is called, every
+value is FICTIONAL. The fake stands in for app.bh3.bridge (make_vlm, read_pages, build, BudgetExceeded)."""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Iterator
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import Any
+
+import httpx
+import pytest
+from sqlalchemy import select
+
+from app.config import get_settings
+from app.db.models import ProviderCall
+from app.db.session import get_sessionmaker
+from app.pipeline import bh3_adapter
+from app.pipeline import classify as classify_module
+from app.pipeline import extract as extract_module
+from app.providers import ocr_mistral
+from app.providers.fakes import FakeClassifier, FakeExtractor, FakeOcrEngine
+from tests.test_pipeline_e2e import (
+    PROJECT,
+    Fakes,
+    call,
+    classify_rule,
+    document,
+    fictional_report,
+    records,
+    upload,
+    work,
+)
+
+pytestmark = pytest.mark.db
+
+
+class FakeBudgetExceeded(RuntimeError):
+    pass
+
+
+def prov(page: int, y0: float = 0.0, y1: float = 0.0, *, x0: float = 0.0, x1: float = 0.0) -> Any:
+    return SimpleNamespace(
+        file="fictional-report.pdf", page=page, x0=x0, y0=y0, x1=x1, y1=y1, method="vlm", confidence=0.9
+    )
+
+
+def layer(top: float, bottom: float, description: str, page: int, y0: float, din: str | None = None) -> Any:
+    return SimpleNamespace(
+        top=top,
+        bottom=bottom,
+        description=description,
+        prov=prov(page, y0, y0 + 20),
+        lithology=None,
+        soil_unit=None,
+        color=None,
+        consistency=None,
+        moisture=None,
+        stratigraphic_name=None,
+        geologic_age=None,
+        din_code=din,
+    )
+
+
+def point(
+    kind: str, depth: float, value: Any, page: int, *, label: str | None = None, to: float | None = None
+) -> Any:
+    return SimpleNamespace(
+        kind=kind, depth=depth, value=value, prov=prov(page, 400, 412), depth_to=to, label=label
+    )
+
+
+def fx1() -> Any:
+    """Printed degrees without labels or system, an open stratum, SPT, groundwater and a sample."""
+    return SimpleNamespace(
+        borehole_id="doc:FX-1",
+        metadata={
+            "BoreholeName": "FX-1",
+            "ProjectName": PROJECT,
+            "X-Coordinate": -32.929816,
+            "Y-Coordinate": 27.437978,
+            "BoreholeDepth": 6.0,
+            "_raw": {"X-Coordinate": "-32.929816", "Y-Coordinate": "27.437978"},
+            "_extra": {"Contractor": "Fictional Drilling Ltd"},
+        },
+        meta_prov={"BoreholeName": prov(2, 60, 76, x0=60, x1=260), "X-Coordinate": prov(2, 120, 132)},
+        layers=[
+            layer(0.0, 1.2, "Sand, schluffig", 2, 172, din="S, u"),
+            layer(1.2, math.nan, "Kies, sandig", 2, 192, din="G, s"),
+            layer(3.4, 6.0, "Ton, steif", 3, 172, din="T"),
+        ],
+        points=[
+            point("SPT", 1.5, 24, 2, label="24 [2,3/4,6,6,8]"),
+            point("GWL", 2.1, 2.1, 2, label="water strike"),
+            point("SAMPLE", 1.0, None, 2, label="D1", to=1.5),
+        ],
+        pages=[2, 3],
+        issues=["p2: fictional issue"],
+        source_file="fictional-report.pdf",
+    )
+
+
+def fx2() -> Any:
+    return SimpleNamespace(
+        borehole_id="doc:FX-2",
+        metadata={"BoreholeName": "FX-2", "BoreholeDepth": 4.5},
+        meta_prov={},
+        layers=[layer(0.0, 0.8, "Mutterboden", 4, 172), layer(0.8, 4.5, "Sand, kiesig", 4, 192)],
+        points=[],
+        pages=[4],
+        issues=[],
+        source_file="fictional-report.pdf",
+    )
+
+
+class FakeBridge(ModuleType):
+    def __init__(self, *, fail: set[int] | None = None, cost: float = 0.0015) -> None:
+        super().__init__("app.bh3.bridge")
+        self.BudgetExceeded = FakeBudgetExceeded
+        self.fail = fail or set()
+        self.cost = cost
+        self.read: list[int] = []
+        self.vlm_args: tuple[str, str] | None = None
+        self.on_call: Any = None
+
+    def make_vlm(self, base_url: str, api_key: str, model: str, on_call: Any) -> Any:
+        self.vlm_args, self.on_call = (base_url, model), on_call
+        return SimpleNamespace(model=model)
+
+    def read_pages(
+        self,
+        pdf_path: Path | None,
+        image_path: Path | None,
+        pages: list[int],
+        source_file: str,
+        vlm: Any,
+        workdir: Path,
+    ) -> list[Any]:
+        assert pdf_path is not None and pdf_path.exists() and image_path is None and workdir.is_dir()
+        assert source_file == "fictional-report.pdf" and len(pages) == 1
+        n = pages[0]
+        self.read.append(n)
+        if n in self.fail:
+            raise RuntimeError("fictional tile failure")
+        self.on_call(
+            {
+                "purpose": "tile",
+                "model": vlm.model,
+                "input_tokens": 2400,
+                "output_tokens": 300,
+                "cost_usd": self.cost,
+                "pages": 1,
+            }
+        )
+        return [SimpleNamespace(page_no=n, language="de", page_type="log")]
+
+    def build(self, page_results: list[Any], source_file: str, llm: Any = None) -> list[Any]:
+        pages = {r.page_no for r in page_results}
+        return [hole for hole, needs in ((fx1(), {2, 3}), (fx2(), {4})) if needs <= pages]
+
+
+@pytest.fixture
+def fakes(monkeypatch: pytest.MonkeyPatch) -> Fakes:
+    found = Fakes(FakeClassifier(classify_rule), FakeOcrEngine(), FakeExtractor())
+    monkeypatch.setattr(classify_module, "OpenRouterClassifier", lambda _doc: found.classifier)
+    monkeypatch.setattr(ocr_mistral, "MistralOcrClient", lambda: found.ocr)
+    monkeypatch.setattr(extract_module, "OpenRouterExtractor", lambda: found.extractor)
+    return found
+
+
+@pytest.fixture
+def settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
+    def set_env(**values: str) -> None:
+        for key, value in values.items():
+            monkeypatch.setenv(key, value)
+        get_settings.cache_clear()
+
+    yield set_env
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+def bh3(monkeypatch: pytest.MonkeyPatch, settings_env: Any) -> Any:
+    def use(bridge: FakeBridge) -> FakeBridge:
+        settings_env(EXTRACTOR="bh3")
+        monkeypatch.setattr(bh3_adapter, "load_bridge", lambda: bridge)
+        return bridge
+
+    return use
+
+
+async def test_bh3_boreholes_are_finalised_with_evidence_and_questions(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any
+) -> None:
+    bridge = bh3(FakeBridge())
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    assert bridge.read == [2, 3, 4]  # the log pages, one at a time
+    assert bridge.vlm_args == ("https://openrouter.ai/api/v1", "mistralai/mistral-medium-3.1")
+    assert fakes.extractor.calls == 0  # bh3 covered every log page
+    doc = await document(client, doc_id)
+    assert doc["status"] == "needs_review" and doc["warnings"] == []
+    by_label = await records(client, doc_id)
+    assert sorted(by_label) == ["FX-1", "FX-2"]
+    hole = by_label["FX-1"]
+    layers = hole["stratigraphy"]
+    # The open stratum takes the next stratum's top as its bottom; nothing is dropped.
+    assert [(x["depth_from_m"], x["depth_to_m"]) for x in layers] == [(0.0, 1.2), (1.2, 3.4), (3.4, 6.0)]
+    assert [x["original_description"] for x in layers] == ["Sand, schluffig", "Kies, sandig", "Ton, steif"]
+    assert layers[1]["spt_n_value"] == 24 and layers[0]["din4023_code"] == "S"
+    assert hole["groundwater"][0]["depth_m"] == 2.1
+    assert hole["metadata"]["borehole_depth_m"] == 6.0
+    evidence = hole["provenance"]["stratigraphy[0].original_description"]
+    assert evidence["page"] == 2 and evidence["box"] is not None
+    # bh3's row band, tightened to the printed words: the page has a text layer, so it counts as read.
+    x, y, w, h = evidence["box"]
+    assert 0.0 < x and w < 1.0 and 0.0 < y < 1.0 and 0.0 < h < 0.1 and evidence["method"] == "read"
+    # Printed degrees without a system: asked, never plotted on a guess.
+    assert hole["crs_status"] == "inferred" and hole["plotted"] is False
+    questions = await call(client, "GET", "/api/v1/clarifications", expect=200)
+    assert any(q["kind"] == "crs_confirm" and hole["uid"] in q["borehole_uids"] for q in questions)
+    async with get_sessionmaker()() as session:
+        rows = (await session.scalars(select(ProviderCall).where(ProviderCall.document_id == doc_id))).all()
+    bh3_rows = [r for r in rows if r.purpose == "bh3:tile"]
+    assert len(bh3_rows) == 3 and all(r.provider == "openrouter" and r.input_tokens == 2400 for r in bh3_rows)
+
+    # A retry of the extraction finds every bh3 borehole finished and creates nothing twice.
+    from app.pipeline.orchestrator import stage_extract
+
+    await stage_extract(doc_id)
+    assert sorted(await records(client, doc_id)) == ["FX-1", "FX-2"]
+
+
+async def test_a_page_bh3_cannot_read_goes_to_the_classic_extractor(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any
+) -> None:
+    bh3(FakeBridge(fail={4}))
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    assert fakes.extractor.calls == 1  # only FX-2's group
+    by_label = await records(client, doc_id)
+    assert sorted(by_label) == ["FX-1", "FX-2"]
+    fx2_layers = by_label["FX-2"]["stratigraphy"]
+    assert (
+        by_label["FX-2"]["provenance"]["stratigraphy[0].depth_from_m"]["raw"] == "0,00"
+    )  # classic: as printed
+    assert len(fx2_layers) == 2
+
+
+async def test_the_budget_stops_bh3_with_a_readable_failure(
+    client: httpx.AsyncClient, live_mode: None, queue: Any, fakes: Fakes, bh3: Any, settings_env: Any
+) -> None:
+    bh3(FakeBridge(cost=0.3))
+    settings_env(PROVIDER_BUDGET_USD="0.5")
+    doc_id = await upload(client, fictional_report())
+    await work(queue, doc_id)
+
+    doc = await document(client, doc_id)
+    assert doc["status"] == "failed" and doc["failed_stage"] == "extract"
+    assert "budget" in (doc["error"] or "").lower()
+    assert fakes.extractor.calls == 0  # the budget is not worked around by the classic extractor
+
+
+def test_boxes_scale_from_pdf_points_to_the_render() -> None:
+    info = bh3_adapter._PageInfo(2, width_px=1240, height_px=1754, text_quality=1.0, handwriting="none")
+    blocks = bh3_adapter._Blocks({2: info}, {2: 842.0})
+    width_pt = 1240 * 842.0 / 1754
+    box = blocks.box(prov(2, 421.0, 463.1, x0=width_pt / 4, x1=width_pt / 2))
+    assert box == pytest.approx((0.25, 0.5, 0.25, 0.05), abs=1e-4)
+    assert blocks.box(prov(2)) is None  # no row band: the whole page
+    assert blocks.box(prov(2, 100.0, 120.0))[0::2] == (0.0, 1.0)  # type: ignore[index]
+
+
+def test_spt_label_and_depth_text() -> None:
+    assert bh3_adapter._spt_parts(24, "24 [2,3/4,6,6,8]") == ("24", "2,3/4,6,6,8")
+    assert bh3_adapter._spt_parts(None, "R [50/120]") == ("R", "50/120")
+    assert bh3_adapter._spt_parts(31, None) == ("31", None)
+    assert [bh3_adapter._depth_text(v) for v in (6.0, 10.46, 1.255, math.nan, None)] == [
+        "6.00",
+        "10.46",
+        "1.255",
+        None,
+        None,
+    ]

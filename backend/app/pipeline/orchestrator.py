@@ -14,6 +14,11 @@ finalised with what was read (pins, questions) and goes to review with a warning
 (Document.warnings); a retry reads only those pages again (finished OCR runs and boreholes are kept). Only
 when nothing at all could be extracted does the document fail, with a readable reason, rewound to before OCR.
 
+With EXTRACTOR=bh3 (and the app.bh3 package installed) the `extract` stage first reads the log pages with
+bh3 (app.pipeline.bh3_adapter) and finalises its boreholes the same way; the classic extractor then takes
+only the page groups none of whose pages is in a bh3 borehole (pages bh3 could not read, or did not take for
+a log).
+
 The `reread` stage (app.pipeline.reread) reads handwritten and low-confidence values a second time. It does
 nothing when there are none, never fails the document and leaves its status and progress as they are.
 
@@ -233,12 +238,21 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     new group starts once one has failed. Groups without readable text are held back and reported together
     as a StageError that rewinds the document to before OCR.
     """
+    from app.pipeline import bh3_adapter
     from app.pipeline import extract as extract_module
     from app.pipeline import finalize as finalize_module
     from app.pipeline import group as group_module
 
     groups = await group_module.plan_groups(document_id)
     finished, unread = await _extraction_state(document_id)
+    if extractor is None and bh3_adapter.active():
+        # bh3 reads the log pages; the classic extractor takes the groups it covers no page of.
+        read = await bh3_adapter.extract_document(document_id)
+        if read is not None:
+            for bh3_group, bh3_outcome in read.boreholes:
+                if bh3_group.key not in finished:
+                    await finalize_module.finalize_group(document_id, bh3_group, bh3_outcome)
+            groups = bh3_adapter.covered(groups, read.pages)
     todo: list[PageGroup] = []
     unread_pages: set[int] = set()
     for group in groups:
