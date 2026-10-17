@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useT } from '../i18n';
 import { useAppStore } from '../store/appStore';
 import styles from './Header.module.css';
 import { Popover } from './Popover';
@@ -8,6 +9,7 @@ import { Popover } from './Popover';
  * confirm (a CRS, later clarification answers). Click opens a small form; Escape or a click outside closes it.
  */
 export function ReviewerName() {
+  const t = useT();
   const name = useAppStore((s) => s.reviewerName);
   const setName = useAppStore((s) => s.setReviewerName);
   const [open, setOpen] = useState(false);
@@ -55,16 +57,16 @@ export function ReviewerName() {
         className={`${styles.nameButton} ${name ? '' : styles.nameUnset}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={name ? `Signed as ${name}: stored with your confirmations` : 'Set your name to store it with your confirmations'}
+        title={name ? `${t('Signed as')} ${name}: ${t('stored with your confirmations')}` : t('Set your name to store it with your confirmations')}
         onClick={toggle}
       >
-        {name ?? 'YOUR NAME'}
+        {name ?? t('YOUR NAME')}
       </button>
       {open && (
         <Popover width={300} top={50} label="Your name">
           <form className={styles.nameForm} onSubmit={save} onKeyDown={onKey}>
             <label className={styles.nameLabel} htmlFor={inputId}>
-              YOUR NAME
+              {t('YOUR NAME')}
             </label>
             <input
               id={inputId}
@@ -76,11 +78,11 @@ export function ReviewerName() {
               onChange={(e) => setDraft(e.target.value)}
             />
             <div className={styles.nameNote}>
-              Optional. Kept in this browser only and stored with what you confirm. Leave empty to confirm without a name.
+              {t('Optional. Kept in this browser only and stored with what you confirm. Leave empty to confirm without a name.')}
             </div>
             <div className={styles.nameActions}>
               <button type="submit" className={styles.nameSave}>
-                SAVE
+                {t('SAVE')}
               </button>
               {name && (
                 <button
@@ -91,7 +93,7 @@ export function ReviewerName() {
                     closeToButton();
                   }}
                 >
-                  Clear name
+                  {t('Clear name')}
                 </button>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { APP_NAME } from '../../config';
 import { SESSION_ENDED } from '../../store/authSlice';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import styles from './Auth.module.css';
 import { PasswordField, PasswordRules, TextField } from './AuthFields';
@@ -30,6 +31,7 @@ const ORDER: Record<SignInMode, AuthField[]> = {
  * judges the rest.
  */
 export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInMode }) {
+  const t = useT();
   const registrationOpen = useAppStore((s) => s.health?.auth.registration === 'open');
   const busy = useAppStore((s) => s.authBusy);
   const authError = useAppStore((s) => s.authError);
@@ -119,16 +121,16 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
             {APP_NAME}
           </h1>
         </div>
-        <h2 className={styles.modeTitle}>{title}</h2>
+        <h2 className={styles.modeTitle}>{t(title)}</h2>
         {topMessage && (
           <div role="alert" className={`${styles.alert} ${sessionNotice ? styles.notice : ''}`}>
-            {topMessage}
+            {t(topMessage)}
           </div>
         )}
-        <form className={styles.form} noValidate aria-busy={busy} aria-label={title} onSubmit={submit}>
+        <form className={styles.form} noValidate aria-busy={busy} aria-label={t(title)} onSubmit={submit}>
           <TextField
             ref={refs.email}
-            label="EMAIL"
+            label={t('EMAIL')}
             name="email"
             type="email"
             autoComplete="email"
@@ -141,7 +143,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
           {shownMode === 'register' && (
             <TextField
               ref={refs.display_name}
-              label="DISPLAY NAME"
+              label={t('DISPLAY NAME')}
               name="display_name"
               autoComplete="name"
               value={displayName}
@@ -153,7 +155,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
           )}
           <PasswordField
             ref={refs.password}
-            label="PASSWORD"
+            label={t('PASSWORD')}
             name="password"
             autoComplete={shownMode === 'signIn' ? 'current-password' : 'new-password'}
             value={password}
@@ -165,7 +167,7 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
           {shownMode === 'register' && (
             <PasswordField
               ref={refs.repeat}
-              label="REPEAT PASSWORD"
+              label={t('REPEAT PASSWORD')}
               name="repeat"
               autoComplete="new-password"
               value={repeat}
@@ -175,23 +177,23 @@ export function SignInScreen({ initialMode = 'signIn' }: { initialMode?: SignInM
             />
           )}
           <button type="submit" className={styles.primary} disabled={busy}>
-            {busy ? (shownMode === 'signIn' ? 'SIGNING IN…' : 'CREATING ACCOUNT…') : title}
+            {t(busy ? (shownMode === 'signIn' ? 'SIGNING IN…' : 'CREATING ACCOUNT…') : title)}
           </button>
         </form>
         {registrationOpen && (
           <div className={styles.switch}>
             {shownMode === 'signIn' ? (
               <>
-                No account yet?{' '}
+                {t('No account yet?')}{' '}
                 <button type="button" className={styles.link} onClick={() => switchMode('register')} disabled={busy}>
-                  Create an account
+                  {t('Create an account')}
                 </button>
               </>
             ) : (
               <>
-                Have an account?{' '}
+                {t('Have an account?')}{' '}
                 <button type="button" className={styles.link} onClick={() => switchMode('signIn')} disabled={busy}>
-                  Sign in
+                  {t('Sign in')}
                 </button>
               </>
             )}

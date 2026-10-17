@@ -1,3 +1,4 @@
+import { useT } from '../../i18n';
 import styles from './EmptyMapOverlay.module.css';
 
 /**
@@ -5,12 +6,13 @@ import styles from './EmptyMapOverlay.module.css';
  * button to the queue. The map around it keeps working (pan, zoom).
  */
 export function EmptyMapOverlay({ onOpenQueue }: { onOpenQueue(): void }) {
+  const t = useT();
   return (
     <div className={styles.wrap}>
       <div className={styles.card} role="status">
-        <div className={styles.text}>Upload a report to see boreholes here</div>
+        <div className={styles.text}>{t('Upload a report to see boreholes here')}</div>
         <button type="button" className={styles.action} onClick={onOpenQueue}>
-          OPEN UPLOAD &amp; QUEUE
+          {t('OPEN UPLOAD & QUEUE')}
         </button>
       </div>
     </div>

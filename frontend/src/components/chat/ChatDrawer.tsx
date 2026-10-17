@@ -17,6 +17,7 @@ import { getChat, shownMapSize } from '../../chat/session';
 import { isChatUnavailable } from '../../chat/transport';
 import { chatErrorText, chatOffReason, CHAT_BUTTON_ID, CHAT_NOT_CONFIGURED } from '../../chat/view';
 import { dataSourceKind } from '../../data/createDataSource';
+import { useT } from '../../i18n';
 import { useAppStore } from '../../store/appStore';
 import { Toggle } from '../Toggle';
 import styles from './Chat.module.css';
@@ -33,6 +34,7 @@ const EMPTY_TEXT =
   'Ask about the uploaded boreholes, for example how many are deeper than 10 m in a town. Answers come from the uploaded reports; numbers come from the database.';
 
 export default function ChatDrawer() {
+  const t = useT();
   const chat = getChat();
   const { messages, status, error, sendMessage, stop, regenerate, setMessages, clearError } = useChat({ chat });
   const offReason = useAppStore((s) => chatOffReason(s, dataSourceKind() === 'sample'));
@@ -102,42 +104,42 @@ export default function ChatDrawer() {
       }}
     >
       <div className={styles.head}>
-        <h2 className={styles.title}>CHAT</h2>
+        <h2 className={styles.title}>{t('CHAT')}</h2>
         <button
           type="button"
           className={styles.headButton}
           aria-disabled={busy || messages.length === 0 ? true : undefined}
-          title={busy ? 'Wait for the answer, or STOP it' : messages.length === 0 ? 'Nothing to clear yet' : 'Start a new conversation'}
+          title={t(busy ? 'Wait for the answer, or STOP it' : messages.length === 0 ? 'Nothing to clear yet' : 'Start a new conversation')}
           onClick={() => {
             if (busy || !messages.length) return;
             setMessages([]);
             clearError();
           }}
         >
-          NEW CHAT
+          {t('NEW CHAT')}
         </button>
-        <button type="button" className={styles.close} aria-label="Close the chat" title="Close the chat (Esc)" onClick={close}>
+        <button type="button" className={styles.close} aria-label="Close the chat" title={t('Close the chat (Esc)')} onClick={close}>
           ×
         </button>
       </div>
 
       {off && (
         <div className={styles.off} role="status">
-          {off}
+          {t(off)}
         </div>
       )}
 
       <div ref={logRef} className={styles.log} role="log" aria-live="polite" aria-label="Conversation">
-        {shown.length === 0 && !off && <p className={styles.empty}>{EMPTY_TEXT}</p>}
+        {shown.length === 0 && !off && <p className={styles.empty}>{t(EMPTY_TEXT)}</p>}
         {shown.map((m) => (
           <ChatMessageView key={m.id} message={m} actions={ACTIONS} />
         ))}
-        {status === 'submitted' && <div className={styles.thinking}>Thinking…</div>}
+        {status === 'submitted' && <div className={styles.thinking}>{t('Thinking…')}</div>}
         {error && !unavailable && (
           <div className={styles.error} role="alert">
             <span>{chatErrorText(error)}</span>
             <button type="button" className={styles.secondary} onClick={() => void regenerate()}>
-              RETRY
+              {t('RETRY')}
             </button>
           </div>
         )}
@@ -147,24 +149,24 @@ export default function ChatDrawer() {
         {areaRequest && (
           <div className={styles.area} role="status">
             <span>
-              <strong>Draw the area on the map.</strong> {areaRequest.prompt}
+              <strong>{t('Draw the area on the map.')}</strong> {areaRequest.prompt}
             </span>
             <button type="button" className={styles.linkButton} onClick={cancelAreaRequest}>
-              CANCEL
+              {t('CANCEL')}
             </button>
           </div>
         )}
         {area && !areaRequest && (
           <div className={styles.area} role="status">
-            <span>Area drawn on the map: it goes with your next message.</span>
+            <span>{t('Area drawn on the map: it goes with your next message.')}</span>
             <button type="button" className={styles.linkButton} onClick={() => setChatArea(null)}>
-              REMOVE
+              {t('REMOVE')}
             </button>
           </div>
         )}
         <div className={styles.options}>
           <label className={styles.option} htmlFor="chat-include-unreviewed">
-            Include unreviewed
+            {t('Include unreviewed')}
           </label>
           <Toggle id="chat-include-unreviewed" on={includeUnreviewed} onToggle={() => setIncludeUnreviewed(!includeUnreviewed)} />
           <button
@@ -172,12 +174,12 @@ export default function ChatDrawer() {
             className={`${styles.chip} ${useView && !viewOff ? styles.chipOn : ''}`}
             aria-pressed={useView && !viewOff}
             aria-disabled={viewOff ? true : undefined}
-            title={viewOff ?? 'Ask about the area the map shows: it goes with your next messages'}
+            title={t(viewOff ?? 'Ask about the area the map shows: it goes with your next messages')}
             onClick={() => {
               if (!viewOff) setUseView(!useView);
             }}
           >
-            THIS MAP AREA
+            {t('THIS MAP AREA')}
           </button>
         </div>
         <div className={styles.inputRow}>
@@ -188,18 +190,18 @@ export default function ChatDrawer() {
             value={input}
             disabled={!!off}
             title={off ?? undefined}
-            placeholder={off ? 'Chat is off' : 'Ask about the boreholes…  ⏎'}
+            placeholder={off ? t('Chat is off') : `${t('Ask about the boreholes…')}  ⏎`}
             aria-label="Your question"
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onInputKey}
           />
           {busy ? (
             <button type="button" className={styles.stop} onClick={() => void stop()}>
-              STOP
+              {t('STOP')}
             </button>
           ) : (
-            <button type="button" className={styles.primary} aria-disabled={sendOff ? true : undefined} title={sendOff ?? 'Send (Enter)'} onClick={send}>
-              SEND
+            <button type="button" className={styles.primary} aria-disabled={sendOff ? true : undefined} title={t(sendOff ?? 'Send (Enter)')} onClick={send}>
+              {t('SEND')}
             </button>
           )}
         </div>
