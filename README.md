@@ -21,7 +21,7 @@ Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · heal
 |---|---|
 | **Inputs** | 8 formats (10 file extensions): PDF (vector and scanned), PNG, JPEG, WebP, TIFF (every frame), DOCX, XLSX, CSV. Each file's content must match its extension, so a renamed file is rejected |
 | **Languages** | Prompts are language-independent. DIN 4023 vocabulary in 10 languages (553 terms). 39 language-to-country hints for coordinate systems |
-| **Coordinate systems** | 122 curated EPSG systems, 49 of them with the names they are printed under (UTM, ETRS89, Gauss-Krüger, MGA, NAD83, national grids). Any other EPSG code printed in a document is resolved through PROJ. Local site grids are placed from one or two anchors |
+| **Coordinate systems** | 121 curated EPSG systems, 49 of them with the names they are printed under (UTM, ETRS89, Gauss-Krüger, MGA, NAD83, national grids). Any other EPSG code printed in a document is resolved through PROJ. Local site grids are placed from one or two anchors |
 | **Geotechnical standards** | DIN 4023 with 49 codes and 132 SVG hatch patterns and symbols. 4 SPT schemes (3×150, 6×75, 2×300, 3×100 mm). 37 units in 7 dimensions, each with its printed aliases |
 | **Quality gates** | 18 lint rules, a datum-convention check, a coordinate-outlier check per document, a cross-document duplicate check, and 9 kinds of clarification question |
 | **Accuracy of the page reader** (hand-labelled pages from documents it was never tuned on) | Borehole names **100 %** · SPT recall **81 %** · layer boundaries within 15 cm **80 %** |
@@ -167,7 +167,7 @@ Each log page goes down the cheapest route that can read it reliably.
   5. **Header and symbols.** A separate crop reads the header. A hatch-symbol read runs only when a layer has no description.
 - **Reconcile and validate.** Feet are converted to metres, elevation scales are converted through ground level, layers are re-sorted, and overlaps, inversions, implausible thicknesses and out-of-range SPT values are checked.
   - Confidence is computed from these checks, not from the model's self-report. Failed checks lower it, which routes the values to second reads and review.
-  - Only rounding gaps of 0.1 m or less are closed, and each is noted. The stored borehole then goes through the record lint (stage 7), which flags values and never changes them.
+  - Only rounding gaps of 0.1 m or less are closed (a depth-scale label against its ruling line). Larger gaps and overlaps are recorded as issues. The stored borehole then goes through the record lint (stage 7), which flags values and never changes them.
 - **DIN 4023.** Codes are assigned by a deterministic rule pass that makes no model call of its own (one input is the lithology class the text call reads from each description). Evidence is taken in this order, and inside the page reader `din_source` records which piece decided:
   1. legend markers
   2. a printed DIN short form
@@ -200,7 +200,7 @@ Every normaliser takes printed text and returns a typed value, or `None` with a 
 - **Datums:** depth origin (ground, mudline, seabed, relative) and sign conventions in several languages.
 - **Coordinates:** decimal degrees, DMS, degrees with decimal minutes and projected values with any grouping. The axis order comes from the printed labels, and swapped axes are detected.
 - **Coordinate system:**
-  - It is detected from an exact registry alias, a printed EPSG code, a named system, or datum + grid + zone composed into an EPSG name and looked up in PROJ. Ambiguous names (a UTM zone without datum or hemisphere) stay unresolved. The printed values only check printed evidence (they can pick a printed datum's national grid or reveal swapped axes). They never choose a system on their own.
+  - It is detected from an exact registry alias, a printed EPSG code, a named system, or datum + grid + zone composed into an EPSG name and looked up in PROJ. A zone printed without its datum stays unresolved. A zone printed without its hemisphere ("WGS 84, UTM zone 32") takes the hemisphere whose reading lies inside the zone and on land, when only one does. Beyond that, the printed values only check printed evidence (they can pick a printed datum's national grid or reveal swapped axes). They never choose a system on their own.
   - Where no system is printed, candidates are ranked by evidence: area of use, distance to a place geocoded from the borehole's own location text, compactness of the point set, and a penalty for world-wide systems. A person confirms the result in one `crs_confirm` question per printed system.
 
 ### 7. Checks and clarification questions
