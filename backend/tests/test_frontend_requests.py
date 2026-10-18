@@ -156,20 +156,29 @@ async def test_crs_endpoint_resolves_the_questions_it_settles(client: httpx.Asyn
         assert row.status == "answered" and row.answered_by == REVIEWER.actor
         assert row.answer == {"crs": "EPSG:25832", "swap_axes": False, "via": "crs_endpoint"}
         assert row.resolved_at is not None
-    # FR-3 (document B) has no system yet; a question that is not about the system is not touched.
-    assert rows[ids["q_project"]].status == "open" and rows[ids["q_locate"]].status == "open"
+    # FR-3 (document B) has no system yet: the project question stays open. FR-1 is on the map now, so
+    # the question where it was drilled is settled too.
+    assert rows[ids["q_project"]].status == "open"
+    locate = rows[ids["q_locate"]]
+    assert locate.status == "answered" and locate.answered_by == REVIEWER.actor
+    assert locate.answer == {
+        "crs": "EPSG:25832",
+        "swap_axes": False,
+        "via": "crs_endpoint",
+        "settled": "placed",
+    }
     resolved = {e["clarification_id"] for e in await _resolved_events()}
-    assert resolved == {ids["q_doc"], ids["q_skipped"]}
+    assert resolved == {ids["q_doc"], ids["q_skipped"], ids["q_locate"]}
 
     records = (await call(client, "GET", f"/api/v1/documents/{DOC_A}/boreholes", expect=200)).json()
     counts = {r["uid"]: r["open_clarifications"] for r in records}
-    assert counts == {ids["b1"]: 1, ids["b2"]: 1}  # the locate question; the project question
+    assert counts == {ids["b1"]: 0, ids["b2"]: 1}  # the project question
     assert all(r["crs_status"] == "confirmed" for r in records)
     layer = (await call(client, "GET", "/api/v1/map/boreholes.geojson", expect=200)).json()
     features = {f["id"]: f["properties"]["open_clarifications"] for f in layer["features"]}
-    assert features == {ids["b1"]: 1, ids["b2"]: 1}
+    assert features == {ids["b1"]: 0, ids["b2"]: 1}
     after = (await call(client, "GET", f"/api/v1/documents/{DOC_A}", expect=200)).json()
-    assert after["open_clarifications"] == 2
+    assert after["open_clarifications"] == 1
 
     # Confirming document B settles the project question too.
     url_b = f"/api/v1/documents/{DOC_B}/crs"
@@ -178,7 +187,7 @@ async def test_crs_endpoint_resolves_the_questions_it_settles(client: httpx.Asyn
     assert project.status == "answered" and project.answered_by == REVIEWER.actor
     assert project.answer == {"crs": "EPSG:25832", "swap_axes": False, "via": "crs_endpoint"}
     final = (await call(client, "GET", f"/api/v1/documents/{DOC_A}", expect=200)).json()
-    assert final["open_clarifications"] == 1  # only the locate question
+    assert final["open_clarifications"] == 0  # every question of document A is settled
 
 
 async def test_crs_answer_settles_overlapping_questions(client: httpx.AsyncClient) -> None:
@@ -204,7 +213,8 @@ async def test_crs_answer_settles_overlapping_questions(client: httpx.AsyncClien
     }
     assert rows[ids["q_project"]].status == "open"
     events = [e["clarification_id"] for e in await _resolved_events()]
-    assert sorted(events) == sorted([ids["q_doc"], ids["q_skipped"]])  # each resolved once
+    # each resolved once; FR-1's locate question is settled because FR-1 is on the map now
+    assert sorted(events) == sorted([ids["q_doc"], ids["q_skipped"], ids["q_locate"]])
 
 
 async def test_crs_confirmation_without_a_transform_resolves_nothing(client: httpx.AsyncClient) -> None:
