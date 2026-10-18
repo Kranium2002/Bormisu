@@ -231,6 +231,16 @@ The model sees a **preview only**: the header and unit rows, 5 sample rows and t
 Bormisu does not depend on any one model vendor. Every document model call (page classifier, extractor, page reader, OCR, second reads, sheet mapping) can run over the OpenAI-compatible `chat/completions` protocol against a configurable base URL. The default gateway is **OpenRouter**, which puts models from many vendors behind one key.
 
 - **One variable per stage.** `CLASSIFIER_MODEL`, `EXTRACTOR_MODEL`, `BH3_MODEL` and `OPENROUTER_OCR_MODEL` are independent. A small, fast model can sort pages while a stronger one reads them. Changing a model is an `.env` edit, not a code change.
+- **Switch provider with one `.env` change.** The keys can all stay in `.env`; the provider settings pick which one runs:
+
+  | Run on | `.env` |
+  |---|---|
+  | OpenRouter (default) | `OPENROUTER_API_KEY=…` · `LLM_PROVIDER=auto` · `OCR_PROVIDER=auto` · per-stage models `CLASSIFIER_MODEL`, `EXTRACTOR_MODEL`, `BH3_MODEL`, `OPENROUTER_OCR_MODEL` |
+  | OpenAI directly | `OPENAI_API_KEY=…` · `LLM_PROVIDER=openai` · `OCR_PROVIDER=openai_vision` · `OPENAI_CLASSIFIER_MODEL`, `OPENAI_EXTRACTOR_MODEL`, `OPENAI_BH3_MODEL`, `OPENAI_OCR_MODEL` (OCR with boxes from a vision model) |
+  | Mistral directly | `MISTRAL_API_KEY=…` · `LLM_PROVIDER=mistral` · `OCR_PROVIDER=mistral` (Mistral OCR with block boxes) · `MISTRAL_CLASSIFIER_MODEL`, `MISTRAL_EXTRACTOR_MODEL`, `MISTRAL_BH3_MODEL` |
+  | Local models (Ollama) | see [On premise and local models](#on-premise-and-local-models) |
+
+  With `auto`, the configured providers are tried in order and a refused key moves on to the next one, so a second key in `.env` doubles as a fallback.
 - **Swappable endpoints.** `OPENROUTER_BASE_URL`, `OPENAI_BASE_URL` and `MISTRAL_BASE_URL` point the same client at any compatible gateway, a self-hosted server or a local model.
 - **Automatic failover.** With `LLM_PROVIDER=auto` and `OCR_PROVIDER=auto`, every configured provider is used in order. A refused key (401/403) moves the classifier, extractor, second-read, sheet-mapping and OCR calls, and every later one, to the next provider. The page reader runs on the first configured route, and a borehole it cannot read falls back to the extractor, which fails over.
 - **Strict structured output.** The classifier, extractor, second reads, sheet mapping and OCR with boxes answer against Pydantic models, turned into closed, all-fields-required JSON Schemas and enforced through `response_format: json_schema`. The page reader uses its own strict hand-written schemas.

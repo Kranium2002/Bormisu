@@ -48,9 +48,20 @@ def config() -> ReasoningConfig:
 
 
 def required(model: str) -> bool:
-    """True when the model cannot run with reasoning off (listed, or refused it earlier in this process)."""
+    """True when the model cannot run with reasoning off (listed, or refused it earlier in this process). A
+    listed "vendor/model" pattern also matches the bare model id a vendor's own server uses."""
     name = model.lower()
-    return name in _LEARNED or any(fnmatch.fnmatchcase(name, p) for p in config().mandatory)
+    patterns = config().mandatory
+    bare = [p.split("/", 1)[1] for p in patterns if "/" in p]
+    return name in _LEARNED or any(fnmatch.fnmatchcase(name, p) for p in (*patterns, *bare))
+
+
+def plain_fields(model: str, level: str | None = None) -> dict[str, Any]:
+    """OpenAI-style reasoning field for another OpenAI-compatible server (a vendor's own endpoint, a local
+    server): `reasoning_effort` only when reasoning is on (LLM_REASONING, or a model that requires it); with
+    reasoning off nothing is sent, so a server that knows no such field is never confused by it."""
+    field = openrouter_reasoning(model, level)
+    return {} if is_off(field) else {"reasoning_effort": str(field.get("effort") or config().effort)}
 
 
 def learn(model: str) -> None:

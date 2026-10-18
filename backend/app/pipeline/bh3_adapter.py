@@ -126,9 +126,14 @@ def vision_route(settings: Settings) -> VisionRoute | None:
 def openrouter_options(bridge: ModuleType, route: VisionRoute, model: str) -> dict[str, Any]:
     """bh3's request options for one model: on OpenRouter the reasoning field per model
     (app.providers.reasoning) and what bh3 does when a model refuses reasoning off; none elsewhere."""
-    if route.provider != "openrouter" or "openrouter.ai" not in route.base_url:
-        return {}
     cfg = reasoning.config()
+    if route.provider == "openrouter" and "openrouter.ai" not in route.base_url:
+        # another OpenAI-compatible server on OPENROUTER_BASE_URL: an OpenAI-style effort for a model that
+        # cannot run without reasoning, so its thinking does not use up the answer
+        plain = reasoning.plain_fields(model)
+        return {"extra_body": plain, "reasoning_extra_tokens": cfg.extra_output_tokens} if plain else {}
+    if route.provider != "openrouter":
+        return {}
     return {
         "extra_body": bridge.openrouter_body(reasoning.openrouter_reasoning(model)),
         "reasoning_effort": cfg.effort,

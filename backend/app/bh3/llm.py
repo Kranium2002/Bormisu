@@ -42,7 +42,8 @@ _REASONING_REQUIRED: set[str] = set()
 
 def _reasoning_on(extra: dict) -> bool:
     field = extra.get("reasoning")
-    return isinstance(field, dict) and field.get("enabled") is not False
+    effort = extra.get("reasoning_effort")  # the OpenAI-style field other servers take
+    return (isinstance(field, dict) and field.get("enabled") is not False) or (effort not in (None, "none"))
 
 
 DEFAULT_BASE_URL = "https://api.mistral.ai/v1"

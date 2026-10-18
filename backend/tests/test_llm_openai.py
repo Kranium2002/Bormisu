@@ -214,6 +214,37 @@ async def test_openai_optional_parameters_are_dropped_for_a_model_that_refuses_t
     assert len(await ledger()) == 2  # the refused request is not billed and not recorded
 
 
+async def test_a_model_that_refuses_effort_none_gets_its_lowest_supported_effort(db: None, keys: Any) -> None:
+    keys(openai=True)
+    good = label("narrative").model_dump_json()
+    refusal = (
+        "Unsupported value: 'reasoning_effort' does not support 'none' with this model. "
+        "Supported values are: 'low', 'medium', 'high', and 'xhigh'."
+    )
+    with respx.mock() as mock:
+        route = mock.post(OPENAI).mock(
+            side_effect=[
+                httpx.Response(400, json={"error": {"message": refusal}}),
+                httpx.Response(200, json=completion(good)),
+                httpx.Response(200, json=completion(good)),
+            ]
+        )
+        await classify(LlmClient())
+        await classify(LlmClient())
+    bodies = [json.loads(call.request.content) for call in route.calls]
+    assert bodies[0]["reasoning_effort"] == "none"
+    # without the field the model would reason at its default effort on every call
+    assert [b.get("reasoning_effort") for b in bodies[1:]] == ["low", "low"]  # remembered
+    assert len(await ledger()) == 2
+
+
+def test_lowest_supported_effort_reads_the_refusal() -> None:
+    refusal = "'reasoning_effort' ... Supported values are: 'medium', 'low'."
+    assert llm.lowest_supported_effort(refusal) == "low"
+    assert llm.lowest_supported_effort("Unsupported parameter: 'reasoning_effort'.") is None
+    assert llm.lowest_supported_effort(None) is None
+
+
 async def test_failover_openrouter_401_to_openai_and_back(db: None, keys: Any) -> None:
     keys(openai=True, openrouter=True)
     settings = get_settings()

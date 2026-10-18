@@ -98,6 +98,7 @@ def fresh_provider_failover() -> Iterator[None]:
         ocr._REFUSED_ROUTES.clear()
         llm._REFUSED.clear()
         llm._PLAIN_OPENAI_MODELS.clear()
+        llm._OPENAI_EFFORT.clear()
         reasoning._LEARNED.clear()
         bh3_llm._REASONING_REQUIRED.clear()
 

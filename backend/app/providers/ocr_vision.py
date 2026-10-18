@@ -169,6 +169,9 @@ class OpenRouterVisionOcrClient:
             "response_format": response_format,
         }
         if not self.settings.openrouter_fields:  # another OpenAI-compatible server on OPENROUTER_BASE_URL
+            plain = reasoning.plain_fields(model, "off")  # a model that requires thinking still gets it, low
+            if plain:
+                body.update(plain, max_tokens=OCR_MAX_OUTPUT_TOKENS + reasoning.config().extra_output_tokens)
             return body
         thinking = reasoning.openrouter_reasoning(model, "off")  # copying text needs no thinking
         return {

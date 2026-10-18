@@ -513,3 +513,12 @@ async def test_pipeline_reads_scans_with_gemini_by_default(
         0.14,
         0.03,
     )  # the classic extractor cites it
+
+
+def test_a_vendor_endpoint_gets_an_openai_style_effort_for_models_that_must_reason() -> None:
+    from app.providers import reasoning
+
+    # the listed "google/gemini-3.5-*" also matches the bare id a vendor's own endpoint uses
+    assert reasoning.required("gemini-3.5-flash") and reasoning.required("google/gemini-3.5-flash")
+    assert reasoning.plain_fields("gemini-3.5-flash", "off") == {"reasoning_effort": "low"}
+    assert reasoning.plain_fields("fictional-local-model", "off") == {}  # nothing a server might not know

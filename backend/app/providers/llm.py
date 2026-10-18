@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -166,17 +167,49 @@ async def post_openai_chat(
     url = settings.openai_base_url.rstrip("/") + "/chat/completions"
     headers = {"Authorization": f"Bearer {key.get_secret_value()}"}
     model = str(body.get("model"))
-    optional = {} if model in _PLAIN_OPENAI_MODELS else openai_optional_params(settings)
+    if model in _PLAIN_OPENAI_MODELS:
+        optional: dict[str, Any] = {}
+    elif model in _OPENAI_EFFORT:
+        optional = {"reasoning_effort": _OPENAI_EFFORT[model]}
+    else:
+        optional = openai_optional_params(settings)
     try:
         response = await _send(http, url, {**body, **optional}, headers, label, timeout_s)
     except ProviderError as exc:
         if exc.status != 400 or not optional:
             raise
+        lowest = lowest_supported_effort(exc.detail)
+        if lowest is not None and optional.get("reasoning_effort") != lowest:
+            # The model refuses "none" but lists the efforts it takes: the lowest keeps answers short and fast
+            # (without the field it reasons at its default effort on every call).
+            response = await _send(http, url, {**body, "reasoning_effort": lowest}, headers, label, timeout_s)
+            if _OPENAI_EFFORT.get(model) != lowest:
+                logger.info("%s model %s takes no reasoning_effort none; sent with %s", label, model, lowest)
+            _OPENAI_EFFORT[model] = lowest
+            return _json(response, label)
         response = await _send(http, url, body, headers, label, timeout_s)
         if model not in _PLAIN_OPENAI_MODELS:
             logger.info("%s model %s takes no %s; sent without them", label, model, ", ".join(optional))
         _PLAIN_OPENAI_MODELS.add(model)
     return _json(response, label)
+
+
+# Reasoning efforts from least to most; a model that refuses one names the ones it supports in its 400 answer.
+EFFORT_ORDER = ("none", "minimal", "low", "medium", "high", "xhigh")
+# OpenAI models that refused reasoning_effort "none": the lowest effort they named, used from then on.
+_OPENAI_EFFORT: dict[str, str] = {}
+
+
+def lowest_supported_effort(detail: str | None) -> str | None:
+    """The lowest reasoning effort a refused request's answer lists as supported, if it lists any."""
+    if not detail or "reasoning_effort" not in detail:
+        return None
+    match = re.search(r"[Ss]upported values are:?(.*)", detail)
+    if match is None:
+        return None
+    named = re.findall(r"[a-z]+", match.group(1))
+    supported = [effort for effort in EFFORT_ORDER if effort in named]
+    return supported[0] if supported else None
 
 
 def openrouter_headers(settings: Settings) -> dict[str, str]:
@@ -277,12 +310,14 @@ class LlmClient:
                 "response_format": response_format,
             }
         if not self.settings.openrouter_fields:  # another OpenAI-compatible server on OPENROUTER_BASE_URL
+            plain = reasoning.plain_fields(model, self.settings.llm_reasoning)
             return {
                 "model": model,
                 "messages": messages,
                 "temperature": 0,
-                "max_tokens": max_tokens,
+                "max_tokens": max_tokens + (reasoning.config().extra_output_tokens if plain else 0),
                 "response_format": response_format,
+                **plain,
             }
         thinking = reasoning.openrouter_reasoning(model, self.settings.llm_reasoning)
         return {
