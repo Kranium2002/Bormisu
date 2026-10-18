@@ -171,9 +171,12 @@ def test_a_sheet_position_that_disagrees_with_most_others_takes_the_table_positi
     assert b3.outcome.result.header.coordinates.x_raw.raw == "1000"
     assert "disagrees with the other boreholes" in a3.notes[0]
     assert a3.readings["metadata.coordinates.y_raw"][0]["text"].startswith("512000 / 4986030")
-    # with two, nothing tells which one is wrong: both stay
+    # two that disagree: nothing tells which one is right, so neither is trusted
     pairs = apply_tables(items[1:], table({"B2": ("1030", "2000", None), "B3": ("1000", "2030", None)}))
-    assert [b for b, _ in pairs] == items[1:]
+    assert [b.outcome.result.header.coordinates.x_raw.raw for b, _ in pairs] == ["1030", "1000"]
+    # two that agree stay as printed
+    agreeing = apply_tables(items[:2], table({"B1": ("1000", "2000", None), "B2": ("1030", "2000", None)}))
+    assert [b for b, _ in agreeing] == items[:2]
 
 
 def test_a_total_depth_printed_differently_in_the_table_is_flagged_and_a_missing_one_filled() -> None:

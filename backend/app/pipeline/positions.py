@@ -280,8 +280,9 @@ def apply_tables(items: Sequence[Any], index: TableIndex) -> list[tuple[Any, Adj
 
 def _untrusted(sheets: Sequence[Sheet], rows: Sequence[TableRow | None]) -> set[int]:
     """Sheet positions in a map system outside the largest group that agrees with itself by the table's
-    distances (a misread digit puts a borehole hundreds of metres or kilometres away). Nothing is untrusted
-    when no group of two or more agrees, or two different groups are equally large."""
+    distances (a misread digit puts a borehole hundreds of metres or kilometres away). When no group of two
+    or more agrees, or two different groups are equally large, none of them is trusted (nothing tells which
+    is right, and a wrong pin is worse than a question)."""
     placed = [
         i for i, (s, r) in enumerate(zip(sheets, rows, strict=True)) if s.kind == "world" and r is not None
     ]
@@ -304,7 +305,7 @@ def _untrusted(sheets: Sequence[Sheet], rows: Sequence[TableRow | None]) -> set[
     largest = max(len(g) for g in groups)
     best = {g for g in groups if len(g) == largest}
     if largest < 2 or len(best) > 1:
-        return set()
+        return set(placed)  # they disagree and nothing tells which is right: none is trusted
     (trusted,) = best
     return set(placed) - trusted
 
