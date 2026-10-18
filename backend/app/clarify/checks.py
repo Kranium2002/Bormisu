@@ -132,17 +132,24 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         )
     ).all()
     asked = 0
-    covered = {
-        uid
-        for uids in (
-            await session.scalars(
-                select(Clarification.borehole_uids).where(
-                    Clarification.kind == "crs_confirm", Clarification.document_id == doc.id
+    # boreholes a crs_confirm question already covers: the document's own, or its project's (asked once per
+    # project and stored with the project's first document)
+    uids = [bh.uid for bh in boreholes]
+    covered = (
+        {
+            uid
+            for asked in (
+                await session.scalars(
+                    select(Clarification.borehole_uids).where(
+                        Clarification.kind == "crs_confirm", Clarification.borehole_uids.overlap(uids)
+                    )
                 )
-            )
-        ).all()
-        for uid in (uids or [])
-    }
+            ).all()
+            for uid in (asked or [])
+        }
+        if uids
+        else set()
+    )
     # a log nothing places is asked about on page documents only (a layer list in a spreadsheet without
     # positions would ask once per row), and not when a page-grouping question already asks about it
     from app.pipeline.orchestrator import SPREADSHEET_EXTENSIONS
