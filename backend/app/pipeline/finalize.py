@@ -10,7 +10,9 @@ finalize_group(document_id, group, outcome)
     Idempotent per (document, group key). Depths printed without any unit are stored as metres with
     method `guessed` and one `unit_ambiguous` question per document; uncertain page groups get a
     `borehole_boundary` question; a printed depth sign or origin note that the printed layer depths
-    contradict gets one `datum_convention` question per document and kind (app.validate.datum).
+    contradict gets one `datum_convention` question per document and kind (app.validate.datum). A log that
+    prints only the base of each stratum gets each top from the base above, and the ground for the first
+    stratum of a log's first sheet (page roles from the pages table), marked derived.
 
 finalize_document(document_id)
     Completeness against the labels printed on summary and coordinate tables, `documents.duplicate_of` and
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import itertools
 import json
 import logging
 import re
@@ -93,6 +96,14 @@ X_RAW = "metadata.coordinates.x_raw"
 Y_RAW = "metadata.coordinates.y_raw"
 SYSTEM_RAW = "metadata.coordinates.coordinate_system"
 
+# Page roles of a further sheet of a log: its first stratum does not start at the ground.
+CONTINUATION_ROLES = frozenset({"log_continuation"})
+# Shown with a ground level below its datum (a value relative to a local reference reads so as well).
+BELOW_DATUM_FLAG = (
+    "ground level below its datum: check whether it is a height above sea level or relative to a local "
+    "reference point"
+)
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -113,6 +124,32 @@ _WORD = re.compile(r"[^\W\d_]+")
 def _length_key(text_value: str | None) -> str | None:
     unit = units.lookup_unit(text_value)
     return unit.key if unit is not None and unit.dimension == "length" else None
+
+
+# A diameter sign a PDF text layer left unmapped: the C1 control character U+0098 next to a size
+# ("bis 10 cm \x98", "\x98 180"). A control character is never printed text.
+_UNMAPPED_DIAMETER = re.compile(r"(?<=[0-9])(\s*(?:mm|cm|dm|m)?\.?\s*)\u0098|\u0098(?=\s*[0-9])")
+
+
+def repair_text(text_value: str | None) -> str | None:
+    """Printed text with characters the text layer could not map put back (the diameter sign Ø)."""
+    if text_value is None or "\u0098" not in text_value:
+        return text_value
+    return _UNMAPPED_DIAMETER.sub(lambda m: f"{m.group(1) or ''}Ø", text_value)
+
+
+# A sign printed apart from its number ("- 1,73 m"): one signed number.
+_SPACED_SIGN = re.compile(rf"^\s*([+{re.escape(numbers.MINUS_SIGNS)}])\s+(?=[0-9.,])")
+
+
+def _join_spaced_sign(raw: str) -> str | None:
+    joined = _SPACED_SIGN.sub(r"\1", raw, count=1)
+    return joined if joined != raw else None
+
+
+def _below_ground(raw: str) -> bool:
+    """The printed value names the ground as its origin ("-1,85 m u. G.", "-3.2 m bgl")."""
+    return datums.parse_depth_origin(raw).origin == "ground"
 
 
 def length_unit_in(text_value: str | None) -> str | None:
@@ -239,10 +276,12 @@ class _Builder:
         outcome: ExtractionOutcome,
         text_layers: Mapping[int, PageText] | None = None,
         language: str | None = None,
+        page_roles: Mapping[int, str | None] | None = None,
     ) -> None:
         self.document_id = document_id
         self.language = language
         self.group = group
+        self.page_roles: Mapping[int, str | None] = page_roles or {}
         self.result = outcome.result
         self.cite = Citations(
             outcome.blocks,
@@ -255,6 +294,7 @@ class _Builder:
         self.warnings: list[str] = []
         self.notes: list[str] = []
         self.guessed: list[GuessedDepth] = []
+        self.tops: dict[int, tuple[float, RawValue | None, bool]] = {}
         h = self.result.header
         # Known before any depth is read: a printed sign note changes the depth order of the rows.
         origin = datums.parse_depth_origin(printed(h.depth_origin_note), printed(h.elevation_datum))
@@ -296,6 +336,10 @@ class _Builder:
 
     def text(self, target: dict[str, ProvenanceIn], key: str, value: RawValue | None) -> str | None:
         result = printed(value)
+        repaired = repair_text(result)
+        if repaired != result:
+            target[key] = self.cite.entry(value, raw=repaired)
+            return repaired
         self.keep(target, key, value, result)
         return result
 
@@ -354,8 +398,10 @@ class _Builder:
         metres, guessed = self.signed_depth(value)
         if metres is None:
             return None, False
-        if self.negative_down and metres < 0:
-            metres = -metres  # a printed note says negative values denote depth; the raw keeps the sign
+        if metres < 0 and (self.negative_down or _below_ground(printed(value) or "")):
+            # a printed note, or the value itself ("-1,85 m u. G."), says the value lies below the ground:
+            # a depth whatever its sign; the raw keeps the sign
+            metres = -metres
         return metres, guessed
 
     def depth_value(self, target: dict[str, ProvenanceIn], key: str, value: RawValue | None) -> float | None:
@@ -426,8 +472,31 @@ class _Builder:
             *[s for s in sources if printed(s) is not None], method="derived"
         )
 
+    def _printed_range(self) -> tuple[RawValue, tuple[str, str]] | None:
+        """A start and end printed as one range ("07.03. - 15.04.88") in one date field, the other field
+        empty, printing the same text or the same date as that end of the range: the field and the two
+        ISO dates."""
+        h = self.result.header
+        start, end = printed(h.start_date), printed(h.end_date)
+        for value, text_value, other, same_end in (
+            (h.start_date, start, end, 1),
+            (h.end_date, end, start, 0),
+        ):
+            span = dates.parse_date_range(text_value) if text_value is not None else None
+            if span is None:
+                continue
+            if other is None or other == text_value or dates.parse_date(other).iso == span[same_end]:
+                return value, span
+        return None
+
     def dates(self, meta: dict[str, Any]) -> None:
         h = self.result.header
+        ranged = self._printed_range()
+        if ranged is not None:
+            source, (meta["start_date"], meta["end_date"]) = ranged
+            for key in ("start_date", "end_date"):
+                self.prov[f"metadata.{key}"] = self.cite.entry(source, method="derived")
+            return
         printed_dates: list[RawValue] = []
         resolved = True
         for key, value in (("start_date", h.start_date), ("end_date", h.end_date)):
@@ -443,6 +512,20 @@ class _Builder:
             meta["drilling_date"] = " – ".join(texts)
             self.prov["metadata.drilling_date"] = self.cite.entry(*printed_dates, raw=meta["drilling_date"])
 
+    def location_date(self, meta: dict[str, Any]) -> None:
+        """A date printed in brackets after the place ("Fiktivdorf (IV/1962)") when no date field is printed:
+        the place without it, and the date as the drilling date (as printed; month and year stay text)."""
+        h = self.result.header
+        place = printed(h.location)
+        if place is None or any(meta.get(k) for k in ("start_date", "end_date", "drilling_date")):
+            return
+        split = dates.trailing_date(place)
+        if split is None:
+            return
+        meta["location_name"], meta["drilling_date"] = split
+        self.prov["metadata.location_name"] = self.cite.entry(h.location, method="derived")
+        self.prov["metadata.drilling_date"] = self.cite.entry(h.location, raw=split[1], method="derived")
+
     def elevation(self, meta: dict[str, Any]) -> None:
         h = self.result.header
         raw = printed(h.ground_level)
@@ -453,6 +536,8 @@ class _Builder:
             if default is None:
                 default, guessed = "m", True
             value = units.parse_length(raw, default_unit=default, style=self.style).metres
+            if value is None and (joined := _join_spaced_sign(raw)) is not None:
+                value = units.parse_length(joined, default_unit=default, style=self.style).metres
             if value is None and (bare := numbers.after_field_label(raw)) is not None:
                 # the cell's own label printed with the value ("EL(+) 5.7 M"): the value after it
                 value = units.parse_length(bare, default_unit=default, style=self.style).metres
@@ -466,6 +551,12 @@ class _Builder:
             value,
             method="guessed" if guessed and value is not None else None,
         )
+        if value is not None and value < 0:
+            # kept as printed, never corrected: below sea level is rare, a height relative to a local
+            # reference point printed as a ground level is not
+            entry = self.prov["metadata.surface_elevation_mASL"]
+            self.prov["metadata.surface_elevation_mASL"] = entry.model_copy(update={"flag": BELOW_DATUM_FLAG})
+            self.warnings.append(f"ground level '{raw}' is below its datum; flagged for review")
 
     def inclination(self, meta: dict[str, Any]) -> None:
         h = self.result.header
@@ -590,9 +681,71 @@ class _Builder:
 
     # -- arrays ----------------------------------------------------------------------------------
 
+    def _page_of(self, value: RawValue) -> int | None:
+        return self.cite.locate(self.cite.blocks_of(value))[0]
+
+    def _starts_log(self) -> bool:
+        """The group starts with the first sheet of a log (a page of unknown role counts as one)."""
+        return not self.group.pages or self.page_roles.get(self.group.pages[0]) not in CONTINUATION_ROLES
+
+    def _follows_on(self, earlier: int | None, later: int | None) -> bool:
+        """A row printed on page `later` follows on from the row on page `earlier` in this group: the same
+        page, or a later one with every page between them in the group (no sheet read in another group)."""
+        if earlier is None or later is None:
+            return True
+        pages = set(self.group.pages)
+        return earlier <= later and all(n in pages for n in range(earlier + 1, later))
+
+    def derived_tops(self) -> dict[int, tuple[float, RawValue | None, bool]]:
+        """Tops of the strata whose top is not printed, because the log prints one depth per stratum, its
+        base (the model leaves the top empty, or writes the ground it implies, with state not_in_source):
+        the base of the stratum above, or the ground (0 m) for the first stratum of a log's first sheet.
+
+        Layer index -> (metres, the printed base it is taken from or None for the ground, unit guessed).
+        Only while the bases go down the log, for a stratum above whose base is printed above this one's on
+        the same or a following page of the group: never across a sheet read in another group, and never a
+        stratum the log does not print."""
+        layers = self.result.layers
+        bases = [self.depth(layer.to_raw) for layer in layers]
+        readable = [metres for metres, _ in bases if metres is not None]
+        steps = list(itertools.pairwise(readable))
+        if sum(b < a for a, b in steps) > sum(b > a for a, b in steps):
+            return {}  # values that decrease down the log (elevations): no top is derived
+        tops: dict[int, tuple[float, RawValue | None, bool]] = {}
+        for i, layer in enumerate(layers):
+            base = bases[i][0]
+            if base is None or layer.from_raw.state != "not_in_source":
+                continue
+            if i == 0:
+                if self._starts_log() and 0 < base <= min(readable):
+                    tops[i] = (0.0, None, False)
+                continue
+            above, guessed = bases[i - 1]
+            source = layers[i - 1].to_raw
+            if (
+                above is not None
+                and above < base
+                and self._follows_on(self._page_of(source), self._page_of(layer.to_raw))
+            ):
+                tops[i] = (above, source, guessed)
+        return tops
+
+    def _derived_top(self, item: _Item, layer: ExtractedLayer, index: int) -> float | None:
+        derived = self.tops.get(index)
+        if derived is None:
+            return None
+        metres, source, guessed = derived
+        if source is None:  # the ground: no printed value, the row it starts is the evidence
+            item.prov["depth_from_m"] = self.cite.entry(layer.to_raw, raw=None, method="derived")
+        else:
+            item.prov["depth_from_m"] = self.cite.entry(source, method="guessed" if guessed else "derived")
+        return metres
+
     def layer(self, index: int, layer: ExtractedLayer) -> _Item | None:
         item = _Item({})
         top = self.depth_value(item.prov, "depth_from_m", layer.from_raw)
+        if top is None:
+            top = self._derived_top(item, layer, index)
         bottom = self.depth_value(item.prov, "depth_to_m", layer.to_raw)
         if top is None or bottom is None:
             self.warnings.append(
@@ -889,10 +1042,12 @@ class _Builder:
             meta[key] = self.text(self.prov, f"metadata.{key}", value)
         self.depth_origin(meta)  # before any depth: a sign note changes how depths are read
         self.dates(meta)
+        self.location_date(meta)
         self.elevation(meta)
         self.inclination(meta)
         crs_status, crs_code, crs_note, swap_axes = self.coordinates(meta)
 
+        self.tops = self.derived_tops()
         layers = [
             item for i, raw in enumerate(self.result.layers) if (item := self.layer(i, raw)) is not None
         ]
@@ -989,14 +1144,17 @@ def build_record(
     *,
     text_layers: Mapping[int, PageText] | None = None,
     language: str | None = None,
+    page_roles: Mapping[int, str | None] | None = None,
 ) -> RecordDraft:
     """Normalise one group's extraction into a record body with provenance (no database access).
 
     `text_layers`: trustworthy text layers of the cited pages by page number; values printed in them get
     the box of their words and method `read`. `language`: the BCP 47 code of the group's pages (decides
-    how depths printed without a unit are read).
+    how depths printed without a unit are read). `page_roles`: the classified role of the group's pages (a
+    log printing only the base of each stratum starts at the ground unless its first page is a further
+    sheet); a page without one counts as a first sheet.
     """
-    return _Builder(document_id, group, outcome, text_layers, language).build()
+    return _Builder(document_id, group, outcome, text_layers, language, page_roles).build()
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1048,6 +1206,16 @@ async def load_text_layers(
         if isinstance(payload, dict):
             layers[n] = textlayer.page_text_from_payload(n, payload, quality=quality)
     return layers
+
+
+async def _page_roles(session: AsyncSession, document_id: str, pages: Iterable[int]) -> dict[int, str | None]:
+    wanted = sorted(set(pages))
+    if not wanted:
+        return {}
+    rows = await session.execute(
+        select(Page.n, Page.role).where(Page.document_id == document_id, Page.n.in_(wanted))
+    )
+    return {n: role for n, role in rows.all()}
 
 
 async def _existing_uid(session: AsyncSession, document_id: str, group_key: str) -> str | None:
@@ -1239,7 +1407,10 @@ async def finalize_group(
         cited_pages = {block.page for block in outcome.blocks.values()}
         layers = await load_text_layers(session, document_id, cited_pages)
         language = await _group_language(session, document_id, group.pages)
-        draft = build_record(document_id, group, outcome, text_layers=layers, language=language)
+        roles = await _page_roles(session, document_id, group.pages)
+        draft = build_record(
+            document_id, group, outcome, text_layers=layers, language=language, page_roles=roles
+        )
         ask_boundary = bool(group.uncertain)
         if ask_boundary and alone and await _covers_every_log_page(session, document_id, group):
             ask_boundary = False

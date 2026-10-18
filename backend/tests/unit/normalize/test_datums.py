@@ -19,6 +19,8 @@ ORIGINS = [
     ("en sign", "Negative values denote depth below seabed", None, "seabed", True),
     ("en sign positive", "Depths below ground, positive downwards", None, "ground", False),
     ("de", "Tiefen in m u. GOK", None, "ground", None),
+    ("de abbreviation", "-2,40 m u. G.", None, "ground", None),
+    ("de abbreviation glued", "3,1 m u.Gel.", None, "ground", None),
     ("de sign", "Tiefen unter Gelände, negative Werte bezeichnen die Tiefe", None, "ground", True),
     ("de relative", "Höhen bezogen auf NHN", None, "relative", None),
     ("fr", "Profondeurs par rapport au terrain naturel", None, "ground", None),

@@ -3,10 +3,15 @@
 Accepted: year first ("2026-03-04", "2026/03/04", "2026.03.04", "20260304"), day.month.year with dots
 (the dot convention is day first everywhere: "04.03.2026", "4.3.26"), month names in several languages
 (data/units.yaml `dates.months`: "4 March 2026", "March 4, 2026", "4. März 2026", "4 de marzo de 2026",
-"04-Mar-2026"), day/month-year with a slash then a dash ("19/8-08", day first; data/units.yaml
-`slash_dash_day_first`). "03/04/2026" is ambiguous (day/month order differs by country) unless one part
-is above 12 or both parts are equal. A time after the date is ignored. Two-digit years follow the documented
-pivot in data/units.yaml (YY below the pivot is 20YY, otherwise 19YY).
+"04-Mar-2026"), months as upper-case Roman numerals ("17.IX.1965", "II/1951"), day/month-year with a
+slash then a dash ("19/8-08", day first; data/units.yaml `slash_dash_day_first`). "03/04/2026" is
+ambiguous (day/month order differs by country) unless one part is above 12 or both parts are equal. A time
+after the date is ignored. Two-digit years follow the documented pivot in data/units.yaml (YY below the
+pivot is 20YY, otherwise 19YY).
+
+parse_date_range reads a start and an end printed as one range ("07.03. - 15.04.88", "27.-28.09.93"), the
+start leaving out the year and month it shares with the end; trailing_date splits a bracketed date off the
+end of a text ("Fiktivdorf (IV/1962)").
 """
 
 from __future__ import annotations
@@ -25,6 +30,12 @@ _TIME = re.compile(
     r"(?:\s*(?:Z|[+-][0-9]{2}:?[0-9]{2}))?\s*$",
     re.IGNORECASE,
 )
+
+
+MONTH_YEAR_ONLY = "month and year only; no day printed"
+# Months printed as upper-case Roman numerals ("17.IX.1965", "II/1951").
+_ROMAN_NUMERALS = ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII")
+_ROMAN_MONTHS = {numeral: month for month, numeral in enumerate(_ROMAN_NUMERALS, 1)}
 
 
 @dataclass(frozen=True)
@@ -123,16 +134,20 @@ def _numeric(raw: str, text: str) -> DateResult | None:
         year, why = _year(match.group(3))
         return _build(raw, year, int(match.group(2)), int(match.group(1)), why)
     if re.fullmatch(r"[0-9]{1,2}[-/.][0-9]{4}|[0-9]{4}[-/.][0-9]{1,2}", text):
-        return DateResult(None, raw=raw, reason="month and year only; no day printed")
+        return DateResult(None, raw=raw, reason=MONTH_YEAR_ONLY)
     if re.fullmatch(r"[0-9]{4}", text):
         return DateResult(None, raw=raw, reason="year only; no day printed")
     return None
 
 
+def _month_of(token: str) -> int | None:
+    month = _config().months.get(_fold(token))
+    return month if month is not None else _ROMAN_MONTHS.get(token.rstrip("."))
+
+
 def _with_month_name(raw: str, text: str) -> DateResult:
     tokens = re.findall(r"[0-9]+|[^\W\d_]+\.?", text)
-    months = _config().months
-    month_positions = [(i, months[_fold(t)]) for i, t in enumerate(tokens) if _fold(t) in months]
+    month_positions = [(i, m) for i, t in enumerate(tokens) if (m := _month_of(t)) is not None]
     if not month_positions:
         return DateResult(None, raw=raw, reason="not a date")
     if len({m for _, m in month_positions}) > 1:
@@ -141,7 +156,7 @@ def _with_month_name(raw: str, text: str) -> DateResult:
     numbers = [(i, t) for i, t in enumerate(tokens) if t.isdigit()]
     four = [(i, t) for i, t in numbers if len(t) == 4]
     if len(numbers) == 1 and four:
-        return DateResult(None, raw=raw, reason="month and year only; no day printed")
+        return DateResult(None, raw=raw, reason=MONTH_YEAR_ONLY)
     if len(numbers) != 2:
         return DateResult(None, raw=raw, reason="a date with a month name needs one day and one year")
     year: int | None
@@ -179,3 +194,62 @@ def parse_date(raw: str | None) -> DateResult:
     if not any(ch.isalpha() for ch in text):
         return DateResult(None, raw=raw, reason="not a date")
     return _with_month_name(raw, text)
+
+
+# Between the two dates of a range: a dash or a word.
+_RANGE_SEPARATOR = re.compile(
+    r"\s*(?:[-\u2013\u2014]|(?<!\w)(?:bis|to|until|till|au|al|até|ate|tot)(?!\w))\s*", re.IGNORECASE
+)
+
+
+def _shortened_start(text: str, end: dt.date) -> str | None:
+    """A start date printed without the parts it shares with the end date ("07.03.", "27.")."""
+    if match := re.fullmatch(r"([0-9]{1,2})\.\s?([0-9]{1,2})\.?", text):
+        day, month = int(match.group(1)), int(match.group(2))
+    elif match := re.fullmatch(r"([0-9]{1,2})\.?", text):
+        day, month = int(match.group(1)), end.month
+    else:
+        return None
+    try:
+        return dt.date(end.year, month, day).isoformat()
+    except ValueError:
+        return None
+
+
+def parse_date_range(raw: str | None) -> tuple[str, str] | None:
+    """(start, end) as ISO dates when the text prints a range of two dates ("07.03. - 15.04.88",
+    "17.09.-21.09.2012", "27.-28.09.93", "2026-03-04 to 2026-03-09"). The start may leave out the year and
+    month it shares with the end. None for anything else, or when the start would follow the end."""
+    if raw is None or not raw.strip() or len(raw) > 80:
+        return None
+    text = re.sub(r"\s+", " ", ascii_digits(unicodedata.normalize("NFKC", raw))).strip()
+    for match in _RANGE_SEPARATOR.finditer(text):
+        left, right = text[: match.start()].strip(), text[match.end() :].strip()
+        if not left or not right:
+            continue
+        end = parse_date(right).iso
+        if end is None:
+            continue
+        start = parse_date(left).iso or _shortened_start(left, dt.date.fromisoformat(end))
+        if start is not None and start <= end:
+            return start, end
+    return None
+
+
+_TRAILING_BRACKET = re.compile(r"^(?P<rest>.*?\S)\s*[(\[](?P<date>[^()\[\]]+)[)\]]$")
+
+
+def trailing_date(raw: str | None) -> tuple[str, str] | None:
+    """(the text before, the date as printed) when a text ends with a bracketed date or month and year
+    ("Fiktivdorf (IV/1962)", "Fiktivdorf (12.03.1962)"); None otherwise."""
+    if raw is None:
+        return None
+    match = _TRAILING_BRACKET.match(raw.strip())
+    if match is None:
+        return None
+    date_text = match.group("date").strip()
+    parsed = parse_date(date_text)
+    if parsed.iso is None and parsed.reason != MONTH_YEAR_ONLY:
+        return None
+    rest = match.group("rest").rstrip(" ,;:-")
+    return (rest, date_text) if rest else None
