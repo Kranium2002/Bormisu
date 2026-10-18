@@ -87,6 +87,14 @@ async def database() -> AsyncIterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def no_retry_pause(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stages retried after a retryable provider error run again without the pause in tests."""
+    from app.pipeline import orchestrator
+
+    monkeypatch.setattr(orchestrator, "RETRY_DELAYS_S", (0.0, 0.0))
+
+
+@pytest.fixture(autouse=True)
 def fresh_provider_failover() -> Iterator[None]:
     """Every test starts without the per-process memory of refused keys, refused OpenAI parameters and models
     that required reasoning or refused a seed."""
