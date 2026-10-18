@@ -203,8 +203,12 @@
   white-space: nowrap;
 }
 
+/*
+ * File names break at their separators (<wbr>, FileName); inside a part only when that part alone is
+ * wider than the column (break-word, unlike anywhere, doesn't shrink the column to a letter).
+ */
 .source {
-  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .idLink {

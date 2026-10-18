@@ -35,6 +35,15 @@ describe('HitTable', () => {
     expect(rows[1][0]).toContain('aria-selected="true"');
   });
 
+  it('DETAIL › sits in the pinned last column, so it stays visible while the table scrolls sideways', () => {
+    const html = renderToStaticMarkup(<HitTable hits={[KB1, KB3]} bufferM={100} selectedUid={null} />);
+    const cells = [...html.matchAll(/<t[hd][^>]*class="([^"]*)"[^>]*>(?:(?!<\/t[hd]>).)*<\/t[hd]>(?=<\/tr>)/g)];
+    // The last cell of the header row and of both hit rows.
+    expect(cells).toHaveLength(3);
+    for (const [, cls] of cells) expect(cls).toContain('openCell');
+    expect(cells.slice(1).every(([cell]) => cell.includes('DETAIL ›'))).toBe(true);
+  });
+
   it('no hits: "No boreholes within 100 m"', () => {
     const html = renderToStaticMarkup(<HitTable hits={[]} bufferM={100} selectedUid={null} />);
     expect(html).toContain('No boreholes within 100 m');

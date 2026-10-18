@@ -292,6 +292,28 @@
   white-space: nowrap;
 }
 
+/* DETAIL › stays in view at the right edge while the table scrolls sideways in the narrow panel. */
+.table .openCell {
+  position: sticky;
+  right: 0;
+  padding: 2px 4px;
+  background: var(--c-surface);
+  box-shadow: inset 1px 0 0 var(--c-line);
+}
+
+.table th.openCell {
+  z-index: 1;
+  background: var(--c-bg);
+}
+
+.hitRow:hover .openCell {
+  background: var(--c-hover);
+}
+
+.hitSelected .openCell {
+  background: var(--c-selected);
+}
+
 .empty {
   margin: 0;
   padding: 10px;

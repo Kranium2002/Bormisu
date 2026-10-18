@@ -23,7 +23,8 @@ vi.mock('../export/chartImage', async (importOriginal) => ({
   canCopyImage: () => lib.canCopy,
   copyPng: lib.copyPng,
 }));
-vi.mock('../export/download', () => ({ downloadBlob: lib.downloadBlob }));
+// The file names come from the real fileSlug; only the browser download is replaced.
+vi.mock('../export/download', async (importOriginal) => ({ ...(await importOriginal<typeof import('../export/download')>()), downloadBlob: lib.downloadBlob }));
 
 const info: ChartExportInfo = { caption: 'BH AB01 · DIN 4023 profile', legend: [], fileBase: 'BH AB01' };
 const showToast = vi.fn();

@@ -9,6 +9,7 @@ import { certaintyOf } from '../domain/certainty';
 import { K } from '../domain/keys';
 import type { Borehole, ExtractedValue, Layer } from '../domain/types';
 import { csvBlob } from '../export/csv';
+import { fileSlug } from '../export/download';
 import { XLSX_MIME, type Cell } from '../export/standardXlsx';
 import { APP_NAME } from '../config';
 import { elevationDatum, groundLevel, sourceOf } from './reportModel';
@@ -145,8 +146,7 @@ export async function layersXlsx(records: readonly Borehole[], summary: Cell[][]
   return new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_MIME });
 }
 
-/** A file name from the selection title: "Trasse Nord" → "Trasse_Nord_layers.csv". */
+/** A file name from the selection title, ASCII only (fileSlug): "Area: Rectangle, 19.46 km²" → "Area_Rectangle_19_46_km2_layers.csv". */
 export function reportFileName(base: string, suffix: string, ext: string): string {
-  const safe = base.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'selection';
-  return `${safe}_${suffix}.${ext}`;
+  return `${fileSlug(base, 'selection', 60)}_${suffix}.${ext}`;
 }

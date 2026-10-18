@@ -15,7 +15,7 @@
  * Values not approved yet are marked `*`, low-confidence or flagged ones `?`; what the source doesn't
  * state reads "not in source". Labels follow the app's language (EN | DE).
  */
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Link } from 'react-router';
 import { ChartExport } from '../components/ChartExport';
@@ -35,7 +35,7 @@ import { useAppStore } from '../store/appStore';
 import { canAlignByElevation, CHART_MAX, combinedChart, type ChartMode } from './combinedChart';
 import { CombinedProfiles } from './CombinedProfiles';
 import { layersCsv, layersXlsx, reportFileName, type LineInfo } from './layerExport';
-import { orderedRecords, reportModel, sourceText, type ReportBorehole, type ReportCell, type ReportModel, type ReportSelection, type SummaryRow } from './reportModel';
+import { orderedRecords, reportModel, sourceText, type ReportBorehole, type ReportCell, type ReportModel, type ReportSelection, type SourceRef, type SummaryRow } from './reportModel';
 import { ReportMap } from './ReportMap';
 import styles from './ReportScreen.module.css';
 import { useReportData } from './useReportData';
@@ -224,6 +224,34 @@ function Report({ selection, records, missing, lang }: ReportProps) {
   );
 }
 
+/**
+ * A file name that wraps after its separators ("_", "-", "."), never in the middle of a word where it
+ * can help it: "lgrb_offenburg_verified.csv" may break as "lgrb_ / offenburg_ / verified.csv".
+ */
+export function FileName({ name }: { name: string }) {
+  return (
+    <>
+      {name.split(/(?<=[_.-])/).map((part, i) => (
+        <Fragment key={i}>
+          {i > 0 && <wbr />}
+          {part}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** "report.pdf · p. 3", with the file name breakable at its separators. */
+export function SourceText({ lang, source }: { lang: SheetLang; source: SourceRef }) {
+  const file = source.file || sheetT(lang, 'an upload');
+  return (
+    <>
+      <FileName name={file} />
+      {source.page != null && ` · ${sheetT(lang, 'p.')} ${source.page}`}
+    </>
+  );
+}
+
 /** A report cell: its text, grey italics when not in the source, `*` unreviewed, `?` unsure. */
 function CellText({ cell, mono }: { cell: ReportCell; mono?: boolean }) {
   return (
@@ -310,7 +338,9 @@ function SummaryLine({ r, hasLine }: { r: SummaryRow; hasLine: boolean }) {
         <CellText cell={r.finalDepth} />
       </td>
       <td>{r.statusLabel}</td>
-      <td className={styles.source}>{sourceText(lang, r.source)}</td>
+      <td className={styles.source}>
+        <SourceText lang={lang} source={r.source} />
+      </td>
     </tr>
   );
 }
@@ -457,7 +487,7 @@ function BoreholeBlock({ rb, borehole, lang }: { rb: ReportBorehole; borehole: B
         {rb.no} · {rb.id}
       </h3>
       <p className={styles.bhMeta}>
-        {sourceText(lang, rb.source)} · {rb.review}
+        <SourceText lang={lang} source={rb.source} /> · {rb.review}
       </p>
       <div className={styles.bhRow}>
         <div className={styles.profile}>

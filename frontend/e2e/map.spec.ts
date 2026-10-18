@@ -361,6 +361,21 @@ test.describe('map canvas', () => {
     await expect(page.getByRole('button', { name: 'DRAW LINE' })).toBeVisible();
   });
 
+  test('planned line: with a selection chip at the top, the drawing bar stays on top and its buttons work', async ({ page }) => {
+    await drawRectangle(page, [0.3, 0.3], [0.75, 0.85]);
+    await expect(page.locator('[data-result-set-bar]')).toBeVisible();
+    await page.getByRole('button', { name: 'PLANNED LINE' }).click();
+    await page.getByRole('button', { name: 'DRAW LINE' }).click();
+    const bar = page.getByRole('toolbar', { name: 'Drawing a planned line' });
+    const cancel = bar.getByRole('button', { name: 'CANCEL' });
+    // What a click at CANCEL's centre hits is CANCEL itself, not the chip over the same spot.
+    const box = (await cancel.boundingBox())!;
+    const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.textContent ?? '', [box.x + box.width / 2, box.y + box.height / 2]);
+    expect(hit).toBe('CANCEL');
+    await cancel.click();
+    await expect(bar).toHaveCount(0);
+  });
+
   test('prefers-reduced-motion: a result set and a search move the map at once instead of flying', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.reload();
