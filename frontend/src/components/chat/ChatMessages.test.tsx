@@ -104,6 +104,26 @@ describe('parts', () => {
     expect(textOf(html)).toContain('[7] without a citation');
   });
 
+  it('the markdown subset of an answer becomes bold, lists and code; HTML inside it stays text', () => {
+    const answer = [
+      'The deepest borehole is **7513/2898 — EWS 1/18**, at **98 m**.',
+      '',
+      'Its layers:',
+      '- **0–4 m:** Fill with *brick* fragments',
+      '- **4–10 m:** Sandy gravel <b>x</b>',
+      '1. first',
+      '2. `code_name`',
+    ].join('\n');
+    const html = render(assistant([{ type: 'text', text: answer, state: 'done' }]));
+    expect(html).toContain('<strong>7513/2898 — EWS 1/18</strong>');
+    expect(html).toContain('<strong>98 m</strong>');
+    expect(html).toMatch(/<ul[^>]*><li><strong>0–4 m:<\/strong> Fill with <em>brick<\/em> fragments<\/li><li>/);
+    expect(html).toMatch(/<ol[^>]* start="1"><li>first<\/li><li><code[^>]*>code_name<\/code><\/li><\/ol>/);
+    expect(html).not.toContain('**');
+    expect(html).not.toContain('<b>');
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
+  });
+
   it('citations the text does not mark are listed as chips under the answer', () => {
     const html = render(
       assistant([

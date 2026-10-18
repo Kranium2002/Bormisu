@@ -1,16 +1,19 @@
 /**
  * The chat transcript's messages, from props (server-rendered in tests): user text, and the assistant's
  * parts in order (FRONTEND.md F14, contracts/realtime-and-chat.md 2.2):
- * - text, with `[n]` markers as numbered citation chips (the n-th data-citation of the message); a
- *   citation the text doesn't refer to is listed as a chip under the answer;
+ * - text in the markdown subset of chat/markdown.ts (paragraphs, lists, bold, italic, code), with `[n]`
+ *   markers as numbered citation chips (the n-th data-citation of the message); a citation the text
+ *   doesn't refer to is listed as a chip under the answer;
  * - tool parts as short progress lines (running, done, or failed with the tool's error message);
  * - data-result-set as a result card with SHOW ON MAP and OPEN TABLE;
  * - data-scope as a small scope line;
  * - data-clarification as an inline card that opens the question dialog.
- * Text from the stream is rendered as text, never as HTML.
+ * Text from the stream is rendered as React text, never as HTML: the markdown marks become elements,
+ * everything else (tags included) stays visible text.
  */
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { chatQuestion } from '../../chat/commands';
+import { inlineMarkdown, markdownBlocks } from '../../chat/markdown';
 import { parseCitation, parseResultSet, parseScope, type ChatMessage, type ChatPart, type Citation } from '../../chat/types';
 import {
   citationLabel,
@@ -117,6 +120,54 @@ export function hasContent(m: ChatMessage): boolean {
   return m.parts.some((p) => (p.type === 'text' && p.text.trim() !== '') || isToolPart(p) || (p.type.startsWith('data-') && p.type !== 'data-citation'));
 }
 
+/** An answer's text: its paragraphs and lists, inline marks, and `[n]` citation chips. */
+function TextPart({ text, citations, onCite }: { text: string; citations: Citation[]; onCite: MessageActions['onCite'] }) {
+  const inline = (line: string) =>
+    inlineMarkdown(line).map((m, i) => {
+      if (m.kind === 'code') {
+        return (
+          <code key={i} className={styles.code}>
+            {m.text}
+          </code>
+        );
+      }
+      const content = citedText(m.text, citations).map((s, j) =>
+        s.kind === 'text' ? s.text : <CitationChip key={`c${j}`} n={s.n} citation={s.citation} onCite={onCite} />,
+      );
+      if (m.kind === 'strong') return <strong key={i}>{content}</strong>;
+      if (m.kind === 'em') return <em key={i}>{content}</em>;
+      return <Fragment key={i}>{content}</Fragment>;
+    });
+  return (
+    <div className={styles.text}>
+      {markdownBlocks(text).map((b, i) => {
+        if (b.kind === 'p') {
+          return (
+            <p key={i} className={styles.para}>
+              {b.lines.map((l, j) => (
+                <Fragment key={j}>
+                  {j > 0 && <br />}
+                  {inline(l)}
+                </Fragment>
+              ))}
+            </p>
+          );
+        }
+        const items = b.items.map((it, j) => <li key={j}>{inline(it)}</li>);
+        return b.kind === 'ul' ? (
+          <ul key={i} className={styles.list}>
+            {items}
+          </ul>
+        ) : (
+          <ol key={i} className={styles.list} start={b.start}>
+            {items}
+          </ol>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ChatMessageView({ message, actions }: { message: ChatMessage; actions: MessageActions }) {
   if (message.role === 'user') {
     const text = message.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
@@ -138,13 +189,7 @@ export function ChatMessageView({ message, actions }: { message: ChatMessage; ac
     const key = `${p.type}-${i}`;
     if (p.type === 'text') {
       if (!p.text) return;
-      blocks.push(
-        <p key={key} className={styles.text}>
-          {citedText(p.text, citations).map((s, j) =>
-            s.kind === 'text' ? s.text : <CitationChip key={`c${j}`} n={s.n} citation={s.citation} onCite={actions.onCite} />,
-          )}
-        </p>,
-      );
+      blocks.push(<TextPart key={key} text={p.text} citations={citations} onCite={actions.onCite} />);
     } else if (isToolPart(p)) {
       blocks.push(<ToolLineView key={key} line={toolLine(p as ToolPartLike)} />);
     } else if (p.type === 'data-result-set') {
