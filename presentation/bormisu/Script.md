@@ -41,6 +41,7 @@
 ## 07 · Demo
 
 > Docuemnt upload
+> Show uploads
 > Line drawing
 > Chat feature
 > show sources review thing
@@ -65,8 +66,8 @@
 ## 10 · In a nutshell
 
 > In a nutshell:
-> It's multilingual: any language, any format, even handwriting works.
-> It's a sovereign stack: mistral cloud today, your own server or a Mac mini tomorrow.
+> It's multilingual: any format, any language,  even handwriting works.
+> It runs on soveirgn clouds, your on premise server or PC.
 > And it's ready to use. Now.
 
 ## 11 · Questions
