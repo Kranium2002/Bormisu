@@ -12,7 +12,7 @@ from app.pipeline.schemas import RawCoordinates, RawValue
 from app.pipeline.types import ExtractionOutcome, PageGroup
 from tests.test_identity import _with_header, block, pair
 
-STAMP = "7513/924"  # a fictional archive number stamped on every page
+STAMP = "8016/924"  # a fictional archive number stamped on every page
 DOCUMENT = Tables({}, frozenset(), frozenset({STAMP}))
 Part = tuple[PageGroup, ExtractionOutcome]
 
@@ -130,11 +130,11 @@ def test_two_listed_ids_or_a_second_borehole_are_never_merged() -> None:
 
 
 def test_document_identifiers_are_labels_on_every_page_beside_other_names() -> None:
-    assert document_identifiers([["BO 7513/924"], ["BO 7513/924", "Bohrung 2"], ["BO 7513/924"]]) == {
-        "BO7513/924"
+    assert document_identifiers([["BO 8016/924"], ["BO 8016/924", "Bohrung 2"], ["BO 8016/924"]]) == {
+        "BO8016/924"
     }
     assert document_identifiers([["BH-1"], ["BH-1"]]) == frozenset()  # the only name: the borehole's
-    assert document_identifiers([["BO 7513/924", "Bohrung 2"]]) == frozenset()  # one page tells nothing
+    assert document_identifiers([["BO 8016/924", "Bohrung 2"]]) == frozenset()  # one page tells nothing
     assert document_identifiers([["A"], ["B"]]) == frozenset()
 
 

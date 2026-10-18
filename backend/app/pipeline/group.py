@@ -23,7 +23,7 @@ import hashlib
 import json
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any
 
@@ -31,10 +31,11 @@ import yaml
 from sqlalchemy import select
 
 from app.config import get_settings
-from app.db.models import Page
+from app.db.models import Document, OcrPage, Page
 from app.db.session import get_sessionmaker
 from app.pipeline.types import PageGroup
 from app.review.service import canonical_label
+from app.storage import get_storage
 
 LOG_ROLES = frozenset({"log_sheet", "log_continuation"})
 CONTEXT_ROLES = frozenset({"summary_table", "coordinate_table", "lab_results", "legend_or_key"})
@@ -66,6 +67,7 @@ class PageInfo:
     sheet_total: int | None = None
     is_continuation: bool = False
     has_coordinates: bool = False
+    text: str = ""  # the page's printed text, when known (finds the archive stamps among its labels)
 
 
 def page_info(page: Page) -> PageInfo:
@@ -129,6 +131,62 @@ def clean_label(text: str) -> str:
     """The label without a printed "borehole number" prefix ("BORING NO. T01" -> "T01")."""
     cleaned = _label_prefix().sub("", text, count=1).strip()
     return cleaned or text
+
+
+@lru_cache(maxsize=1)
+def _archive_words() -> re.Pattern[str]:
+    """Archive and registry stamp words (data/page_roles.yaml archive_stamp_words)."""
+    with (get_settings().data_dir / "page_roles.yaml").open(encoding="utf-8") as handle:
+        words = [str(w) for w in (yaml.safe_load(handle) or {}).get("archive_stamp_words") or []]
+    body = "|".join(re.escape(w).replace(r"\ ", r"\s*") for w in sorted(words, key=len, reverse=True))
+    return re.compile(rf"(?<![^\W\d_])(?:{body})(?![^\W\d_])", re.IGNORECASE) if body else re.compile(r"(?!)")
+
+
+def file_numbers(file_name: str | None) -> frozenset[int]:
+    """The numbers of three or more digits in a document's file name (its archive or registry number)."""
+    stem = (file_name or "").rsplit(".", 1)[0]
+    return frozenset(int(d) for d in _NUMBER.findall(stem) if len(d) >= 3)
+
+
+def stamp_label(raw: str, page_text: str = "", numbers: frozenset[int] = frozenset()) -> bool:
+    """An archive or registry stamp read as a borehole label: it contains a stamp word ("Archiv 8016/924"),
+    or it is a bare number that follows a stamp word in the page's text or is a number of the file name."""
+    if _archive_words().search(raw):
+        return True
+    cleaned = clean_label(raw.strip())
+    if not cleaned.isdigit():
+        return False
+    value = int(cleaned)
+    if value in numbers:
+        return True
+    for match in _archive_words().finditer(page_text):
+        window = page_text[match.end() : match.end() + 40]
+        if any(int(d) == value for d in _NUMBER.findall(window)):
+            return True
+    return False
+
+
+@lru_cache(maxsize=1)
+def _inner_id() -> re.Pattern[str]:
+    """The ID printed after a borehole word or a number sign anywhere in a label."""
+    words, signs = label_prefix_words()
+    word = "|".join(re.escape(w).replace(r"\ ", r"\s*") for w in words) or r"(?!)"
+    sign = "|".join(re.escape(s) for s in signs) or r"(?!)"
+    return re.compile(
+        rf"(?<![^\W\d_])(?:(?:{word})\s*(?:{sign})?|(?:{sign}))\s*[:.\-]?\s*(?P<id>(?:[^\W\d_]{{1,4}}\s?)?\d[\w./\-]*)",
+        re.IGNORECASE,
+    )
+
+
+def label_ids(raw: str) -> set[str]:
+    """The IDs a label names (canonical): the label without its borehole word, and the ID printed after a
+    borehole word or number sign inside it ("Blatt 2 zu Bohrung Nr. 2, Musterweg 7" names 2)."""
+    out = {canonical_label(clean_label(raw.strip()))}
+    match = _inner_id().search(raw)
+    if match is not None:
+        out.add(canonical_label(match.group("id").rstrip(".,;:")))
+        out.add(canonical_label(clean_label(match.group(0).rstrip(".,;:"))))
+    return {i for i in out if i}
 
 
 def _labels(raw_labels: Iterable[str]) -> list[tuple[str, str]]:
@@ -221,8 +279,16 @@ def _continues(page: PageInfo, index: int | None) -> bool:
     return page.role == "log_continuation" or page.is_continuation or (index is not None and index > 1)
 
 
-def plan_page_groups(pages: Iterable[PageInfo]) -> list[PageGroup]:
-    """Groups of one document's pages, in order of their first page (see the module docstring)."""
+def _page_labels(page: PageInfo, numbers: frozenset[int]) -> list[tuple[str, str]]:
+    """The page's borehole labels without archive or registry stamps, when it names another label too."""
+    real = [raw for raw in page.labels if not stamp_label(raw, page.text, numbers)]
+    return _labels(real if real else page.labels)
+
+
+def plan_page_groups(pages: Iterable[PageInfo], *, file_name: str | None = None) -> list[PageGroup]:
+    """Groups of one document's pages, in order of their first page (see the module docstring).
+    `file_name`: the document's file name (a bare number of it on a page is an archive stamp)."""
+    numbers = file_numbers(file_name)
     ordered = sorted((p for p in pages if p.used and p.role != DUPLICATE_ROLE), key=lambda p: p.n)
     context = tuple(
         p.n for p in ordered if p.role in CONTEXT_ROLES or (p.role not in LOG_ROLES and p.has_coordinates)
@@ -236,7 +302,7 @@ def plan_page_groups(pages: Iterable[PageInfo]) -> list[PageGroup]:
         index, total = sheet_numbers(page)
         continues = _continues(page, index)
         restart = index == 1
-        labels = _labels(page.labels)
+        labels = _page_labels(page, numbers)
 
         if not labels:
             if open_groups and not restart:
@@ -279,6 +345,16 @@ def plan_page_groups(pages: Iterable[PageInfo]) -> list[PageGroup]:
                 target.add(page.n, index, total)
                 next_open.append(target)
                 continue
+            if continues and not restart:
+                # a further sheet whose header names its borehole with more text ("Blatt 2 zu Bohrung Nr. 2,
+                # Musterweg 7"): it joins the one earlier borehole that ID names
+                named = label_ids(raw)
+                earlier_ids = [b for b in builders if b.label_canonical in named]
+                if len(earlier_ids) == 1 and earlier_ids[0].label_canonical != canonical:
+                    earlier_ids[0].add(page.n, index, total)
+                    if earlier_ids[0] not in next_open:
+                        next_open.append(earlier_ids[0])
+                    continue
             builder = _Builder(canonical, raw)
             builder.add(page.n, index, total)
             if continues:
@@ -307,10 +383,37 @@ def plan_page_groups(pages: Iterable[PageInfo]) -> list[PageGroup]:
 
 
 async def plan_groups(document_id: str) -> list[PageGroup]:
-    """The page groups of one document from its classified pages."""
+    """The page groups of one document from its classified pages (with the page text of pages that name more
+    than one label, to tell archive stamps from borehole names)."""
     async with get_sessionmaker()() as session:
         rows = (
             await session.scalars(select(Page).where(Page.document_id == document_id).order_by(Page.n))
         ).all()
-        infos = [page_info(page) for page in rows]
-    return plan_page_groups(infos)
+        doc = await session.get(Document, document_id)
+        several = [page.n for page in rows if len(page.borehole_labels or []) > 1]
+        ocr = {
+            o.n: o.markdown or ""
+            for o in (
+                await session.scalars(
+                    select(OcrPage).where(OcrPage.document_id == document_id, OcrPage.n.in_(several))
+                )
+            ).all()
+        }
+        infos = [
+            replace(page_info(page), text=_page_text(page) or ocr.get(page.n, ""))
+            if page.n in several
+            else page_info(page)
+            for page in rows
+        ]
+    return plan_page_groups(infos, file_name=doc.file_name if doc else None)
+
+
+def _page_text(page: Page) -> str:
+    """The text of a page's embedded text layer ("" without one)."""
+    if page.text_layer_key is None:
+        return ""
+    try:
+        payload = json.loads(get_storage().get_bytes(page.text_layer_key))
+    except (OSError, ValueError):
+        return ""
+    return str(payload.get("text") or "") if isinstance(payload, dict) else ""
