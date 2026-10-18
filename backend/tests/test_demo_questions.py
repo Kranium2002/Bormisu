@@ -89,15 +89,15 @@ def gk_draft(
 
 
 def test_a_map_sheet_printed_as_the_system_is_no_system() -> None:
-    draft = gk_draft("3422925", "5370335", "TK25 7513 Fiktivstadt")
+    draft = gk_draft("3422925", "5370335", "TK25 8016 Fiktivstadt")
     assert (draft.crs_status, draft.crs_code) == ("inferred", None)
     assert draft.body is not None and _system_group(draft.body) == ""
     coords = draft.body["metadata"]["coordinates"]
-    assert coords["coordinate_system"] == "TK25 7513 Fiktivstadt"  # the printed text is kept as printed
+    assert coords["coordinate_system"] == "TK25 8016 Fiktivstadt"  # the printed text is kept as printed
     assert any("map sheet" in note for note in draft.notes)
-    for text in ("TK 25 Blatt 7513", "Blatt Fiktivstadt", "map sheet 12", "DTK25"):
+    for text in ("TK 25 Blatt 8016", "Blatt Fiktivstadt", "map sheet 12", "DTK25"):
         assert crs_parser.map_sheet(text), text
-    for text in ("Gauss-Krüger Blatt 7513", "TK25 EPSG:31467", "DHDN", "UTM 32N", None, ""):
+    for text in ("Gauss-Krüger Blatt 8016", "TK25 EPSG:31467", "DHDN", "UTM 32N", None, ""):
         assert not crs_parser.map_sheet(text), text
 
 
@@ -224,7 +224,7 @@ async def test_a_system_answered_for_the_project_places_its_later_boreholes(db: 
     assert (await record_of(first)).plotted
 
     # a later upload of the project prints only a map sheet where its system belongs
-    near = await _finalize(DOC_B, "B2", "3423480", "5371020", "TK25 7513")
+    near = await _finalize(DOC_B, "B2", "3423480", "5371020", "TK25 8016")
     # an earlier run had asked about it already: the answer settles that question too
     async with get_sessionmaker()() as session:
         open_question = await create_clarification(

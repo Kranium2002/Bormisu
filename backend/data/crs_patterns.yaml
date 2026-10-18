@@ -120,7 +120,7 @@ local_grid_terms: [local grid, site grid, local coordinates, local system, arbit
                    repère local, sistema local, coordenadas locales, coordenadas locais, lokaal stelsel,
                    lokalt system, sistema locale]
 
-# Map-sheet references printed where a coordinate system is expected ("TK25 7513", "Blatt Offenburg",
+# Map-sheet references printed where a coordinate system is expected ("TK25 8016", "Blatt Musterstadt",
 # "map sheet 12"): they name a sheet of a topographic map series, not a coordinate system, so such a text
 # counts as no system printed. A text that also names a system (a datum, grid, zone or EPSG code) still
 # states that system.

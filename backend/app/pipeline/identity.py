@@ -81,7 +81,7 @@ async def document_tables(document_id: str) -> Tables:
 
 def document_identifiers(page_labels: Sequence[Sequence[str]]) -> frozenset[str]:
     """Labels printed on every page of a document (an archive or file number stamped on each page, "BO
-    7513/324") while its pages also name another borehole: the document's identifier, not a borehole name.
+    8016/42") while its pages also name another borehole: the document's identifier, not a borehole name.
     `page_labels`: the classifier's labels of each used page. Needs two pages at least."""
     if len(page_labels) < 2:
         return frozenset()
