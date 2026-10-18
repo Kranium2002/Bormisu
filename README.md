@@ -237,6 +237,7 @@ Bormisu does not depend on any one model vendor. Every document model call (page
   |---|---|
   | OpenRouter (default) | `OPENROUTER_API_KEY=…` · `LLM_PROVIDER=auto` · `OCR_PROVIDER=auto` · per-stage models `CLASSIFIER_MODEL`, `EXTRACTOR_MODEL`, `BH3_MODEL`, `OPENROUTER_OCR_MODEL` |
   | OpenAI directly | `OPENAI_API_KEY=…` · `LLM_PROVIDER=openai` · `OCR_PROVIDER=openai_vision` · `OPENAI_CLASSIFIER_MODEL`, `OPENAI_EXTRACTOR_MODEL`, `OPENAI_BH3_MODEL`, `OPENAI_OCR_MODEL` (OCR with boxes from a vision model) |
+  | Google Gemini directly | `OPENROUTER_API_KEY=<Gemini API key>` · `OPENROUTER_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` · `OCR_PROVIDER=openrouter_vision` · model ids without the vendor prefix (`gemini-3.5-flash`) |
   | Mistral directly | `MISTRAL_API_KEY=…` · `LLM_PROVIDER=mistral` · `OCR_PROVIDER=mistral` (Mistral OCR with block boxes) · `MISTRAL_CLASSIFIER_MODEL`, `MISTRAL_EXTRACTOR_MODEL`, `MISTRAL_BH3_MODEL` |
   | Local models (Ollama) | see [On premise and local models](#on-premise-and-local-models) |
 
