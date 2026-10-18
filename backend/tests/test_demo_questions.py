@@ -274,6 +274,48 @@ async def test_a_system_answered_for_the_project_places_its_later_boreholes(db: 
     assert len(asked) == 1 and asked[0].borehole_uids == [far]
 
 
+async def _earlier_locate_question(doc_id: str, uid: str, label: str) -> str:
+    """A locate_borehole question an earlier run asked, before the project's system was known."""
+    async with get_sessionmaker()() as session:
+        row = await create_clarification(
+            session,
+            kind="locate_borehole",
+            document_id=doc_id,
+            question=f"Where was {label} drilled? (fictional, from an earlier run)",
+            fields=[{"name": "location", "widget": "map_point", "label": "Point", "required": True}],
+            evidence=[],
+            borehole_uids=[uid],
+            project=PROJECT,
+            dedupe_key=f"locate_borehole:{uid}",
+        )
+        await session.commit()
+        return row.id
+
+
+@pytest.mark.db
+async def test_a_confirmed_system_settles_the_locate_question_of_a_borehole_it_places(db: None) -> None:
+    await _finalize(DOC_A, "B1", "3422925", "5370335", None)
+    await finalize_document(DOC_A)
+    (question,) = await clarifications("crs_confirm")
+    near = await _finalize(DOC_B, "B2", "3423480", "5371020", None)
+    far = await _finalize(DOC_C, "B3", "3480000", "5400000", None)
+    near_question = await _earlier_locate_question(DOC_B, near, "B2")
+    far_question = await _earlier_locate_question(DOC_C, far, "B3")
+    async with get_sessionmaker()() as session:
+        await answer_clarification(
+            session, question.id, {"crs": GK3, "swap_axes": False}, "Fictional Reviewer"
+        )
+        await session.commit()
+    assert (await record_of(near)).plotted and not (await record_of(far)).plotted
+    async with get_sessionmaker()() as session:
+        settled = await session.get(Clarification, near_question)
+        still = await session.get(Clarification, far_question)
+    assert settled is not None and settled.status == "answered"
+    assert settled.answer["settled"] == "placed" and settled.answer["crs"] == GK3
+    assert settled.answer["via"] == "project_answer"
+    assert still is not None and still.status == "open"  # B3 is not on the map: its question stays
+
+
 @pytest.mark.db
 async def test_answering_places_the_project_boreholes_left_out_of_that_question(db: None) -> None:
     """A borehole whose own question was skipped is placed when another project question is answered."""

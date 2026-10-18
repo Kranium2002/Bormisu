@@ -3,7 +3,8 @@
 A confirmation also settles the `crs_confirm` questions it answers: an open or skipped question whose
 boreholes all have a stated or confirmed system afterwards is resolved as answered, by the confirming
 actor, with the confirmed system as its answer. A question that still covers a borehole without one
-stays open.
+stays open. The `locate_borehole` questions of boreholes the confirmation puts on the map are settled the
+same way: nobody is asked where a borehole was drilled once the map shows it.
 """
 
 from __future__ import annotations
@@ -84,6 +85,7 @@ async def confirm_crs(
     await settle_crs_questions(
         session, [bh.uid for bh in targets], answer=answer, actor=actor, exclude=answering
     )
+    await settle_locate_questions(session, [bh.uid for bh in targets], answer=answer, actor=actor)
     return len(targets)
 
 
@@ -133,6 +135,47 @@ async def settle_crs_questions(
             continue
         await resolve_clarification(
             session, question, status="answered", answer=dict(answer), answered_by=actor
+        )
+        resolved.append(question.id)
+    return resolved
+
+
+async def settle_locate_questions(
+    session: AsyncSession, uids: Sequence[str], *, answer: dict[str, Any], actor: str
+) -> list[str]:
+    """Resolve the open or skipped locate_borehole questions about `uids` whose boreholes are all on the map.
+
+    A question asked before the borehole's system was confirmed (by the project's answer, or another
+    question) no longer needs a person's point. A borehole that no longer exists does not hold a question
+    open; a question locked by another transaction is left to it. Returns the ids of the resolved questions.
+    """
+    if not uids:
+        return []
+    questions = (
+        await session.scalars(
+            select(Clarification)
+            .where(
+                Clarification.kind == "locate_borehole",
+                Clarification.status.in_(UNRESOLVED_CLARIFICATION),
+                Clarification.borehole_uids.overlap(list(uids)),
+            )
+            .order_by(Clarification.created_at, Clarification.id)
+            .with_for_update(skip_locked=True)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    if not questions:
+        return []
+    covered = sorted({uid for q in questions for uid in (q.borehole_uids or [])})
+    plotted = dict(
+        (await session.execute(select(Borehole.uid, Borehole.plotted).where(Borehole.uid.in_(covered)))).all()
+    )
+    resolved: list[str] = []
+    for question in questions:
+        if any(uid in plotted and not plotted[uid] for uid in question.borehole_uids or []):
+            continue
+        await resolve_clarification(
+            session, question, status="answered", answer={**answer, "settled": "placed"}, answered_by=actor
         )
         resolved.append(question.id)
     return resolved
