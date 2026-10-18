@@ -1,0 +1,516 @@
+/*
+ * The selection report: a toolbar over a grey desk with an A4 page on it (as the borehole sheet), the
+ * whole screen scrolling. Print: the page alone, on A4.
+ */
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--c-scan-bg);
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.back {
+  composes: quiet link from '../styles/buttons.module.css';
+  text-decoration: none;
+}
+
+.toolbarTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print {
+  composes: primary from '../styles/buttons.module.css';
+}
+
+.secondary {
+  composes: secondary small from '../styles/buttons.module.css';
+}
+
+.loading {
+  margin: 20vh auto;
+  text-align: center;
+  color: var(--c-text);
+}
+
+.loadingTitle {
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+}
+
+/* A4 is 210 mm wide; on a narrow screen the page takes the width it has. */
+.page {
+  box-sizing: border-box;
+  width: 210mm;
+  max-width: calc(100% - 2 * var(--space-4));
+  margin: var(--space-5) auto var(--space-6);
+  padding: 14mm 12mm;
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: var(--shadow-panel);
+  font-size: 10px;
+  line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  gap: 6mm;
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-bottom: 2px solid #1a1a1a;
+  padding-bottom: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: var(--ls-title);
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.date {
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+}
+
+.h2 {
+  margin: 0 0 2mm;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  text-transform: uppercase;
+}
+
+.h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+}
+
+.factList {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1mm 6mm;
+}
+
+.fact {
+  display: flex;
+  gap: 2mm;
+}
+
+.fact dt {
+  flex: none;
+  width: 34mm;
+  color: #555;
+}
+
+.fact dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.warn {
+  margin: 0;
+  color: #8a5a00;
+  font-weight: 600;
+}
+
+.mapBlock svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #ccc;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 1.2mm 1.5mm;
+  border-bottom: 1px solid #ddd;
+}
+
+.table th {
+  font-weight: 700;
+  border-bottom: 1.5px solid #1a1a1a;
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right !important;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.range {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.source {
+  word-break: break-all;
+}
+
+.idLink {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.idLink:hover {
+  text-decoration: underline;
+}
+
+.sub {
+  display: block;
+  color: #555;
+}
+
+.missing {
+  color: #777;
+  font-style: italic;
+}
+
+.unreviewed {
+  color: #c8102e;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+.unsure {
+  color: #8a5a00;
+  font-weight: 800;
+  margin-left: 1px;
+}
+
+/* The combined soil chart scrolls sideways on screen when wide; in print it shrinks to its landscape page. */
+.chartSection {
+  min-width: 0;
+}
+
+/* The combined soil chart scrolls sideways on screen when wide; in print it shrinks to the page. */
+.chartHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.chartHead .h2 {
+  margin: 0;
+  margin-right: auto;
+}
+
+.chartWrap {
+  overflow-x: auto;
+  margin-top: 2mm;
+}
+
+.chartWrap svg {
+  display: block;
+}
+
+.modes {
+  display: flex;
+  border: 1px solid #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mode {
+  cursor: pointer;
+  padding: 5px 10px;
+  font: 700 var(--fs-xs) / 1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+}
+
+.mode + .mode {
+  border-left: 1px solid #1a1a1a;
+}
+
+.modeOn {
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+}
+
+.mode:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: -3px;
+}
+
+.radio {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.note,
+.hintNote {
+  margin: 1mm 0 0;
+  color: #555;
+  font-style: italic;
+}
+
+.legend {
+  list-style: none;
+  margin: 2mm 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1mm 4mm;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+}
+
+.legendItem svg {
+  flex: none;
+}
+
+.chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 5mm;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  font-family: var(--font-mono);
+}
+
+.bh {
+  border-top: 1.5px solid #1a1a1a;
+  padding-top: 2mm;
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+}
+
+.bhMeta {
+  margin: 0;
+  color: #555;
+}
+
+.bhRow {
+  display: grid;
+  grid-template-columns: 58mm minmax(0, 1fr);
+  gap: 4mm;
+  align-items: start;
+}
+
+.profile svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.bhBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+  min-width: 0;
+}
+
+.header {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8mm 4mm;
+}
+
+.headerField {
+  display: flex;
+  gap: 2mm;
+}
+
+.headerField dt {
+  flex: none;
+  width: 26mm;
+  color: #555;
+}
+
+.headerField dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.footer {
+  border-top: 1px solid #1a1a1a;
+  padding-top: 2mm;
+  color: #555;
+}
+
+.footer p {
+  margin: 0 0 1mm;
+}
+
+.markLegend {
+  margin-right: 5mm;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .factList,
+  .header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bhRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile {
+    max-width: 62mm;
+  }
+}
+
+/*
+ * Print: only the page, on A4. Every element that holds the page becomes a plain block (no scroll
+ * box, no fixed height), its other children are hidden. The DIN pattern definitions stay rendered
+ * ([data-din-defs]): patterns inside display:none don't paint in every browser.
+ */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+/* The combined soil chart prints on a landscape page of its own: up to 40 profiles stay readable. */
+@page report-chart {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+@media print {
+  *:has(.page) {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  *:has(.page) > :not(:has(.page)):not(.page):not([data-din-defs]) {
+    display: none !important;
+  }
+
+  .page {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .chartSection {
+    page: report-chart;
+    break-before: page;
+    break-after: page;
+  }
+
+  .chartWrap {
+    overflow: visible;
+  }
+
+  .chartWrap svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .modes,
+  .pager,
+  .hintNote {
+    display: none !important;
+  }
+
+  .idLink {
+    text-decoration: none !important;
+  }
+
+  /* A borehole, the map or the chart that doesn't fit on the page goes to the next one whole. */
+  .bh,
+  .mapBlock,
+  .facts {
+    break-inside: avoid;
+  }
+
+  .table thead {
+    display: table-header-group;
+  }
+
+  .table tr {
+    break-inside: avoid;
+  }
+}

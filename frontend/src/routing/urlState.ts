@@ -28,6 +28,7 @@ export const ROUTE = {
   list: 'list',
   sheet: 'sheet/:uid',
   verify: 'verify/:uid',
+  report: 'report',
 } as const;
 
 /** Centre and zoom of the map. */
@@ -58,7 +59,20 @@ export type AppRoute =
   | { kind: 'sheet'; uid: string; lang: string | null }
   /** Side-by-side verification of a borehole on source page `page` (null: the screen picks the first page). */
   | { kind: 'verify'; uid: string; page: number | null }
+  /**
+   * The printable report of a selection: result set `rs` (an area, a search, the LIST); with `line`
+   * the planned line's hits by chainage, queried again with `buffer` m and `unrev` on a reload.
+   */
+  | ({ kind: 'report' } & ReportUrlState)
   | { kind: 'notFound'; path: string };
+
+/** The report's URL state: what it is about. */
+export interface ReportUrlState {
+  rs: string | null;
+  line: string | null;
+  buffer: number | null;
+  unrev: boolean | null;
+}
 
 export type RouteKind = AppRoute['kind'];
 
@@ -106,6 +120,18 @@ function positiveInt(text: string | null): number | null {
   return n >= 1 && Number.isSafeInteger(n) ? n : null;
 }
 
+/** A search distance in m above 0 and at most 1000 (the planned line's limits), or null. */
+function bufferM(text: string | null): number | null {
+  if (!text || !/^\d+(\.\d+)?$/.test(text)) return null;
+  const n = Number(text);
+  return n > 0 && n <= 1000 ? n : null;
+}
+
+/** "1" true, "0" false, anything else null. */
+function flag(text: string | null): boolean | null {
+  return text === '1' ? true : text === '0' ? false : null;
+}
+
 /** The decoded path segments, or null when a segment is not valid percent-encoding. */
 function segments(pathname: string): string[] | null {
   const parts = pathname.split('/').filter(Boolean);
@@ -137,6 +163,9 @@ export function parseLocation(pathname: string, search: string): AppRoute {
   if (head === 'list' && uid === undefined) return { kind: 'list' };
   if (head === 'sheet' && uid) return { kind: 'sheet', uid, lang: param(q, 'lang') };
   if (head === 'verify' && uid) return { kind: 'verify', uid, page: positiveInt(param(q, 'page')) };
+  if (head === 'report' && uid === undefined) {
+    return { kind: 'report', rs: param(q, 'rs'), line: param(q, 'line'), buffer: bufferM(param(q, 'buffer')), unrev: flag(param(q, 'unrev')) };
+  }
   return notFound;
 }
 
@@ -183,6 +212,16 @@ export function verifyPath(uid: string, page?: number | null): string {
   return `/verify/${enc(uid)}${query([['page', page != null ? String(page) : null]])}`;
 }
 
+/** /report of a selection (only the parts that are set). */
+export function reportPath(s: Partial<ReportUrlState> & { rs: string | null }): string {
+  return `/${ROUTE.report}${query([
+    ['rs', s.rs ? enc(s.rs) : null],
+    ['line', s.line ? enc(s.line) : null],
+    ['buffer', s.line && s.buffer != null ? String(s.buffer) : null],
+    ['unrev', s.line && s.unrev != null ? (s.unrev ? '1' : '0') : null],
+  ])}`;
+}
+
 /** The URL of a route. */
 export function routePath(r: AppRoute): string {
   switch (r.kind) {
@@ -204,6 +243,8 @@ export function routePath(r: AppRoute): string {
       return sheetPath(r.uid, r.lang);
     case 'verify':
       return verifyPath(r.uid, r.page);
+    case 'report':
+      return reportPath(r);
     case 'notFound':
       return r.path;
   }

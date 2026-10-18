@@ -5,6 +5,7 @@ import { detail } from './de/detail';
 import { list } from './de/list';
 import { map } from './de/map';
 import { queue } from './de/queue';
+import { report } from './de/report';
 import { review } from './de/review';
 import { sheet } from './de/sheet';
 import { shell } from './de/shell';
@@ -24,7 +25,8 @@ export const LANGS: readonly Lang[] = ['en', 'de'];
 
 const STORAGE_KEY = 'bormisu.lang';
 
-const DE: Record<string, string> = { ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue, ...verify, ...alignment };
+// The report's texts come first: an area's own wording of the same English text wins.
+const DE: Record<string, string> = { ...report, ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue, ...verify, ...alignment };
 
 function storedLang(): Lang {
   try {

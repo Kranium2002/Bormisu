@@ -11,6 +11,7 @@ import { ListScreen } from '../screens/list/ListScreen';
 import { useInboxQuery } from '../screens/inbox/useInboxQuery';
 import { MapScreen } from '../screens/map/MapScreen';
 import { QueueScreen } from '../screens/queue/QueueScreen';
+import { ReportScreen } from '../report/ReportScreen';
 import { ReviewScreen } from '../screens/review/ReviewScreen';
 import { SheetScreen } from '../screens/sheet/SheetScreen';
 import { VerifyScreen } from '../screens/verify/VerifyScreen';
@@ -124,4 +125,9 @@ export function RouteError() {
       action={{ label: 'RELOAD', onClick: () => window.location.reload() }}
     />
   );
+}
+
+/** /report?rs=…: the printable report of a selection (it loads its own result set and records). */
+export function ReportRoute() {
+  return <ReportScreen />;
 }

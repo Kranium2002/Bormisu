@@ -106,6 +106,7 @@ function routePatch(s: AppState, route: AppRoute, entering: boolean): Partial<Ap
     case 'inbox':
     case 'list':
     case 'sheet':
+    case 'report':
     case 'notFound':
       return {};
   }

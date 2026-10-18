@@ -33,6 +33,7 @@ import { ResultSetSummary } from './explore/ResultSetSummary';
 import { MapLegend } from './MapLegend';
 import { mapRows } from './mapModel';
 import styles from './MapScreen.module.css';
+import { ReportButton } from '../../report/ReportButton';
 
 export function MapScreen() {
   const t = useT();
@@ -150,9 +151,12 @@ export function MapScreen() {
           compact
           extra={
             resultSet && (
-              <Link className={styles.openList} to={`/${ROUTE.list}`}>
-                {t('OPEN LIST ›')}
-              </Link>
+              <>
+                <ReportButton scope="selection" className={styles.openList} />
+                <Link className={styles.openList} to={`/${ROUTE.list}`}>
+                  {t('OPEN LIST ›')}
+                </Link>
+              </>
             )
           }
         />
