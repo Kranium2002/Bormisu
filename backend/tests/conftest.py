@@ -89,7 +89,7 @@ async def database() -> AsyncIterator[None]:
 @pytest.fixture(autouse=True)
 def fresh_provider_failover() -> Iterator[None]:
     """Every test starts without the per-process memory of refused keys, refused OpenAI parameters and models
-    that required reasoning."""
+    that required reasoning or refused a seed."""
     from app.bh3 import llm as bh3_llm
     from app.pipeline import ocr
     from app.providers import llm, reasoning
@@ -101,6 +101,7 @@ def fresh_provider_failover() -> Iterator[None]:
         llm._OPENAI_EFFORT.clear()
         reasoning._LEARNED.clear()
         bh3_llm._REASONING_REQUIRED.clear()
+        bh3_llm._SEED_REFUSED.clear()
 
     clear()
     yield
