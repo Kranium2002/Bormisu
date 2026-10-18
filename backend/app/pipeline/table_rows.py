@@ -102,8 +102,15 @@ def rows_of(tokens: Sequence[Token]) -> list[list[Token]]:
     return [sorted(row, key=lambda t: t.cx) for _, _, row in rows]
 
 
+# A cell that is a number as printed: digits with grouping or decimal separators, an optional sign or unit
+# suffix ("4892,5", "-12.0", "68", "54 m"); OCR noise such as "4a" or "3C" is not one.
+_NUMERIC = re.compile(r"[+\-−]?\d[\d\s.,']*(?:\s?m)?")
+
+
 def number_of(token: Token | None) -> float | None:
-    return None if token is None else parse_number(token.text).value
+    if token is None or not _NUMERIC.fullmatch(token.text.strip()):
+        return None
+    return parse_number(token.text).value
 
 
 def _nearest(row: Sequence[Token], centre: float, tolerance: float) -> Token | None:

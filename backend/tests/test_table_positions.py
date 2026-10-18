@@ -232,3 +232,13 @@ async def test_finalisation_flags_values_and_keeps_second_readings_and_notes(db:
     async with get_sessionmaker()() as session:
         first = await session.scalar(select(Revision).where(Revision.uid == uid, Revision.revision == 1))
     assert first is not None and "a fictional note" in first.changes["notes"]
+
+
+def test_ocr_noise_in_a_table_cell_is_not_a_number() -> None:
+    from app.pipeline.table_rows import number_of
+
+    def cell(text: str) -> Token:
+        return Token("p9.w1", text, (0.0, 0.0, 0.1, 0.01))
+
+    assert [number_of(cell(t)) for t in ("4892,5", "68", "3 170,5", "54 m")] == [4892.5, 68.0, 3170.5, 54.0]
+    assert [number_of(cell(t)) for t in ("4a", "3C", "2875,a", "nr 5")] == [None, None, None, None]

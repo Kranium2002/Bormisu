@@ -322,19 +322,25 @@ def _take_position(item: Any, row: TableRow, sheet: Sheet, adjusted: Adjusted, i
     return _with_blocks(item, {"coordinates": coords}, index, tokens)
 
 
+def _page_of(token: Token) -> int:
+    """The page a table cell is on (its id is "p<n>.<...>")."""
+    return int(token.id[1:].split(".", 1)[0])
+
+
 def _check_depth(item: Any, row: TableRow, adjusted: Adjusted, index: TableIndex) -> Any:
     token = row.total_depth
     table_value = number_of(token)
     if token is None or table_value is None:
         return item
+    page = _page_of(token)
     sheet_text = printed(item.outcome.result.header.total_depth)
     if sheet_text is None:
-        adjusted.notes.append(f"total depth {token.text} from the table on page {row.page}")
+        adjusted.notes.append(f"total depth {token.text} from the table on page {page}")
         return _with_blocks(item, {"total_depth": _cite(token)}, index, [token])
     sheet_value = parse_number(sheet_text).value
     if sheet_value is not None and abs(sheet_value - table_value) > 1e-6:
         flag = (
-            f"the table on page {row.page} prints {token.text} as this borehole's total depth; "
+            f"the table on page {page} prints {token.text} as this borehole's total depth; "
             f"the log sheet prints {sheet_text}"
         )
         adjusted.flags[DEPTH_PATH] = flag
