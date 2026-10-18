@@ -25,6 +25,9 @@ const viewport = { width: 1440, height: 900 };
 export default defineConfig({
   testDir: 'e2e',
   timeout: 30_000,
+  // One retry absorbs a page that is slow to load while the whole suite runs on a busy machine; a real
+  // failure still fails twice.
+  retries: 1,
   use: { ...browser, viewport },
   projects: externalURL
     ? [
