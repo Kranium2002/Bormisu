@@ -468,7 +468,7 @@ No challenge or customer data is committed: no sample files, no values copied fr
 
 ## Credits
 
-The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-backend`, compared in [`docs/design/main-vs-bh3.md`](docs/design/main-vs-bh3.md)). It was ported to pypdfium2 and generalised to work without per-file rules. The backend calls it through `app/bh3/bridge.py` and falls back to the cited-text extractor for any borehole it cannot read.
+The page reader in `backend/app/bh3/` is pipeline pipeline (branch `felix-backend`, compared in [`docs/design/main-vs-bh3.md`](docs/design/main-vs-bh3.md)). It was ported to pypdfium2 and generalised to work without per-file rules. The backend calls it through `app/bh3/bridge.py` and falls back to the cited-text extractor for any borehole it cannot read.
 
 ## License
 
