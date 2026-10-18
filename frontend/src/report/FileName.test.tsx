@@ -4,8 +4,8 @@ import { FileName, SourceText } from './ReportScreen';
 
 describe('file names in the report', () => {
   it('may break after "_", "-" and "." only (a <wbr> after each), never inside a word', () => {
-    expect(renderToStaticMarkup(<FileName name="lgrb_offenburg_verified.csv" />)).toBe('lgrb_<wbr/>offenburg_<wbr/>verified.<wbr/>csv');
-    expect(renderToStaticMarkup(<FileName name="BO-7513" />)).toBe('BO-<wbr/>7513');
+    expect(renderToStaticMarkup(<FileName name="fictional_site_records.csv" />)).toBe('fictional_<wbr/>site_<wbr/>records.<wbr/>csv');
+    expect(renderToStaticMarkup(<FileName name="BH-0042" />)).toBe('BH-<wbr/>0042');
     expect(renderToStaticMarkup(<FileName name="report" />)).toBe('report');
   });
 

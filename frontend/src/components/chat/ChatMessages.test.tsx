@@ -106,7 +106,7 @@ describe('parts', () => {
 
   it('the markdown subset of an answer becomes bold, lists and code; HTML inside it stays text', () => {
     const answer = [
-      'The deepest borehole is **7513/2898 — EWS 1/18**, at **98 m**.',
+      'The deepest borehole is **FX-12 — Fictional Well 1**, at **98 m**.',
       '',
       'Its layers:',
       '- **0–4 m:** Fill with *brick* fragments',
@@ -115,7 +115,7 @@ describe('parts', () => {
       '2. `code_name`',
     ].join('\n');
     const html = render(assistant([{ type: 'text', text: answer, state: 'done' }]));
-    expect(html).toContain('<strong>7513/2898 — EWS 1/18</strong>');
+    expect(html).toContain('<strong>FX-12 — Fictional Well 1</strong>');
     expect(html).toContain('<strong>98 m</strong>');
     expect(html).toMatch(/<ul[^>]*><li><strong>0–4 m:<\/strong> Fill with <em>brick<\/em> fragments<\/li><li>/);
     expect(html).toMatch(/<ol[^>]* start="1"><li>first<\/li><li><code[^>]*>code_name<\/code><\/li><\/ol>/);

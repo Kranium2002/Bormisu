@@ -558,7 +558,7 @@ def names_a_system(system_raw: str) -> bool:
 
 
 def map_sheet(system_raw: str | None) -> bool:
-    """The printed system text is a map-sheet reference ("TK25 7513", "Blatt Offenburg") that names no
+    """The printed system text is a map-sheet reference ("TK25 8016", "Blatt Musterstadt") that names no
     coordinate system: it counts as no system printed. Data: crs_patterns.yaml map_sheet_terms."""
     if system_raw is None or not system_raw.strip():
         return False

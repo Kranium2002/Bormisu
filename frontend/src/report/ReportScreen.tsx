@@ -226,7 +226,7 @@ function Report({ selection, records, missing, lang }: ReportProps) {
 
 /**
  * A file name that wraps after its separators ("_", "-", "."), never in the middle of a word where it
- * can help it: "lgrb_offenburg_verified.csv" may break as "lgrb_ / offenburg_ / verified.csv".
+ * can help it: "fictional_site_records.csv" may break as "fictional_ / site_ / records.csv".
  */
 export function FileName({ name }: { name: string }) {
   return (
