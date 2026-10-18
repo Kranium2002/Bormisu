@@ -187,7 +187,7 @@ def assign_roles(page: Page, table: TableRegion, scale: Optional[DepthScale]) ->
     hdr_above = [w for w in page.words if hb0 - 40 <= w.yc < hb0]
     for c in table.columns:
         ws = sorted((w for w in hdr_in if c.contains(w, 0.5)), key=lambda w: (w.yc, w.x0))
-        if not ws:   # header printed above the table frame (SAM01) – only then look above
+        if not ws:   # header printed above the table frame – only then look above
             ws = sorted((w for w in hdr_above if c.contains(w, 0.5)), key=lambda w: (w.yc, w.x0))
         c.header = " ".join(w.text for w in ws)
         c.role, c.role_score = _role_from_text(c.header)
@@ -339,7 +339,7 @@ def build_layers(page: Page, table: TableRegion, scale: Optional[DepthScale], no
         got = _layers_from_thickness(page, table, desc, thk, body_words, y_min, notes, scale)
         if got:
             return got
-    # heading mode: layers introduced by '41.6~44.6m :' / '0.0 - 0.5' lines inside the description (SEA01 style)
+    # heading mode: layers introduced by '41.6~44.6m :' / '0.0 - 0.5' lines inside the description
     headings = []
     for r in text_rows:
         rt = " ".join(w.text for w in r)
@@ -352,7 +352,7 @@ def build_layers(page: Page, table: TableRegion, scale: Optional[DepthScale], no
     if scale and len(headings) >= 2 and monotonic:
         notes.append("heading-mode layers")
         return _layers_from_headings(page, desc, text_rows, headings, scale)
-    # row mode: a table with one text row per depth step and no layer lines (SAM01 style)
+    # row mode: a table with one text row per depth step and no layer lines
     if len(ys) < max(2, len(text_rows) // 4) and len(text_rows) >= 6 and scale:
         aligned = sum(1 for r in text_rows if any(abs(np.mean([w.yc for w in r]) - ty) <= 4 for ty, _ in scale.ticks))
         if aligned >= 0.6 * len(text_rows):
@@ -631,7 +631,7 @@ def build_points(page: Page, table: TableRegion, scale: Optional[DepthScale], no
             elif d is not None:
                 pts.append(PointValue(kind, d, v, prov(w)))
 
-    # N=xx tokens anywhere in the table (AUS01 style) if no SPT column caught them
+    # N=xx tokens anywhere in the table if no SPT column caught them
     if not any(p.kind == "SPT" for p in pts):
         for w in page.words:
             if table.inside(w):

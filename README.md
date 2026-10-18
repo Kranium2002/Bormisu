@@ -13,7 +13,54 @@ docker compose up --build        # db, migrate, api, worker, gotenberg, web; no 
 
 Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · health at `/api/health`
 
-**Contents:** [At a glance](#at-a-glance) · [Why this pipeline wins](#why-this-pipeline-wins) · [Quick start](#quick-start) · [Extraction pipeline](#the-extraction-pipeline-in-detail) · [Model-agnostic](#model-agnostic-by-design-openrouter) · [On premise](#on-premise-and-local-models) · [Features](#what-you-can-do-with-it) · [Architecture](#architecture) · [Quality](#quality-tests-ci-and-evaluation) · [Known limitations](#known-limitations) · [Configuration](#configuration) · [Data rule](#data-rule)
+**Contents:** [How Bormisu meets the challenge](#how-bormisu-meets-the-challenge) · [At a glance](#at-a-glance) · [Build and evaluation](#build-and-evaluation) · [Why this pipeline wins](#why-this-pipeline-wins) · [Quick start](#quick-start) · [Extraction pipeline](#the-extraction-pipeline-in-detail) · [Model-agnostic](#model-agnostic-by-design-openrouter) · [On premise](#on-premise-and-local-models) · [Features](#what-you-can-do-with-it) · [Architecture](#architecture) · [Known limitations](#known-limitations) · [Configuration](#configuration) · [Data rule](#data-rule)
+
+---
+
+## How Bormisu meets the challenge
+
+**The challenge** (Herrenknecht, Black Forest Hackathon 2026; [brief](docs/design/challenge-brief.md)): *automated extraction and standardisation of drilling data for a global geodatabase.* Borehole reports arrive in mixed formats, languages and representations and are analysed by hand today. The task has three parts:
+
+1. **Extract and standardise** the data automatically, into Herrenknecht's target format ([field list](docs/design/target-format.md): metadata, log data, test results).
+2. Store it in a **georeferenced, searchable central database**.
+3. Make it accessible through an **interactive world map**.
+
+The brief also asks for a repository that builds cleanly from a fresh clone, with a clear README and run instructions.
+
+### Measured results
+
+| Measured | Result | Source |
+|---|---|---|
+| Page reader on hand-labelled log pages from documents it was never tuned on (11 pages) | Borehole names **100 %** · layer boundaries within 15 cm **80 %** · SPT recall **81 %** | [`docs/design/main-vs-bh3.md`](docs/design/main-vs-bh3.md), section 1 |
+| Vector (text-layer) logs, the corpus's clean vector-log report | **100 %** of boundaries and **9/9** header fields, with no OCR and no vision call | same, D2 |
+| Depth-scale anchoring on a scanned log | SPT depth accuracy **12 % → 100 %** | same, D1 |
+| DIN 4023 coding of 3,805 real layer descriptions | **92 %** get a code (75 % before the page reader's mapper) | same, D5 |
+| Full challenge corpus: 18 documents, 1,034 pages | **98 minutes**, about **0.6 US cents per page** with the model used in development | same, section 1 |
+| Fresh clone, no `.env`, `docker compose build --no-cache`, then `up -d --wait` | Build **passes** in 5 min 20 s. All services are healthy about 1 minute later, in demo mode, with every migration applied | [Build and evaluation](#build-and-evaluation) |
+| Scanned archive logs from the public LGRB portal (15 logs: old typed and handwritten German forms, Gauss-Krüger coordinates), checked against LGRB's own records | **9 of 15** logs placed automatically, every one **1–11 m** from LGRB's surveyed position · total depth within 0.1 m on **12 of 15** | Measured during development; the scans are not in the repository |
+| Automated tests | **3,190 passing** (1,530 backend, 1,660 frontend), plus **149** Playwright end-to-end tests. None of them calls a paid provider | [Build and evaluation](#build-and-evaluation) |
+
+The page-reader, DIN and corpus figures were measured on the page reader (`backend/app/bh3/`) on its original branch, before it was ported into main. The hand labels stay outside git.
+
+### Requirement → what we built → evidence
+
+| Requirement (from the brief) | What Bormisu does | Evidence in this repository |
+|---|---|---|
+| **Mixed formats:** native PDFs with broken text layers, scans, Word files with embedded scans, photos, handwriting, rotated pages | 8 formats are content-checked at upload. Word files are converted to PDF by Gotenberg. Each text layer gets a quality score, and garbled ones are not trusted. Sideways pages are turned. Faded and photographed pages are preprocessed. Handwriting is read from the page image and then read a second time | `backend/app/upload.py`, `backend/app/pipeline/office.py`, `backend/app/pipeline/triage.py`, `backend/app/bh3/classify.py`, `backend/app/pipeline/reread.py`. Tests: `backend/tests/test_upload_outcomes.py`, `test_office.py`, `test_pipeline_triage.py`, `test_textlayer.py`, `test_reread.py` |
+| **Varying structure:** one page per borehole, multi-sheet logs, logs buried in 100+ page reports | Every page gets a role. Only data-bearing pages are read, and the rest are skipped with a stated reason. Pages are grouped into boreholes by label and "sheet n of m". The parts of one borehole are merged, and the same borehole in a later upload is recognised | `backend/data/page_roles.yaml`, `backend/app/pipeline/classify.py`, `group.py`, `identity.py`. Tests: `backend/tests/unit/test_group.py`, `unit/test_scan_grouping.py`, `test_identity.py`, `test_identity_parts.py`, `test_classify_second_opinion.py` |
+| **Automatic extraction** of the log | Vector logs are parsed from the text layer with no model call. Scanned logs are read by a vision model in tiles, with depths anchored to the printed depth scale by a least-squares fit and snapped to ruling lines wherever they confirm it. A log the reader cannot handle goes to a cited-text extractor that copies values exactly as printed | `backend/app/bh3/vector/`, `backend/app/bh3/anchor.py`, `backend/app/bh3/tiles.py`, `backend/app/pipeline/extract.py`, `backend/data/prompts/extractor.txt`. Tests: `backend/tests/test_bh3_adapter.py`, `test_bh3_bridge.py`, `test_extract.py`. Measured: see the table above |
+| **About 7 languages** | Prompts are language-independent. DIN 4023 vocabulary in 10 languages (553 terms). Month names and datum words in several languages | `backend/data/din_vocabulary.yaml`, `backend/app/normalize/dates.py`, `backend/app/normalize/datums.py`. Tests: `backend/tests/unit/normalize/test_dates.py`, `test_datums.py`, `test_lithology.py` |
+| **Standardise units:** ft → m, decimal commas, depth below ground vs elevation, local datums | Deterministic Python normalisers handle every digit-grouping style and 37 units in 7 dimensions. Datum and sign conventions are recognised, and elevation scales are converted through ground level. A model never returns a normalised number | `backend/app/normalize/numbers.py`, `units.py`, `datums.py`, `backend/data/units.yaml`, `backend/app/validate/datum.py`. Tests: `backend/tests/unit/normalize/test_numbers.py`, `test_units.py`, `test_datums.py` |
+| **About 10 coordinate systems, sometimes unstated** | 121 curated EPSG systems are built in, and any printed EPSG code is resolved through PROJ. Where no system is printed, candidates are ranked by evidence and a person confirms once per project. Local site grids are placed from one or two anchors | `backend/app/normalize/crs.py`, `backend/app/geo/crs_candidates.py`, `backend/data/crs_registry.yaml`, `backend/app/clarify/grid.py`, `grid_anchors.py`. Tests: `backend/tests/unit/normalize/test_crs.py`, `unit/test_crs_ranking.py`, `test_grid.py`, `test_grid_anchors.py` |
+| **SPT in about 10 notations; TCR and RQD** | 4 SPT schemes are supported, and N is computed from the increments. A refusal never gets an N. A printed N that disagrees with the computed one is kept and reported. RQD or recovery above 100 % is flagged, never changed | `backend/app/normalize/spt.py`, `backend/data/spt_schemes.yaml`, `backend/data/lint_rules.yaml`. Tests: `backend/tests/unit/normalize/test_spt.py`, `unit/test_lint_and_plotting.py` |
+| **Target format:** metadata, log data, test results | Every extracted value is stored with its raw printed text and its provenance. Export to the target workbook (sheets Metadata, Logdata and Test Results, plus a Provenance sheet) and to CSV. Every record is also available as JSON through the REST API | `frontend/src/schema/targetFormat.ts`, `frontend/src/export/standardXlsx.ts`, `frontend/src/export/csv.ts`, `contracts/openapi.yaml`. Tests: `frontend/src/schema/targetFormat.test.ts`, `frontend/src/export/standardXlsx.test.ts` |
+| **Soil/Rockprofile:** DIN 4023 hatching and colour | A deterministic DIN mapper codes each layer from its printed description, using 49 codes and 132 SVG hatch patterns and symbols. Profiles are drawn per DIN 4023 and can be exported as PNG or SVG | `backend/app/bh3/din.py`, `backend/app/normalize/lithology.py`, `assets/din4023_patterns/`. Tests: `backend/tests/test_din_fallback.py`, `frontend/e2e/chartExport.spec.ts`. Measured: 92 % coded |
+| **"Not found in source" is not 0;** the original value is shown next to the normalised one | Absent values are `not_in_source` and unreadable ones `illegible`, stored as `null` with a reason. There is never a default value. The verify view shows the original page beside the reconstruction, with each value's box drawn on it | `backend/data/prompts/extractor.txt`, `backend/app/pipeline/provenance.py`, `frontend/src/screens/verify/`. Tests: `frontend/e2e/review.spec.ts`, `frontend/e2e/sheetSource.spec.ts` |
+| **Georeferenced, searchable central database** | PostgreSQL 16 with PostGIS and pgvector, schema managed by Alembic migrations. Search by text, place, drawn shape or planned route (ellipsoidal buffer, with chainage). A chat assistant answers through 8 typed tools, and every number it gives comes from SQL | `db/Dockerfile`, `backend/migrations/versions/`, `backend/app/db/models.py`, `backend/app/geo/filters.py`, `backend/app/geo/alignments.py`, `backend/app/chat/tools.py`. Tests: `backend/tests/test_migrations.py`, `test_api.py`, `test_alignments_api.py`, `test_chat_tools.py` |
+| **Interactive world map** | An LGRB-style map with pins coloured by review status, a counting legend, place search, shape selection, planned routes, a "Not on map" list with reasons, and a printable report for any selection | `frontend/src/screens/map/`, `frontend/src/screens/sheet/`, `frontend/src/report/`. Tests: `frontend/e2e/map.spec.ts`, `explore.spec.ts`, `report.spec.ts` |
+| **Human review** (our scope: never guess silently) | 9 typed clarification questions. One-click approval of clean values. Every edit is a revision with the person's name | `backend/app/clarify/service.py`, `backend/app/review/service.py`, `frontend/src/screens/review/`, `frontend/src/screens/inbox/`. Tests: `backend/tests/test_review_service.py`, `test_demo_questions.py`, `frontend/e2e/inbox.spec.ts` |
+| **Builds from a fresh clone; clear run instructions** | The root `docker-compose.yml` builds and starts everything with no secrets and no host tools besides Docker. With no key the app runs in demo mode | [Build and evaluation](#build-and-evaluation), `.github/workflows/backend.yml` (job `build`), `.github/workflows/frontend.yml` (job `web image`) |
+| **No challenge data and no API keys in git** | Keys come only from the environment or a git-ignored `.env`. CI fails if a document, spreadsheet or scan is committed. The web build fails if fictional sample data reaches the bundle | `.gitignore`, `.env.example`, `.github/workflows/backend.yml` (job `data-guard`), `frontend/scripts/check-dist.mjs`, [Data rule](#data-rule) |
 
 ---
 
@@ -30,11 +77,59 @@ Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · heal
 | **Vector logs** | Read from the PDF text layer with **no OCR and no vision call**: 100 % of boundaries and 9/9 header fields on the corpus's clean vector-log report |
 | **DIN coding coverage** | **92 %** of 3,805 real layer descriptions get a DIN 4023 code (75 % before the page reader's mapper). Where the codebase's two DIN mappers both code a layer, they agree exactly on 88 % |
 | **Throughput** | Full challenge corpus (18 documents, 1,034 pages) in 98 minutes, about 0.6 US cents per page with the model used in development. Every stage caches its answers, so a retry repeats no vision call |
-| **Tests** | **3,180 passing tests**: 1,520 backend (pytest on real PostGIS) and 1,660 frontend (vitest), plus 15 Playwright end-to-end specs with 149 tests. None of them makes a paid provider call |
+| **Tests** | **3,190 passing tests**: 1,530 backend (pytest on real PostGIS) and 1,660 frontend (vitest), plus 15 Playwright end-to-end specs with 149 tests. None of them makes a paid provider call |
 | **Interface contract** | OpenAPI 3.1 contract with 38 operations and 100 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
 | **Deployment** | One `docker compose up`. Runs on premise. Model-agnostic through OpenRouter, with an optional bundled Ollama service for local models |
 
 The accuracy, coverage and throughput figures were measured during development on the challenge corpus and 21 hand-labelled pages. Method and per-version history are in [`docs/design/main-vs-bh3.md`](docs/design/main-vs-bh3.md). The labels themselves stay out of git (see [Data rule](#data-rule)).
+
+---
+
+## Build and evaluation
+
+The root [`docker-compose.yml`](docker-compose.yml) is the build. It needs no secrets and no `.env` (`env_file: required: false`). The only host tool it needs is Docker with Compose 2.24 or newer.
+
+**`docker compose build`** builds three images from source:
+- `db`: PostgreSQL 16 + PostGIS + pgvector ([`db/Dockerfile`](db/Dockerfile)).
+- The backend runtime shared by `migrate`, `api` and `worker` ([`backend/Dockerfile`](backend/Dockerfile)): FastAPI, the Procrastinate worker and Alembic, installed from the locked [`backend/uv.lock`](backend/uv.lock).
+- `web` ([`frontend/Dockerfile`](frontend/Dockerfile)): `npm ci`, the TypeScript compile (`tsc -b`), the Vite production build, then a `check:dist` guard ([`frontend/scripts/check-dist.mjs`](frontend/scripts/check-dist.mjs)) that fails the build if fictional sample data reached the bundle. nginx serves the result.
+
+**`docker compose up`** starts `db`, then `migrate` (`alembic upgrade head`, 7 migrations), then `api` and `worker`, then `web`. Each one waits for the one before it to report healthy or to finish. `api`, `worker`, `web` and `db` all have health checks. With no provider key the API runs in **demo mode**: `/api/health` answers `"mode": "demo"`, every screen works, and uploads answer `409 demo_mode`.
+
+**Checked the way an automated build sees it** (2026-10-18): a fresh clone of `main` with LF line endings, no `.env`, run under its own project name and ports.
+- `docker compose build --no-cache` passed in 5 min 20 s.
+- `docker compose up -d --wait` exited 0 about 1 minute later. `/api/health` answered 200 with `"mode": "demo"`, both directly and through the web proxy. The web app served `/` and client-side routes. The database was at migration `0007`, with PostGIS 3.5 and pgvector 0.8.
+
+**Tests.** No test calls a paid provider: provider clients are faked, and the test service has blank keys.
+
+```bash
+make test           # backend suite in Docker against real PostGIS: unit, API, service, migration and contract tests
+make contract-test  # only the contract tests
+make lint           # ruff check, ruff format --check, mypy
+cd frontend && npm ci && npm test   # vitest
+cd frontend && npm run e2e          # Playwright; starts the app in sample mode by itself
+```
+
+| Suite | Size |
+|---|---|
+| Backend (pytest, real PostGIS) | **1,530 passed** from 65 files (681 test functions, expanded by parametrisation), about 13 minutes |
+| Backend contract tests | 61 test functions over 100 example files |
+| Frontend unit (vitest) | **1,660 passed** in 105 files |
+| Frontend end-to-end (Playwright) | 15 specs, 149 tests: map, review, inbox, queue, explore, chat, selection report, accessibility, responsive layout, chart export |
+
+**CI** (`.github/workflows/`) runs on every push and pull request that touches code, contracts, the compose file or a data-like file:
+- [`.github/workflows/backend.yml`](.github/workflows/backend.yml):
+  - `lint`: ruff and mypy;
+  - `test`: the backend suite and the contract tests against PostGIS;
+  - `build`: `docker compose config` with no `.env`, then a build of the db and backend images;
+  - `data-guard`: fails if a document, spreadsheet or scan is committed outside `docs/`, `assets/` and two reviewed UI-image folders.
+- [`.github/workflows/frontend.yml`](.github/workflows/frontend.yml):
+  - `test, build, e2e`: generated API types that must match the OpenAPI contract, vitest, the production build, the no-sample-data guard and Playwright;
+  - `web image`: builds the web image and checks that it starts and serves the app.
+
+**Evaluation harness.** `make eval` runs the real pipeline on sample files you point it at (`EVAL_DATA_DIR`, `EVAL_EXPECTED`).
+- It scores borehole count, labels, coordinates, CRS status, total depth (±5 mm), layer count, unplotted reason and duplicates. Every miss gets a named failure category.
+- It stops before a `--max-usd` cap. It writes only metrics, never values from the files, to `docs/eval/report.md`. No report is committed. See [`docs/eval/README.md`](docs/eval/README.md).
 
 ---
 
@@ -114,17 +209,7 @@ make unseed    # docker compose exec api python -m app.seed --remove
   Without `--password` the password is asked for twice. A reset signs that account out everywhere.
 - `AUTH_REGISTRATION=closed` lets only the first account register in the browser. `AUTH_ENABLED=false` turns sign-in off for a local machine; every change is then recorded as "Local user".
 
-### What the automated build checks
-
-The root `docker-compose.yml` is the build. On a plain Linux machine with no secrets:
-
-- `docker compose build` builds three images from source:
-  - the PostgreSQL 16 + PostGIS + pgvector database;
-  - the backend runtime (FastAPI, worker, Alembic migrations);
-  - the web app (TypeScript compile, Vite build, a `check:dist` guard that no sample data ships, then nginx).
-- `docker compose up` starts the full stack in demo mode. Migrations run automatically, and the API and web containers have health checks.
-- `.env` is optional (`env_file: required: false`). No build step needs a key or a private registry.
-- CI checks the compose file with no `.env` and builds the db and backend images (`.github/workflows/backend.yml`, job `build`) on every push that touches the backend, database, contracts or compose file. `frontend.yml` builds the web image and checks that it starts and serves the app. Lint, type checks and both test suites run alongside.
+What the build checks, and how to run the tests, is in [Build and evaluation](#build-and-evaluation).
 
 ---
 
@@ -341,37 +426,6 @@ Bormisu is fully dockerized and runs on your own hardware:
 | `assets/din4023_patterns/` | DIN 4023 codes, colours, hatch patterns and symbols |
 
 The HTTP and streaming interface is specified in [`contracts/openapi.yaml`](contracts/openapi.yaml) and [`contracts/realtime-and-chat.md`](contracts/realtime-and-chat.md).
-
----
-
-## Quality: tests, CI and evaluation
-
-```bash
-make test           # backend unit, API, service, migration and contract tests in Docker (PostGIS included)
-make contract-test  # only the contract tests
-make lint           # ruff check, ruff format --check, mypy
-cd frontend && npm test && npm run e2e   # vitest and Playwright
-```
-
-| Suite | Size |
-|---|---|
-| Backend (pytest, real PostGIS) | **1,520 passed** from 64 files (673 test functions, expanded by parametrisation), about 13 minutes |
-| Backend contract tests | 61 test functions over 100 example files |
-| Frontend unit (vitest) | **1,660 passed** in 105 files |
-| Frontend end-to-end (Playwright) | 15 specs, 149 tests: map, review, inbox, queue, explore, chat, selection report, accessibility, responsive layout, chart export |
-
-- **No paid calls in tests.** Provider clients are faked and the test service has blank keys, so a test can never reach a paid provider.
-- **CI on every push and pull request that touches code, contracts, the compose file or a data-like file** (`.github/workflows/`):
-  - ruff and mypy;
-  - the backend suite against PostGIS;
-  - the contract tests;
-  - generated frontend API types that must match the OpenAPI contract;
-  - vitest, a production build with a no-sample-data guard, Playwright, and a container smoke test of the web image;
-  - the no-`.env` compose build;
-  - a data guard that fails if a real document is committed.
-- **Evaluation harness.** `make eval` runs the real pipeline on sample files you point it at (`EVAL_DATA_DIR`, `EVAL_EXPECTED`).
-  - It scores borehole count, labels, coordinates, CRS status, total depth (±5 mm), layer count, unplotted reason and duplicates, with a named failure category for every miss.
-  - It stops before a `--max-usd` cap and writes only metrics, never values from the files, to `docs/eval/report.md`. See [`docs/eval/README.md`](docs/eval/README.md).
 
 ---
 

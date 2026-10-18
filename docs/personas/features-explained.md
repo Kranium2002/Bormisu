@@ -29,7 +29,7 @@ The personas are simulated (AI agents role-playing Herrenknecht jobs), not inter
 
 **What you see:** `make setup && make run` starts the whole app on one port. Without an API key, the app opens in **demo mode** with a fictional sample report already loaded, and a banner reads "Live extraction needs a key".
 
-**Why:** this one comes from the AI code judge, not from a persona. The judge clones the repo fresh and builds it, and build failures cost points. Keys can't go in git, so the judge will have no key. Without demo mode the judge would see an empty or crashing app.
+**Why:** this one comes from the code assessment, not from a persona. An automated build clones the repo fresh and builds it, and build failures cost points. Keys can't go in git, so that build has no key. Without demo mode it would see an empty or crashing app.
 
 **How it works:** the backend serves the built frontend, so it runs as one process on one port. Lockfiles are committed. CI runs setup, tests and the build on a clean machine on every push.
 
@@ -89,7 +89,7 @@ Normalisers are small pure functions, each one tested against a table of input/o
 - **ft → m** conversion.
 - **Coordinates → WGS84** for the map, plus a CRS status: *stated* by the report or *inferred* by us.
 
-**Who asked:** geotechnical engineer, geologist, reviewer. The table-driven tests also score well with the code judge.
+**Who asked:** geotechnical engineer, geologist, reviewer. The table-driven tests also count towards the code score.
 
 ## 5. Source viewer and "Show source" · M · 3 h (the demo's wow moment)
 
@@ -282,5 +282,5 @@ Keyboard review is the real productivity win for QA staff, but it's invisible in
 ## How the features fit together
 
 - **One record powers Part 1.** Nearly everything depends on one decision in feature 2: every value carries its raw text, page, box and method. "Show source", approved-only export, the method badges and the open-questions list all read from that one record. That's why the plan builds feature 2 first.
-- **Two missing objects block most of the roadmap:** a **project record** (route, diameter, TBM type, confidentiality) and **user accounts**. Groups A and E need the project record. Groups B and C need accounts. Neither shows up on screen, so they lose this weekend to things the judges can see.
+- **Two missing objects block most of the roadmap:** a **project record** (route, diameter, TBM type, confidentiality) and **user accounts**. Groups A and E need the project record. Groups B and C need accounts. Neither shows up on screen, so they lose this weekend to things the jury can see.
 - **Groundwater is the shared gap.** Besides "Show source", groundwater is the only need all 5 personas shared, and Herrenknecht's own target format stores it as a single number. That makes a good line for the "problem understanding" part of the pitch.

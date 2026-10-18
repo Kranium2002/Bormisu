@@ -72,7 +72,7 @@ def _merge_layers(layers: list[Layer]) -> list[Layer]:
 
 # fields the text model may fill from the header text when the aliases / vision header missed them.
 # BoreholeDepth is deliberately absent: the model tends to pick any depth-like number from the header
-# (AUS01: 16.0 from the elevation column), and validate.py derives the depth from the terminal note /
+# (a value from the elevation column, for example), and validate.py derives the depth from the terminal note /
 # last layer bottom, which is far more reliable.
 META_KEYS = ["BoreholeName", "LocationName", "StartDate", "EndDate", "ProjectID", "ProjectName", "Surface Elevation",
              "X-Coordinate", "Y-Coordinate", "CoordinateSystem", "Groundwaterlevel"]

@@ -288,7 +288,7 @@ The response is the updated `BoreholeRecord`.
 
 ## 7. Other things we noticed (not UI, but they cost points)
 
-1. **Tests fail on a fresh clone.** `backend/tests/test_api_and_schemas.py` expects ≥ 10 boreholes in the local cache, and the cache is gitignored. The AI judge builds from a fresh clone, so these tests fail there. Fix: commit a small **fictional** fixture (one generated document JSON) and point the tests and demo mode at it.
+1. **Tests fail on a fresh clone.** `backend/tests/test_api_and_schemas.py` expects ≥ 10 boreholes in the local cache, and the cache is gitignored. An automated build starts from a fresh clone, so these tests fail there. Fix: commit a small **fictional** fixture (one generated document JSON) and point the tests and demo mode at it.
 2. **Upload filename used as a path.** `UPLOADS_DIR / file.filename` lets a filename like `../../x` write outside `uploads/`. Use a generated name, e.g. `document_id + suffix`.
 3. **A personal path as a default.** `.env.example` and `analytics.py` default `DATASET_PATH` to a personal Windows folder. Use a relative default, or none.
 4. **Substring match** in `get_borehole` and the export routes (see §4.3).

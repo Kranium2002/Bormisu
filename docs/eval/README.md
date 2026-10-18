@@ -2,7 +2,7 @@
 
 `python -m app.eval` runs GeoMemory's real pipeline (classifier, Mistral OCR, extractor, normalisation) on
 sample files, compares what it stored with an expected-results file and writes
-[`docs/eval/report.md`](report.md). It is the evaluation from `docs/handover/BACKEND.md` section 11.
+`docs/eval/report.md` (created by the run; none is committed). It is the evaluation from `docs/handover/BACKEND.md` section 11.
 
 It spends real money: every run uses the provider keys from `.env` and stops at a cost cap you choose. It is
 never part of `make test` or CI. The tests (`backend/tests/test_eval.py`) run it on fictional PDFs with fake

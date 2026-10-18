@@ -2,7 +2,7 @@
 
   triage (keywords, depth scale) -> geometry (ruled columns -> layers / points) -> header aliases
 
-Frozen: it is exact on clean vector logs (AUS01, AF01, FullReport01) and is only ever extended through
+Frozen: it is exact on clean vector logs and is only ever extended through
 the regression eval. Pages it cannot parse (< 2 layers, no scale) go to the vision path with the
 page's text as a transcript hint (bh3.extract).
 """
