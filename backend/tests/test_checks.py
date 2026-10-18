@@ -808,18 +808,29 @@ async def test_a_borehole_without_coordinates_but_with_a_place_is_asked_to_be_lo
             "groundwater": [],
         }
         nowhere = {"metadata": {"borehole_id": "Q-4"}, "stratigraphy": [], "groundwater": []}
+        log_only = {
+            "metadata": {"borehole_id": "Q-6"},
+            "stratigraphy": [{"depth_from_m": 0.0, "depth_to_m": 3.0}],
+            "groundwater": [],
+        }
         a = await add_borehole(session, doc, "g1", unplaced, crs_status="unknown", crs_code=None, page=2)
         b = await add_borehole(session, doc, "g2", nowhere, crs_status="unknown", crs_code=None, page=3)
         c = await add_borehole(session, doc, "g3", utm_body("Q-5", 320512.0, 5812334.0, location_name="X"))
+        d = await add_borehole(session, doc, "g4", log_only, crs_status="unknown", crs_code=None, page=4)
         await session.commit()
     await finalize_document(doc.id)
     await finalize_document(doc.id)
-    (question,) = await clarifications("locate_borehole")
+    asked = {q.borehole_uids[0]: q for q in await clarifications("locate_borehole")}
+    assert set(asked) == {a.uid, d.uid}  # an empty record or printed coordinates: nothing to ask
+    question = asked[a.uid]
     await assert_contract(question)
-    assert question.borehole_uids == [a.uid] and "Fictional Quarry Road" in question.question
+    assert "Fictional Quarry Road" in question.question
     assert [f["widget"] for f in question.fields] == ["map_point", "text"]
     assert question.evidence[0]["page"] == 2 and question.evidence[0]["snippet"] == "Fictional Quarry Road"
-    assert b.uid and c.uid  # no coordinates and no place, or printed coordinates: nothing to ask
+    # a log with layers but no coordinates and no place is asked too: nothing in the document places it
+    await assert_contract(asked[d.uid])
+    assert "no coordinates and no printed place" in asked[d.uid].question
+    assert b.uid and c.uid
 
     await answer(
         question.id, {"location": {"lat": -33.91, "lon": 151.07}, "source_note": "site plan, sheet 2"}
