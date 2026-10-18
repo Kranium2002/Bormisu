@@ -788,11 +788,17 @@ class _Builder:
                 self.warnings.append(f"layer {index + 1}: DIN code without a printed description dropped")
             return
         text_code = lithology.din_code_from_text(description, language)
+        for fallback in (self.language, None):  # the page's language, then every listed language
+            if text_code is None and fallback != language:
+                text_code = lithology.din_code_from_text(description, fallback)
+        notation_code = lithology.din_code_from_notation(layer.din4023_notation)
         code: str | None = None
         method: MethodLiteral = "derived"
         if model_code is not None:
             # The model's reading of the description; derived when the vocabulary agrees with it.
-            code, method = model_code, "derived" if text_code == model_code else "guessed"
+            code, method = model_code, "derived" if model_code in (text_code, notation_code) else "guessed"
+        elif notation_code is not None:
+            code = notation_code  # the printed short notation names the main component
         elif text_code is not None:
             code = text_code
         item.data["din4023_code"] = code

@@ -174,3 +174,32 @@ def test_two_different_main_nouns_give_no_code(
         return  # fill and topsoil win over the soil they consist of
     text = f"{first[2].upper()} and {second[2].upper()}"
     assert din_code_from_text(f"grey {text}", first[1]) is None, text
+
+
+def test_a_din_short_form_printed_in_brackets_names_the_main_component() -> None:
+    """Fictional descriptions with the short form after the words; the language tag does not matter."""
+    for language in ("de", "en", None):
+        assert din_code_from_text("Feinsand (schwach schluffig) (fS(u'))", language) == "fS"
+        assert din_code_from_text("Schluff, tonig (U)", language) == "U"
+        assert din_code_from_text("Kies (sandig) (G(s))", language) == "G"
+    # two different short forms in brackets: not certain
+    assert din_code_from_text("Wechsellagerung (T) und (G)", "de") is None
+
+
+def test_the_main_code_of_a_printed_short_notation() -> None:
+    from app.normalize.lithology import din_code_from_notation
+
+    assert [din_code_from_notation(n) for n in ("fS(u)", "G(s)", "U", "G, s, u'", "fS,ms")] == [
+        "fS",
+        "G",
+        "U",
+        "G",
+        "fS",
+    ]
+    assert [din_code_from_notation(n) for n in ("Sand", "xyz(u)", "", None, "G (sandy gravel)")] == [
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
