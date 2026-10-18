@@ -829,7 +829,7 @@ async def test_a_borehole_without_coordinates_but_with_a_place_is_asked_to_be_lo
     assert question.evidence[0]["page"] == 2 and question.evidence[0]["snippet"] == "Fictional Quarry Road"
     # a log with layers but no coordinates and no place is asked too: nothing in the document places it
     await assert_contract(asked[d.uid])
-    assert "no coordinates and no printed place" in asked[d.uid].question
+    assert "no coordinates and no readable place" in asked[d.uid].question
     assert b.uid and c.uid
 
     await answer(
