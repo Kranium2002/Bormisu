@@ -30,7 +30,7 @@ Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · heal
 | **Vector logs** | Read from the PDF text layer with **no OCR and no vision call**: 100 % of boundaries and 9/9 header fields on the corpus's clean vector-log report |
 | **DIN coding coverage** | **92 %** of 3,805 real layer descriptions get a DIN 4023 code (75 % before the page reader's mapper). Where the codebase's two DIN mappers both code a layer, they agree exactly on 88 % |
 | **Throughput** | Full challenge corpus (18 documents, 1,034 pages) in 98 minutes, about 0.6 US cents per page with the model used in development. Every stage caches its answers, so a retry repeats no vision call |
-| **Tests** | **3,055 passing tests**: 1,419 backend (pytest on real PostGIS) and 1,636 frontend (vitest), plus 15 Playwright end-to-end specs with 125 tests. None of them makes a paid provider call |
+| **Tests** | **3,180 passing tests**: 1,520 backend (pytest on real PostGIS) and 1,660 frontend (vitest), plus 15 Playwright end-to-end specs with 149 tests. None of them makes a paid provider call |
 | **Interface contract** | OpenAPI 3.1 contract with 38 operations and 100 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
 | **Deployment** | One `docker compose up`. Runs on premise. Model-agnostic through OpenRouter, with an optional bundled Ollama service for local models |
 
@@ -355,10 +355,10 @@ cd frontend && npm test && npm run e2e   # vitest and Playwright
 
 | Suite | Size |
 |---|---|
-| Backend (pytest, real PostGIS) | **1,419 passed** from 58 files (610 test functions, expanded by parametrisation), about 8½ minutes in Docker |
+| Backend (pytest, real PostGIS) | **1,520 passed** from 64 files (673 test functions, expanded by parametrisation), about 13 minutes |
 | Backend contract tests | 61 test functions over 100 example files |
-| Frontend unit (vitest) | **1,636 passed** in 100 files |
-| Frontend end-to-end (Playwright) | 15 specs, 125 tests: map, review, inbox, queue, explore, chat, selection report, accessibility, responsive layout, chart export |
+| Frontend unit (vitest) | **1,660 passed** in 105 files |
+| Frontend end-to-end (Playwright) | 15 specs, 149 tests: map, review, inbox, queue, explore, chat, selection report, accessibility, responsive layout, chart export |
 
 - **No paid calls in tests.** Provider clients are faked and the test service has blank keys, so a test can never reach a paid provider.
 - **CI on every push and pull request that touches code, contracts, the compose file or a data-like file** (`.github/workflows/`):
