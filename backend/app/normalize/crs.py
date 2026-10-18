@@ -433,15 +433,44 @@ def _from_patterns(system_raw: str, coords: CoordinateResult | None) -> CrsResul
     if hemisphere and datum_hemisphere and hemisphere != datum_hemisphere:
         return CrsResult(None, reason=f"'{printed}': {datum_name} grids lie in the other hemisphere")
     hemisphere = hemisphere or datum_hemisphere
-    if grid.needs_hemisphere and hemisphere is None:
-        return CrsResult(None, reason=f"'{printed}': the hemisphere of zone {zone} is not stated")
-
     template = grid.datum_templates.get(datum_name, grid.template)
+    if grid.needs_hemisphere and hemisphere is None:
+        found = _hemisphere_from_position(template, datum_name, zone, coords)
+        if found is None:
+            return CrsResult(None, reason=f"'{printed}': the hemisphere of zone {zone} is not stated")
+        hemisphere, hemisphere_note = found
+        zone_note = "; ".join(n for n in (zone_note, hemisphere_note) if n)
+
     name = template.format(datum=datum_name, zone=zone, hemisphere=hemisphere or "")
     code, why = _code_for(name, "projected")
     if code is None:
         return CrsResult(None, reason=why)
     return CrsResult(code, label=name, reason=zone_note)
+
+
+def _hemisphere_from_position(
+    template: str, datum_name: str, zone: int, coords: CoordinateResult | None
+) -> tuple[str, str] | None:
+    """The hemisphere of a zone printed without one ("WGS 84, UTM zone 32"), from the printed grid values:
+    the one reading whose point lies inside its area of use and on or near land (the ranking's land margin).
+    None when the values are not grid values or both readings (or neither) fit."""
+    if coords is None or coords.kind != "projected" or coords.local_x is None or coords.local_y is None:
+        return None
+    fitting: list[str] = []
+    for hemisphere in ("N", "S"):
+        code, _ = _code_for(template.format(datum=datum_name, zone=zone, hemisphere=hemisphere), "projected")
+        if code is None:
+            continue
+        _, _, bounds = _crs_info(code)
+        point = to_wgs84(code, coords.local_x, coords.local_y)
+        if point is None or bounds is None or not _inside(point[0], point[1], bounds):
+            continue
+        if near_land(round(point[0], 2), round(point[1], 2), ranking_config().land_margin_km):
+            fitting.append(hemisphere)
+    if len(fitting) != 1:
+        return None
+    side = "northern" if fitting[0] == "N" else "southern"
+    return fitting[0], f"hemisphere not printed: only the {side} reading of zone {zone} lies on land"
 
 
 def _check_against(result: CrsResult, coords: CoordinateResult | None) -> CrsResult:
@@ -521,6 +550,11 @@ def _names_a_system(text: str) -> bool:
         or p.epsg_pattern.search(text) is not None
         or any(pattern.search(text) for pattern in p.local_patterns)
     )
+
+
+def names_a_system(system_raw: str) -> bool:
+    """The printed text names a datum, grid, national system, EPSG code or local grid term."""
+    return _names_a_system(_norm(system_raw))
 
 
 def map_sheet(system_raw: str | None) -> bool:

@@ -250,7 +250,7 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     new group starts once one has failed. Groups without readable text are held back and reported together
     as a StageError that rewinds the document to before OCR.
     """
-    from app.pipeline import bh3_adapter, identity
+    from app.pipeline import bh3_adapter, identity, positions
     from app.pipeline import extract as extract_module
     from app.pipeline import finalize as finalize_module
     from app.pipeline import group as group_module
@@ -328,12 +328,24 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     # Stored only when every group was read: a part stored alone would become a second borehole once the
     # rest is merged on the retry (which reuses the stored extraction runs and bh3's cache, so it is free).
     tables = await identity.document_tables(document_id) if not errors else identity.Tables({})
-    boreholes = identity.reconcile(ready, tables) if not errors else []
+    reconciled = identity.reconcile(ready, tables) if not errors else []
+    # positions and depths the document's own tables print where a sheet's are missing or not trusted
+    labels = {i.group.label_canonical: i.group.label_raw or "" for i in reconciled if i.group.label_canonical}
+    index = await positions.load_tables(document_id, labels) if labels else positions.TableIndex({}, {})
+    boreholes = positions.apply_tables(reconciled, index)
     alone = len(boreholes) == 1 and not finished  # the document's only borehole (boundary questions)
-    for item in boreholes:
+    for item, adjusted in boreholes:
         if item.group.key in finished:
             continue
-        uid = await finalize_module.finalize_group(document_id, item.group, item.outcome, alone=alone)
+        uid = await finalize_module.finalize_group(
+            document_id,
+            item.group,
+            item.outcome,
+            alone=alone,
+            notes=adjusted.notes,
+            flags=adjusted.flags,
+            readings=adjusted.readings,
+        )
         if uid is None:
             logger.warning("document %s group %s produced no borehole", document_id, item.group.key)
         elif item.aliases:

@@ -63,3 +63,10 @@ tie_margin: 0.002
 
 # At most this many places are considered for one value (a value printed more often keeps its blocks).
 max_candidates: 64
+
+# An OCR route that reports no confidence (a vision model reading the page render) leaves the values of a
+# handwritten page without one, and the review would show them as certain. A block on a page the classifier
+# marks with one of these handwriting levels, and without a confidence of its own, counts at this confidence:
+# below OCR_LOW_CONFIDENCE, so the value is marked unsure for review and a second read checks it.
+handwriting_levels: [partial, full]
+handwriting_confidence: 0.6

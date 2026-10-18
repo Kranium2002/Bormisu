@@ -40,6 +40,7 @@ from app.normalize.lithology import valid_din_code
 from app.normalize.numbers import after_field_label, parse_number
 from app.normalize.units import canonical_unit, lab_tests, match_lab_test
 from app.pipeline import textlayer
+from app.pipeline.provenance import handwriting_levels
 from app.pipeline.schemas import EXTRACTION_SCHEMA_VERSION, ExtractionResult
 from app.pipeline.types import BlockRef, ExtractionInput, ExtractionOutcome, PageGroup
 from app.providers.base import ProviderError, token_cost
@@ -351,7 +352,12 @@ def _text_layer_blocks(page: Page) -> list[dict[str, Any]] | None:
         return None
     if not isinstance(payload, dict):
         return None
-    return textlayer.line_blocks(textlayer.page_text_from_payload(page.n, payload)) or None
+    blocks = textlayer.line_blocks(textlayer.page_text_from_payload(page.n, payload))
+    if page.handwriting in handwriting_levels():
+        # a scan's text layer of handwriting is a reading, not the printed text: no confidence of its own
+        for block in blocks:
+            block["confidence"] = None
+    return blocks or None
 
 
 async def _load(document_id: str, group: PageGroup) -> _Loaded:
