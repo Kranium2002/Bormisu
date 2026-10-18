@@ -22,11 +22,11 @@ from typing import Any
 
 from sqlalchemy import select
 
-from app.db.models import Page
+from app.db.models import Document, Page
 from app.db.session import get_sessionmaker
 from app.normalize.numbers import parse_number
 from app.pipeline.extract import _depth_order, _fill_header, merge_results
-from app.pipeline.group import DUPLICATE_ROLE, clean_label, group_key, label_prefix_words
+from app.pipeline.group import DUPLICATE_ROLE, clean_label, file_numbers, group_key, label_prefix_words
 from app.pipeline.provenance import printed
 from app.pipeline.schemas import ExtractionResult, RawValue
 from app.pipeline.types import BlockRef, ExtractionOutcome, PageGroup
@@ -76,12 +76,18 @@ async def document_tables(document_id: str) -> Tables:
     tables = [(n, labels) for n, role, _, labels in rows if role in TABLE_ROLES]
     labels = (label for _, labels in tables for label in (labels or []))
     used = [labels or [] for _, role, used, labels in rows if used and role != DUPLICATE_ROLE]
-    return Tables(ids_from_labels(labels), frozenset(int(n) for n, _ in tables), document_identifiers(used))
+    async with get_sessionmaker()() as session:
+        doc = await session.get(Document, document_id)
+    # a bare number of the file name printed on a page is the record's archive or registry number
+    stamps = {str(n) for n in file_numbers(doc.file_name if doc else None)}
+    return Tables(
+        ids_from_labels(labels), frozenset(int(n) for n, _ in tables), document_identifiers(used) | stamps
+    )
 
 
 def document_identifiers(page_labels: Sequence[Sequence[str]]) -> frozenset[str]:
     """Labels printed on every page of a document (an archive or file number stamped on each page, "BO
-    7513/324") while its pages also name another borehole: the document's identifier, not a borehole name.
+    8016/924") while its pages also name another borehole: the document's identifier, not a borehole name.
     `page_labels`: the classifier's labels of each used page. Needs two pages at least."""
     if len(page_labels) < 2:
         return frozenset()
@@ -591,6 +597,11 @@ def _merge_across(items: Sequence[Reconciled], tables: Tables) -> list[Reconcile
             return False
         if label in listed and any(other in listed for other in labels):
             return False  # the tables list both: two boreholes
+        stamp = label in tables.document_ids or bool(labels & tables.document_ids)
+        if stamp and any(set(m.group.pages) & set(part.group.pages) for m in cluster):
+            # the document's archive or registry number read as a name on a page of a named borehole
+            positions = {pos for m in [*cluster, part] if (pos := _printed_position(m)) is not None}
+            return len(positions) <= 1
         return all(_one_hole(member, part) for member in cluster)
 
     ranked = sorted(labelled, key=_completeness, reverse=True)

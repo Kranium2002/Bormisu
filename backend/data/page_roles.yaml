@@ -28,6 +28,13 @@ label_prefixes:
           bohrung, bohrloch, perforación, perforacion, perfuração, perfuracao, furo, boorgat, boring nr,
           borhull, borhål, borehul, sonda, hull, id, punkt, pkt]
   number_signs: ["no.", "no", "nr.", "nr", "n°", "nº", "n.", "#", "number", "núm.", "núm", "num.", "nummer"]
+# Archive and registry stamps on a page ("Archiv 8016/924", "Registratur", "Aktenzeichen ..."): their numbers
+# file the record, they never name a borehole (app.pipeline.group). A page label that contains one of these
+# words, or whose number follows one of them in the page's text, or a bare number equal to a number in the
+# document's file name, is not a borehole label when the page names another one.
+archive_stamp_words: [archiv, archive, archives, archivnummer, archiv-nr, archiv nr, registratur, registry,
+                      register-nr, aktenzeichen, akte, file no, file number, archive no, archive number,
+                      dossier, n° d'archive, archivo, arquivo]
 # Second opinion on a classifier outlier (app.pipeline.classify.second_opinion): a page put in a role that
 # feeds no extraction although it looks like the log sheets around it (a log neighbour of the same page
 # size, and handwriting or log sheets on both sides) is labelled again with the extractor model. At most
