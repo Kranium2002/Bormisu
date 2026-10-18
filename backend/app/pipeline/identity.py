@@ -287,10 +287,19 @@ def _one_edit(a: str, b: str) -> bool:
     return any(long[:i] + long[i + 1 :] == short for i in range(len(long)))
 
 
+def _readings(label: str) -> set[str]:
+    """The ways a label may name an ID: the whole label without its borehole word, and every word of it that
+    carries a digit ("5026" in "Holl m 5026", where the borehole word and number sign were misread too)."""
+    cleaned = clean_label(label)
+    words = (w for w in re.split(r"[\s:#]+", cleaned) if any(ch.isdigit() for ch in w))
+    return {r for r in (canonical_label(cleaned), *(canonical_label(w) for w in words)) if r}
+
+
 def _one_off(items: list[Reconciled], listed: dict[str, str]) -> list[Reconciled]:
     """A borehole whose ID was read with one character wrong ("5024" for a listed "502b") takes the one listed
-    ID that no other borehole holds and that differs from its reading by one character, when exactly one such
-    ID exists and no other borehole is that close to it. The reading stays as an alias."""
+    ID that no other borehole holds and that its reading (the label, or a word of it with a digit) matches or
+    differs from by one character, when exactly one such ID exists and no other borehole is that close to it.
+    The reading stays as an alias."""
     held = {item.group.label_canonical for item in items if item.group.label_canonical in listed}
     free = [c for c in listed if c not in held]
     near: dict[int, list[str]] = {}
@@ -298,8 +307,12 @@ def _one_off(items: list[Reconciled], listed: dict[str, str]) -> list[Reconciled
         label = _label_of(item)
         if not item.group.label_canonical or item.group.label_canonical in listed or label is None:
             continue
-        read = canonical_label(clean_label(label))
-        near[i] = [c for c in free if _one_edit(read, c)]
+        reads = _readings(label)
+        near[i] = [
+            c
+            for c in free
+            if any(r == c or (_one_edit(r, c) and min(len(r), len(c)) >= MIN_BARE_LENGTH) for r in reads)
+        ]
     claims = Counter(c for found in near.values() for c in found)
     out = list(items)
     for i, found in near.items():

@@ -152,3 +152,18 @@ def test_an_id_read_one_character_wrong_takes_the_one_free_listed_id() -> None:
     # two readings one character from the same free ID: neither takes it
     twins = [*parts[:2], part("7024", (3,), layers("0", "1", "4")), part("702c", (4,), layers("0", "2", "5"))]
     assert "702b" not in {i.group.label_raw for i in reconcile(twins, listed)}
+
+
+def test_a_misread_borehole_word_and_number_sign_still_lets_the_id_be_repaired() -> None:
+    listed = Tables({"701": "701", "702": "702", "702B": "702b", "705": "705"}, frozenset())
+    parts = [
+        part("701", (1,), layers("0,00", "2,00", "5,00")),
+        part("702", (2,), layers("0,00", "3,00", "6,00")),
+        part("Holl m 7026", (3,), layers("0,00", "1,00", "4,00")),  # "Hull nr 702b" misread throughout
+    ]
+    labels = sorted(i.group.label_raw or "" for i in reconcile(parts, listed))
+    assert labels == ["701", "702", "702b"]
+    # a short number is not repaired by one character ("Bohrung 7" never becomes 17)
+    short = Tables({"16": "16", "17": "17", "18": "18"}, frozenset())
+    shorts = [part("16", (1,), layers("0", "2", "5")), part("Bohrung 7", (2,), layers("0", "1", "4"))]
+    assert "17" not in {i.group.label_raw for i in reconcile(shorts, short)}
