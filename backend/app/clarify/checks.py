@@ -1,6 +1,7 @@
 """Questions raised by document-level checks (BACKEND.md 7.8 and 7.9) and what their answers change.
 
-* `locate_borehole`: a borehole without any printed coordinate but with a printed location name. The answer
+* `locate_borehole`: a borehole without any printed coordinate but with a printed location name, or a log of a
+  page document with neither (nothing in the document places it). The answer
   (a map point) is applied by app.clarify.answers through app.review.service.set_manual_location.
 * `datum_convention`: a depth sign or origin note that the printed layer depths contradict (the finding
   comes from app.validate.datum). One question per document and kind; it grows to cover every borehole of
@@ -18,6 +19,7 @@ import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -141,6 +143,24 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         ).all()
         for uid in (uids or [])
     }
+    # a log nothing places is asked about on page documents only (a layer list in a spreadsheet without
+    # positions would ask once per row), and not when a page-grouping question already asks about it
+    from app.pipeline.orchestrator import SPREADSHEET_EXTENSIONS
+
+    page_document = Path(doc.storage_key or "").suffix.lower() not in SPREADSHEET_EXTENSIONS
+    in_boundary = {
+        uid
+        for uids in (
+            await session.scalars(
+                select(Clarification.borehole_uids).where(
+                    Clarification.kind == "borehole_boundary",
+                    Clarification.document_id == doc.id,
+                    Clarification.status.in_(("open", "skipped")),
+                )
+            )
+        ).all()
+        for uid in (uids or [])
+    }
     in_grid = {
         bh.uid: grid
         for bh in boreholes
@@ -168,7 +188,13 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         if grid is None and bh.crs_status == "unknown" and unreadable_coordinates(bh.record):
             grid = "coordinates printed but not readable"  # e.g. a garbled digit: placed by a person
         location = needs_location(bh.record) if grid is None else grid
-        nowhere = grid is None and location is None and unplaced_log(bh.record)
+        nowhere = (
+            grid is None
+            and location is None
+            and page_document
+            and bh.uid not in in_boundary
+            and unplaced_log(bh.record)
+        )
         if location is None and not nowhere:
             continue
         key = f"locate_borehole:{bh.uid}"
@@ -187,7 +213,7 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
             kind="locate_borehole",
             document_id=doc.id,
             question=(
-                f"{bh.label_raw} has no coordinates and no printed place in {doc.file_name}. Where was it "
+                f"{bh.label_raw} has no coordinates and no readable place in {doc.file_name}. Where was it "
                 "drilled?"
                 if nowhere
                 else f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
