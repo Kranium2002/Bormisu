@@ -57,8 +57,10 @@
 
 ## 09 · Sovereignty
 
-> Today it runs in the Mistral cloud where you can run it under zero data retention.
-> If you want to keep the data completely private you can run a similar pipeline on open models, which run either on a premise server or your own PC.
+> You choose where it runs.
+> In the cloud, with zero data retention.
+> On your own server, so nothing leaves the building.
+> Or on a Mac mini, fully offline.
 
 ## 10 · In a nutshell
 
@@ -94,12 +96,3 @@
 - Profile: DIN 4023 profile of borehole BK-01 (fictional sample data, fully logged) from the Bormisu detail screen (`img/profile.png`).
 - Offenburg: browser screenshot of the LGRB borehole map at bohrungen.lgrb-bw.de around Offenburg (`img/offenburg-lgrb.png`, supplied by Mateo). The bubbles on the screenshot add up to about 2,680 boreholes (115 clusters = 2,668, plus 13 single points); a few clusters cut off at the edges are not fully counted.
 - Reports, front: `ToughOne1` p2 (Norway, handwritten), `AF02` p1 (Spanish soil probe sheet), `SEA01` p1 (Korean). Background: 27 more pages from the challenge dataset (`img/bg/`).
-
-### Slide 09 (sovereignty)
-
-The figures are public estimates, not measured on our data.
-
-- Qwen 3.8 27B, 4-bit MLX build ~16–19 GB, tested on a 32 GB Mac mini M4 at ~5–6 tokens/s: [orcarouter](https://www.orcarouter.ai/blog/qwen-3-8-27b-mlx)
-- PaddleOCR-VL runs on Apple Silicon via mlx-vlm: [PaddleOCR docs](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/PaddleOCR-VL-Apple-Silicon.html)
-- Not yet confirmed: whether Qwen 3.8 27B accepts images, and its licence.
-- "Le Chonk" as the nickname for Mistral Large 4: from Mateo, not checked. Cat image supplied by Mateo (`img/chonk-cat.png`).

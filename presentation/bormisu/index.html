@@ -180,10 +180,11 @@
   .tier.now li { border-top-color: rgba(255,248,236,0.16); }
   .tier li b { display: block; font-size: 17px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
   .tier.now li b { color: var(--on-dark-muted); }
-  /* easter egg: Mistral Large 4 a.k.a. "Le Chonk" */
-  .chonk { white-space: nowrap; font-size: 20px; color: var(--on-dark-muted); font-style: italic; }
-  .chonk-cat { height: 34px; width: auto; vertical-align: -8px; margin-left: 6px; image-rendering: pixelated; }
-  .tier .zdr { align-self: flex-start; background: var(--ladyfinger); color: var(--espresso); border-radius: 999px; padding: 10px 22px; font: 700 26px var(--display); letter-spacing: -0.01em; }
+  .tier .tic { width: 110px; height: 110px; color: var(--cocoa); margin-bottom: 18px; }
+  .tier.now .tic { color: var(--ladyfinger); }
+  .tiers .tier { align-items: flex-start; justify-content: center; padding: 64px 52px; min-height: 520px; }
+  .tiers .tier .h { font-size: 64px; }
+  .tiers .tier .why { margin-top: 10px; font-size: 34px; }
   .tier .why { margin-top: auto; padding-top: 12px; font-family: var(--display); font-size: 30px; font-weight: 600; color: var(--cocoa-text); }
   .tier.now .why { color: var(--ladyfinger); }
 
@@ -327,34 +328,9 @@
     <div class="eyebrow" data-anim>Sovereignty</div>
     <div class="title" data-anim style="--d: 150ms;">Runs where your data lives.</div>
     <div class="tiers">
-      <div class="tier now" data-anim style="--d: 300ms;">
-        <div class="lab">Cloud · today</div>
-        <div class="h">Mistral, Paris</div>
-        <div class="zdr">Zero data retention</div>
-        <ul>
-          <li><b>OCR</b>Mistral OCR</li>
-          <li><b>Classify &amp; extract</b>Mistral Large <span class="chonk">(Le Chonk) <img class="chonk-cat" src="img/chonk-cat.png" alt="pixel cat" /></span></li>
-        </ul>
-        <div class="why">Nothing stored. No training.</div>
-      </div>
-      <div class="tier" data-anim style="--d: 450ms;">
-        <div class="lab">On-premise</div>
-        <div class="h">One GPU, 32 GB</div>
-        <ul>
-          <li><b>OCR</b>PaddleOCR-VL</li>
-          <li><b>Classify, extract, chat</b>Qwen 3.8 27B</li>
-        </ul>
-        <div class="why">Never leaves the building.</div>
-      </div>
-      <div class="tier" data-anim style="--d: 600ms;">
-        <div class="lab">Site office</div>
-        <div class="h">Mac mini, 32 GB</div>
-        <ul>
-          <li><b>OCR</b>PaddleOCR-VL</li>
-          <li><b>Classify, extract, chat</b>Qwen 3.8 27B</li>
-        </ul>
-        <div class="why">Fully offline.</div>
-      </div>
+      <div class="tier now" data-anim style="--d: 300ms;"><svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.6 9.1 4.7 4.7 0 0 0 7 18.5z"/></svg><div class="h">Cloud</div><div class="why">Zero data retention</div></div>
+      <div class="tier" data-anim style="--d: 450ms;"><svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="7" rx="1.8"/><path d="M7.5 7h.01M7.5 17h.01M11 7h6M11 17h6"/></svg><div class="h">Your server</div><div class="why">Never leaves the building</div></div>
+      <div class="tier" data-anim style="--d: 600ms;"><svg class="tic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="8" rx="2.5"/><path d="M7 12h.01"/><path d="M6 16v1.5M18 16v1.5"/></svg><div class="h">Mac mini</div><div class="why">Fully offline</div></div>
     </div>
   </section>
 
