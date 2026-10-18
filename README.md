@@ -13,6 +13,8 @@ docker compose up --build        # db, migrate, api, worker, gotenberg, web; no 
 
 Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · health at `/api/health`
 
+**Contents:** [At a glance](#at-a-glance) · [Why this pipeline wins](#why-this-pipeline-wins) · [Quick start](#quick-start) · [Extraction pipeline](#the-extraction-pipeline-in-detail) · [Model-agnostic](#model-agnostic-by-design-openrouter) · [On premise](#on-premise-and-local-models) · [Features](#what-you-can-do-with-it) · [Architecture](#architecture) · [Quality](#quality-tests-ci-and-evaluation) · [Known limitations](#known-limitations) · [Configuration](#configuration) · [Data rule](#data-rule)
+
 ---
 
 ## At a glance
