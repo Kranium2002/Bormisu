@@ -5,6 +5,9 @@ models:
   # OpenRouter list price (models API, checked 2026-10-17); OpenRouter reports the cost of each call, this
   # entry prices budget estimates and a call whose answer carried no cost. Reasoning tokens bill as output.
   google/gemini-3.5-flash: { input_per_million: 1.50, output_per_million: 9.00 }
+  # The same model on Google's own OpenAI-compatible endpoint (bare model id), at the list price OpenRouter
+  # passes through; Google reports no cost per call.
+  gemini-3.5-flash: { input_per_million: 1.50, output_per_million: 9.00 }
   mistralai/mistral-small-2603: { input_per_million: 0.15, output_per_million: 0.60 }
   # Mistral direct (the API reports no cost): conservative list prices of the models the aliases name
   mistral-small-latest: { input_per_million: 0.15, output_per_million: 0.60 }
