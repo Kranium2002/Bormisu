@@ -281,7 +281,7 @@ export function PlannedLinePanel({ open, onClose }: Props) {
           {result && <LineNotes excludedUnreviewed={result.excludedUnreviewed} notOnMap={result.notOnMap} />}
           <div className={styles.actions}>
             {result && (
-              <Link className={styles.secondary} to={lineReportPath(alignment, result)} data-testid="export-report">
+              <Link className={styles.reportLink} to={lineReportPath(alignment, result)} data-testid="export-report">
                 {t(EXPORT_REPORT)}
               </Link>
             )}

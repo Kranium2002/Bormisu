@@ -183,6 +183,11 @@
   white-space: nowrap;
 }
 
+/* On a narrow screen the summary table scrolls sideways in its own box (never the page). */
+.tableScroll {
+  overflow-x: auto;
+}
+
 .num {
   text-align: right !important;
   font-family: var(--font-mono);
@@ -415,7 +420,18 @@
   white-space: nowrap;
 }
 
-@media (max-width: 720px) {
+/* Phones and narrow windows, never print (an A4 page is narrower than 720 px too). */
+@media screen and (max-width: 720px) {
+  .page {
+    padding: 6mm 4mm;
+    max-width: calc(100% - 2 * var(--space-2));
+  }
+
+  .table th,
+  .table td {
+    white-space: nowrap;
+  }
+
   .factList,
   .header {
     grid-template-columns: minmax(0, 1fr);
@@ -480,7 +496,8 @@
     break-after: page;
   }
 
-  .chartWrap {
+  .chartWrap,
+  .tableScroll {
     overflow: visible;
   }
 

@@ -53,6 +53,15 @@ test.describe('selection report', () => {
     await expect.poll(() => new URL(page.url()).searchParams.get('rs')).toMatch(/^rs_/);
     const rs = new URL(page.url()).searchParams.get('rs');
 
+    // The chip's links sit on the line of its CLEAR button, as buttons do (a link is a block in the bar).
+    const middle = async (name: string) => {
+      const b = (await page.locator('[data-result-set-bar]').getByText(name, { exact: true }).boundingBox())!;
+      return b.y + b.height / 2;
+    };
+    const clear = await middle('CLEAR');
+    expect(Math.abs((await middle('EXPORT REPORT')) - clear)).toBeLessThan(2.5);
+    expect(Math.abs((await middle('OPEN LIST ›')) - clear)).toBeLessThan(2.5);
+
     await page.getByTestId('export-report').click();
     await expect(page).toHaveURL(new RegExp(`/report\\?rs=${rs}$`));
     await expect(report(page)).toBeVisible();
@@ -140,6 +149,53 @@ test.describe('selection report', () => {
     await expect(report(page).getByRole('heading', { level: 1 })).toHaveText('BOHRBERICHT');
     await expect(report(page)).toContainText('Alle Bohrungen');
     await expect(page.getByRole('button', { name: 'DRUCKEN / ALS PDF SPEICHERN' })).toBeVisible();
+  });
+
+  test('at phone width the summary table scrolls in its own box and the page stays on the screen', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openApp(page);
+    await nav(page, 'LIST');
+    await page.getByTestId('export-report').click();
+    await expect(page.getByTestId('report-summary').locator('tbody tr')).toHaveCount(48);
+    const pageBox = (await report(page).boundingBox())!;
+    expect(pageBox.x).toBeGreaterThanOrEqual(0);
+    expect(pageBox.x + pageBox.width).toBeLessThanOrEqual(390);
+    const scroll = page.getByTestId('report-summary-scroll');
+    const [scrollWidth, clientWidth] = await scroll.evaluate((e) => [e.scrollWidth, e.clientWidth]);
+    expect(scrollWidth).toBeGreaterThan(clientWidth);
+    // The table's last column is reachable by scrolling the box.
+    await scroll.evaluate((e) => e.scrollTo({ left: e.scrollWidth }));
+    await expect(page.getByTestId('report-summary').getByRole('columnheader', { name: 'Source' })).toBeInViewport();
+  });
+
+  test('print keeps the A4 layout, also when the page is narrower than a phone breakpoint', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 1000 });
+    await openApp(page);
+    await nav(page, 'LIST');
+    await page.getByTestId('export-report').click();
+    await expect(report(page)).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+    // Each borehole: profile beside its tables (two columns), as on paper, not the stacked phone layout.
+    const columns = await report(page)
+      .locator('section[data-uid] > div')
+      .first()
+      .evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length);
+    expect(columns).toBe(2);
+    await page.emulateMedia({ media: 'screen' });
+  });
+
+  test('LIST with a selection: EXPORT REPORT is a link that looks like the buttons (no underline)', async ({ page }) => {
+    await openApp(page);
+    await expect(mapRegion(page)).toHaveAttribute('data-ready', 'true');
+    await drawRectangle(page, [0.25, 0.2], [0.8, 0.85]);
+    await expect.poll(() => new URL(page.url()).searchParams.get('rs')).toMatch(/^rs_/);
+    await nav(page, 'LIST');
+    const link = page.getByRole('link', { name: 'EXPORT REPORT' });
+    await expect(link).toBeVisible();
+    expect(await link.evaluate((e) => getComputedStyle(e).textDecorationLine)).toBe('none');
+    // Its text centred in the button box (a flex item's inline-flex computes as flex).
+    expect(await link.evaluate((e) => getComputedStyle(e).display)).toMatch(/flex$/);
+    expect(await link.evaluate((e) => getComputedStyle(e).alignItems)).toBe('center');
   });
 
   test('/report without a selection explains how to get one', async ({ page }) => {
