@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     openai_classifier_model: str | None = None
     openai_extractor_model: str | None = None
     # Extraction of log pages: bh3 (app.bh3: the page is read as a picture, depths anchored to the depth
-    # scale, vector pages parsed from their text layer; MAIN_VS_BH3.md) or classic (the OCR-text extractor).
+    # scale, vector pages parsed from their text layer; docs/design/main-vs-bh3.md) or classic (the OCR-text extractor).
     # bh3 hands a page it cannot read to classic, and every page when app.bh3 is not installed.
     extractor: Literal["bh3", "classic"] = "bh3"
     # Vision model bh3 reads pages with: on OpenRouter, and on OpenAI (unset or blank: CHAT_MODEL).

@@ -1,3 +1,5 @@
+> **Design draft.** This is the early target data model written before the build. The implemented schema is the Alembic migrations in `backend/migrations/` and the models in `backend/app/db/models.py`; the API shape is [`contracts/openapi.yaml`](../../contracts/openapi.yaml).
+
 # *Overview*
 *How the tables relate. Solid arrow = one has many (foreign key). Dashed = linked without a foreign key.*
 ```mermaid

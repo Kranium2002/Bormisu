@@ -1,4 +1,4 @@
-"""The backend's entry points into bh3 (MAIN_VS_BH3.md section 5, option 1).
+"""The backend's entry points into bh3 (docs/design/main-vs-bh3.md section 5, option 1).
 
 bh3 is synchronous: call these from a worker thread (``asyncio.to_thread``). With the default ``workers=1``
 every model call runs in that thread, one after another, so the ``on_call`` and ``guard`` callbacks never run

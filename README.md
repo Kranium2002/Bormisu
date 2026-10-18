@@ -32,7 +32,7 @@ Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · heal
 | **Interface contract** | OpenAPI 3.1 contract with 38 operations and 100 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
 | **Deployment** | One `docker compose up`. Runs on premise. Model-agnostic through OpenRouter, with an optional bundled Ollama service for local models |
 
-The accuracy, coverage and throughput figures were measured during development on the challenge corpus and 21 hand-labelled pages. Method and per-version history are in [`MAIN_VS_BH3.md`](MAIN_VS_BH3.md). The labels themselves stay out of git (see [Data rule](#data-rule)).
+The accuracy, coverage and throughput figures were measured during development on the challenge corpus and 21 hand-labelled pages. Method and per-version history are in [`docs/design/main-vs-bh3.md`](docs/design/main-vs-bh3.md). The labels themselves stay out of git (see [Data rule](#data-rule)).
 
 ---
 
@@ -393,7 +393,7 @@ No challenge or customer data is committed: no sample files, no values copied fr
 
 ## Credits
 
-The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-backend`, compared in [`MAIN_VS_BH3.md`](MAIN_VS_BH3.md)). It was ported to pypdfium2 and generalised to work without per-file rules. The backend calls it through `app/bh3/bridge.py` and falls back to the cited-text extractor for any borehole it cannot read.
+The page reader in `backend/app/bh3/` is Felix's bh3 pipeline (branch `felix-backend`, compared in [`docs/design/main-vs-bh3.md`](docs/design/main-vs-bh3.md)). It was ported to pypdfium2 and generalised to work without per-file rules. The backend calls it through `app/bh3/bridge.py` and falls back to the cited-text extractor for any borehole it cannot read.
 
 ## License
 

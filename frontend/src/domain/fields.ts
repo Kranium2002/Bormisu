@@ -1,5 +1,5 @@
 /**
- * Every column of the data model (README_data.md) the LIST can show for one borehole, grouped by its
+ * Every column of the data model (docs/design/data-model-draft.md) the LIST can show for one borehole, grouped by its
  * table (from frontend_din, on this app's Borehole). Borehole columns show their value; layer,
  * sample / test, and groundwater columns summarise the borehole's rows: codes joined ("T · U · G"),
  * numbers as a range ("12–28 %"), yes / no as a count ("2 of 6").
@@ -203,7 +203,7 @@ const DOCUMENT: FieldDef[] = [
   },
 ];
 
-/** All fields the LIST can show, in README_data order, grouped. */
+/** All fields the LIST can show, in the data model's order (docs/design/data-model-draft.md), grouped. */
 export const FIELDS: readonly FieldDef[] = [...BOREHOLE, ...LAYERS, ...TESTS, ...GROUNDWATER, ...DOCUMENT];
 export const FIELD_GROUPS: readonly FieldGroup[] = ['Borehole', 'Layers', 'Samples and tests', 'Groundwater', 'Document'];
 export const fieldByKey = new Map(FIELDS.map((f) => [f.key, f]));

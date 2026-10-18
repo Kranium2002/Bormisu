@@ -1,4 +1,4 @@
-"""bh3 as the extraction stage for log pages (MAIN_VS_BH3.md section 5, option 1).
+"""bh3 as the extraction stage for log pages (docs/design/main-vs-bh3.md section 5, option 1).
 
 bh3 (package `app.bh3`, reached only through `app.bh3.bridge`) reads a log page as a picture: the depth
 scale first, boundaries anchored to the scale's ticks and snapped to ruling lines; vector pages are parsed
