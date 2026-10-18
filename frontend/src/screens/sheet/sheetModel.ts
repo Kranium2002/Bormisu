@@ -67,7 +67,7 @@ const valueOf = (b: Borehole, key: string) => b.values.find((v) => v.key === key
 const unreviewed = (v: ExtractedValue | undefined) => !!v && v.hasProvenance && v.status !== 'approved';
 
 /** A value as a sheet cell: value and unit, or its state in the sheet's language; keyed by the value. */
-function cellOf(lang: SheetLang, v: ExtractedValue | undefined, fallback?: string | null): SheetCell {
+export function cellOf(lang: SheetLang, v: ExtractedValue | undefined, fallback?: string | null): SheetCell {
   const t = (en: string) => sheetT(lang, en);
   if (!v) return fallback ? { text: fallback, missing: false, unreviewed: false } : { text: t('not in source'), missing: true, unreviewed: false };
   if (v.state !== 'ok') return { text: t(v.state), missing: true, unreviewed: unreviewed(v), key: v.key };
@@ -89,7 +89,7 @@ function datesCell(lang: SheetLang, b: Borehole): SheetCell {
 }
 
 /** Coordinates with their CRS: "530039.85 / 5562120.29 · ETRS89 / UTM 32N (stated)". */
-function coordinatesCell(lang: SheetLang, b: Borehole): SheetCell {
+export function coordinatesCell(lang: SheetLang, b: Borehole): SheetCell {
   const xy = cellOf(lang, valueOf(b, K.xy));
   const crs = valueOf(b, K.crs);
   const name = crs && crs.state === 'ok' && crs.value ? crs.value : (b.crs.label ?? b.crs.code);
@@ -99,7 +99,7 @@ function coordinatesCell(lang: SheetLang, b: Borehole): SheetCell {
 }
 
 /** Surface elevation with its datum ("241.35 m · NHN"); a unit that already names the datum isn't repeated. */
-function elevationCell(lang: SheetLang, b: Borehole): SheetCell {
+export function elevationCell(lang: SheetLang, b: Borehole): SheetCell {
   const v = valueOf(b, K.elevation);
   const c = cellOf(lang, v);
   const dv = valueOf(b, K.elevationDatum);

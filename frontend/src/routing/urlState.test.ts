@@ -7,6 +7,7 @@ import {
   mapPath,
   parseLocation,
   parseMapView,
+  reportPath,
   reviewPath,
   routePath,
   sameScreen,
@@ -139,5 +140,22 @@ describe('sameScreen', () => {
     // Opening or closing a question's dialog stays on the inbox (history replace).
     expect(sameScreen({ kind: 'inbox', q: null }, { kind: 'inbox', q: 'cl_1' })).toBe(true);
     expect(sameScreen({ kind: 'inbox', q: null }, { kind: 'queue' })).toBe(false);
+  });
+});
+
+describe('report URL', () => {
+  it('reads and writes a result set report and a planned line report', () => {
+    expect(parseLocation('/report', '?rs=rs_A')).toEqual({ kind: 'report', rs: 'rs_A', line: null, buffer: null, unrev: null });
+    const line = parseLocation('/report', '?rs=rs_A&line=aln_B&buffer=150&unrev=0');
+    expect(line).toEqual({ kind: 'report', rs: 'rs_A', line: 'aln_B', buffer: 150, unrev: false });
+    expect(routePath(line)).toBe('/report?rs=rs_A&line=aln_B&buffer=150&unrev=0');
+    expect(reportPath({ rs: 'rs_A' })).toBe('/report?rs=rs_A');
+    expect(reportPath({ rs: null })).toBe('/report');
+  });
+
+  it('ignores a distance or scope it cannot read, and a path below /report', () => {
+    expect(parseLocation('/report', '?line=aln_B&buffer=0&unrev=yes')).toMatchObject({ buffer: null, unrev: null });
+    expect(parseLocation('/report', '?line=aln_B&buffer=5000')).toMatchObject({ buffer: null });
+    expect(parseLocation('/report/x', '').kind).toBe('notFound');
   });
 });

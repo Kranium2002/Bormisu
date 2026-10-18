@@ -11,15 +11,18 @@
  *   (on by default, as the map shows unreviewed pins; off: approved boreholes only) ask again.
  * - Notes say how many unreviewed boreholes inside the band are hidden, and how many boreholes are not
  *   on the map and so cannot be checked against the line.
- * - CLEAR takes the line off the map; DELETE removes it; earlier lines can be shown again.
+ * - EXPORT REPORT opens the printable report of the hits (by chainage); CLEAR takes the line off the
+ *   map; DELETE removes it; earlier lines can be shown again.
  *
  * Like the FILTERS panel it stays mounted while closed (hidden); Escape and CLOSE close it.
  */
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { Link } from 'react-router';
 import { StatusChip } from '../../../components/StatusChip';
 import { Toggle } from '../../../components/Toggle';
 import type { AlignmentHit } from '../../../domain/types';
 import { useT } from '../../../i18n';
+import { lineReportPath, EXPORT_REPORT } from '../../../report/ReportButton';
 import { useAppStore } from '../../../store/appStore';
 import {
   ALIGNMENT_ACCEPT,
@@ -277,6 +280,11 @@ export function PlannedLinePanel({ open, onClose }: Props) {
           {result && <HitTable hits={hits} bufferM={result.bufferM} selectedUid={selectedUid} />}
           {result && <LineNotes excludedUnreviewed={result.excludedUnreviewed} notOnMap={result.notOnMap} />}
           <div className={styles.actions}>
+            {result && (
+              <Link className={styles.secondary} to={lineReportPath(alignment, result)} data-testid="export-report">
+                {t(EXPORT_REPORT)}
+              </Link>
+            )}
             <button type="button" className={styles.secondary} onClick={() => useAppStore.getState().clearAlignment()}>
               {t('CLEAR')}
             </button>

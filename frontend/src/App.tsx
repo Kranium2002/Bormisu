@@ -26,6 +26,7 @@ const SCREEN_LABEL: Record<RouteKind, string> = {
   list: 'Borehole list',
   sheet: 'Borehole sheet',
   verify: 'Side-by-side verification',
+  report: 'Selection report',
   notFound: 'Not found',
 };
 

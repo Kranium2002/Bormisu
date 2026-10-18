@@ -11,6 +11,8 @@ interface Props {
   target: RefObject<SVGSVGElement | null>;
   /** Caption, legend and file name of the image (in the language of the chart's screen). */
   info: ChartExportInfo;
+  /** End of the file names ("BK-07_profile.png"); default "profile". */
+  suffix?: string;
 }
 
 /**
@@ -20,7 +22,7 @@ interface Props {
  * image on the clipboard (no ClipboardItem, insecure origin, permission refused) COPY downloads the
  * PNG instead and the toast says so. Hidden in print.
  */
-export function ChartExport({ target, info }: Props) {
+export function ChartExport({ target, info, suffix = 'profile' }: Props) {
   const t = useT();
   const showToast = useAppStore((s) => s.showToast);
   const [busy, setBusy] = useState(false);
@@ -39,7 +41,7 @@ export function ChartExport({ target, info }: Props) {
     const png = svgToPng(chart);
     const instead = (why: string) =>
       png.then((blob) => {
-        downloadBlob(blob, chartFileName(info.fileBase, 'png'));
+        downloadBlob(blob, chartFileName(info.fileBase, 'png', suffix));
         showToast(why);
       }, failed);
     run(
@@ -57,7 +59,7 @@ export function ChartExport({ target, info }: Props) {
     if (!chart) return;
     run(
       svgToPng(chart).then((blob) => {
-        downloadBlob(blob, chartFileName(info.fileBase, 'png'));
+        downloadBlob(blob, chartFileName(info.fileBase, 'png', suffix));
         showToast(t('Chart downloaded'));
       }, failed),
     );
@@ -66,7 +68,7 @@ export function ChartExport({ target, info }: Props) {
   const downloadSvg = () => {
     const chart = build();
     if (!chart) return;
-    downloadBlob(svgBlob(chart), chartFileName(info.fileBase, 'svg'));
+    downloadBlob(svgBlob(chart), chartFileName(info.fileBase, 'svg', suffix));
     showToast(t('Chart downloaded'));
   };
 

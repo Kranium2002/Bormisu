@@ -4,3 +4,9 @@
   inset: 0;
   background: var(--c-surface);
 }
+
+/* EXPORT REPORT beside the result set summary. */
+.report {
+  composes: secondary small from '../../styles/buttons.module.css';
+  text-decoration: none;
+}
