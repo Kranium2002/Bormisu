@@ -28,7 +28,7 @@ Open http://localhost:8080 · API docs at http://localhost:8000/api/docs · heal
 | **Vector logs** | Read from the PDF text layer with **no OCR and no vision call**: 100 % of boundaries and 9/9 header fields on the corpus's clean vector-log report |
 | **DIN coding coverage** | **92 %** of 3,805 real layer descriptions get a DIN 4023 code (75 % before the page reader's mapper). Where the codebase's two DIN mappers both code a layer, they agree exactly on 88 % |
 | **Throughput** | Full challenge corpus (18 documents, 1,034 pages) in 98 minutes, about 0.6 US cents per page with the model used in development. Every stage caches its answers, so a retry repeats no vision call |
-| **Tests** | **3,038 passing tests**: 1,419 backend (pytest on real PostGIS) and 1,619 frontend (vitest), plus 14 Playwright end-to-end specs with 121 tests. None of them makes a paid provider call |
+| **Tests** | **3,055 passing tests**: 1,419 backend (pytest on real PostGIS) and 1,636 frontend (vitest), plus 15 Playwright end-to-end specs with 125 tests. None of them makes a paid provider call |
 | **Interface contract** | OpenAPI 3.1 contract with 38 operations and 100 example files. Backend contract tests validate the examples, and frontend CI checks that the generated API types match the contract |
 | **Deployment** | One `docker compose up`. Runs on premise. Model-agnostic through OpenRouter, with an optional bundled Ollama service for local models |
 
@@ -294,6 +294,14 @@ Bormisu is fully dockerized and runs on your own hardware:
 - **Bad files are accepted, not rejected.** Scans turned sideways or upside down are turned upright. Blank pages, cover letters and photos are recognised and skipped without a model call. Handwritten forms are read from the page image. A damaged or encrypted file fails with a readable reason, a page that cannot be read is named and can be retried on its own, and what was read stays in review. Re-uploads and copied pages are detected as duplicates. Transient provider errors (rate limits, timeouts, dropped connections) are waited out and retried. With a spending cap set, a document that hits it keeps everything read so far.
 - **Several boreholes per file, one borehole across files.** A report with a summary table and many logs is split into its boreholes; IDs come from the report's own tables when a log sheet only prints them in a remark, and the parts of one borehole (a log and its drilling plot, continuation sheets) are merged. The same borehole in a later upload is recognised.
 - **DIN 4023 profiles.** Logs are drawn with DIN 4023 hatch patterns and symbols. Copy a profile to the clipboard or download it as PNG or SVG.
+- **Report for any selection.** EXPORT REPORT on a planned line, a drawn rectangle, polygon or circle, a search or LIST opens one printable A4 report (Print / Save as PDF) with a link of its own:
+  - the selection (line name, length and distance, or the shape and its area) and a static map extract with the boreholes numbered;
+  - a summary table: ID, name, WGS84 position, coordinates as printed with their system, ground level, final depth, review status, source file and page, plus chainage, offset and side for a line;
+  - a combined soil chart: every DIN 4023 profile on one axis, below ground or by elevation (m NN), placed along a planned line by chainage as a simple longitudinal section, with the legend of the codes used (up to 40 profiles, and it says when it is capped), as PNG or SVG;
+  - per borehole: header, layer table (depths, description, DIN code, stratigraphy) and its profile, paginated on screen;
+  - the layers of the whole selection as CSV or XLSX, one row per layer with source file and page.
+
+  Unreviewed values are marked `*` and low-confidence or flagged ones `?`. What the source doesn't state reads "not in source".
 - **Chat assistant that drives the map.** It answers with 8 typed tools (`resolve_place`, `search_boreholes`, `summarize_boreholes`, `get_borehole`, `search_sources`, `get_evidence`, `propose_correction`, `prepare_export`). The model never writes SQL and never changes a record; answers state their scope, and unreviewed data is excluded unless you include it.
 - **Live progress and sign-in.** Uploads show page thumbnails, stage progress and boreholes as they are created, streamed over SSE. Every page and API route sits behind a minimal sign-in (see [Accounts and sign-in](#accounts-and-sign-in)).
 
@@ -346,8 +354,8 @@ cd frontend && npm test && npm run e2e   # vitest and Playwright
 |---|---|
 | Backend (pytest, real PostGIS) | **1,419 passed** from 58 files (610 test functions, expanded by parametrisation), about 8½ minutes in Docker |
 | Backend contract tests | 61 test functions over 100 example files |
-| Frontend unit (vitest) | **1,619 passed** in 97 files |
-| Frontend end-to-end (Playwright) | 14 specs, 121 tests: map, review, inbox, queue, explore, chat, accessibility, responsive layout, chart export |
+| Frontend unit (vitest) | **1,636 passed** in 100 files |
+| Frontend end-to-end (Playwright) | 15 specs, 125 tests: map, review, inbox, queue, explore, chat, selection report, accessibility, responsive layout, chart export |
 
 - **No paid calls in tests.** Provider clients are faked and the test service has blank keys, so a test can never reach a paid provider.
 - **CI on every push and pull request that touches code, contracts, the compose file or a data-like file** (`.github/workflows/`):
