@@ -422,7 +422,7 @@ class LlmClient:
         if provider == "openrouter" and json_key in _JSON_MODE:
             response_format, messages = {"type": "json_object"}, json_mode_messages(messages, schema)
         in_total, out_total, cost_total = 0, 0, 0.0
-        for attempt in range(2):
+        for attempt in range(3):  # the first answer and two corrective retries
             await check_budget(estimate_usd)
             try:
                 payload = await self._post(
@@ -468,7 +468,7 @@ class LlmClient:
             try:
                 data = output.model_validate(json.loads(unfence(text)))
             except (ValueError, ValidationError) as exc:
-                if attempt == 1:
+                if attempt == 2:
                     raise ProviderError(
                         "The model's answer did not match the expected structure.", retryable=True
                     ) from exc
