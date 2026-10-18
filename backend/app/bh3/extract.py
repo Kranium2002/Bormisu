@@ -98,7 +98,6 @@ def _extract_tiles(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, c
         the current gate. Tiles must have been rendered (for the ruling lines) – render_tile is cached."""
         if kind != "log":
             return results
-        to_pt = 72.0 / cfg.dpi
         for spec, out in zip(specs, results):
             if not isinstance(out, dict):
                 continue
@@ -114,7 +113,8 @@ def _extract_tiles(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, c
                 if isinstance(L, dict):
                     for pkey, ykey in (("_y_top_page", "y_grid_top"), ("_y_bottom_page", "y_grid_bottom")):
                         y = L.get(ykey)
-                        L[pkey] = round(spec.page_y(float(y)) * to_pt, 1) if isinstance(y, (int, float)) else None
+                        # page render pixels; bridge._in_points turns them into page points once
+                        L[pkey] = round(spec.page_y(float(y)), 1) if isinstance(y, (int, float)) else None
         return results
 
     if key in raw and len(raw[key]) == len(specs):

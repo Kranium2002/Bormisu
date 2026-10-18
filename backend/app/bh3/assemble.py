@@ -228,6 +228,7 @@ def build_boreholes(doc: Document, results: list[PageResult], llm: Optional[LLM]
             if missing and text.strip():
                 for k, v in llm.fill_header(text, missing).items():
                     bh.metadata[k] = _coerce(k, v)
+                    bh.metadata.setdefault("_raw", {})[k] = str(v)  # the text as the model read it, for citing
                     bh.meta_prov[k] = Provenance(bh.source_file, group[0].page_no, method="llm", confidence=0.6)
         boreholes.append(bh)
     seen: dict[str, int] = {}

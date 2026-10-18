@@ -226,7 +226,10 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         usage = Usage(
             route.provider, purpose, called, tokens_in, tokens_out, None, cost, call.get("ok") is not False
         )
-        wait(record_usage(usage, document_id))
+        try:
+            wait(record_usage(usage, document_id))
+        except Exception:  # a ledger write that fails must not throw away the paid answer
+            logger.exception("bh3 call of %s not written to the provider ledger", document_id)
 
     def guard() -> None:
         """Before every paid call: stop bh3 when the next call would pass the budget."""
@@ -245,6 +248,7 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         on_call,
         cache_dir=cache,
         guard=guard,
+        workers=max(1, settings.concurrency_extract),  # the tiles of a page are read in parallel
         timeout_s=settings.request_timeout_s,
         **openrouter_options(bridge, route, route.model),
     )

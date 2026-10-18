@@ -119,8 +119,8 @@ ANSWERS: dict[str, dict] = {
                 "description": "Silty SAND, fine, brown",
                 "partial_top": False,
                 "partial_bottom": False,
-                "y_grid_top": None,
-                "y_grid_bottom": None,
+                "y_grid_top": 100,  # tile pixel rows: just below the stitched column titles
+                "y_grid_bottom": 300,
             },
             {
                 "top": 1.5,
@@ -128,8 +128,8 @@ ANSWERS: dict[str, dict] = {
                 "description": "CLAY, stiff, grey",
                 "partial_top": False,
                 "partial_bottom": False,
-                "y_grid_top": None,
-                "y_grid_bottom": None,
+                "y_grid_top": 300,
+                "y_grid_bottom": 700,
             },
         ],
         "spt": [{"depth": 1.0, "depth_to": 1.45, "n_value": "12", "blows": "3,5,7", "y_grid": None}],
@@ -283,6 +283,11 @@ def test_scanned_page_becomes_a_borehole(tmp_path: Path) -> None:
     page_h = bridge.page_size_pt(PageSource("doc2", scan, 1, "image", image_path=scan))[1]
     for L in bh.layers:  # bands are page points, within the page
         assert 0 <= L.prov.y0 <= L.prov.y1 <= page_h + 1
+    # The grid rows the model reported sit inside the table the classifier located (column titles from
+    # 16 % of the page down, body to 95 %): a band converted from pixels to points twice would land above it.
+    bands = [(L.prov.y0 / page_h, L.prov.y1 / page_h) for L in bh.layers if L.prov.y1 > L.prov.y0]
+    assert len(bands) == 2 and all(0.16 <= top < bottom <= 0.95 for top, bottom in bands)
+    assert bands[0][1] <= bands[1][0] + 0.01  # the second stratum starts where the first ends
     assert calls and all(c["cost_usd"] == 0.001 for c in calls)
 
 

@@ -141,8 +141,8 @@ SYSTEM_LAYERS = (
 SYSTEM_HEADER = (
     "You extract borehole metadata from the header text of a drilling log (any language). "
     "Return only JSON with exactly the requested keys; use null when a value is not present in the text. "
-    "Dates as YYYY-MM-DD when possible. Numbers as plain decimal strings in metres (convert feet). "
-    "'Surface Elevation' is the ground/collar level; if only start and end elevations are given, BoreholeDepth = start - end. "
+    "Dates as YYYY-MM-DD when possible. Numbers exactly as printed, with their printed unit and sign: never "
+    "converted, computed or rounded. 'Surface Elevation' is the ground/collar level. "
     "Never guess values that are not in the text. "
     "BoreholeName: the hole's own name or number copied character by character, never an archive, registry or "
     "file number stamped on the page when a name or number field is printed. StartDate / EndDate only from a "
