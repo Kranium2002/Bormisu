@@ -12,6 +12,7 @@
  * the image always has the plain print look, whatever is selected or focused on screen.
  */
 import { fitText } from '../screens/detail/profileGeometry';
+import { fileSlug } from './download';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const INK = '#111111';
@@ -62,18 +63,12 @@ export function chartMarkup(chart: ChartSvg, scale = 1): string {
 }
 
 /**
- * File name of a chart export: the base with every run of characters other than letters, digits, `-`
- * and `_` turned into one `_` ("BH AB/01" → "BH_AB_01"), at most 80 characters, then `_profile.<ext>`;
- * "borehole" when nothing is left.
+ * File name of a chart export: the base as a safe ASCII slug (fileSlug: "BH AB/01" → "BH_AB_01",
+ * "Bohrung Ü1" → "Bohrung_U1"), at most 80 characters, then `_profile.<ext>`; "borehole" when nothing
+ * is left.
  */
 export function chartFileName(base: string, ext: 'png' | 'svg', suffix = 'profile'): string {
-  const clean = base
-    .normalize('NFC')
-    .replace(/[^\p{L}\p{N}_-]+/gu, '_')
-    .replace(/_+/g, '_')
-    .replace(/^[_-]+|[_-]+$/g, '')
-    .slice(0, 80);
-  return `${clean || 'borehole'}_${suffix}.${ext}`;
+  return `${fileSlug(base, 'borehole', 80)}_${suffix}.${ext}`;
 }
 
 const URL_REF = /url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/g;

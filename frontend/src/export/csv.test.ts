@@ -93,5 +93,6 @@ describe('exportPrefix', () => {
   it('takes the first token of a file name', () => {
     expect(exportPrefix('site_report_2019.pdf')).toBe('site');
     expect(exportPrefix('')).toBe(APP_NAME.toLowerCase());
+    expect(exportPrefix('München_bericht_2019.pdf')).toBe('Munchen');
   });
 });

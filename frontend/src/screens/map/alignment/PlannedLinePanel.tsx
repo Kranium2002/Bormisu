@@ -391,7 +391,7 @@ export function HitTable({ hits, bufferM, selectedUid }: TableProps) {
               {t('DEPTH')}
             </th>
             <th scope="col">{t('STATUS')}</th>
-            <th scope="col">
+            <th scope="col" className={styles.openCell}>
               <span className={styles.srOnly}>{t('Open')}</span>
             </th>
           </tr>
@@ -420,7 +420,7 @@ export function HitTable({ hits, bufferM, selectedUid }: TableProps) {
               <td>
                 <StatusChip status={h.reviewStatus} />
               </td>
-              <td>
+              <td className={styles.openCell}>
                 <button
                   type="button"
                   className={styles.open}

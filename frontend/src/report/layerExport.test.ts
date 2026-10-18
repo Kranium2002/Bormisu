@@ -60,5 +60,7 @@ describe('layer export', () => {
   it('file names come from the selection title', () => {
     expect(reportFileName('Planned line: Trasse Nord', 'layers', 'csv')).toBe('Planned_line_Trasse_Nord_layers.csv');
     expect(reportFileName('', 'layers', 'xlsx')).toBe('selection_layers.xlsx');
+    expect(reportFileName('Area: Rectangle, 19.46 km²', 'layers', 'csv')).toBe('Area_Rectangle_19_46_km2_layers.csv');
+    expect(reportFileName('Geplante Trasse: Süd', 'layers', 'csv')).toBe('Geplante_Trasse_Sud_layers.csv');
   });
 });

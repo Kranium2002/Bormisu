@@ -30,7 +30,9 @@ describe('chartFileName', () => {
     expect(chartFileName('BH AB01', 'png')).toBe('BH_AB01_profile.png');
     expect(chartFileName('BK-07/2 (neu).', 'svg')).toBe('BK-07_2_neu_profile.svg');
     expect(chartFileName('  BH:01*?"<>|  ', 'png')).toBe('BH_01_profile.png');
-    expect(chartFileName('Bohrung Ü1', 'png')).toBe('Bohrung_Ü1_profile.png');
+    // ASCII only: accents and symbols fold to their letters (fileSlug).
+    expect(chartFileName('Bohrung Ü1', 'png')).toBe('Bohrung_U1_profile.png');
+    expect(chartFileName('Area: Rectangle, 19.46 km²', 'png', 'soil-chart')).toBe('Area_Rectangle_19_46_km2_soil-chart.png');
   });
 
   it('falls back to "borehole" and keeps names short', () => {
