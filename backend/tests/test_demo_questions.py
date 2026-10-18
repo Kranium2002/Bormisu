@@ -274,6 +274,19 @@ async def test_a_system_answered_for_the_project_places_its_later_boreholes(db: 
     assert len(asked) == 1 and asked[0].borehole_uids == [far]
 
 
+@pytest.mark.db
+async def test_a_borehole_the_project_question_covers_is_not_also_asked_for_a_position(db: None) -> None:
+    """The project's crs_confirm question is stored with its first document; a later document's borehole it
+    covers gets no locate question on top of it."""
+    first = await _finalize(DOC_A, "B1", "3422925", "5370335", None)
+    await finalize_document(DOC_A)
+    later = await _finalize(DOC_B, "B2", "3423480", "5371020", None)
+    await finalize_document(DOC_B)
+    (question,) = await clarifications("crs_confirm")
+    assert question.document_id == DOC_A and set(question.borehole_uids) == {first, later}
+    assert await clarifications("locate_borehole") == []
+
+
 async def _earlier_locate_question(doc_id: str, uid: str, label: str) -> str:
     """A locate_borehole question an earlier run asked, before the project's system was known."""
     async with get_sessionmaker()() as session:
