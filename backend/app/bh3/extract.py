@@ -274,49 +274,13 @@ def _vision_result(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, r
 
 
 
-DOC_RULES_FILE = Path(__file__).with_name("doc_rules.json")
-
-
-def _doc_rules(source_file: str) -> dict:
-    try:
-        rules = json.loads(DOC_RULES_FILE.read_text(encoding="utf-8")) if DOC_RULES_FILE.exists() else {}
-    except json.JSONDecodeError:
-        return {}
-    return rules.get(Path(source_file).name) or {}
-
-
-def _apply_doc_rules(pr: PageResult, src: PageSource, page) -> PageResult:
-    """Document-specific name rule (doc_rules.json) on the page's embedded text when no usable name was read."""
-    from .reconcile import clean_name
-    rule = _doc_rules(src.source_file).get("name_regex")
-    if not rule or page is None or not page.words or not pr.is_log:
-        return pr
-    if pr.borehole_name and clean_name(pr.borehole_name):
-        return pr
-    text = page.text
-    if src.kind == "pdf":                      # reading-order text (labels next to their values), not x/y-sorted words
-        try:
-            from .pdfium import text as pdf_text
-            text = pdf_text(src.pdf_path, src.pdf_index)
-        except Exception:  # noqa: BLE001
-            pass
-    m = re.search(rule, text)
-    if m:
-        name = next((g for g in m.groups() if g), None)
-        if name:
-            pr.borehole_name = name
-            pr.header_fields.setdefault("BoreholeName", name)
-            pr.notes.append(f"name '{name}' from the document rule")
-    return pr
-
-
 def process_page(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path) -> PageResult:
     page = None if cfg.no_vector else vector_words(src)
     if page is not None and page.has_text_layer:
         pr = parse_vector_page(src, page)
         if pr is not None and (pr.page_type != "log" or vector_ok(pr)):
             pr.stats["route_reason"] = "text layer"
-            return _apply_doc_rules(pr, src, page)
+            return pr
         log.info("%s: geometry parse weak (%s) → vision path", src.label, "; ".join(pr.notes[:3]) if pr else "no result")
         vr = _vision_result(src, vlm, cfg, workdir, "vector→vlm", page=page)
         if pr is not None and pr.header_fields and vr.is_log:
@@ -334,7 +298,7 @@ def process_page(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path) -> 
             vr.header_text = pr.header_text or vr.header_text
             if vr.borehole_name is None:
                 vr.borehole_name = pr.borehole_name
-        return _apply_doc_rules(vr, src, page)
+        return vr
     if cfg.no_vlm:
         pr = PageResult(src.source_file, src.page_no, "vlm", page_type="unread")
         pr.issues.append("raster page not read (vision model disabled)")
