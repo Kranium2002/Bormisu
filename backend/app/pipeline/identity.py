@@ -277,6 +277,40 @@ def _relabel(item: Reconciled, listed: dict[str, str], rows: Sequence[Row]) -> R
     return _with_label(item, clean_label(hit.text), [hit.block.id], label)
 
 
+def _one_edit(a: str, b: str) -> bool:
+    """The two IDs differ by exactly one character: one replaced, added or dropped."""
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(1 for x, y in zip(a, b, strict=True) if x != y) == 1
+    short, long = (a, b) if len(a) < len(b) else (b, a)
+    return any(long[:i] + long[i + 1 :] == short for i in range(len(long)))
+
+
+def _one_off(items: list[Reconciled], listed: dict[str, str]) -> list[Reconciled]:
+    """A borehole whose ID was read with one character wrong ("5024" for a listed "502b") takes the one listed
+    ID that no other borehole holds and that differs from its reading by one character, when exactly one such
+    ID exists and no other borehole is that close to it. The reading stays as an alias."""
+    held = {item.group.label_canonical for item in items if item.group.label_canonical in listed}
+    free = [c for c in listed if c not in held]
+    near: dict[int, list[str]] = {}
+    for i, item in enumerate(items):
+        label = _label_of(item)
+        if not item.group.label_canonical or item.group.label_canonical in listed or label is None:
+            continue
+        read = canonical_label(clean_label(label))
+        near[i] = [c for c in free if _one_edit(read, c)]
+    claims = Counter(c for found in near.values() for c in found)
+    out = list(items)
+    for i, found in near.items():
+        if len(found) == 1 and claims[found[0]] == 1:
+            before = _label_of(items[i])
+            logger.info("borehole %r takes the listed ID %r (one character apart)", before, listed[found[0]])
+            block_ids = items[i].outcome.result.header.borehole_label.block_ids
+            out[i] = _with_label(items[i], clean_label(listed[found[0]]), block_ids, before)
+    return out
+
+
 def _with_label(item: Reconciled, label: str, block_ids: Sequence[str], before: str | None) -> Reconciled:
     result = item.outcome.result
     header = result.header.model_copy(
@@ -610,6 +644,7 @@ def reconcile(
                 before = _label_of(items[i])
                 logger.info("borehole %r takes the listed ID %r of the row with its depth", before, hit.text)
                 items[i] = _with_label(items[i], clean_label(hit.text), [hit.block.id], before)
+        items = _one_off(items, listed)
     by_id: dict[str, list[Reconciled]] = {}
     order: list[str | Reconciled] = []
     for item in sorted(items, key=lambda i: (min(i.group.pages, default=0), i.group.key)):

@@ -73,7 +73,7 @@ from app.review.service import (
     refresh_document_checks,
     refresh_document_status,
 )
-from app.schemas.boreholes import ProvenanceIn
+from app.schemas.boreholes import ProvenanceIn, Reading
 from app.schemas.documents import Completeness
 from app.services.documents import emit_document_updated
 from app.storage import StorageKeyError, get_storage
@@ -1387,13 +1387,21 @@ async def _covers_every_log_page(session: AsyncSession, document_id: str, group:
 
 
 async def finalize_group(
-    document_id: str, group: PageGroup, outcome: ExtractionOutcome, *, alone: bool = False
+    document_id: str,
+    group: PageGroup,
+    outcome: ExtractionOutcome,
+    *,
+    alone: bool = False,
+    notes: Sequence[str] = (),
+    flags: Mapping[str, str] | None = None,
+    readings: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> str | None:
     """Create the borehole of one page group; returns its uid (the existing one on a rerun).
 
     `alone`: this is the document's only borehole. Its uncertain page grouping is then not asked about when
     it covers every log page of the document (the other sheet is in another file, page 1 is a cover sheet);
-    the reasons are kept as a note on the record.
+    the reasons are kept as a note on the record. `notes`, `flags` (path -> reason: the value is flagged for
+    review) and `readings` (path -> second readings) come from the document's tables (app.pipeline.positions).
 
     Returns None when the document is gone or the group has no label to create a borehole under.
     """
@@ -1411,6 +1419,14 @@ async def finalize_group(
         draft = build_record(
             document_id, group, outcome, text_layers=layers, language=language, page_roles=roles
         )
+        draft.notes.extend(notes)
+        for path, reason in (flags or {}).items():
+            if path in draft.provenance:
+                draft.provenance[path].status = "flagged"
+                draft.provenance[path].flag = reason
+        for path, seconds in (readings or {}).items():
+            if path in draft.provenance:
+                draft.provenance[path].readings = [Reading.model_validate(r) for r in seconds]
         ask_boundary = bool(group.uncertain)
         if ask_boundary and alone and await _covers_every_log_page(session, document_id, group):
             ask_boundary = False

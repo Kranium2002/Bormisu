@@ -136,3 +136,19 @@ def test_document_identifiers_are_labels_on_every_page_beside_other_names() -> N
     assert document_identifiers([["BH-1"], ["BH-1"]]) == frozenset()  # the only name: the borehole's
     assert document_identifiers([["BO 7513/924", "Bohrung 2"]]) == frozenset()  # one page tells nothing
     assert document_identifiers([["A"], ["B"]]) == frozenset()
+
+
+def test_an_id_read_one_character_wrong_takes_the_one_free_listed_id() -> None:
+    listed = Tables({"701": "701", "702": "702", "702B": "702b", "705": "705"}, frozenset())
+    parts = [
+        part("701", (1,), layers("0,00", "2,00", "5,00")),
+        part("702", (2,), layers("0,00", "3,00", "6,00")),
+        part("Hull nr 7024", (3,), layers("0,00", "1,00", "4,00")),  # "702b" with the b read as 4
+    ]
+    labels = sorted(i.group.label_raw or "" for i in reconcile(parts, listed))
+    assert labels == ["701", "702", "702b"]
+    named = next(i for i in reconcile(parts, listed) if i.group.label_raw == "702b")
+    assert named.aliases == ["Hull nr 7024"]
+    # two readings one character from the same free ID: neither takes it
+    twins = [*parts[:2], part("7024", (3,), layers("0", "1", "4")), part("702c", (4,), layers("0", "2", "5"))]
+    assert "702b" not in {i.group.label_raw for i in reconcile(twins, listed)}

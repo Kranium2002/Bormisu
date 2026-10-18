@@ -1,0 +1,18 @@
+# Rows of a document's summary and coordinate tables read per borehole without a model
+# (app.pipeline.table_rows, app.pipeline.positions). Generic; no document is named here.
+#
+# Coordinate columns are found by the axis labels of crs_patterns.yaml (X / Y, Easting / Northing,
+# Rechtswert / Hochwert ...). A total-depth column is found by one of these printed headings:
+total_depth_terms: [total depth, final depth, depth of hole, hole depth, borehole depth, total dybde, totalt dyp,
+                    total dybde hull, endteufe, endtiefe, bohrtiefe, profondeur totale, profondeur finale,
+                    profundidad total, profundidad final, totale diepte, einddiepte]
+# A value belongs to a column when its centre lies at most this share of the page width from the column
+# heading's centre.
+column_tolerance: 0.06
+
+# Positions printed on a log sheet and in the document's table (app.pipeline.positions): two boreholes whose
+# distance apart differs between the two by more than this many metres (or this share of the table's
+# distance, whichever is larger) disagree; a sheet position that disagrees with most of the other boreholes
+# placed from their sheets is not trusted, and the table's position is used (the sheet's kept as a reading).
+distance_tolerance_m: 25
+distance_tolerance_share: 0.1

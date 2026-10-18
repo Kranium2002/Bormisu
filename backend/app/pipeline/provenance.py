@@ -9,7 +9,8 @@ For one value (or a value Python computed from several printed values):
 - method: `read` when every cited block lies on a page whose text layer is trustworthy and the printed
   text of every value was found in that text layer (text-layer agreement), else `ocr` (callers override
   it with `derived` or `guessed` for computed or assumed values);
-- confidence: the lowest confidence of the cited blocks.
+- confidence: the lowest confidence of the cited blocks (on a handwritten page, a block without one counts at
+  data/provenance.yaml handwriting_confidence).
 
 Block ids the model cited that do not exist are ignored. Nothing here knows about documents or layouts.
 """
@@ -18,8 +19,10 @@ from __future__ import annotations
 
 import enum
 from collections.abc import Iterable, Mapping, Sequence
+from functools import lru_cache
 from typing import Final, Literal
 
+from app.normalize.numbers import load_data
 from app.pipeline import textlayer
 from app.pipeline.schemas import RawValue, ValueStateLiteral
 from app.pipeline.textlayer import PageText, Resolution
@@ -81,8 +84,30 @@ def method_of(blocks: Sequence[BlockRef], *, found_in_text_layer: bool = False) 
     return "ocr"
 
 
+@lru_cache(maxsize=1)
+def _handwriting_rule() -> tuple[frozenset[str], float | None]:
+    data = load_data("provenance.yaml")
+    levels = frozenset(str(level) for level in data.get("handwriting_levels") or [])
+    value = data.get("handwriting_confidence")
+    return levels, None if value is None else float(value)
+
+
+def handwriting_levels() -> frozenset[str]:
+    """The classifier's handwriting levels whose pages count as handwritten (data/provenance.yaml)."""
+    return _handwriting_rule()[0]
+
+
+def block_confidence(block: BlockRef) -> float | None:
+    """The block's own confidence; without one, on a handwritten page, data/provenance.yaml's
+    handwriting_confidence (a vision OCR route reports none, so the value would look certain)."""
+    if block.confidence is not None:
+        return min(max(block.confidence, 0.0), 1.0)
+    levels, handwritten = _handwriting_rule()
+    return handwritten if block.page_handwriting in levels else None
+
+
 def lowest_confidence(blocks: Iterable[BlockRef]) -> float | None:
-    values = [min(max(b.confidence, 0.0), 1.0) for b in blocks if b.confidence is not None]
+    values = [c for b in blocks if (c := block_confidence(b)) is not None]
     return min(values) if values else None
 
 
