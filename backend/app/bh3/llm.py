@@ -8,7 +8,8 @@ The client speaks the OpenAI chat-completions protocol, so the same code works w
 a hosted API today and with a local server (Ollama, vLLM, llama.cpp server, LM Studio)
 later. In the backend the settings come from app.config through bh3.bridge (no .env is read here).
 
-Determinism measures: temperature 0, fixed seed, JSON-schema constrained output where the
+Determinism measures: temperature 0, fixed seed (dropped for a server that refuses the field, such as
+Google's OpenAI-compatible endpoint, and remembered per server), JSON-schema constrained output where the
 server supports it (fallback: json_object + validation), and an on-disk cache keyed by
 sha256(model + prompt) so re-runs never call the model twice for the same input.
 
@@ -38,6 +39,8 @@ class BudgetExceeded(RuntimeError):
 REASONING_MANDATORY = "reasoning is mandatory"
 # models that answered "Reasoning is mandatory" in this process: sent with reasoning on from then on
 _REASONING_REQUIRED: set[str] = set()
+# base URLs whose server refused the seed field in this process: sent without it from then on
+_SEED_REFUSED: set[str] = set()
 
 
 def _reasoning_on(extra: dict) -> bool:
@@ -193,6 +196,28 @@ class LLM:
         log.info("model %s requires reasoning; sent again with it on", model)
         return True
 
+    # -- seed ----------------------------------------------------------------
+    def _set_seed(self, kwargs: dict) -> None:
+        """A fixed seed under the server's name for it (Mistral: random_seed); none for a server that refused it."""
+        if self.cfg.base_url in _SEED_REFUSED:
+            return
+        if "api.mistral.ai" in self.cfg.base_url:
+            kwargs["extra_body"] = {"random_seed": 0}
+        else:
+            kwargs["seed"] = 0
+
+    def _seed_refused(self, kwargs: dict, msg: str) -> bool:
+        """The server refused the seed field (Google: 'Unknown name "seed"'): remember it and drop the field."""
+        extra = kwargs.get("extra_body") or {}
+        if "seed" not in msg.lower() or ("seed" not in kwargs and "random_seed" not in extra):
+            return False
+        _SEED_REFUSED.add(self.cfg.base_url)
+        kwargs.pop("seed", None)
+        if "random_seed" in extra:
+            kwargs["extra_body"] = {k: v for k, v in extra.items() if k != "random_seed"}
+        log.info("server at %s refused the seed field; sent again without it", self.cfg.base_url)
+        return True
+
     # -- cache ---------------------------------------------------------------
     def _cache_key(self, model: str, messages: list[dict], schema: dict) -> Path:
         h = hashlib.sha256(json.dumps([model, messages, schema], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -208,10 +233,7 @@ class LLM:
             self.cache_hits += 1
             return json.loads(ck.read_text(encoding="utf-8"))
         kwargs: dict[str, Any] = dict(model=model, messages=messages, temperature=0)
-        if "api.mistral.ai" in self.cfg.base_url:
-            kwargs["extra_body"] = {"random_seed": 0}      # Mistral's name for the seed
-        else:
-            kwargs["seed"] = 0
+        self._set_seed(kwargs)
         if self.cfg.extra_body:
             kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
         if self.cfg.supports_schema:
@@ -234,7 +256,7 @@ class LLM:
             except Exception as e:  # noqa: BLE001
                 msg = str(e)
                 log.warning("LLM call failed (%s): %s", attempt, msg[:200])
-                if self._needs_reasoning(model, kwargs, msg):
+                if self._seed_refused(kwargs, msg) or self._needs_reasoning(model, kwargs, msg):
                     continue
                 if "json_schema" in msg or "response_format" in msg or "400" in msg:
                     # server does not support structured outputs → degrade gracefully
@@ -322,10 +344,7 @@ class LLM:
                         {"type": "text", "text": user_text},
                         {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}]}]
         kwargs: dict[str, Any] = dict(model=model, messages=messages, temperature=0, max_tokens=max_tokens)
-        if "api.mistral.ai" in self.cfg.base_url:
-            kwargs["extra_body"] = {"random_seed": 0}
-        else:
-            kwargs["seed"] = 0
+        self._set_seed(kwargs)
         if self.cfg.extra_body:
             kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
             if _reasoning_on(kwargs["extra_body"]):
@@ -376,7 +395,7 @@ class LLM:
                 msg = str(e)
                 low = msg.lower()
                 log.warning("vision call failed (%s): %s", attempt, msg[:200])
-                if self._needs_reasoning(model, kwargs, msg):
+                if self._seed_refused(kwargs, msg) or self._needs_reasoning(model, kwargs, msg):
                     continue
                 if "429" in msg or "rate limit" in low or "too many requests" in low:
                     time.sleep(delay)

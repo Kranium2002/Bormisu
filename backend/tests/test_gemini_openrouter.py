@@ -325,6 +325,51 @@ def test_bh3_gets_the_reasoning_its_model_needs(env: Any) -> None:
     assert bh3_adapter.openrouter_options(bridge, mistral, "m") == {}
 
 
+GOOGLE_OPENAI = "https://generativelanguage.googleapis.com/v1beta/openai"
+SEED_REFUSED = [
+    {
+        "error": {
+            "code": 400,
+            "message": 'Invalid JSON payload received. Unknown name "seed": Cannot find field.',
+            "status": "INVALID_ARGUMENT",
+        }
+    }
+]
+
+
+def test_bh3_drops_the_seed_a_server_refuses_and_remembers_it(tmp_path: Path) -> None:
+    def gateway() -> bh3_llm.LLM:
+        return bridge.make_llm(
+            GOOGLE_OPENAI,
+            "fictional-key",
+            "fictional-vision-model",
+            cache_dir=tmp_path,
+            extra_body={"reasoning_effort": "low"},
+        )
+
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    with respx.mock() as mock:
+        route = mock.post(f"{GOOGLE_OPENAI}/chat/completions").mock(
+            side_effect=[
+                httpx.Response(400, json=SEED_REFUSED),
+                httpx.Response(200, json=completion('{"ok": true}')),
+                httpx.Response(200, json=completion('{"layers": []}')),
+            ]
+        )
+        out, meta = gateway().complete_vision_json(
+            png(20, 20), "image/png", "s", "u", schema, "classify", max_tokens=600
+        )
+        layers = gateway().normalise_layers(["fictional grey sand"])
+    assert out == {"ok": True} and meta["calls"] == 2 and meta["error"] is None
+    assert layers == [None]  # the answer named no layer; the call itself went through
+    bodies = [json.loads(c.request.content) for c in route.calls]
+    assert bodies[0]["seed"] == 0
+    assert all("seed" not in body for body in bodies[1:])  # dropped, and remembered for the text call
+    assert bodies[1]["response_format"]["type"] == "json_schema"  # a refused seed is not a refused schema
+    assert bodies[2]["response_format"]["type"] == "json_schema"
+    assert all(body["reasoning_effort"] == "low" for body in bodies)
+
+
 # ----------------------------------------------------------------------------------------------
 # OCR on the openrouter_vision route
 # ----------------------------------------------------------------------------------------------
