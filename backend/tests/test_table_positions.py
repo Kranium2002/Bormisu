@@ -242,3 +242,42 @@ def test_ocr_noise_in_a_table_cell_is_not_a_number() -> None:
 
     assert [number_of(cell(t)) for t in ("4892,5", "68", "3 170,5", "54 m")] == [4892.5, 68.0, 3170.5, 54.0]
     assert [number_of(cell(t)) for t in ("4a", "3C", "2875,a", "nr 5")] == [None, None, None, None]
+
+
+def test_misread_sheets_never_outvote_the_ones_that_agree() -> None:
+    """Two good sheet positions agree with each other; two misread ones each disagree with everybody."""
+    index = table(
+        {
+            "B1": ("1000", "2000", None),
+            "B2": ("1030", "2000", None),
+            "B3": ("1000", "2030", None),
+            "B4": ("1030", "2030", None),
+        }
+    )
+    utm = "WGS 84 UTM zone 32"
+    items = [
+        item("B1", "512000", "5016000", utm),
+        item("B2", "512030", "5016000", utm),
+        item("B3", "512070", "5016100", utm),  # about 100 m off
+        item("B4", "512030", "4986030", utm),  # 30 km off
+    ]
+    out = apply_tables(items, index)
+    assert [b is i for (b, _), i in zip(out, items, strict=True)] == [True, True, False, False]
+
+
+def test_an_unreadable_cell_gives_no_value_rather_than_the_next_column() -> None:
+    rows = [
+        tok(0, "Point", 0.05, 0.10),
+        tok(1, "X", 0.25, 0.10, 0.02),
+        tok(2, "Y", 0.40, 0.10, 0.02),
+        tok(3, "Rock", 0.55, 0.10, 0.04),
+        tok(4, "Total", 0.62, 0.10, 0.04),
+        tok(5, "depth", 0.66, 0.10, 0.04),
+        tok(10, "BH1", 0.05, 0.14, 0.03),
+        tok(11, "1200", 0.25, 0.14, 0.03),
+        tok(12, "3400", 0.40, 0.14, 0.03),
+        tok(13, "4", 0.58, 0.14, 0.01),  # the rock column
+        tok(14, "4a", 0.645, 0.14, 0.02),  # the total depth, garbled
+    ]
+    (row,) = read_rows(9, rows, {"BH1": "BH1"}, _id_pattern).values()
+    assert row.total_depth is None

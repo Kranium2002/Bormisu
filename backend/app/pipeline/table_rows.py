@@ -114,8 +114,13 @@ def number_of(token: Token | None) -> float | None:
 
 
 def _nearest(row: Sequence[Token], centre: float, tolerance: float) -> Token | None:
-    numbers = [t for t in row if number_of(t) is not None and abs(t.cx - centre) <= tolerance]
-    return min(numbers, key=lambda t: abs(t.cx - centre)) if numbers else None
+    """The cell under a heading: the word nearest its centre, when it is a number (an unreadable cell gives
+    none, never the next column's value)."""
+    near = [t for t in row if abs(t.cx - centre) <= tolerance]
+    if not near:
+        return None
+    closest = min(near, key=lambda t: abs(t.cx - centre))
+    return closest if number_of(closest) is not None else None
 
 
 def _depth_column(rows: Sequence[Sequence[Token]]) -> float | None:

@@ -279,20 +279,34 @@ def apply_tables(items: Sequence[Any], index: TableIndex) -> list[tuple[Any, Adj
 
 
 def _untrusted(sheets: Sequence[Sheet], rows: Sequence[TableRow | None]) -> set[int]:
-    """Sheet positions in a map system that disagree with most of the other such boreholes, by the table."""
+    """Sheet positions in a map system outside the largest group that agrees with itself by the table's
+    distances (a misread digit puts a borehole hundreds of metres or kilometres away). Nothing is untrusted
+    when no group of two or more agrees, or two different groups are equally large."""
     placed = [
         i for i, (s, r) in enumerate(zip(sheets, rows, strict=True)) if s.kind == "world" and r is not None
     ]
-    if len(placed) < 3:
-        return set()  # with two, nothing tells which one is wrong
+    if len(placed) < 2:
+        return set()
     table = {i: row for i in placed if (row := rows[i]) is not None}
-    out: set[int] = set()
+
+    def agree(i: int, j: int) -> bool:
+        return not _disagree(sheets[i], sheets[j], table[i], table[j])
+
+    groups: list[frozenset[int]] = []
     for i in placed:
-        others = [j for j in placed if j != i]
-        against = sum(1 for j in others if _disagree(sheets[i], sheets[j], table[i], table[j]))
-        if against * 2 > len(others):
-            out.add(i)
-    return out
+        group = [i, *(j for j in placed if j != i and agree(i, j))]
+        while True:  # drop the member that disagrees with most of the others until all agree
+            worst = max(group, key=lambda k: sum(1 for m in group if m != k and not agree(k, m)))
+            if all(agree(k, m) for k in group for m in group if k != m):
+                break
+            group.remove(worst)
+        groups.append(frozenset(group))
+    largest = max(len(g) for g in groups)
+    best = {g for g in groups if len(g) == largest}
+    if largest < 2 or len(best) > 1:
+        return set()
+    (trusted,) = best
+    return set(placed) - trusted
 
 
 def _with_blocks(item: Any, header_update: dict[str, Any], index: TableIndex, tokens: Sequence[Token]) -> Any:
