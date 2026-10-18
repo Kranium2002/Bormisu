@@ -83,6 +83,16 @@ def needs_location(record: dict[str, Any]) -> str | None:
     return location.strip() if isinstance(location, str) and location.strip() else None
 
 
+def unplaced_log(record: dict[str, Any]) -> bool:
+    """A log with layers but no coordinate and no printed place: nothing in the document places it, so a
+    person is asked (an empty record, usually a misread fragment, is not)."""
+    meta = record.get("metadata") or {}
+    coords = meta.get("coordinates") or {}
+    if any(coords.get(key) not in (None, "") for key in COORDINATE_KEYS):
+        return False
+    return bool(record.get("stratigraphy")) and needs_location(record) is None
+
+
 def unreadable_coordinates(record: dict[str, Any]) -> bool:
     """Coordinates are printed, but no position could be read from them."""
     coords = (record.get("metadata") or {}).get("coordinates") or {}
@@ -110,8 +120,8 @@ def local_grid_of(record: dict[str, Any], crs_status: str) -> str | None:
 async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
     """`locate_borehole` questions for the boreholes of `doc` that no coordinate system places: one per site
     grid with two or more of its boreholes (app.clarify.grid places them all from one or two anchors), one per
-    other borehole without coordinates but with a printed place. Returns how many were asked for the first
-    time."""
+    other borehole without coordinates but with a printed place, and one per log without coordinates or
+    place. Returns how many were asked for the first time."""
     boreholes = (
         await session.scalars(
             select(Borehole)
@@ -158,7 +168,8 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         if grid is None and bh.crs_status == "unknown" and unreadable_coordinates(bh.record):
             grid = "coordinates printed but not readable"  # e.g. a garbled digit: placed by a person
         location = needs_location(bh.record) if grid is None else grid
-        if location is None:
+        nowhere = grid is None and location is None and unplaced_log(bh.record)
+        if location is None and not nowhere:
             continue
         key = f"locate_borehole:{bh.uid}"
         if await session.scalar(select(Clarification.id).where(Clarification.dedupe_key == key)) is not None:
@@ -176,7 +187,10 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
             kind="locate_borehole",
             document_id=doc.id,
             question=(
-                f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
+                f"{bh.label_raw} has no coordinates and no printed place in {doc.file_name}. Where was it "
+                "drilled?"
+                if nowhere
+                else f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
                 f"'{location}'. Where was it drilled?"
                 if grid is None
                 else f"{bh.label_raw} in {doc.file_name} is positioned in the local grid '{grid}', which no "
@@ -187,7 +201,9 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
                     "name": "location",
                     "widget": "map_point",
                     "label": "Click the borehole position on the map",
-                    "help": f"Printed location: {location}{where}.",
+                    "help": "Nothing in the document gives its position."
+                    if nowhere
+                    else f"Printed location: {location}{where}.",
                     "required": True,
                 },
                 {
