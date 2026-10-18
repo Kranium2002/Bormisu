@@ -58,6 +58,9 @@ class Adjusted:
     notes: list[str] = field(default_factory=list)
     flags: dict[str, str] = field(default_factory=dict)
     readings: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # A trusted map position that the table also prints on a site grid: (grid name as printed, x, y). Such
+    # boreholes anchor the grid (app.clarify.grid_anchors places its other boreholes from them).
+    grid: tuple[str, float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -273,6 +276,8 @@ def apply_tables(items: Sequence[Any], index: TableIndex) -> list[tuple[Any, Adj
         if row is not None:
             if sheet.kind in ("missing", "unreadable", "misfit") or i in untrusted:
                 item = _take_position(item, row, sheet, adjusted, index)
+            elif sheet.kind == "world":
+                adjusted.grid = _grid_of(row)
             item = _check_depth(item, row, adjusted, index)
         out.append((item, adjusted))
     return out
@@ -335,6 +340,19 @@ def _take_position(item: Any, row: TableRow, sheet: Sheet, adjusted: Adjusted, i
     adjusted.notes.append(note)
     logger.info("borehole %s: %s", item.group.label_raw, note)
     return _with_blocks(item, {"coordinates": coords}, index, tokens)
+
+
+def _grid_of(row: TableRow) -> tuple[str, float, float] | None:
+    """The site-grid position a table row prints, when it names a local grid."""
+    x, y = number_of(row.x), number_of(row.y)
+    system = " ".join(t.text for t in row.system).strip(" ,.;:")
+    if x is None or y is None:
+        return None
+    parsed = coordinates_parser.parse_coordinates(
+        row.x.text if row.x else None, row.y.text if row.y else None, None, None
+    )
+    grid = crs_parser.local_grid(system or None, parsed)
+    return None if grid is None else (grid, x, y)
 
 
 def _page_of(token: Token) -> int:

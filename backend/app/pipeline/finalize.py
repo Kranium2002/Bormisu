@@ -46,6 +46,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clarify.checks import EvidenceEntry, ask_datum_convention, ask_locate_boreholes
 from app.clarify.duplicates import ask_duplicates, refresh_duplicate_of
+from app.clarify.grid_anchors import place_from_anchors
 from app.clarify.service import clarification_out, create_clarification
 from app.db.models import Borehole, Clarification, Document, FieldValue, Page
 from app.db.session import get_sessionmaker
@@ -1696,7 +1697,9 @@ def _system_group(record: dict[str, Any]) -> str:
     return "".join(ch for ch in system.casefold() if ch.isalnum())
 
 
-async def finalize_document(document_id: str) -> None:
+async def finalize_document(
+    document_id: str, *, grid_anchors: Mapping[str, tuple[str, float, float]] | None = None
+) -> None:
     """Completeness, duplicates of earlier documents, coordinate-system and location questions, the lint
     across the document's boreholes, progress and status after every group is finalised."""
     async with get_sessionmaker()() as session:
@@ -1709,6 +1712,8 @@ async def finalize_document(document_id: str) -> None:
         # a system the project already confirmed places the boreholes it fits before anything is asked
         await apply_project_crs(session, project=doc.project, document_id=doc.id, actor=ACTOR)
         await _ask_crs(session, doc)
+        # a site grid that two or more boreholes placed by a map system fix is placed without a question
+        await place_from_anchors(session, doc, grid_anchors or {}, actor=ACTOR)
         await ask_locate_boreholes(session, doc)
         await refresh_document_checks(session, doc.id, actor=ACTOR)
         await _set_boreholes_extracted(session, doc)

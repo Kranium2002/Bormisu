@@ -334,6 +334,8 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
     index = await positions.load_tables(document_id, labels) if labels else positions.TableIndex({}, {})
     boreholes = positions.apply_tables(reconciled, index)
     alone = len(boreholes) == 1 and not finished  # the document's only borehole (boundary questions)
+    # boreholes a map system places that the tables also print on a site grid anchor that grid
+    anchors = {item.group.key: adjusted.grid for item, adjusted in boreholes if adjusted.grid is not None}
     for item, adjusted in boreholes:
         if item.group.key in finished:
             continue
@@ -362,7 +364,7 @@ async def stage_extract(document_id: str, extractor: Extractor | None = None) ->
         logger.warning(
             "document %s finalised without pages %s", document_id, sorted(unread_pages | empty_pages)
         )
-    await finalize_module.finalize_document(document_id)
+    await finalize_module.finalize_document(document_id, grid_anchors=anchors)
 
 
 async def _has_boreholes(document_id: str) -> bool:
