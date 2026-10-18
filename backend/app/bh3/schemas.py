@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from .llm import HEADER_FIELDS as _BH_HEADER_FIELDS
 
-PROMPT_VERSION = __import__("os").environ.get("BH_PROMPT_VERSION", "5")   # part of every cache key; override only to replay stored answers
+PROMPT_VERSION = __import__("os").environ.get("BH_PROMPT_VERSION", "6")   # part of every cache key; override only to replay stored answers
 
 PAGE_TYPES = ["log", "spt_sheet", "lab", "narrative", "cover", "photo", "plot", "other"]
 READ_QUALITY = ["clean", "faded", "handwritten", "photo"]
@@ -157,7 +157,23 @@ TILE_SPT_SCHEMA = _obj({
 })
 
 HEADER_FIELDS = list(_BH_HEADER_FIELDS) + ["Inclination", "Sheet", "LoggedBy", "DepthUnit"]
-HEADER_SCHEMA = _obj({f: _str_or_null() for f in HEADER_FIELDS},
+# What a header field may be taken from (the same rules as SYSTEM_HEADER), as field descriptions.
+HEADER_DESCRIPTIONS = {
+    "BoreholeName": "The hole's own name or number as printed, character by character; never an archive, "
+                    "registry or file number stamped on the page when a name or number field is printed.",
+    "StartDate": "Only from a field naming the drilling or boring date or period; never a date of logging, "
+                 "interpretation, data entry, a letter or a stamp.",
+    "EndDate": "Only from a field naming the drilling or boring date or period; never a date of logging, "
+               "interpretation, data entry, a letter or a stamp.",
+    "Contractor": "The drilling company, only from a printed drilling-company field; never an archive, authority "
+                  "or received stamp, a logo or a letterhead.",
+    "BoreholeDepth": "Only a printed total or final depth; never the deepest number of a depth scale or the last "
+                     "base on one sheet.",
+    "X-Coordinate": "The whole value as printed; raised or smaller leading prefix digits first as ordinary digits.",
+    "Y-Coordinate": "The whole value as printed; raised or smaller leading prefix digits first as ordinary digits.",
+    "CoordinateSystem": "The printed grid, datum or zone; never coordinate prefix digits.",
+}
+HEADER_SCHEMA = _obj({f: _str_or_null(HEADER_DESCRIPTIONS.get(f, "")) for f in HEADER_FIELDS},
                      "Metadata printed in the header of a borehole log. Strings exactly as printed.")
 
 SCHEMAS = {"classify": CLASSIFY_SCHEMA, "tile_log": TILE_LOG_SCHEMA, "tile_spt": TILE_SPT_SCHEMA, "header": HEADER_SCHEMA}
