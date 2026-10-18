@@ -116,3 +116,30 @@ describe('sheetModel', () => {
     expect(descriptionLanguage(b, [{ n: 1, language: 'en' }])).toBe('de');
   });
 });
+
+describe('surface elevation and its datum', () => {
+  const elevation = (unit: string, datum: string | null) => {
+    const base = makeBorehole();
+    const b = makeBorehole({
+      meta: { ...base.meta, elevationDatum: null },
+      values: [
+        ...base.values,
+        makeValue({ key: K.elevation, value: '149.50', unit }),
+        ...(datum ? [makeValue({ key: K.elevationDatum, value: datum })] : []),
+      ],
+    });
+    return sheetModel(b, 'en', { today: new Date('2026-10-18T08:00:00Z') }).header.find((h) => h.label === 'Surface elevation')!.cell.text;
+  };
+
+  it('a datum that carries the unit replaces it, never "m · m ü. NN"', () => {
+    expect(elevation('m', 'm ü. NN')).toBe('149.50 m ü. NN');
+    expect(elevation('m', 'mNN')).toBe('149.50 mNN');
+  });
+
+  it('a datum on its own is added; one that only starts with the letter stays apart; none is said', () => {
+    expect(elevation('m', 'NHN')).toBe('149.50 m · NHN');
+    expect(elevation('m', 'mean sea level')).toBe('149.50 m · mean sea level');
+    expect(elevation('m NN', 'NN')).toBe('149.50 m NN');
+    expect(elevation('m', null)).toBe('149.50 m · datum not stated');
+  });
+});

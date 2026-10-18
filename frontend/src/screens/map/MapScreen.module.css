@@ -70,6 +70,9 @@
 
 .openList {
   composes: quiet link from '../../styles/buttons.module.css';
+  /* A link is a block in the flex bar: centre its text in the 24 px box, as a button does. */
+  display: inline-flex;
+  align-items: center;
   padding: 2px var(--space-1);
   text-decoration: none;
   white-space: nowrap;

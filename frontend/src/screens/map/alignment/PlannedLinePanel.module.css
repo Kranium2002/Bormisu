@@ -214,6 +214,14 @@
   composes: secondary small from '../../../styles/buttons.module.css';
 }
 
+/* EXPORT REPORT is a link: no underline, its text centred like the buttons beside it. */
+.reportLink {
+  composes: secondary small from '../../../styles/buttons.module.css';
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .quiet {
   composes: quiet small from '../../../styles/buttons.module.css';
 }

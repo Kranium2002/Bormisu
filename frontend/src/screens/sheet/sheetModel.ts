@@ -106,7 +106,12 @@ export function elevationCell(lang: SheetLang, b: Borehole): SheetCell {
   const datum = dv && dv.state === 'ok' && dv.value.trim() ? dv.value.trim() : b.meta.elevationDatum;
   if (c.missing) return c;
   if (!datum) return { ...c, text: `${c.text} · ${sheetT(lang, 'datum not stated')}` };
-  return v?.unit.trim().endsWith(datum) ? c : { ...c, text: `${c.text} · ${datum}` };
+  const unit = v?.unit.trim() ?? '';
+  if (unit.endsWith(datum)) return c;
+  // A datum that carries the unit itself ("m ü. NN", "mNN") takes its place: "149.50 m ü. NN", not
+  // "149.50 m · m ü. NN". A datum that merely starts with the same letter ("mean sea level") doesn't.
+  if (v && unit && datum.startsWith(unit) && !/^\p{Ll}/u.test(datum.slice(unit.length))) return { ...c, text: `${v.value} ${datum}` };
+  return { ...c, text: `${c.text} · ${datum}` };
 }
 
 /**

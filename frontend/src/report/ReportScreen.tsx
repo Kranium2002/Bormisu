@@ -250,28 +250,30 @@ function SummaryTable({ model, t }: { model: ReportModel; t: (en: string) => str
         {t('Boreholes')} ({model.summary.length})
       </h2>
       {model.summary.length ? (
-        <table className={styles.table} data-testid="report-summary">
-          <thead>
-            <tr>
-              <th scope="col">#</th>
-              <th scope="col">{t('Borehole')}</th>
-              {model.hasLine && <th scope="col">{t('Chainage')}</th>}
-              {model.hasLine && <th scope="col">{t('Offset')}</th>}
-              {model.hasLine && <th scope="col">{t('Side')}</th>}
-              <th scope="col">{t('Position (WGS84)')}</th>
-              <th scope="col">{t('Coordinates as printed')}</th>
-              <th scope="col">{t('Ground level')}</th>
-              <th scope="col">{t('Final depth')}</th>
-              <th scope="col">{t('Status')}</th>
-              <th scope="col">{t('Source')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {model.summary.map((r) => (
-              <SummaryLine key={r.uid} r={r} hasLine={model.hasLine} />
-            ))}
-          </tbody>
-        </table>
+        <div className={styles.tableScroll} data-testid="report-summary-scroll">
+          <table className={styles.table} data-testid="report-summary">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">{t('Borehole')}</th>
+                {model.hasLine && <th scope="col">{t('Chainage')}</th>}
+                {model.hasLine && <th scope="col">{t('Offset')}</th>}
+                {model.hasLine && <th scope="col">{t('Side')}</th>}
+                <th scope="col">{t('Position (WGS84)')}</th>
+                <th scope="col">{t('Coordinates as printed')}</th>
+                <th scope="col">{t('Ground level')}</th>
+                <th scope="col">{t('Final depth')}</th>
+                <th scope="col">{t('Status')}</th>
+                <th scope="col">{t('Source')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {model.summary.map((r) => (
+                <SummaryLine key={r.uid} r={r} hasLine={model.hasLine} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <p className={styles.missing}>{t('The selection holds no boreholes.')}</p>
       )}

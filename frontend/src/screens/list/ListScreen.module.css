@@ -8,5 +8,7 @@
 /* EXPORT REPORT beside the result set summary. */
 .report {
   composes: secondary small from '../../styles/buttons.module.css';
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
 }
