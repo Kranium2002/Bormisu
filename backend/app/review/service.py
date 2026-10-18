@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from geoalchemy2.elements import WKTElement
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -68,6 +68,15 @@ from app.validate.rules import lint_body, unplot_rules
 
 LAT = "metadata.coordinates.latitude"
 LON = "metadata.coordinates.longitude"
+
+
+def placed_point(fv: FieldValue | None) -> bool:
+    """A latitude or longitude that places the borehole by itself: a person's point (edited), or one the
+    pipeline derived from a site grid (derived, with the grid position it came from as raw). Latitude and
+    longitude derived from a stated or confirmed system have no raw and follow that system."""
+    return fv is not None and (fv.method == "edited" or (fv.method == "derived" and fv.raw is not None))
+
+
 LOCAL_X = "metadata.coordinates.local_x"
 LOCAL_Y = "metadata.coordinates.local_y"
 X_RAW = "metadata.coordinates.x_raw"
@@ -195,7 +204,9 @@ def _derive_wgs84(
     bh: Borehole, body: dict[str, Any], fvs: dict[str, FieldValue], new_rows: list[FieldValue], drop: set[str]
 ) -> None:
     coords = body["metadata"].setdefault("coordinates", {})
-    derivable = all(fvs.get(p) is None or fvs[p].method == "derived" for p in (LAT, LON))
+    derivable = all(
+        fvs.get(p) is None or (fvs[p].method == "derived" and not placed_point(fvs[p])) for p in (LAT, LON)
+    )
     if not derivable:
         return
     x, y = coords.get("local_x"), coords.get("local_y")
@@ -294,7 +305,7 @@ def recompute(bh: Borehole, fvs: dict[str, FieldValue]) -> tuple[list[FieldValue
     lint = lint_body(body) + [dict(item) for item in (bh.document_lint or [])]
     unplot = unplot_rules()
     has_lint_error = any(item["severity"] == "error" and item["rule"] in unplot for item in lint)
-    person_placed = all(fvs.get(p) is not None and fvs[p].method == "edited" for p in (LAT, LON))
+    person_placed = all(placed_point(fvs.get(p)) for p in (LAT, LON))
     place = placement(coords, bh.crs_status, implausible=has_lint_error, person_placed=person_placed)
 
     bh.record = body
@@ -769,9 +780,18 @@ async def set_crs(
 
 
 async def set_manual_location(
-    session: AsyncSession, uid: str, *, lat: float, lon: float, actor: str, note: str | None = None
+    session: AsyncSession,
+    uid: str,
+    *,
+    lat: float,
+    lon: float,
+    actor: str,
+    note: str | None = None,
+    derived: tuple[str, str] | None = None,
 ) -> Borehole:
-    """A person placed the borehole on the map: WGS84 point, method edited, system confirmed as EPSG:4326."""
+    """A person placed the borehole on the map: WGS84 point, method edited, system confirmed as EPSG:4326.
+    `derived` = (source, reason): the pipeline placed it from a site grid fitted to boreholes a map system
+    places; method derived with `source` (the grid position) as raw, flagged for review with `reason`."""
     bh = await get_borehole_for_update(session, uid)
     fvs = await load_field_values(session, uid)
     body = copy.deepcopy(bh.record)
@@ -789,23 +809,29 @@ async def set_manual_location(
                 uid=uid,
                 path=path,
                 value=value,
-                raw=None,
+                raw=derived[0] if derived else None,
                 document_id=bh.document_id,
                 page=None,
                 box=None,
                 cell=None,
-                method="edited",
+                method="derived" if derived else "edited",
                 confidence=None,
-                status="approved",
+                status="flagged" if derived else "approved",
                 state="ok",
                 ai_value=None,
-                flag=None,
+                flag=derived[1] if derived else None,
                 readings=[],
             )
             session.add(fv)
             fvs[path] = fv
         else:
-            fv.value, fv.method, fv.status, fv.state, fv.flag = value, "edited", "approved", "ok", None
+            fv.value, fv.method, fv.status, fv.state = (
+                value,
+                "derived" if derived else "edited",
+                "flagged" if derived else "approved",
+                "ok",
+            )
+            fv.raw, fv.flag = (derived[0], derived[1]) if derived else (fv.raw, None)
             fv.updated_at = _now()
     bh.record = body
     changes = {
@@ -1071,7 +1097,10 @@ async def _document_members(session: AsyncSession, document_id: str) -> tuple[li
                     .where(
                         FieldValue.uid.in_(uids),
                         FieldValue.path.in_((LAT, LON)),
-                        FieldValue.method == "edited",
+                        or_(
+                            FieldValue.method == "edited",
+                            and_(FieldValue.method == "derived", FieldValue.raw.is_not(None)),
+                        ),
                     )
                     .group_by(FieldValue.uid)
                     .having(func.count() == 2)

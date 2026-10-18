@@ -284,3 +284,16 @@ def test_an_unreadable_cell_gives_no_value_rather_than_the_next_column() -> None
     ]
     (row,) = read_rows(9, rows, {"BH1": "BH1"}, _id_pattern).values()
     assert row.total_depth is None
+
+
+def test_a_trusted_map_position_with_a_grid_row_anchors_that_grid() -> None:
+    index = table({"B1": ("1000", "2000", None), "B2": ("1030", "2000", None), "B3": ("1000", "2030", None)})
+    utm = "WGS 84 UTM zone 32"
+    items = [
+        item("B1", "512000", "5016000", utm),
+        item("B2", "512030", "5016000", utm),
+        item("B3", "512000", "4986030", utm),  # not trusted: takes the table position, anchors nothing
+    ]
+    (_, a1), (_, a2), (_, a3) = apply_tables(items, index)
+    assert a1.grid == ("Fictional local", 1000.0, 2000.0) and a2.grid == ("Fictional local", 1030.0, 2000.0)
+    assert a3.grid is None

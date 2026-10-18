@@ -16,3 +16,9 @@ column_tolerance: 0.06
 # placed from their sheets is not trusted, and the table's position is used (the sheet's kept as a reading).
 distance_tolerance_m: 25
 distance_tolerance_share: 0.1
+
+# A site grid placed from boreholes a map system places that the tables also print on the grid
+# (app.clarify.grid_anchors): a third or further anchor must land within distance_tolerance_m of where the fit
+# from the first two puts it, and every borehole placed may lie at most anchor_max_lever times the anchors'
+# distance apart from the anchors (close anchors fix the rotation too poorly for boreholes far from them).
+anchor_max_lever: 3
