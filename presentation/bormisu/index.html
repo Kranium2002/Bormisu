@@ -183,6 +183,7 @@
   /* easter egg: Mistral Large 4 a.k.a. "Le Chonk" */
   .chonk { white-space: nowrap; font-size: 20px; color: var(--on-dark-muted); font-style: italic; }
   .chonk-cat { height: 34px; width: auto; vertical-align: -8px; margin-left: 6px; image-rendering: pixelated; }
+  .tier .zdr { align-self: flex-start; background: var(--ladyfinger); color: var(--espresso); border-radius: 999px; padding: 10px 22px; font: 700 26px var(--display); letter-spacing: -0.01em; }
   .tier .why { margin-top: auto; padding-top: 12px; font-family: var(--display); font-size: 30px; font-weight: 600; color: var(--cocoa-text); }
   .tier.now .why { color: var(--ladyfinger); }
 
@@ -329,11 +330,12 @@
       <div class="tier now" data-anim style="--d: 300ms;">
         <div class="lab">Cloud · today</div>
         <div class="h">Mistral, Paris</div>
+        <div class="zdr">Zero data retention</div>
         <ul>
           <li><b>OCR</b>Mistral OCR</li>
           <li><b>Classify &amp; extract</b>Mistral Large <span class="chonk">(Le Chonk) <img class="chonk-cat" src="img/chonk-cat.png" alt="pixel cat" /></span></li>
         </ul>
-        <div class="why">Best OCR and zero data retention.</div>
+        <div class="why">Nothing stored. No training.</div>
       </div>
       <div class="tier" data-anim style="--d: 450ms;">
         <div class="lab">On-premise</div>

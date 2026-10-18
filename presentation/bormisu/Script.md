@@ -13,7 +13,7 @@
 
 ## 03 · Offenburg
 
-> But you don't drill just ones. In Offenburg alone, there are about 2,700 documented soil samples.
+> But you don't drill just ones. In Offenburg alone, there are about 2.000 documented soil samples.
 > This data is all kept on one database.
 > However here starts the problem, even this one database doesn't follow one standard, and pieces are missing.
 
@@ -31,17 +31,20 @@
 
 > When you work internationally, the data looks really messi.
 > This is what real reports look like.
-> Handwritten, in Norwegian. A Spanish soil probe sheet. A Korean drill log.
+> A Spanish soil probe sheet. 
+> Handwritten, in Norwegian. 
+> A Korean drill log.
 > Every country does it differently. 
 > Often every company does.
 > So we built the thing that standardises all of it.
 
 ## 07 · Demo
 
-
+> Docuemnt upload
+> Line drawing
+> Chat feature
+> show sources review thing
 ## 08 · Key features
-
-> So what you just saw, and more.
 
 **Click 1:**
 > It reads any report: scans, handwriting, any language. And where it's unsure, it flags the case for a human to verify.
@@ -55,7 +58,7 @@
 ## 09 · Sovereignty
 
 > Today it runs in the Mistral cloud where you can run it under zero data retention.
-> If you want to keep the data completely private you can run a similar pipeline on open models, whcih run either on your on premise server or your own PC.
+> If you want to keep the data completely private you can run a similar pipeline on open models, which run either on a premise server or your own PC.
 
 ## 10 · In a nutshell
 
