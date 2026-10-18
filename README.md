@@ -373,6 +373,16 @@ cd frontend && npm test && npm run e2e   # vitest and Playwright
 
 ---
 
+## Known limitations
+
+- **Handwritten digits.** A misread handwritten digit can put a printed position far from where the document's own tables place it. Such a position is not trusted: the borehole takes the table's position or becomes a question, never a wrong pin. Which way a borderline digit is read can differ between runs.
+- **Garbled text layers.** Scans often carry an embedded OCR text layer. Where that layer garbles a row (a fold line or a strike-through across a table row), the row is not read and no value is filled in; the borehole gets a question instead.
+- **Page reader coverage.** The page reader (`backend/app/bh3/`) handles log sheets with a depth scale. Other layouts, such as drilling plots or sounding forms, go to the cited-text extractor, which reads every value with its source words but without depth-scale anchoring.
+- **Chat needs an OpenAI key.** The assistant runs on the OpenAI Responses API (`OPENAI_API_KEY`); without it, the chat panel says so and every other screen works.
+- **Minimal sign-in.** No attempt limits, no password reset by email; account changes are made on the server (see [Accounts and sign-in](#accounts-and-sign-in)).
+
+---
+
 ## Configuration
 
 Every backend setting is an environment variable. [`.env.example`](.env.example) documents the ones you would change. The most important ones:
