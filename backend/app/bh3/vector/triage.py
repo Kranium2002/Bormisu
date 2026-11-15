@@ -136,10 +136,3 @@ def classify(page: Page) -> tuple[str, float, dict]:
     total = sum(s.values()) or 1.0
     conf = s[cls] / total
     return cls, round(conf, 3), f
-
-
-def triage(pages: list[Page]) -> list[Page]:
-    for p in pages:
-        cls, conf, f = classify(p)
-        p.page_class, p.class_score, p.features = cls, conf, f
-    return pages

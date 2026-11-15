@@ -176,16 +176,3 @@ class Borehole:
 
     def to_dict(self) -> dict:
         return asdict(self)
-
-
-METADATA_FIELDS = [
-    "BoreholeID", "BoreholeName", "LocationName", "StartDate", "EndDate",
-    "ProjectID", "ProjectName", "Surface Elevation", "X-Coordinate", "Y-Coordinate",
-    "CoordinateSystem", "BoreholeDepth", "BoreholeLength", "Notes",
-]
-
-LOG_FIELDS = [
-    "StratigraphicName", "EngineeringSoilUnit", "GeologicAge", "Lithology/SoilName",
-    "Soil/Rockprofile", "Core", "SampleName", "SampleDepth", "TotalCoreRecovery",
-    "RQD", "SPT", "Groundwaterlevel",
-]

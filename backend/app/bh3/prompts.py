@@ -103,7 +103,3 @@ SYSTEM_HEADER = (
     "DepthUnit = m or ft as used on the page. Use null for every field that is not printed. Return only JSON."
 )
 USER_HEADER = "Extract the metadata fields from this log header."
-
-SYSTEM_PROBE = SYSTEM_TILE_LOG
-USER_PROBE = ("List every number printed in the depth scale column (left) of this image, top to bottom, as the "
-              "layers' top values, and the strata descriptions.")

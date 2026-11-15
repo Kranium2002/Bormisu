@@ -50,30 +50,13 @@ class Ledger:
             if meta.get("error"):
                 self.errors[meta["error"]] = self.errors.get(meta["error"], 0) + 1
 
-    def summary(self) -> str:
-        return (f"vision calls={self.calls} cache_hits={self.cache_hits} tokens={self.prompt_tokens}+{self.completion_tokens} "
-                f"(≈ ${cost_usd(self.prompt_tokens, self.completion_tokens):.2f}) latency={self.latency_s:.0f}s truncated={self.truncated} "
-                f"by_kind={self.by_kind} errors={self.errors}")
-
-
-PRICE_IN = 1.5      # $ per million prompt tokens, for the run summary only (the backend's ledger prices calls)
-PRICE_OUT = 7.5     # $ per million completion tokens
-
-
-def cost_usd(prompt_tokens: int, completion_tokens: int) -> float:
-    return prompt_tokens / 1e6 * PRICE_IN + completion_tokens / 1e6 * PRICE_OUT
-
 
 class VLM:
     def __init__(self, llm: LLM, workers: Optional[int] = None, max_tokens: Optional[int] = None,
-                 max_calls: Optional[int] = None, max_total_tokens: Optional[int] = None,
                  guard: Optional[Callable[[], None]] = None):
         self.llm = llm
         self.workers = workers or 1
         self.max_tokens = max_tokens or 4096
-        # optional per-run limits (0 = none): a run stops cleanly, outputs still written, when one is reached
-        self.max_calls = max_calls or 0
-        self.max_total_tokens = max_total_tokens or 0
         self.guard = guard            # the backend's budget check before every paid call; raises BudgetExceeded
         self.ledger = Ledger()
         self.budget_hit = False
@@ -85,16 +68,6 @@ class VLM:
             except BudgetExceeded:
                 self.budget_hit = True
                 raise
-        with self.ledger._lock:
-            calls, toks = self.ledger.calls, self.ledger.prompt_tokens + self.ledger.completion_tokens
-        if (self.max_calls and calls >= self.max_calls) or (self.max_total_tokens and toks >= self.max_total_tokens):
-            self.budget_hit = True
-            raise BudgetExceeded(f"budget reached: {calls} calls, {toks:,} tokens (≈ ${self.cost():.2f}); "
-                                 f"limits {self.max_calls} calls / {self.max_total_tokens:,} tokens. "
-                                 f"Raise with --max-calls/--max-tokens-total or BH_VLM_MAX_CALLS/BH_VLM_MAX_TOTAL_TOKENS; re-run with resume to continue.")
-
-    def cost(self) -> float:
-        return cost_usd(self.ledger.prompt_tokens, self.ledger.completion_tokens)
 
     @property
     def enabled(self) -> bool:
