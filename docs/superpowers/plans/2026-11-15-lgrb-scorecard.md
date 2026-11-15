@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - No portal file, label or key in git. Data and reports live under `/raw_data/` at the repository root (ignored).
-- Tests use fictional values only (names, coordinates, file names), like every other test in `backend/tests`.
+- Test values may be real when their source is public (the LGRB portal), with the source named in the test; challenge data stays out. No data file (pdf, xlsx, csv, image) is committed: the CI `data-guard` job rejects them outside `docs/` and `assets/`.
 - The score uses the values of the first extraction. Records with `revision != 1` are counted and named in the report.
 - Every metric reports matches, mismatches and "not comparable" separately (`Tally` from `app/eval/compare.py:48`).
 - ruff: line length 110, `ruff check` and `ruff format --check` must pass (`backend/pyproject.toml`).
@@ -180,24 +180,29 @@ def test_render_names_the_denominators() -> None:
 **Interfaces:**
 - Consumes: `score_borehole`, `render`.
 - Produces:
-  - `own_sheet(folder: Path, borehole_id: str) -> Path | str` — the borehole's single own Schichtenverzeichnis: a file matching `BO_<tk25>_<arnum zero-padded to 5>_SV_<n>(_x)?.pdf`. Returns the path when exactly one exists, otherwise the reason as a string: `"no own sheet"` or `"several own sheets"`. Range files and non-SV files never count.
+  - `own_sheets(folder: Path, borehole_id: str) -> list[Path]` — the borehole's own Schichtenverzeichnis files, `BO_<tk25>_<arnum zero-padded to 5>_SV_<n>(_x)?.pdf`, ordered by part number `<n>`. Range files and non-SV files never count.
+  - `sheet_for_upload(folder: Path, borehole_id: str, joined_dir: Path) -> Path | str` — one own sheet: that file. Several: `joined_dir/<id>.pdf`, the parts joined in order with pypdfium2 (`PdfDocument.new()` and `import_pages`, as `sub_pdf` in `app/pipeline/ocr.py` does); an existing joined file is reused, never rebuilt, so a second run uploads the same bytes. None: the string `"no own sheet"`.
   - `sign_in(client: httpx.Client, email: str, password: str) -> None` — raises `SystemExit("Sign-in failed: …")` on 401.
-  - `upload(client: httpx.Client, data_dir: Path, project: str) -> None` — for every `truth/*.json`: pick `own_sheet`, post it, and write `data_dir/scorecard/uploads.csv` with columns `id,file,document_id,reason` (reason filled and `document_id` empty for excluded boreholes). Answers 200 and 202 both give the id; 409 ends with `SystemExit("The app is in demo mode: set a provider key.")`.
+  - `upload(client: httpx.Client, data_dir: Path, project: str) -> None` — for every `truth/*.json`: take `sheet_for_upload(data_dir/"pdf"/<id>, <id>, data_dir/"scorecard"/"joined")`, post it, and write `data_dir/scorecard/uploads.csv` with columns `id,file,document_id,reason` (reason filled and `document_id` empty for excluded boreholes). Answers 200 and 202 both give the id; 409 ends with `SystemExit("The app is in demo mode: set a provider key.")`.
   - `score(client: httpx.Client, data_dir: Path) -> Path` — reads `uploads.csv`, fetches document and records per row, writes `scorecard/report.md` and `scorecard/rows.csv`, returns the report path.
   - `main(argv: list[str] | None = None) -> int` — `python -m app.eval.lgrb_scorecard {upload,score} --data DIR [--base-url http://localhost:8000] [--project "LGRB Offenburg"] --email EMAIL`; the password comes from the environment variable `LGRB_SCORECARD_PASSWORD` only.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-def test_own_sheet_ignores_shared_and_profile_files(tmp_path: Path) -> None:
+def test_own_sheets_ignore_shared_and_profile_files_and_parts_are_joined(tmp_path: Path) -> None:
     folder = tmp_path / "0000-7"
     folder.mkdir()
-    for name in ("BO_0000_00005-00009_SV_1_x.pdf", "BO_0000_00007_BP_1_x.pdf", "BO_0000_00007_SV_1_x.pdf"):
-        (folder / name).write_bytes(b"%PDF-1.4 fictional")
-    assert sc.own_sheet(folder, "0000-7") == folder / "BO_0000_00007_SV_1_x.pdf"
-    (folder / "BO_0000_00007_SV_2_x.pdf").write_bytes(b"%PDF-1.4 fictional")
-    assert sc.own_sheet(folder, "0000-7") == "several own sheets"
-    assert sc.own_sheet(tmp_path / "missing", "0000-8") == "no own sheet"
+    for name in ("BO_0000_00005-00009_SV_1_x.pdf", "BO_0000_00007_BP_1_x.pdf"):
+        (folder / name).write_bytes(one_page_pdf())  # a one-page PDF made with pypdfium2 in the test file
+    assert sc.sheet_for_upload(folder, "0000-7", tmp_path / "joined") == "no own sheet"
+    for name in ("BO_0000_00007_SV_2_x.pdf", "BO_0000_00007_SV_1_x.pdf"):
+        (folder / name).write_bytes(one_page_pdf())
+    assert [p.name for p in sc.own_sheets(folder, "0000-7")] == ["BO_0000_00007_SV_1_x.pdf", "BO_0000_00007_SV_2_x.pdf"]
+    joined = sc.sheet_for_upload(folder, "0000-7", tmp_path / "joined")
+    assert joined == tmp_path / "joined" / "0000-7.pdf" and len(pdfium.PdfDocument(str(joined))) == 2
+    before = joined.read_bytes()
+    assert sc.sheet_for_upload(folder, "0000-7", tmp_path / "joined").read_bytes() == before  # reused
 
 
 @respx.mock
@@ -256,7 +261,7 @@ No code. Needs the stack at `http://localhost:8000` in live mode and the harvest
 
 ## Deviations from the spec, for the reader
 
-- The spec's coordinate self-check used a real portal value. Tests must be fictional, so the test uses a point on the UTM 32 central meridian (longitude exactly 9.0), which is also a sharper check.
+- The coordinate test uses a point on the UTM 32 central meridian (longitude exactly 9.0), a sharper check than a sample value. Public LGRB values may be used in tests where they help (decided by Felix, 2026-11-15).
 - The spec's three self-checks live in `backend/tests/test_lgrb_scorecard.py`, like every other check in this repo, not inside the script.
 - The truth's main soil code is taken from the portal's own petrography code first and from its words second; the code is LGRB's own and needs no interpretation.
-- A borehole is scored only when it has exactly one own Schichtenverzeichnis file. Shared sheets that cover several boreholes and boreholes with several sheets are listed as excluded with the reason, so "one upload, one borehole" stays checkable.
+- One upload per borehole: its own Schichtenverzeichnis, with part files joined in order (12 of the 34 harvested boreholes come in 2 to 4 parts, mostly the deep ones; leaving them out would flatter the score). The 2 boreholes that only have a sheet shared with a neighbour are excluded and listed with the reason.
