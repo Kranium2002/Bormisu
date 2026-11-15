@@ -1,7 +1,7 @@
 """Scorecard on public LGRB borehole sheets (docs/superpowers/specs/2026-11-15-lgrb-scorecard-design.md).
 
-The LGRB-BW portal (https://bohrungen.lgrb-bw.de/) publishes, per borehole, the redacted original sheet and its
-own structured layer table. `upload` sends one sheet per borehole to a running stack; `score` reads the
+The LGRB-BW portal (https://bohrungen.lgrb-bw.de/) publishes, per borehole, the redacted original sheet and
+its own structured layer table. `upload` sends one sheet per borehole to a running stack; `score` reads the
 documents and records back over the HTTP API and compares them with the portal's table.
 
 Every metric keeps matches, mismatches and "not comparable" apart (app.eval.compare.Tally): a value the
