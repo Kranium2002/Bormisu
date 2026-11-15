@@ -12,7 +12,7 @@ MIN_TEXT_CHARS = 40       # below this a page is treated as having no usable tex
 def dedupe_words(words: list[Word], iou: float = 0.75) -> list[Word]:
     """Remove stroked/overprinted duplicates (same text drawn 2-4x at nearly the same spot).
 
-    Seen in AF01.PDF where every glyph is quadrupled. Sort so the result is deterministic.
+    Some PDFs draw every glyph four times over. Sort so the result is deterministic.
     """
     words = sorted(words, key=lambda w: (round(w.y0, 1), round(w.x0, 1), w.text))
     out: list[Word] = []
@@ -32,7 +32,7 @@ def _text_layer_usable(words: list[Word]) -> bool:
     txt = "".join(w.text for w in words)
     if len(txt) < MIN_TEXT_CHARS:
         return False
-    # garbage OCR layers (ToughOne1) have a low ratio of alnum chars; keep them but
+    # garbage OCR layers (embedded by some scanners) have a low ratio of alnum chars; keep them but
     # mark unusable so we re-OCR ourselves when the ratio is bad.
     alnum = sum(c.isalnum() for c in txt)
     return alnum / max(1, len(txt)) > 0.6

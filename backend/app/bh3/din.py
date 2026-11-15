@@ -6,7 +6,7 @@ Per layer, in this order of evidence (the first that applies wins, `din_source` 
   printed          a DIN short form printed in the description ("G, s, u'", "Kst")             -> printed
   lithology        the normaliser's lithology enum gives the main constituent; secondary constituents come
                    from adjectives in the raw text in any of eight languages                    -> lithology
-  legend           a per-document phrase table (legends.json) names the main constituent        -> legend
+  legend           the generic phrase table (legends.json) names the main constituent           -> legend
   words            a constituent noun found in the raw text (uppercase word first)              -> words
   uscs             the USCS group symbol                                                        -> uscs
   symbol           the hatch described by the vision model (`symbol` field, when present)       -> symbol
@@ -150,10 +150,10 @@ def printed_code(text: str) -> Optional[str]:
     return ", ".join(parts)
 
 
-def _legend_lookup(text: str, document: str) -> Optional[str]:
+def _legend_lookup(text: str) -> Optional[str]:
+    """Row semantics from the generic phrase table (legends.json `_default`): a DIN main code, 'marker' or 'ditto'."""
     low = _norm(text)
-    tables = [legends().get(document) or {}, legends().get("_default") or {}]
-    for table in tables:
+    for table in [legends().get("_default") or {}]:
         for phrase, code in sorted(table.items(), key=lambda kv: -len(kv[0])):
             p = phrase.lower()
             if (p == low) or (phrase.startswith("^") and re.match(phrase, str(text or ""), re.I)) or \
@@ -253,8 +253,8 @@ def classify_layer(layer: dict, document: str = "", prev: Optional[dict] = None,
         out.update(din_code=code, din_main=main, din_secondary=secs, din_color=i["color"], din_pattern=i["pattern"], din_source=source)
         return out
 
-    # 1. per-document row semantics: markers and "ditto"
-    leg = _legend_lookup(desc, doc)
+    # 1. row semantics from the generic phrase table: markers and "ditto"
+    leg = _legend_lookup(desc)
     if leg == "marker":
         return out
     if leg == "ditto":

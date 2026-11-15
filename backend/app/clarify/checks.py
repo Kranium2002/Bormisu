@@ -1,6 +1,7 @@
 """Questions raised by document-level checks (BACKEND.md 7.8 and 7.9) and what their answers change.
 
-* `locate_borehole`: a borehole without any printed coordinate but with a printed location name. The answer
+* `locate_borehole`: a borehole without any printed coordinate but with a printed location name, or a log of a
+  page document with neither (nothing in the document places it). The answer
   (a map point) is applied by app.clarify.answers through app.review.service.set_manual_location.
 * `datum_convention`: a depth sign or origin note that the printed layer depths contradict (the finding
   comes from app.validate.datum). One question per document and kind; it grows to cover every borehole of
@@ -18,6 +19,7 @@ import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -83,6 +85,16 @@ def needs_location(record: dict[str, Any]) -> str | None:
     return location.strip() if isinstance(location, str) and location.strip() else None
 
 
+def unplaced_log(record: dict[str, Any]) -> bool:
+    """A log with layers but no coordinate and no printed place: nothing in the document places it, so a
+    person is asked (an empty record, usually a misread fragment, is not)."""
+    meta = record.get("metadata") or {}
+    coords = meta.get("coordinates") or {}
+    if any(coords.get(key) not in (None, "") for key in COORDINATE_KEYS):
+        return False
+    return bool(record.get("stratigraphy")) and needs_location(record) is None
+
+
 def unreadable_coordinates(record: dict[str, Any]) -> bool:
     """Coordinates are printed, but no position could be read from them."""
     coords = (record.get("metadata") or {}).get("coordinates") or {}
@@ -110,8 +122,8 @@ def local_grid_of(record: dict[str, Any], crs_status: str) -> str | None:
 async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
     """`locate_borehole` questions for the boreholes of `doc` that no coordinate system places: one per site
     grid with two or more of its boreholes (app.clarify.grid places them all from one or two anchors), one per
-    other borehole without coordinates but with a printed place. Returns how many were asked for the first
-    time."""
+    other borehole without coordinates but with a printed place, and one per log without coordinates or
+    place. Returns how many were asked for the first time."""
     boreholes = (
         await session.scalars(
             select(Borehole)
@@ -120,12 +132,37 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         )
     ).all()
     asked = 0
-    covered = {
+    # boreholes a crs_confirm question already covers: the document's own, or its project's (asked once per
+    # project and stored with the project's first document)
+    uids = [bh.uid for bh in boreholes]
+    covered = (
+        {
+            uid
+            for asked in (
+                await session.scalars(
+                    select(Clarification.borehole_uids).where(
+                        Clarification.kind == "crs_confirm", Clarification.borehole_uids.overlap(uids)
+                    )
+                )
+            ).all()
+            for uid in (asked or [])
+        }
+        if uids
+        else set()
+    )
+    # a log nothing places is asked about on page documents only (a layer list in a spreadsheet without
+    # positions would ask once per row), and not when a page-grouping question already asks about it
+    from app.pipeline.orchestrator import SPREADSHEET_EXTENSIONS
+
+    page_document = Path(doc.storage_key or "").suffix.lower() not in SPREADSHEET_EXTENSIONS
+    in_boundary = {
         uid
         for uids in (
             await session.scalars(
                 select(Clarification.borehole_uids).where(
-                    Clarification.kind == "crs_confirm", Clarification.document_id == doc.id
+                    Clarification.kind == "borehole_boundary",
+                    Clarification.document_id == doc.id,
+                    Clarification.status.in_(("open", "skipped")),
                 )
             )
         ).all()
@@ -158,7 +195,14 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
         if grid is None and bh.crs_status == "unknown" and unreadable_coordinates(bh.record):
             grid = "coordinates printed but not readable"  # e.g. a garbled digit: placed by a person
         location = needs_location(bh.record) if grid is None else grid
-        if location is None:
+        nowhere = (
+            grid is None
+            and location is None
+            and page_document
+            and bh.uid not in in_boundary
+            and unplaced_log(bh.record)
+        )
+        if location is None and not nowhere:
             continue
         key = f"locate_borehole:{bh.uid}"
         if await session.scalar(select(Clarification.id).where(Clarification.dedupe_key == key)) is not None:
@@ -176,7 +220,10 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
             kind="locate_borehole",
             document_id=doc.id,
             question=(
-                f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
+                f"{bh.label_raw} has no coordinates and no readable place in {doc.file_name}. Where was it "
+                "drilled?"
+                if nowhere
+                else f"{bh.label_raw} has no coordinates in {doc.file_name}; the log names the place "
                 f"'{location}'. Where was it drilled?"
                 if grid is None
                 else f"{bh.label_raw} in {doc.file_name} is positioned in the local grid '{grid}', which no "
@@ -187,7 +234,9 @@ async def ask_locate_boreholes(session: AsyncSession, doc: Document) -> int:
                     "name": "location",
                     "widget": "map_point",
                     "label": "Click the borehole position on the map",
-                    "help": f"Printed location: {location}{where}.",
+                    "help": "Nothing in the document gives its position."
+                    if nowhere
+                    else f"Printed location: {location}{where}.",
                     "required": True,
                 },
                 {

@@ -4,7 +4,14 @@ Written 2026-10-17 by Felix for the backend owner. It compares the extraction pi
 `178b43b`, `backend/app/`) with bh3, the pipeline on branch `felix-backend` (`backend/bh3/`). Everything
 measured here was measured on the challenge corpus (18 documents, 1034 pages) and on 21 hand-labelled pages;
 the labels are not in the repository (data rule) and are available from me on request. Where I could not
-measure something, the text says so.
+measure something, the text says so. Corpus documents are described by their layout, not by file name.
+
+**Status (2026-10-18):** option 1 of section 5 is done. bh3 runs inside main as `backend/app/bh3/`, called
+through `backend/app/pipeline/bh3_adapter.py` and `backend/app/bh3/bridge.py`, with main's classifier,
+clarification questions, review and database around it. The port ships no per-document rule files:
+`doc_rules.json` and `crs_overrides.json` (D4, D6) stayed on `felix-backend`, and
+`backend/app/bh3/legends.json` holds only generic phrases. The numbers below were measured on
+`felix-backend` before the port.
 
 ## 1. What is measured and what is not
 
@@ -63,11 +70,11 @@ How the unseen numbers moved while bh3 was built (same pages, same model) — th
   every tick, boundary and test row, and code fits y→depth and snaps boundaries to detected ruling lines
   (`anchor.py`, gate: snap required, ≤ 0.75 m for boundaries, ≤ 0.3 m for SPT depths).
 - **Why it matters:** on most scanned logs the stratum boundaries are ruled lines against a graphic depth
-  scale, not printed numbers (MEA03 photos, SEA02, NAM02, EUR02), and AF02 prints a thickness column that
-  OCR text cannot tell from a depth column. OCR text carries no geometry, so those boundaries are either
+  scale, not printed numbers (photographed logs and several scanned reports), and one report prints a
+  thickness column that OCR text cannot tell from a depth column. OCR text carries no geometry, so those boundaries are either
   guessed by the extractor or lost: main's `finalize.py` drops a layer whose depths do not parse. Measured in
-  bh3: MEA03 boundaries 83 % → 100 % and SPT depths 12 % → 100 % with anchoring; unseen SPT recall
-  0.57 → 0.81; the thickness-column trap is what the prompt rule fixed on AF02.
+  bh3: on a photographed log set, boundaries 83 % → 100 % and SPT depths 12 % → 100 % with anchoring;
+  unseen SPT recall 0.57 → 0.81; the thickness-column trap is what the prompt rule fixed.
 - **Implement in main:** attach the page image for every log page and ask for depths read off the scale with
   grid positions (prompt + schema: `scale_ticks`, `y_grid_top/bottom`), then `anchor.py`'s fit and snap in
   `finalize.py`. Cheapest exact path: call bh3's `extract.process_page` as the vision stage (section 5).
@@ -80,8 +87,9 @@ How the unseen numbers moved while bh3 was built (same pages, same model) — th
 - **bh3:** a page with a usable text layer is parsed deterministically — ruled columns, depth-scale fit,
   header aliases (`vector/`), zero model calls — and only falls to the model when it yields fewer than two
   layers; then the model gets the page's exact words with their rows as a transcript (`extract.text_transcript`).
-- **Why it matters:** AUS01's clean vector logs score 100 % boundaries and 9/9 header fields at no cost; the
-  transcript lifted EUR01's strata text from 0.20 → 0.60 and 0.71 → 1.00 on the two labelled pages. OCR of a
+- **Why it matters:** the corpus's clean vector-log report scores 100 % boundaries and 9/9 header fields at
+  no cost; the transcript lifted one scanned report's strata text from 0.20 → 0.60 and 0.71 → 1.00 on its
+  two labelled pages. OCR of a
   vector page re-introduces errors the text layer never had.
 - **Implement in main:** skip OCR when `text_layer_quality ≥ 0.8` and feed the extractor the words with row
   positions; run a geometry parse first and use the model only where it fails. Saves the OCR fee on every
@@ -107,7 +115,8 @@ How the unseen numbers moved while bh3 was built (same pages, same model) — th
   deep is a new hole), then the printed coordinates as the tie-break when the name is missing or unusable,
   plus label stripping ("BORING NO. T01" → T01) and a per-document name regex for layouts that print the
   number away from the title (`doc_rules.json`).
-- **Why it matters:** NAM02 went from 87 holes to the correct 14 and EUR01 from 84 to 71 once those
+- **Why it matters:** a report of multi-sheet logs went from 87 holes to the correct 14, and a long report
+  from 84 to 71, once those
   tie-breaks existed; main has nothing to fall back on when the label is missing or misread.
 - **Implement in main:** the same tie-breaks behind the labels in `group.py`; the coordinate rule needs the
   header's `x_raw`/`y_raw` per page, which main already extracts.
@@ -146,8 +155,8 @@ How the unseen numbers moved while bh3 was built (same pages, same model) — th
 - **bh3:** the same six plus System 34 Sjælland (west-orientated: the printed "E" is negated before the
   east-orientated EPSG reconstruction) and the NZGD2000 wording variants; a per-document assumptions file with
   the evidence written next to each entry (`crs_overrides.json`); both axis orders tried and the one inside
-  the area of use kept (FullReport02 prints northing first, AF01 latitude in X, SEA01's Korean belt is
-  northing-first); holes more than 100 km from their document's others are flagged, not pinned. Result:
+  the area of use kept (one report prints northing first, another prints latitude in X, and a Korean belt
+  is northing-first); holes more than 100 km from their document's others are flagged, not pinned. Result:
   148 of the corpus's 382 holes have a pin; the rest print no coordinates or a local site grid.
 - **Implement in main:** the registry entries above (`data/crs_registry.yaml`, `crs_patterns.yaml`), the
   negated-axis quirk for System 34, an `assumed` status fed by a project evidence file, and the outlier flag;
@@ -170,7 +179,7 @@ How the unseen numbers moved while bh3 was built (same pages, same model) — th
 - Clarification questions (units, datum convention, borehole boundaries, duplicates, disagreeing readings)
   and the reread of handwritten crops; bh3 lowers the confidence and lists an issue instead.
 - OCR gating by page role, resumable stages, per-call cost ledger with a budget, duplicate detection by
-  perceptual hash (SEA03-png vs Report01).
+  perceptual hash (an image set that repeats pages of a long report).
 - The no-default rule enforced in the schema, aliases per borehole, revisions and events.
 - Fill priority, grain-size fractions and organic mud in the DIN mapping (now also in bh3).
 
@@ -193,8 +202,8 @@ Recommendation: 1 first, measure, then 2 where main's stricter design (questions
 - Run both on the 21 labelled pages with bh3's metrics added to main's harness; targets are bh3's unseen
   numbers above (boundaries 0.80, strata 0.70, SPT 0.81, names 1.00).
 - Cost per page from the ledger on the same pages (bh3 ≈ $0.006 measured; main's worst-case prior ≈ $0.018).
-- Corpus level: holes per document against the known counts (NAM02 14, EUR01 about 37 printed boring numbers
-  for pages 5–84), pins per document, DIN coverage per document.
+- Corpus level: holes per document against the known counts (14 on the multi-sheet report, about 37 printed
+  boring numbers on the long report's log pages), pins per document, DIN coverage per document.
 
 ## Appendix: reproducing the numbers
 

@@ -28,7 +28,7 @@ Verified state (branch audit, 2026-10-17, head `49c84dd`): the prototype does no
 | `backend/api/routes/boreholes.py` | Reads JSON files from a cache folder on every request; `GET /boreholes/{id}` matches substrings (`BH-1` finds `BH-10`) | Replace with PostgreSQL queries and exact `uid` |
 | `backend/models/schemas.py` | Pydantic v2 models with invented defaults (`din4023_code="Sand"`, `uscs_group="SP"`, `confidence_score=0.90`, `coordinate_system="WGS84"`, TBM risk defaults "Moderate", "EPB"); RQD and recovery capped at 100 | Replace with models generated from or checked against `contracts/openapi.yaml`; no defaults; RQD/recovery above 100 allowed and linted |
 | `backend/extractor/universal_pipeline.py` | OCR with `mistral-ocr-2503` on at most the **first 25 pages** (`max_pages`), then the whole document's markdown in one `mistral-small-latest` call with `json_object` (no schema); uses PyMuPDF; dataset path defaults to a personal Windows folder | Replace with the staged pipeline below. Logs in long reports sit on pages 16–43 and 37–94 of the samples, so page caps silently drop boreholes |
-| `backend/extractor/mistral_ocr_pipeline.py` | Regexes written for particular sample layouts (Catalan "SONDEIG", Norwegian summary tables, "ToughOne1"), first 4–5 pages only | Delete. This is the overfitting the user forbids |
+| `backend/extractor/mistral_ocr_pipeline.py` | Regexes written for particular sample layouts (a Catalan heading, Norwegian summary tables, one handwritten report), first 4–5 pages only | Delete. This is the overfitting the user forbids |
 | `backend/extractor/multi_borehole_parser.py`, `scripts/*` | Batch helpers bound to the local dataset | Delete; the eval harness (section 11) replaces them |
 | `backend/extractor/excel_exporter.py` | Writes the Herrenknecht xlsx | Keep as reference only. v1 exports run client-side in the frontend; server export is P2 |
 | `backend/tests/test_api_and_schemas.py` | Expects at least 10 boreholes in a git-ignored local cache, so it fails on a fresh clone | Replace with the test strategy in section 10 |
@@ -303,7 +303,7 @@ Published host ports come from `WEB_PORT` (default 8080), `API_PORT` (default 80
 
 `env_file: .env` only on `api`, `worker` and `migrate`, with `required: false` so a clone without `.env` still starts in demo mode. Never pass keys to `web`. Add a `Makefile` with `up`, `down`, `logs`, `seed`, `unseed`, `test`, `lint`, `eval`, `contract-test`. A fresh clone plus `.env` plus `docker compose up --build` must work, and so must a fresh clone without `.env`.
 
-You also own, because the judge reads them first:
+You also own, because readers of the repository start with them:
 - Root `README.md`: what the app does in three lines, a screenshot of fictional data, quick start (`cp .env.example .env`, `docker compose up --build`, open http://localhost:8080), demo mode versus live mode, an architecture diagram, how to run tests, the data rule, known limits. The frontend session sends its section through `COORDINATION.md`.
 - `.github/workflows/backend.yml` (ruff, mypy, pytest with a PostGIS service, contract tests, `docker compose build`) and a data-guard job that fails when a PDF, spreadsheet, Word file or scan image is committed outside `docs/` or `assets/`. The frontend session owns `.github/workflows/frontend.yml`.
 
@@ -323,8 +323,8 @@ You also own, because the judge reads them first:
 
 `python -m app.eval --data-dir "$EVAL_DATA_DIR" --expected "$EVAL_EXPECTED" --files <list> --max-usd 5`
 
-- Runs the real pipeline on the selected sample files, then compares per file: borehole count, labels found, coordinates as printed (`x_raw`/`y_raw`), CRS status, total depths, layer counts, unplotted reasons, duplicates detected (SEA03-png vs Report01).
-- Use files from at least eight families, for example AUS01 (clean vector), Report01 (long report, logs on pages 16–43), MEA03 (degrees and minutes), SEA01 (Korean grid, X northing), SAM02 (Word file of scan strips), ToughOne2 (handwritten), EUR02 (scanned, datum note), NAM02 (multi-sheet holes), plus SEA03-png after Report01 for duplicates.
+- Runs the real pipeline on the selected sample files, then compares per file: borehole count, labels found, coordinates as printed (`x_raw`/`y_raw`), CRS status, total depths, layer counts, unplotted reasons, duplicates detected (an image set that repeats pages of a long report).
+- Use files from at least eight families, for example a clean vector log, a long report with its logs deep inside, coordinates in degrees and minutes, a Korean grid with X as the northing, a Word file of scan strips, a handwritten log, a scanned log with a datum note and multi-sheet holes, plus an image set that repeats pages of a long report, for duplicates.
 - Stops when the cost cap is reached. Writes `docs/eval/report.md` with metrics and failure categories only, never values from the samples.
 - The audit files in `D:\Bormisu\local\data-audit\` list traps and fixture pages per file; use them to judge failures, not to special-case code.
 

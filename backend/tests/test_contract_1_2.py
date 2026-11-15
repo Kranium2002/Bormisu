@@ -19,7 +19,7 @@ from app.db.session import get_sessionmaker
 from app.events.writer import emit
 from app.pipeline import orchestrator
 from app.pipeline.orchestrator import StageError, run_pipeline
-from app.providers.base import ProviderError
+from app.providers.base import BudgetExceededError, ProviderError
 from tests.contract.test_examples import EVENT_SCHEMAS
 from tests.contract_utils import schema_errors, validate_response
 
@@ -136,6 +136,51 @@ async def test_failed_document_names_the_failed_stage(
     updated = (await _events("document.updated"))[-1]
     assert not schema_errors(updated, "Document")
     assert (updated["status"], updated["failed_stage"]) == ("failed", failing)
+
+
+def _flaky(failures: list[Exception], calls: list[int]) -> StageFn:
+    async def stage(_: str) -> None:
+        calls.append(1)
+        if failures:
+            raise failures.pop(0)
+
+    return stage
+
+
+async def test_a_transient_provider_error_is_retried_and_the_document_never_fails(
+    db: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _document(storage_key="originals/" + "c" * 64 + ".pdf", stage="classify", status="extracting")
+    calls: list[int] = []
+    timeout = ProviderError("The fictional server is not reachable.", retryable=True)
+    monkeypatch.setitem(orchestrator.STAGE_FUNCTIONS, "ocr", _flaky([timeout, timeout], calls))
+    for stage in ("extract", "reread"):
+        monkeypatch.setitem(orchestrator.STAGE_FUNCTIONS, stage, _passes)
+    await run_pipeline(DOC_ID)
+    stored = await _stored(DOC_ID)
+    assert (stored.status, stored.stage, stored.failed_stage) == ("needs_review", "reread", None)
+    assert len(calls) == 3 and await _events("job.failed") == []
+
+
+@pytest.mark.parametrize(
+    ("exc", "attempts"),
+    [
+        (ProviderError("The fictional model declined to answer.", retryable=False), 1),
+        (BudgetExceededError(1.0, 1.0), 1),
+        (ProviderError("The fictional server is not reachable.", retryable=True), 3),
+    ],
+    ids=["not-retryable", "budget", "retries-used-up"],
+)
+async def test_a_stage_fails_at_once_or_after_its_retries(
+    db: None, monkeypatch: pytest.MonkeyPatch, exc: Exception, attempts: int
+) -> None:
+    await _document(storage_key="originals/" + "c" * 64 + ".pdf", stage="classify", status="extracting")
+    calls: list[int] = []
+    monkeypatch.setitem(orchestrator.STAGE_FUNCTIONS, "ocr", _flaky([exc] * 5, calls))
+    await run_pipeline(DOC_ID)
+    stored = await _stored(DOC_ID)
+    assert (stored.status, stored.failed_stage) == ("failed", "ocr")
+    assert len(calls) == attempts and len(await _events("job.failed")) == 1
 
 
 async def test_retry_and_success_clear_the_failed_stage(

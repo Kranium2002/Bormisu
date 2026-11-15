@@ -1,0 +1,54 @@
+# Root build check on every push and pull request to main: the whole stack is built from the root
+# docker-compose.yml on a clean runner with no .env and no secrets, started, and checked to answer.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    name: docker compose build and start (no secrets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Compose file is valid without a .env
+        run: docker compose config -q
+
+      - name: Build every image
+        run: docker compose build
+
+      - name: Start the stack and wait for the health checks
+        run: docker compose up -d --wait
+
+      - name: API answers in demo mode
+        run: |
+          health="$(curl -fsS http://localhost:8000/api/health)"
+          echo "$health"
+          echo "$health" | grep -q '"status":"ok"'
+          echo "$health" | grep -q '"mode":"demo"'
+
+      - name: Web app is served and proxies the API
+        run: |
+          curl -fsS -o /dev/null http://localhost:8080/
+          curl -fsS http://localhost:8080/api/health | grep -q '"status":"ok"'
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop
+        if: always()
+        run: docker compose down -v

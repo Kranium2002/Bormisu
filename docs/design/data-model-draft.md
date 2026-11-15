@@ -196,7 +196,7 @@ Unique: `sha256`
   "documents": [
     {
       "document_id": "11111111-1111-4111-8111-111111111111", // uuid; = file name in document_bucket
-      "file_name": "AUS01.pdf", // text
+      "file_name": "fictional-report.pdf", // text
       "mime_type": "application/pdf", // text
       "sha256": "9f2c...e1", // text; file hash, same file twice = same document
       "page_count": 14, // int

@@ -116,9 +116,15 @@ services:
         condition: service_completed_successfully
       gotenberg:
         condition: service_started
-    # The image's HEALTHCHECK probes the HTTP API, which the worker does not serve.
+    # The image's HEALTHCHECK probes the HTTP API, which the worker does not serve; this one checks that the
+    # worker reaches its job queue (the database). A disabled check would make "docker compose up --wait" fail
+    # with "has no healthcheck configured".
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('db', 5432), 3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     stop_grace_period: 30s
     restart: unless-stopped
 

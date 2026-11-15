@@ -435,6 +435,13 @@ STATUS_AFTER: dict[str, str] = {
 }
 
 
+# A retryable provider error (a timeout, an unreachable server, an answer that does not match its schema) runs
+# the stage again after these pauses before the document fails. Stages keep what they finished (stored runs,
+# caches), so a repeat pays only for what failed. A spent budget, a refusal or a cut-off answer is not
+# retryable and fails at once.
+RETRY_DELAYS_S: tuple[float, ...] = (15.0, 45.0)
+
+
 async def run_pipeline(document_id: str) -> None:
     """Run every unfinished stage of one document. Stages manage their own transactions; the Procrastinate
     job lock (one job per document) keeps two workers off the same document. Spreadsheets take
@@ -460,17 +467,7 @@ async def run_pipeline(document_id: str) -> None:
                 doc.failed_stage = None
                 await emit_document_updated(session, doc)
                 await session.commit()
-        try:
-            await STAGE_FUNCTIONS[stage](document_id)
-        except StageError as exc:
-            await _fail(document_id, stage, str(exc), exc.retryable, rewind_to=exc.rewind_to)
-            return
-        except ProviderError as exc:
-            await _fail(document_id, stage, str(exc), exc.retryable)
-            return
-        except Exception:
-            logger.exception("stage %s failed for %s", stage, document_id)
-            await _fail(document_id, stage, f"Processing stopped during {stage}. Retry the document.", True)
+        if not await _run_stage(document_id, stage):
             return
         async with get_sessionmaker()() as session:
             doc = await session.get(Document, document_id)
@@ -484,6 +481,31 @@ async def run_pipeline(document_id: str) -> None:
             doc.updated_at = _now()
             await emit_document_updated(session, doc)
             await session.commit()
+
+
+async def _run_stage(document_id: str, stage: str) -> bool:
+    """Run one stage; a retryable provider error runs it again after RETRY_DELAYS_S. False when the document
+    failed (recorded by `_fail`)."""
+    for attempt in range(len(RETRY_DELAYS_S) + 1):
+        try:
+            await STAGE_FUNCTIONS[stage](document_id)
+            return True
+        except StageError as exc:
+            await _fail(document_id, stage, str(exc), exc.retryable, rewind_to=exc.rewind_to)
+            return False
+        except ProviderError as exc:
+            if exc.retryable and attempt < len(RETRY_DELAYS_S):
+                delay = RETRY_DELAYS_S[attempt]
+                logger.warning("stage %s of %s: %s; trying again in %.0f s", stage, document_id, exc, delay)
+                await asyncio.sleep(delay)
+                continue
+            await _fail(document_id, stage, str(exc), exc.retryable)
+            return False
+        except Exception:
+            logger.exception("stage %s failed for %s", stage, document_id)
+            await _fail(document_id, stage, f"Processing stopped during {stage}. Retry the document.", True)
+            return False
+    return False
 
 
 @queue_app.task(name="process_document", queue=PIPELINE_QUEUE, pass_context=False)
