@@ -138,13 +138,6 @@ class Layer:
     # filled by LLM normaliser
     lithology: Optional[str] = None
     soil_unit: Optional[str] = None       # USCS / EngineeringSoilUnit
-    color: Optional[str] = None
-    consistency: Optional[str] = None
-    moisture: Optional[str] = None
-    stratigraphic_name: Optional[str] = None
-    geologic_age: Optional[str] = None
-    is_rock: Optional[bool] = None
-    norm_confidence: Optional[float] = None
     # filled by bh3.din (DIN 4023 petrography)
     din_code: Optional[str] = None
     din_color: Optional[str] = None

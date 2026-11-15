@@ -243,11 +243,4 @@ def build_boreholes(doc: Document, results: list[PageResult], llm: Optional[LLM]
                 continue
             L.lithology = r.get("lithology") or None
             L.soil_unit = r.get("soil_unit") or None
-            L.color = r.get("color") or None
-            L.consistency = r.get("consistency") or None
-            L.moisture = r.get("moisture") or None
-            L.stratigraphic_name = r.get("stratigraphic_name") or None
-            L.geologic_age = r.get("geologic_age") or None
-            L.is_rock = r.get("is_rock")
-            L.norm_confidence = r.get("confidence")
     return boreholes

@@ -328,7 +328,7 @@ async def extract_document(document_id: str, bridge: ModuleType | None = None) -
         int(r.page_no): (getattr(r, "language", "") or None) or _base_language(infos.get(int(r.page_no)))
         for r in results
     }
-    long_side = _long_sides(pdf_path, infos)
+    long_side = await asyncio.to_thread(_long_sides, pdf_path, infos)  # opens the PDF: not on the loop
     out = Bh3Read(failed=failed, over_budget=over_budget)
     for bh in built:
         if too_thin(bh, infos):
