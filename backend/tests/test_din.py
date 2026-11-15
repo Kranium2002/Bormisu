@@ -1,4 +1,5 @@
 """DIN 4023 petrography mapping (offline)."""
+
 from app.bh3.din import classify_boreholes, classify_layer, printed_code, secondaries
 
 
@@ -9,12 +10,21 @@ def c(desc, litho=None, uscs=None, doc="", prev=None):
 def test_printed_code_wins():
     r = c("S, u  grey, medium dense", "Clay")
     assert r["din_code"] == "S, u" and r["din_source"] == "printed"
-    assert printed_code("G, s, u'") == "G, s, u'" and printed_code("Kst") == "Kst" and printed_code("USCS: SM") is None
+    assert (
+        printed_code("G, s, u'") == "G, s, u'"
+        and printed_code("Kst") == "Kst"
+        and printed_code("USCS: SM") is None
+    )
 
 
 def test_english_adjectives():
     r = c("Silty fine SAND, grey, with some gravel", "Sand")
-    assert r["din_code"] == "fS, u, g'" and r["din_source"] == "lithology" and r["din_color"] == "orange" and r["din_pattern"] == "Feinsand"
+    assert (
+        r["din_code"] == "fS, u, g'"
+        and r["din_source"] == "lithology"
+        and r["din_color"] == "orange"
+        and r["din_pattern"] == "Feinsand"
+    )
     assert secondaries("Sandy CLAY, slightly gravelly", "T") == ["s", "g'"]
 
 
@@ -54,7 +64,15 @@ def test_ditto_and_markers():
 
 
 def test_classify_boreholes_coverage():
-    bhs = [{"source_file": "x/AUS01.pdf", "layers": [{"description": "Silty CLAY", "lithology": "Clay"}, {"description": "DITTO", "lithology": None}]}]
+    bhs = [
+        {
+            "source_file": "x/AUS01.pdf",
+            "layers": [
+                {"description": "Silty CLAY", "lithology": "Clay"},
+                {"description": "DITTO", "lithology": None},
+            ],
+        }
+    ]
     rep = classify_boreholes(bhs)
     assert rep["layers"] == 2 and rep["coded"] == 2 and rep["by_source"] == {"lithology": 1, "ditto": 1}
     assert bhs[0]["layers"][1]["din_code"] == "T, u"

@@ -1,4 +1,5 @@
 """Offline tests for page rendering and text-layer words."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,7 +13,10 @@ from app.bh3.render import render_page, vector_words
 from tests.test_bh3_bridge import _line, _text
 
 
-def _pdf(path: Path, text: str = "BOREHOLE LOG  depth 1.0 2.0 3.0  sandy CLAY grey stiff moist  silty SAND brown loose"):
+def _pdf(
+    path: Path,
+    text: str = "BOREHOLE LOG  depth 1.0 2.0 3.0  sandy CLAY grey stiff moist  silty SAND brown loose",
+):
     pdf = pdfium.PdfDocument.new()
     page = pdf.new_page(595, 842)
     _text(pdf, page, text, 72, 842 - 72, 11)
