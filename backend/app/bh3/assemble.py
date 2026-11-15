@@ -13,7 +13,7 @@ from typing import Optional
 
 from .vector.header import _coerce
 from .llm import LLM
-from .models import Borehole, Layer, Page, Provenance
+from .models import Borehole, Layer, Provenance
 from .validate import validate
 
 from .inputs import Document
@@ -228,6 +228,7 @@ def build_boreholes(doc: Document, results: list[PageResult], llm: Optional[LLM]
             if missing and text.strip():
                 for k, v in llm.fill_header(text, missing).items():
                     bh.metadata[k] = _coerce(k, v)
+                    bh.metadata.setdefault("_raw", {})[k] = str(v)  # the text as the model read it, for citing
                     bh.meta_prov[k] = Provenance(bh.source_file, group[0].page_no, method="llm", confidence=0.6)
         boreholes.append(bh)
     seen: dict[str, int] = {}
@@ -242,26 +243,4 @@ def build_boreholes(doc: Document, results: list[PageResult], llm: Optional[LLM]
                 continue
             L.lithology = r.get("lithology") or None
             L.soil_unit = r.get("soil_unit") or None
-            L.color = r.get("color") or None
-            L.consistency = r.get("consistency") or None
-            L.moisture = r.get("moisture") or None
-            L.stratigraphic_name = r.get("stratigraphic_name") or None
-            L.geologic_age = r.get("geologic_age") or None
-            L.is_rock = r.get("is_rock")
-            L.norm_confidence = r.get("confidence")
     return boreholes
-
-
-def pages_for_export(doc: Document, results: list[PageResult]) -> list[Page]:
-    """Lightweight Page objects so export can write the Pages sheet."""
-    out = []
-    for pr in results:
-        pg = Page(doc.doc_id, pr.source_file, pr.page_no, 0, 0)
-        pg.page_class = pr.page_type
-        pg.class_score = pr.confidence if pr.is_log else pr.stats.get("triage_score", 0.0) or 0.0
-        pg.has_text_layer = pr.route == "vector"
-        pg.features = {"n_words": pr.stats.get("n_words"), "depth_scale_kind": pr.depth_unit if pr.is_log else None,
-                       "depth_scale_n": len(pr.layers), "kw_log": pr.stats.get("tiles"), "kw_lab": None, "ocr_conf": None,
-                       "route": pr.route, "read_quality": pr.read_quality}
-        out.append(pg)
-    return out

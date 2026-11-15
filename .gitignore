@@ -9,6 +9,8 @@
 *.cert
 *.crt
 *.pfx
+# hand-labelled evaluation pages (README data rule: labels stay out of git)
+backend/tests/golden/
 
 # ==========================================
 # Executables & Compiled Binaries

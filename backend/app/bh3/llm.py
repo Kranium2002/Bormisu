@@ -101,17 +101,8 @@ LAYER_SCHEMA = {
                     "id": {"type": "integer"},
                     "lithology": {"type": "string", "enum": LITHOLOGY},
                     "soil_unit": {"type": "string", "enum": USCS},
-                    "color": {"type": "string"},
-                    "consistency": {"type": "string",
-                                    "description": "soil consistency/density or rock strength as written, e.g. 'very soft', 'medium dense', 'moderately strong'; empty if absent"},
-                    "moisture": {"type": "string", "description": "dry/moist/wet/saturated or empty"},
-                    "is_rock": {"type": "boolean"},
-                    "stratigraphic_name": {"type": "string", "description": "formation / unit name if stated, else empty"},
-                    "geologic_age": {"type": "string", "description": "if stated, else empty"},
-                    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
                 },
-                "required": ["id", "lithology", "soil_unit", "color", "consistency", "moisture", "is_rock",
-                             "stratigraphic_name", "geologic_age", "confidence"],
+                "required": ["id", "lithology", "soil_unit"],
                 "additionalProperties": False,
             },
         }
@@ -135,14 +126,13 @@ SYSTEM_LAYERS = (
     "and must classify each one into fixed vocabularies. Rules: 'lithology' is the dominant material; "
     "'soil_unit' is the USCS group symbol if given in the text or clearly implied (e.g. 'Sandy CLAY, high plasticity' -> CH; "
     "'Clayey SAND' -> SC; 'Topsoil' -> FILL unless a soil type is given; any rock -> ROCK); when unsure use UNKNOWN. "
-    "Copy colour/consistency/moisture words from the text (translated to English), do not invent. "
     "Return only JSON matching the schema, one entry per input id, same order."
 )
 SYSTEM_HEADER = (
     "You extract borehole metadata from the header text of a drilling log (any language). "
     "Return only JSON with exactly the requested keys; use null when a value is not present in the text. "
-    "Dates as YYYY-MM-DD when possible. Numbers as plain decimal strings in metres (convert feet). "
-    "'Surface Elevation' is the ground/collar level; if only start and end elevations are given, BoreholeDepth = start - end. "
+    "Dates as YYYY-MM-DD when possible. Numbers exactly as printed, with their printed unit and sign: never "
+    "converted, computed or rounded. 'Surface Elevation' is the ground/collar level. "
     "Never guess values that are not in the text. "
     "BoreholeName: the hole's own name or number copied character by character, never an archive, registry or "
     "file number stamped on the page when a name or number field is printed. StartDate / EndDate only from a "

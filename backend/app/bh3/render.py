@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import threading
-import io
 import logging
 import re
-import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -50,18 +48,10 @@ def file_sha1(path: str | Path) -> str:
     return _sha_cache[key]
 
 
-def clear_cache() -> None:
-    pdfium.close_all()
-
-
 def _load_source_image(src: PageSource):
     from PIL import Image, ImageOps
     if src.kind == "image":
         im = Image.open(src.image_path)
-    elif src.kind == "docx-image":
-        with zipfile.ZipFile(src.source_file) as z:
-            im = Image.open(io.BytesIO(z.read(src.docx_member)))
-            im.load()
     else:
         raise ValueError(f"not an image source: {src.kind}")
     im = ImageOps.exif_transpose(im)

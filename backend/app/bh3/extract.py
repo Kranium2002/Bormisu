@@ -11,8 +11,6 @@ import hashlib
 import json
 import logging
 import math
-import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -20,7 +18,7 @@ from typing import Optional
 from . import prompts, schemas
 from .anchor import anchor_tile, detect_hlines, unanchor
 from .classify import _raw_path, _save, classify_page, load_raw
-from .inputs import Document, PageSource
+from .inputs import PageSource
 from .reconcile import DEPTH_LIMITS, PageResult, reconcile_log, reconcile_spt
 from .render import crop_norm, file_sha1, render_page, rotate_by, vector_words
 from .schemas import PROMPT_VERSION
@@ -33,20 +31,17 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class RouteConfig:
-    dpi: int = int(os.environ.get("BH_VLM_DPI", "200"))           # render resolution for extraction tiles
+    dpi: int = 200                                                 # render resolution for extraction tiles
     classify_dpi: int = 72                                         # A4 → 842 px long side; enough for layout
-    tile_px: int = int(os.environ.get("BH_VLM_TILE_PX", "1540"))   # long-side cap measured on the backend
+    tile_px: int = 1540                                            # long-side cap measured on the backend
     overlap: float = 0.15
     max_rows_per_tile: int = 15
     preprocess: str = "auto"                                       # auto | always | never
-    resume: bool = True
-    no_vector: bool = False                                        # force everything through the vision path
-    no_vlm: bool = False                                           # deterministic only (vector pages; raster pages unread)
-    anchor: bool = os.environ.get("BH_VLM_ANCHOR", "1") != "0"      # grid overlay + line snapping for depths
-    symbols: str = os.environ.get("BH_VLM_SYMBOLS", "auto")        # auto | always | never: hatch symbols + legend read (separate schema / cache key)
-    anchor_max_shift: float = float(os.environ.get("BH_ANCHOR_MAX_SHIFT", "0.75"))      # m, boundaries
-    anchor_point_shift: float = float(os.environ.get("BH_ANCHOR_POINT_SHIFT", "0.3"))   # m, SPT/samples (measured best)
-    anchor_require_snap: bool = os.environ.get("BH_ANCHOR_REQUIRE_SNAP", "1") != "0"
+    anchor: bool = True                                            # grid overlay + line snapping for depths
+    symbols: str = "auto"                                          # auto | always | never: hatch symbols + legend read (separate schema / cache key)
+    anchor_max_shift: float = 0.75                                 # m, boundaries
+    anchor_point_shift: float = 0.3                                # m, SPT/samples (measured best)
+    anchor_require_snap: bool = True
 
 
 
@@ -91,14 +86,13 @@ def _extract_tiles(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, c
     tdir = workdir / "tiles" / file_sha1(src.source_file)
     use_grid = cfg.anchor and kind == "log"
     geom = hashlib.sha1(json.dumps([[s.body_px, s.header_px] for s in specs]).encode()).hexdigest()[:8]
-    use_text = page is not None and bool(page.words) and rot == 0 and os.environ.get("BH_VLM_TRANSCRIPT", "1") != "0"
+    use_text = page is not None and bool(page.words) and rot == 0
     key = f"tiles_{kind}_{cfg.dpi}_{cfg.tile_px}_{PROMPT_VERSION}_{geom}{'_pp' if pre else ''}{'_g' if (cfg.anchor and kind == 'log') else ''}{'_t' if use_text else ''}{'_s' if (symbols and kind == 'log') else ''}"
     def _apply_anchor(results: list) -> list:
         """Anchoring is post-processing on the stored model answer: undo any earlier application, then apply
         the current gate. Tiles must have been rendered (for the ruling lines) – render_tile is cached."""
         if kind != "log":
             return results
-        to_pt = 72.0 / cfg.dpi
         for spec, out in zip(specs, results):
             if not isinstance(out, dict):
                 continue
@@ -114,7 +108,8 @@ def _extract_tiles(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, c
                 if isinstance(L, dict):
                     for pkey, ykey in (("_y_top_page", "y_grid_top"), ("_y_bottom_page", "y_grid_bottom")):
                         y = L.get(ykey)
-                        L[pkey] = round(spec.page_y(float(y)) * to_pt, 1) if isinstance(y, (int, float)) else None
+                        # page render pixels; bridge._in_points turns them into page points once
+                        L[pkey] = round(spec.page_y(float(y)), 1) if isinstance(y, (int, float)) else None
         return results
 
     if key in raw and len(raw[key]) == len(specs):
@@ -220,7 +215,7 @@ def _copy_symbols(plain: dict, sym: dict) -> dict:
 
 def _vision_result(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, route: str, page=None) -> PageResult:
     rp = _raw_path(src, workdir)
-    raw = load_raw(rp, cfg.resume)
+    raw = load_raw(rp)
     if not vlm.enabled:
         pr = PageResult(src.source_file, src.page_no, route, page_type="unread", read_quality="")
         pr.issues.append("raster page not read (vision model disabled)")
@@ -275,7 +270,7 @@ def _vision_result(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path, r
 
 
 def process_page(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path) -> PageResult:
-    page = None if cfg.no_vector else vector_words(src)
+    page = vector_words(src)
     if page is not None and page.has_text_layer:
         pr = parse_vector_page(src, page)
         if pr is not None and (pr.page_type != "log" or vector_ok(pr)):
@@ -299,34 +294,4 @@ def process_page(src: PageSource, vlm: VLM, cfg: RouteConfig, workdir: Path) -> 
             if vr.borehole_name is None:
                 vr.borehole_name = pr.borehole_name
         return vr
-    if cfg.no_vlm:
-        pr = PageResult(src.source_file, src.page_no, "vlm", page_type="unread")
-        pr.issues.append("raster page not read (vision model disabled)")
-        return pr
     return _vision_result(src, vlm, cfg, workdir, "vlm")
-
-
-def process_document(doc: Document, vlm: VLM, cfg: RouteConfig, workdir: Path, pages: Optional[set[int]] = None,
-                     max_pages: Optional[int] = None) -> list[PageResult]:
-    out: list[PageResult] = []
-    srcs = [p for p in doc.pages if not pages or p.page_no in pages]
-    if max_pages:
-        srcs = srcs[:max_pages]
-    for i, src in enumerate(srcs):
-        pr = process_page(src, vlm, cfg, workdir)
-        out.append(pr)
-        log.info("%s [%d/%d]: route=%s type=%s layers=%d points=%d conf=%.2f %s", src.label, i + 1, len(srcs), pr.route,
-                 pr.page_type, len(pr.layers), len(pr.points), pr.confidence, ("issues=" + str(len(pr.issues))) if pr.issues else "")
-    # document-level smoothing: a 'photo/other' page between two log pages that names a borehole is a log
-    for i in range(1, len(out) - 1):
-        a, b, c = out[i - 1], out[i], out[i + 1]
-        if b.route == "vlm" and b.page_type in ("photo", "other", "plot") and a.is_log and c.is_log and b.stats.get("names"):
-            log.info("%s: re-reading as log (between two log pages, names visible)", srcs[i].label)
-            rp = _raw_path(srcs[i], workdir)
-            raw = json.loads(rp.read_text(encoding="utf-8")) if rp.exists() else {}
-            if raw.get("classify"):
-                raw["classify"]["page_type"] = "log"
-                _save(rp, raw)
-                out[i] = _vision_result(srcs[i], vlm, cfg, workdir, "vlm")
-                out[i].notes.append("re-classified as log by document context")
-    return out

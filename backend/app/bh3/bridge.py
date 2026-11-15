@@ -1,8 +1,8 @@
 """The backend's entry points into bh3 (docs/design/main-vs-bh3.md section 5, option 1).
 
-bh3 is synchronous: call these from a worker thread (``asyncio.to_thread``). With the default ``workers=1``
-every model call runs in that thread, one after another, so the ``on_call`` and ``guard`` callbacks never run
-concurrently.
+bh3 is synchronous: call these from a worker thread (``asyncio.to_thread``). With ``workers`` above 1 the
+tiles of a page are read from a thread pool, so the ``on_call`` and ``guard`` callbacks must be thread-safe
+(the backend's schedule onto the event loop; ``guard`` may let one extra call through at the budget line).
 
     vlm = make_vlm(base_url, api_key, model, on_call=ledger.append, guard=budget.check, cache_dir=run_dir / "llm")
     pages = read_pages("report.pdf", pdf_path=path, pages=[3, 4, 5], vlm=vlm, workdir=run_dir)

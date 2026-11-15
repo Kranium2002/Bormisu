@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from .llm import HEADER_FIELDS as _BH_HEADER_FIELDS
 
-PROMPT_VERSION = __import__("os").environ.get("BH_PROMPT_VERSION", "6")   # part of every cache key; override only to replay stored answers
+PROMPT_VERSION = "6"   # part of every cache key
 
 PAGE_TYPES = ["log", "spt_sheet", "lab", "narrative", "cover", "photo", "plot", "other"]
 READ_QUALITY = ["clean", "faded", "handwritten", "photo"]
@@ -175,5 +175,3 @@ HEADER_DESCRIPTIONS = {
 }
 HEADER_SCHEMA = _obj({f: _str_or_null(HEADER_DESCRIPTIONS.get(f, "")) for f in HEADER_FIELDS},
                      "Metadata printed in the header of a borehole log. Strings exactly as printed.")
-
-SCHEMAS = {"classify": CLASSIFY_SCHEMA, "tile_log": TILE_LOG_SCHEMA, "tile_spt": TILE_SPT_SCHEMA, "header": HEADER_SCHEMA}

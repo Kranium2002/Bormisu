@@ -1,4 +1,4 @@
-"""Stage 6: hard rules. Every borehole gets a list of issues and a confidence score; nothing is silently fixed
+"""Stage 6: hard rules. Every borehole gets a list of issues; nothing is silently fixed
 except trivially derivable values (missing top = previous bottom), and those are flagged."""
 from __future__ import annotations
 
@@ -125,17 +125,4 @@ def validate(bh: Borehole) -> Borehole:
         if not math.isnan(L.top) and not math.isnan(L.bottom) and L.bottom - L.top > 40:
             issues.append(f"layer {i + 1}: thickness {L.bottom - L.top:.1f} m implausible — check")
 
-    # confidence
-    confs = [L.prov.confidence for L in layers] + [pv.confidence for pv in bh.meta_prov.values()]
-    base = sum(confs) / len(confs) if confs else 0.3
-    penalty = 0.05 * len([i for i in issues if "gap" in i or "overlap" in i or "inferred" in i])
-    penalty += 0.15 * len([i for i in issues if "check" in i or "generated" in i])
-    ocr_pages = [L for L in layers if L.prov.confidence < 1.0]
-    if ocr_pages:
-        penalty += 0.05           # OCR'd source: never fully certain
-    if any(L.prov.method == "llm-vision" for L in layers):
-        penalty += 0.2
-    if not layers:
-        penalty += 0.4
-    bh.metadata["_confidence"] = round(max(0.0, min(1.0, base - penalty)), 2)
     return bh

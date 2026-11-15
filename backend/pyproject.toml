@@ -70,6 +70,8 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "B", "RUF012"]
+# bh3's own unit tests, kept close to upstream like app/bh3
+"tests/test_{anchor,tiles,reconcile,din,inputs}.py" = ["E501"]
 "migrations/**" = ["E501"]
 
 [tool.mypy]

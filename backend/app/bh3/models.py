@@ -138,13 +138,6 @@ class Layer:
     # filled by LLM normaliser
     lithology: Optional[str] = None
     soil_unit: Optional[str] = None       # USCS / EngineeringSoilUnit
-    color: Optional[str] = None
-    consistency: Optional[str] = None
-    moisture: Optional[str] = None
-    stratigraphic_name: Optional[str] = None
-    geologic_age: Optional[str] = None
-    is_rock: Optional[bool] = None
-    norm_confidence: Optional[float] = None
     # filled by bh3.din (DIN 4023 petrography)
     din_code: Optional[str] = None
     din_color: Optional[str] = None
@@ -176,16 +169,3 @@ class Borehole:
 
     def to_dict(self) -> dict:
         return asdict(self)
-
-
-METADATA_FIELDS = [
-    "BoreholeID", "BoreholeName", "LocationName", "StartDate", "EndDate",
-    "ProjectID", "ProjectName", "Surface Elevation", "X-Coordinate", "Y-Coordinate",
-    "CoordinateSystem", "BoreholeDepth", "BoreholeLength", "Notes",
-]
-
-LOG_FIELDS = [
-    "StratigraphicName", "EngineeringSoilUnit", "GeologicAge", "Lithology/SoilName",
-    "Soil/Rockprofile", "Core", "SampleName", "SampleDepth", "TotalCoreRecovery",
-    "RQD", "SPT", "Groundwaterlevel",
-]

@@ -43,16 +43,6 @@ def close(path: str) -> None:
                 pass
 
 
-def close_all() -> None:
-    with _lock:
-        for doc in _docs.values():
-            try:
-                doc.close()
-            except Exception:  # noqa: BLE001
-                pass
-        _docs.clear()
-
-
 def page_count(path: str) -> int:
     with _lock:
         return len(open_pdf(path))

@@ -4,8 +4,6 @@ in the value, names copied as printed and never an archive stamp. Prompt text on
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from app.bh3 import llm, prompts, schemas
@@ -48,8 +46,5 @@ def test_the_text_header_prompt_and_the_field_descriptions_carry_the_rules() -> 
     assert described["LocationName"].get("description") is None  # unchanged fields stay bare
 
 
-@pytest.mark.skipif(
-    "BH_PROMPT_VERSION" in os.environ, reason="the version is overridden to replay stored answers"
-)
 def test_the_prompt_version_in_every_cache_key_was_bumped() -> None:
     assert schemas.PROMPT_VERSION == "6"
