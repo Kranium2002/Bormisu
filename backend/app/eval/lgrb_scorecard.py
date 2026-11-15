@@ -10,12 +10,19 @@ portal does not give, or that cannot be compared fairly, never counts as an erro
 
 from __future__ import annotations
 
+import argparse
+import csv
+import json
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
+import httpx
+import pypdfium2 as pdfium
 from pyproj import Geod, Transformer
 
 from app.normalize.lithology import din_code_from_text, valid_din_code
@@ -288,3 +295,136 @@ def render(rows: list[dict[str, Any]], excluded: dict[str, str]) -> str:
     if excluded:
         out += ["", "## Excluded", ""] + [f"- {key}: {reason}" for key, reason in sorted(excluded.items())]
     return "\n".join(out) + "\n"
+
+
+def own_sheets(folder: Path, borehole_id: str) -> list[Path]:
+    """The borehole's own Schichtenverzeichnis files in part order. A file whose name holds a range of
+    boreholes is shared with its neighbours and never counts, nor does a profile or construction drawing."""
+    tk25, _, arnum = borehole_id.partition("-")
+    if not arnum.isdigit() or not folder.is_dir():
+        return []
+    name = re.compile(rf"^BO_{re.escape(tk25)}_{int(arnum):05d}_SV_(\d+)(?:_x)?\.pdf$", re.IGNORECASE)
+    parts = [(int(found.group(1)), path) for path in folder.iterdir() if (found := name.match(path.name))]
+    return [path for _, path in sorted(parts)]
+
+
+def sheet_for_upload(folder: Path, borehole_id: str, joined_dir: Path) -> Path | str:
+    """The one PDF to upload for a borehole, or the reason there is none. Several part files are joined in
+    order; a joined file that exists is reused, so a second run uploads the same bytes."""
+    sheets = own_sheets(folder, borehole_id)
+    if not sheets:
+        return "no own sheet"
+    if len(sheets) == 1:
+        return sheets[0]
+    target = joined_dir / f"{borehole_id}.pdf"
+    if not target.exists():
+        joined = pdfium.PdfDocument.new()
+        for sheet in sheets:
+            part = pdfium.PdfDocument(str(sheet))
+            joined.import_pages(part)
+            part.close()
+        joined_dir.mkdir(parents=True, exist_ok=True)
+        joined.save(str(target))
+        joined.close()
+    return target
+
+
+def sign_in(client: httpx.Client, email: str, password: str) -> None:
+    response = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    if response.status_code != 200:
+        raise SystemExit(f"Sign-in failed: the app answered {response.status_code}.")
+
+
+UPLOAD_COLUMNS = ("id", "file", "document_id", "reason")
+
+
+def upload(client: httpx.Client, data_dir: Path, project: str) -> None:
+    """Send one sheet per borehole of `data_dir/truth` and write scorecard/uploads.csv. Bytes the app
+    already has come back with the existing document, so a second run starts no second read."""
+    out_dir = data_dir / "scorecard"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rows: list[dict[str, str]] = []
+    for truth_file in sorted((data_dir / "truth").glob("*.json")):
+        borehole_id = truth_file.stem
+        sheet = sheet_for_upload(data_dir / "pdf" / borehole_id, borehole_id, out_dir / "joined")
+        if isinstance(sheet, str):
+            rows.append({"id": borehole_id, "file": "", "document_id": "", "reason": sheet})
+            continue
+        with sheet.open("rb") as handle:
+            response = client.post(
+                "/api/v1/documents",
+                files={"file": (sheet.name, handle, "application/pdf")},
+                data={"project": project},
+            )
+        if response.status_code == 409:
+            raise SystemExit("The app is in demo mode: set a provider key.")
+        if response.status_code not in (200, 202):
+            raise SystemExit(f"Upload of {sheet.name} failed: the app answered {response.status_code}.")
+        document_id = str(response.json()["document_id"])
+        rows.append({"id": borehole_id, "file": sheet.name, "document_id": document_id, "reason": ""})
+    with (out_dir / "uploads.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=UPLOAD_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _flat(row: dict[str, Any]) -> dict[str, Any]:
+    flat = {key: value for key, value in row.items() if key not in METRICS}
+    for metric in METRICS:
+        tally: Tally = row[metric]
+        flat[f"{metric}_right"] = tally.match
+        flat[f"{metric}_wrong"] = tally.mismatch
+        flat[f"{metric}_not_comparable"] = tally.not_comparable
+    return flat
+
+
+def score(client: httpx.Client, data_dir: Path) -> Path:
+    """Read every uploaded document and its records, score them, write scorecard/report.md and rows.csv."""
+    out_dir = data_dir / "scorecard"
+    with (out_dir / "uploads.csv").open(encoding="utf-8", newline="") as handle:
+        uploads = list(csv.DictReader(handle))
+    rows: list[dict[str, Any]] = []
+    excluded: dict[str, str] = {}
+    for item in uploads:
+        if not item["document_id"]:
+            excluded[item["id"]] = item["reason"]
+            continue
+        truth = json.loads((data_dir / "truth" / f"{item['id']}.json").read_text(encoding="utf-8"))
+        document = client.get(f"/api/v1/documents/{item['document_id']}")
+        document.raise_for_status()
+        records = client.get(f"/api/v1/documents/{item['document_id']}/boreholes")
+        found = records.json() if records.status_code == 200 else []
+        rows.append(score_borehole(truth, document.json(), found))
+    report = out_dir / "report.md"
+    report.write_text(render(rows, excluded), encoding="utf-8")
+    flat = [_flat(row) for row in rows]
+    with (out_dir / "rows.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(flat[0]) if flat else ["id"])
+        writer.writeheader()
+        writer.writerows(flat)
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0] if __doc__ else None)
+    parser.add_argument("command", choices=("upload", "score"))
+    parser.add_argument("--data", type=Path, required=True, help="folder with truth/ and pdf/")
+    parser.add_argument("--base-url", default="http://localhost:8000")
+    parser.add_argument("--project", default="LGRB Offenburg")
+    parser.add_argument("--email", required=True)
+    args = parser.parse_args(argv)
+    password = os.environ.get("LGRB_SCORECARD_PASSWORD")
+    if not password:
+        raise SystemExit("Set LGRB_SCORECARD_PASSWORD to the account's password.")
+    with httpx.Client(base_url=args.base_url, timeout=120) as client:
+        sign_in(client, args.email, password)
+        if args.command == "upload":
+            upload(client, args.data, args.project)
+            print(args.data / "scorecard" / "uploads.csv")
+        else:
+            print(score(client, args.data))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

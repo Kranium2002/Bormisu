@@ -6,9 +6,16 @@ kind the public LGRB-BW borehole portal (https://bohrungen.lgrb-bw.de/) shows.
 
 from __future__ import annotations
 
+import csv
+import io
+import json
+from pathlib import Path
 from typing import Any
 
+import httpx
+import pypdfium2 as pdfium
 import pytest
+import respx
 
 from app.eval import lgrb_scorecard as sc
 
@@ -141,3 +148,104 @@ def test_an_unplotted_borehole_is_not_a_position_error() -> None:
 def test_render_names_the_denominators() -> None:
     text = sc.render([sc.score_borehole(truth(), document(), [record()])], {"0000-2": "no own sheet"})
     assert "not comparable" in text and "0000-2" in text and "no own sheet" in text
+
+
+def one_page_pdf() -> bytes:
+    pdf = pdfium.PdfDocument.new()
+    pdf.new_page(595, 842)
+    out = io.BytesIO()
+    pdf.save(out)
+    pdf.close()
+    return out.getvalue()
+
+
+def make_data(tmp_path: Path, borehole_id: str, uploaded_as: str | None = None) -> None:
+    """truth/<id>.json, one own sheet under pdf/<id>/ and, when uploaded, scorecard/uploads.csv."""
+    tk25, arnum = borehole_id.split("-")
+    (tmp_path / "truth").mkdir()
+    (tmp_path / "truth" / f"{borehole_id}.json").write_text(json.dumps(truth(id=borehole_id)), "utf-8")
+    sheet = tmp_path / "pdf" / borehole_id / f"BO_{tk25}_{int(arnum):05d}_SV_1_x.pdf"
+    sheet.parent.mkdir(parents=True)
+    sheet.write_bytes(one_page_pdf())
+    if uploaded_as is not None:
+        (tmp_path / "scorecard").mkdir()
+        with (tmp_path / "scorecard" / "uploads.csv").open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=["id", "file", "document_id", "reason"])
+            writer.writeheader()
+            writer.writerow({"id": borehole_id, "file": sheet.name, "document_id": uploaded_as, "reason": ""})
+            writer.writerow({"id": "0000-2", "file": "", "document_id": "", "reason": "no own sheet"})
+
+
+def test_own_sheets_ignore_shared_and_profile_files_and_parts_are_joined(tmp_path: Path) -> None:
+    folder = tmp_path / "0000-7"
+    folder.mkdir()
+    for name in ("BO_0000_00005-00009_SV_1_x.pdf", "BO_0000_00007_BP_1_x.pdf"):
+        (folder / name).write_bytes(one_page_pdf())
+    assert sc.sheet_for_upload(folder, "0000-7", tmp_path / "joined") == "no own sheet"
+    for name in ("BO_0000_00007_SV_2_x.pdf", "BO_0000_00007_SV_1_x.pdf"):
+        (folder / name).write_bytes(one_page_pdf())
+    names = [p.name for p in sc.own_sheets(folder, "0000-7")]
+    assert names == ["BO_0000_00007_SV_1_x.pdf", "BO_0000_00007_SV_2_x.pdf"]
+    joined = sc.sheet_for_upload(folder, "0000-7", tmp_path / "joined")
+    assert isinstance(joined, Path) and joined == tmp_path / "joined" / "0000-7.pdf"
+    pages = pdfium.PdfDocument(str(joined))
+    assert len(pages) == 2
+    pages.close()
+    before = joined.read_bytes()
+    again = sc.sheet_for_upload(folder, "0000-7", tmp_path / "joined")
+    assert isinstance(again, Path) and again.read_bytes() == before  # reused, not rebuilt
+
+
+@respx.mock
+def test_upload_twice_reuses_the_document(tmp_path: Path) -> None:
+    make_data(tmp_path, "0000-7")
+    route = respx.post("http://app.test/api/v1/documents").mock(
+        side_effect=[
+            httpx.Response(202, json={"document_id": "doc_1", "status": "queued", "duplicate_of": None}),
+            httpx.Response(
+                200, json={"document_id": "doc_1", "status": "needs_review", "duplicate_of": "doc_1"}
+            ),
+        ]
+    )
+    with httpx.Client(base_url="http://app.test") as client:
+        sc.upload(client, tmp_path, "Fictional project")
+        sc.upload(client, tmp_path, "Fictional project")
+    with (tmp_path / "scorecard" / "uploads.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert route.call_count == 2 and [r["document_id"] for r in rows] == ["doc_1"]
+
+
+@respx.mock
+def test_demo_mode_ends_the_upload_with_one_line(tmp_path: Path) -> None:
+    make_data(tmp_path, "0000-7")
+    respx.post("http://app.test/api/v1/documents").mock(return_value=httpx.Response(409, json={}))
+    with httpx.Client(base_url="http://app.test") as client, pytest.raises(SystemExit, match="demo mode"):
+        sc.upload(client, tmp_path, "Fictional project")
+
+
+@respx.mock
+def test_a_wrong_password_ends_with_one_line() -> None:
+    respx.post("http://app.test/api/v1/auth/login").mock(return_value=httpx.Response(401, json={}))
+    with (
+        httpx.Client(base_url="http://app.test") as client,
+        pytest.raises(SystemExit, match="Sign-in failed"),
+    ):
+        sc.sign_in(client, "someone@example.org", "wrong")
+
+
+@respx.mock
+def test_score_writes_report_and_rows(tmp_path: Path) -> None:
+    make_data(tmp_path, "0000-7", uploaded_as="doc_1")
+    respx.get("http://app.test/api/v1/documents/doc_1").mock(
+        return_value=httpx.Response(200, json=document())
+    )
+    respx.get("http://app.test/api/v1/documents/doc_1/boreholes").mock(
+        return_value=httpx.Response(200, json=[record()])
+    )
+    with httpx.Client(base_url="http://app.test") as client:
+        report = sc.score(client, tmp_path)
+    text = report.read_text(encoding="utf-8")
+    assert text.startswith("# LGRB scorecard") and "0000-2: no own sheet" in text
+    with (tmp_path / "scorecard" / "rows.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [(r["id"], r["boundaries_right"], r["boundaries_wrong"]) for r in rows] == [("0000-7", "2", "0")]
