@@ -13,6 +13,8 @@
  *   /list             every borehole as a table, also those not on the map
  *   /sheet/:uid       generated borehole sheet of a record, printable (?lang=en|de)
  *   /verify/:uid      side-by-side check: original page next to the extracted values (?page=n)
+ *   /report           printable report of a selection (?rs=result set &line=planned line &buffer=m &unrev=0|1)
+ *   /3d               3D view of the same selection below the map (same query), loaded on first use
  *   anything else     not found, with a link to the map
  *
  * No loaders: the store loads the data, and navigation stays synchronous. nginx serves index.html for
@@ -33,6 +35,7 @@ import {
   RouteError,
   SheetRoute,
   VerifyRoute,
+  View3DRoute,
 } from './routing/screens';
 import { ROUTE } from './routing/urlState';
 
@@ -57,6 +60,7 @@ export const routes: RouteObject[] = [
           { path: ROUTE.sheet, Component: SheetRoute },
           { path: ROUTE.verify, Component: VerifyRoute },
           { path: ROUTE.report, Component: ReportRoute },
+          { path: ROUTE.view3d, Component: View3DRoute },
           { path: '*', Component: NotFoundRoute },
         ],
       },

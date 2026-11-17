@@ -34,6 +34,8 @@ import { MapLegend } from './MapLegend';
 import { mapRows } from './mapModel';
 import styles from './MapScreen.module.css';
 import { ReportButton } from '../../report/ReportButton';
+import { View3DButton } from '../../view3d/View3DButton';
+import { viewArea } from './viewArea';
 
 export function MapScreen() {
   const t = useT();
@@ -67,6 +69,14 @@ export function MapScreen() {
   const shownPins = useMemo(() => (searching ? pins.filter((p) => matchesQuery(p, query)) : pins), [pins, query, searching]);
   const filters = activeFilterCount(filter);
 
+  // What the map shows right now (it fills this screen): the 3D view takes it when nothing is selected.
+  const screenRef = useRef<HTMLDivElement>(null);
+  const visibleArea = () => {
+    const el = screenRef.current;
+    const view = useAppStore.getState().mapView;
+    return el && view ? viewArea(view, { width: el.clientWidth, height: el.clientHeight }) : null;
+  };
+
   const closePanel = () => {
     setPanelOpen(false);
     toggleRef.current?.focus();
@@ -92,7 +102,7 @@ export function MapScreen() {
   };
 
   return (
-    <div className={styles.screen} data-screen-label="Map" onDragOver={onDragOver} onDrop={onDrop}>
+    <div ref={screenRef} className={styles.screen} data-screen-label="Map" onDragOver={onDragOver} onDrop={onDrop}>
       <BoreholeMap
         pins={shownPins}
         searchActive={searching}
@@ -139,6 +149,8 @@ export function MapScreen() {
           {t('PLANNED LINE')}
           {alignment && <span className={styles.lineDot} aria-hidden="true" />}
         </button>
+        {/* Always there: the selection in 3D, or without one the boreholes the map shows. */}
+        <View3DButton scope="map" query={searching ? query : undefined} area={visibleArea} className={styles.view3d} />
         <ExplorePanel open={panelOpen} onClose={closePanel} />
         <PlannedLinePanel open={linePanelOpen} onClose={closeLinePanel} />
       </div>
@@ -153,6 +165,7 @@ export function MapScreen() {
             resultSet && (
               <>
                 <ReportButton scope="selection" className={styles.openList} />
+                <View3DButton scope="selection" className={styles.openList} />
                 <Link className={styles.openList} to={`/${ROUTE.list}`}>
                   {t('OPEN LIST ›')}
                 </Link>

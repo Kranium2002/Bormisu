@@ -45,6 +45,13 @@
   color: var(--c-on-accent);
 }
 
+/* 3D VIEW in the toolbar: a button, or a link while something is selected; both look like the toggles. */
+.view3d {
+  composes: toggle;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 /* The number of active filters. */
 .count {
   composes: chip from '../../styles/chips.module.css';

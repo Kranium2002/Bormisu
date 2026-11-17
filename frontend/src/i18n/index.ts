@@ -10,6 +10,7 @@ import { review } from './de/review';
 import { sheet } from './de/sheet';
 import { shell } from './de/shell';
 import { verify } from './de/verify';
+import { view3d } from './de/view3d';
 
 /**
  * UI language: English (default) or German, switched in the header and remembered in this browser.
@@ -26,7 +27,7 @@ export const LANGS: readonly Lang[] = ['en', 'de'];
 const STORAGE_KEY = 'bormisu.lang';
 
 // The report's texts come first: an area's own wording of the same English text wins.
-const DE: Record<string, string> = { ...report, ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue, ...verify, ...alignment };
+const DE: Record<string, string> = { ...report, ...view3d, ...base, ...shell, ...map, ...list, ...detail, ...sheet, ...review, ...queue, ...verify, ...alignment };
 
 function storedLang(): Lang {
   try {

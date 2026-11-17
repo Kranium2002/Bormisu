@@ -1,0 +1,392 @@
+/*
+ * The 3D view: a toolbar like the report's over a dark stage that fills the rest of the main region.
+ * The deck.gl canvas is transparent over the stage's gradient; the settings panel (top left), the
+ * legend (bottom right) and the map attribution (bottom left) are cards over it.
+ */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-scan-bg);
+}
+
+.toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-5);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.back {
+  composes: quiet link from '../styles/buttons.module.css';
+  text-decoration: none;
+}
+
+.toolbarTitle {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* EXPORT REPORT: a link that looks like the toolbar's buttons. */
+.toolbarLink {
+  composes: secondary small from '../styles/buttons.module.css';
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.loading {
+  margin: 20vh auto;
+  text-align: center;
+  color: var(--c-text);
+}
+
+.loadingTitle {
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #30363d 0%, #1b1f24 55%, #111417 100%);
+}
+
+.deck {
+  position: absolute;
+  inset: 0;
+}
+
+.deck canvas:focus-visible {
+  outline: var(--focus-ring-on-dark);
+  outline-offset: -3px;
+}
+
+.notice {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(420px, calc(100% - 2 * var(--space-4)));
+  padding: var(--space-4) var(--space-5);
+  color: #e6e6e6;
+  text-align: center;
+  font-size: var(--fs-md);
+  line-height: 1.45;
+}
+
+.notice p {
+  margin: 0;
+}
+
+.noticeTitle {
+  margin-bottom: var(--space-2) !important;
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  color: #fff;
+}
+
+/* Settings: a white card top left, scrolling when taller than the stage. */
+.panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 264px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  box-sizing: border-box;
+  overflow: auto;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border-radius: 4px;
+  box-shadow: var(--shadow-card);
+  font-size: var(--fs-sm);
+  line-height: 1.35;
+}
+
+.panelToggle {
+  composes: quiet from '../styles/buttons.module.css';
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  min-height: 36px;
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-head);
+}
+
+.panelBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.panelBody[hidden] {
+  display: none;
+}
+
+.group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groupTitle {
+  padding: 0;
+  margin-bottom: var(--space-1);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  letter-spacing: var(--ls-head);
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+.check label,
+.radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 24px;
+  cursor: pointer;
+}
+
+.check input,
+.radio input {
+  margin: 0;
+  accent-color: var(--c-accent);
+}
+
+.disabled,
+.group:disabled .radio {
+  color: var(--c-faint);
+  cursor: default;
+}
+
+.radios {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-3);
+}
+
+.reason {
+  margin: 0 0 var(--space-1) 21px;
+  font-size: var(--fs-xs);
+  color: var(--c-faint);
+}
+
+.group > .reason {
+  margin-left: 0;
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.range input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  accent-color: var(--c-accent);
+}
+
+.rangeValue {
+  min-width: 3ch;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.reset {
+  composes: secondary small from '../styles/buttons.module.css';
+  align-self: flex-start;
+}
+
+/* RESET VIEW, TOP, SIDE on one line (they wrap in a narrow panel). */
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The on-screen camera controls: a bar of square buttons at the top right, like the map's zoom buttons. */
+.nav {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border-radius: 4px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.navButton {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-dark);
+  cursor: pointer;
+  /* Holding a button must not select text or start a drag. */
+  user-select: none;
+  touch-action: none;
+}
+
+.navButton:hover {
+  background: var(--c-hover);
+}
+
+.navButton:active {
+  background: var(--c-selected);
+}
+
+.navButton:focus-visible {
+  outline-offset: -2px;
+}
+
+.navGap {
+  height: 1px;
+  background: var(--c-border);
+}
+
+.help {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+}
+
+.notes {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3) calc(var(--space-3) + 14px);
+  border-top: 1px solid var(--c-line);
+  font-size: var(--fs-xs);
+  color: var(--c-text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Legend: a white card bottom right, at most about 40 % of the stage high. */
+.legend {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: max-content;
+  max-width: min(300px, calc(100% - 24px));
+  max-height: 40%;
+  box-sizing: border-box;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border-radius: 4px;
+  box-shadow: var(--shadow-card);
+  font-size: var(--fs-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.legend:empty {
+  display: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* A swatch over the stage's dark tone, so translucent colours look as drawn. */
+.swatchBase {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 14px;
+  background: #1b1f24;
+  border-radius: 2px;
+  outline: 1px solid var(--c-border-strong);
+}
+
+.swatch {
+  display: block;
+  box-sizing: border-box;
+  width: 22px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.round {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.attribution {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  max-width: calc(100% - 24px);
+  padding: 1px 6px;
+  font-size: var(--fs-2xs);
+  color: #d0d0d0;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+  pointer-events: auto;
+}
+
+.attribution a {
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  .toolbar {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .legend {
+    max-width: calc(100% - 24px);
+    max-height: 30%;
+  }
+
+  /* The open panel takes the narrow stage: the legend waits until it is folded away again. */
+  .stage[data-panel='open'] .legend {
+    display: none;
+  }
+}

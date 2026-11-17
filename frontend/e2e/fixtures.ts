@@ -1,6 +1,7 @@
 /**
  * Shared Playwright fixtures for the sample-mode smoke tests (fictional sample data only):
- * - OSM tiles are answered with a blank PNG, so the tests run offline and fast.
+ * - OSM tiles are answered with a blank PNG, so the tests run offline and fast. The answer allows any
+ *   origin (CORS), as OSM's does: the 3D view loads tiles as WebGL textures, which needs it.
  * - Console errors and page errors are collected and must be empty at the end of every test.
  */
 import { test as base, expect, type Page } from '@playwright/test';
@@ -26,7 +27,7 @@ export const test = base.extend<{ errors: string[] }>({
       });
       page.on('pageerror', (e) => errors.push(process.env.E2E_STACKS ? `${e.message}\n${e.stack}` : e.message));
       await page.route(/tile\.openstreetmap\.org/, (route) =>
-        route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_TILE }),
+        route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: BLANK_TILE }),
       );
       await use(errors);
       expect(errors, 'console errors').toEqual([]);

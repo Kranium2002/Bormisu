@@ -24,6 +24,7 @@ import type { AlignmentHit } from '../../../domain/types';
 import { useT } from '../../../i18n';
 import { lineReportPath, EXPORT_REPORT } from '../../../report/ReportButton';
 import { useAppStore } from '../../../store/appStore';
+import { lineView3dPath, VIEW_3D } from '../../../view3d/View3DButton';
 import {
   ALIGNMENT_ACCEPT,
   chainageText,
@@ -281,9 +282,14 @@ export function PlannedLinePanel({ open, onClose }: Props) {
           {result && <LineNotes excludedUnreviewed={result.excludedUnreviewed} notOnMap={result.notOnMap} />}
           <div className={styles.actions}>
             {result && (
-              <Link className={styles.reportLink} to={lineReportPath(alignment, result)} data-testid="export-report">
-                {t(EXPORT_REPORT)}
-              </Link>
+              <>
+                <Link className={styles.reportLink} to={lineReportPath(alignment, result)} data-testid="export-report">
+                  {t(EXPORT_REPORT)}
+                </Link>
+                <Link className={styles.reportLink} to={lineView3dPath(alignment, result)} data-testid="view-3d">
+                  {t(VIEW_3D)}
+                </Link>
+              </>
             )}
             <button type="button" className={styles.secondary} onClick={() => useAppStore.getState().clearAlignment()}>
               {t('CLEAR')}

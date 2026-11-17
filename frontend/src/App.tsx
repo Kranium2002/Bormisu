@@ -27,6 +27,7 @@ const SCREEN_LABEL: Record<RouteKind, string> = {
   sheet: 'Borehole sheet',
   verify: 'Side-by-side verification',
   report: 'Selection report',
+  view3d: '3D subsurface view',
   notFound: 'Not found',
 };
 

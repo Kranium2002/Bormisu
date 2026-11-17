@@ -88,4 +88,15 @@ describe('planned line: EXPORT REPORT', () => {
     expect(clearClass).toBeTruthy();
     expect(linkClass).not.toBe(clearClass);
   });
+
+  it('3D VIEW next to it links to the 3D view of the same line, distance and scope', () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <PlannedLinePanel open onClose={() => undefined} />
+      </MemoryRouter>,
+    );
+    const link = /<a [^>]*data-testid="view-3d"[^>]*>3D VIEW<\/a>/.exec(html)?.[0] ?? '';
+    expect(link).toContain('href="/3d?rs=rs_TEST&amp;line=aln_TEST&amp;buffer=150&amp;unrev=1"');
+    expect(/class="([^"]*)"/.exec(link)?.[1]).toContain('reportLink');
+  });
 });

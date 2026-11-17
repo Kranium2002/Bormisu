@@ -107,6 +107,7 @@ function routePatch(s: AppState, route: AppRoute, entering: boolean): Partial<Ap
     case 'list':
     case 'sheet':
     case 'report':
+    case 'view3d':
     case 'notFound':
       return {};
   }

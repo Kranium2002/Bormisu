@@ -3,6 +3,7 @@
  * the paint), "not found" for a uid the store doesn't have, and never a blank screen. While the data
  * loads, App shows the loading state instead of any of these.
  */
+import { lazy, Suspense } from 'react';
 import { Navigate, useRouteError } from 'react-router';
 import { EmptyState } from '../components/EmptyState';
 import { DetailScreen } from '../screens/detail/DetailScreen';
@@ -20,6 +21,9 @@ import { reviewHref } from './navLinks';
 import { NotFound } from './NotFound';
 import { useLocationRoute } from './RouteSync';
 import { routeUid, sameScreen } from './urlState';
+
+// The 3D view loads on demand: deck.gl is only in its own chunk, never in the main bundle.
+const View3DScreen = lazy(() => import('../view3d/View3DScreen'));
 
 const BOREHOLE_NOT_FOUND = 'BOREHOLE NOT FOUND';
 const BOREHOLE_NOT_FOUND_TEXT = 'No loaded borehole has the ID in this link. It may have been deleted, or the link is incomplete.';
@@ -130,4 +134,13 @@ export function RouteError() {
 /** /report?rs=…: the printable report of a selection (it loads its own result set and records). */
 export function ReportRoute() {
   return <ReportScreen />;
+}
+
+/** /3d?rs=…: the 3D view of a selection below the map, loaded on first use (it loads its own result set and records). */
+export function View3DRoute() {
+  return (
+    <Suspense fallback={<EmptyState title="LOADING" message="Loading the 3D view…" />}>
+      <View3DScreen />
+    </Suspense>
+  );
 }

@@ -20,6 +20,13 @@
   background: var(--c-surface);
 }
 
+/* Phones (the map's chip spans the width there): its links wrap onto a second line instead of overflowing. */
+@media (max-width: 767px) {
+  .compact.active {
+    flex-wrap: wrap;
+  }
+}
+
 .tag {
   font-size: var(--fs-2xs);
   font-weight: 800;
