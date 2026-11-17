@@ -7,13 +7,22 @@
  * runner without WebGL still passes. VIEW3D_SHOTS=<dir> saves screenshots of the ready view.
  */
 import type { Locator, Page } from '@playwright/test';
-import { expect, loaded, nav, openApp, test } from './fixtures';
+import { expect, loaded, nav, openApp, openUrl, test } from './fixtures';
 
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
 
 const mapRegion = (page: Page) => page.getByRole('region', { name: 'Borehole map' });
 const stage = (page: Page) => page.getByTestId('view3d');
 const panel = (page: Page) => page.getByRole('region', { name: '3D view settings' });
+
+/**
+ * The map on one fictional site (Elbquerung Ost), opened by its link: the view is the one the link
+ * names from the start, so nothing waits for the map to finish fitting or zooming.
+ */
+async function openSite(page: Page): Promise<void> {
+  await openUrl(page, '/map?at=53.535,10.02,13');
+  await expect(mapRegion(page)).toHaveAttribute('data-ready', 'true');
+}
 
 async function drawRectangle(page: Page, from: [number, number], to: [number, number]): Promise<void> {
   const box = (await mapRegion(page).boundingBox())!;
@@ -63,14 +72,8 @@ async function toggle(box: Locator, label: string, on: boolean): Promise<void> {
 
 test.describe('3D view', () => {
   test('an area drawn on the map: 3D VIEW opens the view; the switches change what is drawn', async ({ page }) => {
-    await openApp(page);
-    await expect(mapRegion(page)).toHaveAttribute('data-ready', 'true');
-    // One site: the search fits the map to a fictional project, the rectangle takes in its boreholes.
-    await page.getByLabel('Search project or borehole ID').fill('Elbquerung Ost');
-    await page.keyboard.press('Enter');
-    await expect(page.getByText(/boreholes match the search/)).toBeVisible();
-    await expect.poll(() => new URL(page.url()).searchParams.get('at')).toMatch(/,1[2-9]$/);
-    await page.keyboard.press('Escape');
+    // One site: the rectangle takes in the boreholes of a fictional project.
+    await openSite(page);
     await drawRectangle(page, [0.2, 0.25], [0.8, 0.92]);
     await expect.poll(() => new URL(page.url()).searchParams.get('rs')).toMatch(/^rs_/);
     const rs = new URL(page.url()).searchParams.get('rs');
@@ -190,13 +193,8 @@ test.describe('3D view', () => {
   });
 
   test('the map without a selection: 3D VIEW takes what the map shows; the camera buttons and the drag switch move the view', async ({ page }) => {
-    await openApp(page);
-    await expect(mapRegion(page)).toHaveAttribute('data-ready', 'true');
     // The map on one fictional site; nothing drawn, nothing selected.
-    await page.getByLabel('Search project or borehole ID').fill('Elbquerung Ost');
-    await page.keyboard.press('Enter');
-    await expect.poll(() => new URL(page.url()).searchParams.get('at')).toMatch(/,1[2-9]$/);
-    await page.keyboard.press('Escape');
+    await openSite(page);
     expect(new URL(page.url()).searchParams.get('rs')).toBeNull();
 
     const button = page.locator('[data-screen-label="Map"]').getByTestId('view-3d');
