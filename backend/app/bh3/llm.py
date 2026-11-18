@@ -41,6 +41,10 @@ REASONING_MANDATORY = "reasoning is mandatory"
 _REASONING_REQUIRED: set[str] = set()
 # base URLs whose server refused the seed field in this process: sent without it from then on
 _SEED_REFUSED: set[str] = set()
+# OpenRouter's 404 when no provider of the model takes the request's parameters, i.e. a strict response schema
+NO_ENDPOINT = "no endpoints found"
+# models that got that answer in this process: asked in JSON mode with the schema in the prompt from then on
+_SCHEMA_REFUSED: set[str] = set()
 
 
 def _reasoning_on(extra: dict) -> bool:
@@ -226,11 +230,15 @@ class LLM:
         self._set_seed(kwargs)
         if self.cfg.extra_body:
             kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
-        if self.cfg.supports_schema:
+        json_mode = {"response_format": {"type": "json_object"},
+                     "messages": messages + [{"role": "system", "content": "Respond with JSON matching this schema: " + json.dumps(schema)}]}
+        if not self.cfg.supports_schema:
+            kwargs["response_format"] = {"type": "json_object"}
+        elif model in _SCHEMA_REFUSED:
+            kwargs.update(json_mode)
+        else:
             kwargs["response_format"] = {"type": "json_schema",
                                          "json_schema": {"name": name, "strict": True, "schema": schema}}
-        else:
-            kwargs["response_format"] = {"type": "json_object"}
         out = None
         for attempt in range(3):
             try:
@@ -248,10 +256,11 @@ class LLM:
                 log.warning("LLM call failed (%s): %s", attempt, msg[:200])
                 if self._seed_refused(kwargs, msg) or self._needs_reasoning(model, kwargs, msg):
                     continue
-                if "json_schema" in msg or "response_format" in msg or "400" in msg:
+                if NO_ENDPOINT in msg.lower():
+                    _SCHEMA_REFUSED.add(model)
+                if "json_schema" in msg or "response_format" in msg or "400" in msg or NO_ENDPOINT in msg.lower():
                     # server does not support structured outputs → degrade gracefully
-                    kwargs["response_format"] = {"type": "json_object"}
-                    kwargs["messages"] = messages + [{"role": "system", "content": "Respond with JSON matching this schema: " + json.dumps(schema)}]
+                    kwargs.update(json_mode)
                 time.sleep(1.5 * (attempt + 1))
         if out is not None:
             ck.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
@@ -339,7 +348,8 @@ class LLM:
             kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
             if _reasoning_on(kwargs["extra_body"]):
                 kwargs["max_tokens"] = max_tokens + self.cfg.reasoning_extra_tokens  # room for the thinking
-        schema_mode = "json_schema" if self.cfg.supports_schema else "json_object"
+        strict = self.cfg.supports_schema and model not in _SCHEMA_REFUSED
+        schema_mode = "json_schema" if strict else "json_object"
 
         def _set_format(mode: str) -> None:
             if mode == "json_schema":
@@ -394,8 +404,11 @@ class LLM:
                 if "413" in msg or "too large" in low or "payload" in low or "image" in low and "size" in low:
                     meta["error"] = "image-too-large"
                     return None, meta
+                if schema_mode == "json_schema" and NO_ENDPOINT in low:
+                    _SCHEMA_REFUSED.add(model)
                 if schema_mode == "json_schema" and ("json_schema" in low or "response_format" in low
-                                                     or "structured" in low or "schema" in low):
+                                                     or "structured" in low or "schema" in low
+                                                     or NO_ENDPOINT in low):
                     schema_mode = "json_object"
                     _set_format(schema_mode)
                     log.info("server rejected json_schema; falling back to json_object for %s", name)

@@ -40,7 +40,13 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from app.config import get_settings
 from app.providers import reasoning
 from app.providers.base import ProviderError, Usage, check_budget, record_usage, token_cost
-from app.providers.llm import _answer, post_openai_chat, post_openrouter_chat
+from app.providers.llm import (
+    _answer,
+    json_mode_messages,
+    post_openai_chat,
+    post_openrouter_chat,
+    schema_refused,
+)
 from app.providers.ocr_mistral import OcrResponse, data_url
 from app.providers.ocr_openai import page_png, unfence
 from app.providers.schema import strict_json_schema
@@ -204,13 +210,21 @@ class OpenRouterVisionOcrClient:
                 ],
             },
         ]
-        response_format = {
+        schema = strict_json_schema(PageReading)
+        response_format: dict[str, Any] = {
             "type": "json_schema",
-            "json_schema": {"name": "PageReading", "strict": True, "schema": strict_json_schema(PageReading)},
+            "json_schema": {"name": "PageReading", "strict": True, "schema": schema},
         }
         for attempt in range(2):
             await check_budget(token_cost(model, ESTIMATE_INPUT_TOKENS, ESTIMATE_OUTPUT_TOKENS))
-            payload = await self._post(self._body(model, messages, response_format))
+            try:
+                payload = await self._post(self._body(model, messages, response_format))
+            except ProviderError as exc:
+                if response_format["type"] != "json_schema" or not schema_refused(exc):
+                    raise
+                # The model's providers take no strict schema (not billed): JSON mode, schema in the prompt.
+                response_format, messages = {"type": "json_object"}, json_mode_messages(messages, schema)
+                payload = await self._post(self._body(model, messages, response_format))
             usage = payload.get("usage") or {}
             in_tok, out_tok = usage.get("prompt_tokens"), usage.get("completion_tokens")
             reported = usage.get("cost")
