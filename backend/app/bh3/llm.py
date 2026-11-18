@@ -115,6 +115,11 @@ LAYER_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Output limits of the two text calls: a batch of 25 layer classes is about 600 tokens, a header answer 14
+# short fields (the vision header call uses the same 1200).
+LAYERS_MAX_TOKENS = 2000
+HEADER_MAX_TOKENS = 1200
+
 HEADER_FIELDS = ["BoreholeName", "LocationName", "StartDate", "EndDate", "ProjectID", "ProjectName",
                  "Surface Elevation", "X-Coordinate", "Y-Coordinate", "CoordinateSystem", "BoreholeDepth",
                  "Groundwaterlevel", "Client", "Contractor"]
@@ -218,7 +223,8 @@ class LLM:
         return self.cfg.cache_dir / f"{h}.json"
 
     # -- core call -----------------------------------------------------------
-    def _complete_json(self, messages: list[dict], schema: dict, name: str, model: Optional[str] = None) -> Optional[dict]:
+    def _complete_json(self, messages: list[dict], schema: dict, name: str, model: Optional[str] = None,
+                       max_tokens: int = LAYERS_MAX_TOKENS) -> Optional[dict]:
         if not self.cfg.enabled:
             return None
         model = model or self.cfg.model
@@ -226,10 +232,13 @@ class LLM:
         if ck.exists():
             self.cache_hits += 1
             return json.loads(ck.read_text(encoding="utf-8"))
-        kwargs: dict[str, Any] = dict(model=model, messages=messages, temperature=0)
+        # always bounded: without max_tokens a model that rambles holds the request for as long as it likes
+        kwargs: dict[str, Any] = dict(model=model, messages=messages, temperature=0, max_tokens=max_tokens)
         self._set_seed(kwargs)
         if self.cfg.extra_body:
             kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
+            if _reasoning_on(kwargs["extra_body"]):
+                kwargs["max_tokens"] = max_tokens + self.cfg.reasoning_extra_tokens  # room for the thinking
         json_mode = {"response_format": {"type": "json_object"},
                      "messages": messages + [{"role": "system", "content": "Respond with JSON matching this schema: " + json.dumps(schema)}]}
         if not self.cfg.supports_schema:
@@ -305,7 +314,7 @@ class LLM:
             return {}
         msgs = [{"role": "system", "content": SYSTEM_HEADER},
                 {"role": "user", "content": f"Fields wanted: {', '.join(missing)}\n\nHEADER TEXT:\n{header_text[:4000]}"}]
-        out = self._complete_json(msgs, HEADER_SCHEMA, "header") or {}
+        out = self._complete_json(msgs, HEADER_SCHEMA, "header", max_tokens=HEADER_MAX_TOKENS) or {}
         return {k: v for k, v in out.items() if k in missing and v not in (None, "", "null")}
 
     # -- vision call with its own error path ----------------------------------

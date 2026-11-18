@@ -358,6 +358,40 @@ def test_bh3_falls_back_to_json_mode_when_no_endpoint_takes_the_schema(tmp_path:
     assert [b["response_format"] for b in bodies[1:]] == [{"type": "json_object"}] * 3
 
 
+def test_bh3_text_calls_carry_an_output_limit(tmp_path: Path) -> None:
+    """A text call without max_tokens let a model that rambles hold the request, and the document, for as
+    long as it liked."""
+
+    def text_model(name: str, **options: Any) -> bh3_llm.LLM:
+        return bridge.make_llm(
+            "https://openrouter.ai/api/v1", "sk-or-test-not-real", name, cache_dir=tmp_path / name, **options
+        )
+
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(
+            side_effect=[
+                httpx.Response(200, json=completion('{"layers": []}')),
+                httpx.Response(200, json=completion('{"BoreholeName": null}')),
+                httpx.Response(200, json=completion('{"layers": []}')),
+            ]
+        )
+        plain = text_model("fictional/text-model")
+        plain.normalise_layers(["fictional grey sand"])
+        plain.fill_header("FICTIONAL HEADER TEXT", ["BoreholeName"])
+        thinking = text_model(
+            "fictional/thinking-text-model",
+            extra_body=bridge.openrouter_body({"effort": "low"}),
+            reasoning_extra_tokens=1000,
+        )
+        thinking.normalise_layers(["fictional grey sand"])
+    limits = [json.loads(c.request.content)["max_tokens"] for c in route.calls]
+    assert limits == [
+        bh3_llm.LAYERS_MAX_TOKENS,
+        bh3_llm.HEADER_MAX_TOKENS,
+        bh3_llm.LAYERS_MAX_TOKENS + 1000,  # room for the thinking, as on the vision calls
+    ]
+
+
 async def test_vision_ocr_falls_back_to_json_mode_when_no_endpoint_takes_the_schema(
     db: None, env: Any
 ) -> None:
