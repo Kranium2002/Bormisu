@@ -41,6 +41,11 @@ REASONING_MANDATORY = "reasoning is mandatory"
 _REASONING_REQUIRED: set[str] = set()
 # base URLs whose server refused the seed field in this process: sent without it from then on
 _SEED_REFUSED: set[str] = set()
+# OpenRouter's 404 when no provider of the model takes the request's parameters, i.e. a strict response schema
+# (its other "No endpoints found ..." answers, such as the data policy one, are not about the schema)
+NO_ENDPOINT = "no endpoints found that can handle the requested parameters"
+# models that got that answer in this process: asked in JSON mode with the schema in the prompt from then on
+_SCHEMA_REFUSED: set[str] = set()
 
 
 def _reasoning_on(extra: dict) -> bool:
@@ -110,6 +115,11 @@ LAYER_SCHEMA = {
     "required": ["layers"],
     "additionalProperties": False,
 }
+
+# Output limits of the two text calls: a batch of 25 layer classes is about 600 tokens, a header answer 14
+# short fields (the vision header call uses the same 1200).
+LAYERS_MAX_TOKENS = 2000
+HEADER_MAX_TOKENS = 1200
 
 HEADER_FIELDS = ["BoreholeName", "LocationName", "StartDate", "EndDate", "ProjectID", "ProjectName",
                  "Surface Elevation", "X-Coordinate", "Y-Coordinate", "CoordinateSystem", "BoreholeDepth",
@@ -214,7 +224,8 @@ class LLM:
         return self.cfg.cache_dir / f"{h}.json"
 
     # -- core call -----------------------------------------------------------
-    def _complete_json(self, messages: list[dict], schema: dict, name: str, model: Optional[str] = None) -> Optional[dict]:
+    def _complete_json(self, messages: list[dict], schema: dict, name: str, model: Optional[str] = None,
+                       max_tokens: int = LAYERS_MAX_TOKENS) -> Optional[dict]:
         if not self.cfg.enabled:
             return None
         model = model or self.cfg.model
@@ -222,21 +233,33 @@ class LLM:
         if ck.exists():
             self.cache_hits += 1
             return json.loads(ck.read_text(encoding="utf-8"))
-        kwargs: dict[str, Any] = dict(model=model, messages=messages, temperature=0)
+        # always bounded: without max_tokens a model that rambles holds the request for as long as it likes
+        kwargs: dict[str, Any] = dict(model=model, messages=messages, temperature=0, max_tokens=max_tokens)
         self._set_seed(kwargs)
         if self.cfg.extra_body:
             kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
-        if self.cfg.supports_schema:
+            if _reasoning_on(kwargs["extra_body"]):
+                kwargs["max_tokens"] = max_tokens + self.cfg.reasoning_extra_tokens  # room for the thinking
+        json_mode = {"response_format": {"type": "json_object"},
+                     "messages": messages + [{"role": "system", "content": "Respond with JSON matching this schema: " + json.dumps(schema)}]}
+        if not self.cfg.supports_schema:
+            kwargs["response_format"] = {"type": "json_object"}
+        elif model in _SCHEMA_REFUSED:
+            kwargs.update(json_mode)
+        else:
             kwargs["response_format"] = {"type": "json_schema",
                                          "json_schema": {"name": name, "strict": True, "schema": schema}}
-        else:
-            kwargs["response_format"] = {"type": "json_object"}
         out = None
+        refused = False                     # no endpoint took the strict schema in this call
         for attempt in range(3):
             try:
                 self.calls += 1
                 resp = self.client.chat.completions.create(**kwargs)
                 self._report(name, model, resp, True)
+                if getattr(resp.choices[0], "finish_reason", None) == "length":
+                    # the same request would be cut, and billed, again
+                    log.warning("text call cut at max_tokens=%d for %s", kwargs["max_tokens"], name)
+                    break
                 content = resp.choices[0].message.content or ""
                 out = _parse_json(content)
                 if out is not None:
@@ -248,12 +271,14 @@ class LLM:
                 log.warning("LLM call failed (%s): %s", attempt, msg[:200])
                 if self._seed_refused(kwargs, msg) or self._needs_reasoning(model, kwargs, msg):
                     continue
-                if "json_schema" in msg or "response_format" in msg or "400" in msg:
+                refused = refused or NO_ENDPOINT in msg.lower()
+                if "json_schema" in msg or "response_format" in msg or "400" in msg or NO_ENDPOINT in msg.lower():
                     # server does not support structured outputs → degrade gracefully
-                    kwargs["response_format"] = {"type": "json_object"}
-                    kwargs["messages"] = messages + [{"role": "system", "content": "Respond with JSON matching this schema: " + json.dumps(schema)}]
+                    kwargs.update(json_mode)
                 time.sleep(1.5 * (attempt + 1))
         if out is not None:
+            if refused:
+                _SCHEMA_REFUSED.add(model)  # remembered only once JSON mode has answered
             ck.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
         return out
 
@@ -296,7 +321,7 @@ class LLM:
             return {}
         msgs = [{"role": "system", "content": SYSTEM_HEADER},
                 {"role": "user", "content": f"Fields wanted: {', '.join(missing)}\n\nHEADER TEXT:\n{header_text[:4000]}"}]
-        out = self._complete_json(msgs, HEADER_SCHEMA, "header") or {}
+        out = self._complete_json(msgs, HEADER_SCHEMA, "header", max_tokens=HEADER_MAX_TOKENS) or {}
         return {k: v for k, v in out.items() if k in missing and v not in (None, "", "null")}
 
     # -- vision call with its own error path ----------------------------------
@@ -339,7 +364,8 @@ class LLM:
             kwargs["extra_body"] = {**kwargs.get("extra_body", {}), **self._extra_body(model)}
             if _reasoning_on(kwargs["extra_body"]):
                 kwargs["max_tokens"] = max_tokens + self.cfg.reasoning_extra_tokens  # room for the thinking
-        schema_mode = "json_schema" if self.cfg.supports_schema else "json_object"
+        strict = self.cfg.supports_schema and model not in _SCHEMA_REFUSED
+        schema_mode = "json_schema" if strict else "json_object"
 
         def _set_format(mode: str) -> None:
             if mode == "json_schema":
@@ -354,6 +380,7 @@ class LLM:
 
         _set_format(schema_mode)
         out = None
+        refused = False                     # no endpoint took the strict schema in this call
         delay = 2.0
         for attempt in range(6):
             t0 = time.time()
@@ -394,8 +421,10 @@ class LLM:
                 if "413" in msg or "too large" in low or "payload" in low or "image" in low and "size" in low:
                     meta["error"] = "image-too-large"
                     return None, meta
+                refused = refused or (schema_mode == "json_schema" and NO_ENDPOINT in low)
                 if schema_mode == "json_schema" and ("json_schema" in low or "response_format" in low
-                                                     or "structured" in low or "schema" in low):
+                                                     or "structured" in low or "schema" in low
+                                                     or NO_ENDPOINT in low):
                     schema_mode = "json_object"
                     _set_format(schema_mode)
                     log.info("server rejected json_schema; falling back to json_object for %s", name)
@@ -409,6 +438,8 @@ class LLM:
                 return None, meta
         meta["schema_mode"] = schema_mode
         if out is not None:
+            if refused:
+                _SCHEMA_REFUSED.add(model)  # remembered only once JSON mode has answered
             ck.write_text(json.dumps({"result": out, "_schema_mode": schema_mode, "_model": model},
                                      ensure_ascii=False), encoding="utf-8")
         return out, meta

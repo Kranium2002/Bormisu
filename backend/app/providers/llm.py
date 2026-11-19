@@ -52,14 +52,21 @@ _REFUSED: set[str] = set()
 # with the schema in the system prompt from then on, and still validated with the Pydantic model.
 _JSON_MODE: set[tuple[str, str]] = set()
 SCHEMA_REFUSED_MARKERS = ("invalid argument", "invalid_argument")
+# OpenRouter's 404 when no provider of the model takes the request's parameters: with `require_parameters`
+# that is a model whose endpoints offer no strict response schema (open-weights models on free endpoints).
+# Its other "No endpoints found ..." answers (data policy, image input) are not about the schema.
+NO_ENDPOINT_MARKER = "no endpoints found that can handle the requested parameters"
 JSON_MODE_INSTRUCTION = (
     "\n\nAnswer with one JSON object (no prose, no code fence) that validates against this JSON Schema:\n"
 )
 
 
 def schema_refused(exc: ProviderError) -> bool:
-    """A 400 whose answer says the request had an invalid argument (how Gemini refuses a response schema)."""
+    """A strict response schema the model's providers do not take: a 400 whose answer says the request had an
+    invalid argument (how Gemini refuses one), or OpenRouter's 404 that no endpoint handles the parameters."""
     detail = (exc.detail or "").lower()
+    if exc.status == 404:
+        return NO_ENDPOINT_MARKER in detail
     return exc.status == 400 and any(marker in detail for marker in SCHEMA_REFUSED_MARKERS)
 
 
@@ -435,13 +442,14 @@ class LlmClient:
                     or not schema_refused(exc)
                 ):
                     raise
-                # A refused 400 is not billed: ask again in JSON mode, and remember it for this process.
-                logger.info("%s refused the %s schema; JSON mode from now on", model, output.__name__)
-                _JSON_MODE.add(json_key)
+                # A refused schema is not billed: ask again in JSON mode. It is remembered for this process
+                # only once JSON mode has answered, so another failure does not change how the model is asked.
                 response_format, messages = {"type": "json_object"}, json_mode_messages(messages, schema)
                 payload = await self._post(
                     provider, self._body(provider, model, messages, response_format, max_tokens)
                 )
+                logger.info("%s refused the %s schema; JSON mode from now on", model, output.__name__)
+                _JSON_MODE.add(json_key)
             usage = payload.get("usage") or {}
             in_tok, out_tok = usage.get("prompt_tokens"), usage.get("completion_tokens")
             returned_model = payload.get("model") or model

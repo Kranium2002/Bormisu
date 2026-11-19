@@ -29,6 +29,7 @@ from app.pipeline import bh3_adapter
 from app.pipeline import ocr as ocr_module
 from app.pipeline.orchestrator import run_pipeline
 from app.pipeline.schemas import PageLabel
+from app.providers import llm as providers_llm
 from app.providers import reasoning
 from app.providers.base import BudgetExceededError, ProviderError, Usage, record_usage, token_cost
 from app.providers.fakes import label
@@ -273,6 +274,213 @@ async def test_refused_response_schema_falls_back_to_json_mode(db: None, env: An
     async with get_sessionmaker()() as session:
         calls = (await session.scalars(select(ProviderCall))).all()
     assert len(calls) == 2  # the refused 400 is not billed
+
+
+# How OpenRouter answers when no provider of a model takes a strict response schema (an open-weights model
+# on a free endpoint): the request is not routed, so nothing is billed.
+NO_ENDPOINT = {
+    "error": {
+        "message": "No endpoints found that can handle the requested parameters. To learn more about "
+        "provider routing, visit: https://openrouter.ai/docs/guides/routing/provider-selection",
+        "code": 404,
+    }
+}
+
+
+async def test_no_endpoint_for_a_strict_schema_falls_back_to_json_mode(db: None, env: Any) -> None:
+    env(OPENROUTER_API_KEY="sk-or-test-not-real", CLASSIFIER_MODEL="fictional/open-weights-model")
+    good = label("log_sheet", borehole_labels=["FX-9"]).model_dump_json()
+
+    async def classify() -> PageLabel:
+        result = await LlmClient().structured(
+            output=PageLabel,
+            system="fictional system prompt",
+            content=[text_part("fictional")],
+            purpose="classify",
+            document_id=None,
+            role="classifier",
+            max_tokens=600,
+        )
+        return result.data
+
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(
+            side_effect=[httpx.Response(404, json=NO_ENDPOINT), httpx.Response(200, json=completion(good))]
+        )
+        first = await classify()
+    assert first.borehole_labels == ["FX-9"]
+    bodies = [json.loads(c.request.content) for c in route.calls]
+    assert bodies[0]["response_format"]["type"] == "json_schema"
+    assert bodies[1]["response_format"] == {"type": "json_object"}
+    assert '"borehole_labels"' in bodies[1]["messages"][0]["content"]  # the schema, in the system prompt
+
+    # A 404 for any other reason (a model that does not exist) stays an error.
+    env(OPENROUTER_API_KEY="sk-or-test-not-real", CLASSIFIER_MODEL="fictional/missing-model")
+    with respx.mock() as mock:
+        mock.post(OPENROUTER).mock(
+            return_value=httpx.Response(404, json={"error": {"message": "No such model.", "code": 404}})
+        )
+        with pytest.raises(ProviderError) as missing:
+            await classify()
+    assert missing.value.status == 404
+
+
+def test_bh3_falls_back_to_json_mode_when_no_endpoint_takes_the_schema(tmp_path: Path) -> None:
+    def reader() -> bh3_llm.LLM:
+        return bridge.make_llm(
+            "https://openrouter.ai/api/v1",
+            "sk-or-test-not-real",
+            "fictional/open-weights-vision",
+            cache_dir=tmp_path,
+        )
+
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(
+            side_effect=[
+                httpx.Response(404, json=NO_ENDPOINT),
+                httpx.Response(200, json=completion('{"ok": true}')),
+                httpx.Response(200, json=completion('{"ok": true}')),
+                httpx.Response(200, json=completion('{"layers": []}')),
+            ]
+        )
+        out, meta = reader().complete_vision_json(
+            png(20, 20), "image/png", "s", "u", schema, "classify", max_tokens=600
+        )
+        again, _ = reader().complete_vision_json(
+            png(30, 30), "image/png", "s", "u", schema, "classify", max_tokens=600
+        )
+        layers = reader().normalise_layers(["fictional grey sand"])
+    assert out == {"ok": True} and meta["schema_mode"] == "json_object" and meta["error"] is None
+    assert again == {"ok": True} and layers == [None]
+    bodies = [json.loads(c.request.content) for c in route.calls]
+    assert bodies[0]["response_format"]["type"] == "json_schema"
+    # remembered for this model: the later image and the text call go to JSON mode directly
+    assert [b["response_format"] for b in bodies[1:]] == [{"type": "json_object"}] * 3
+
+
+def test_bh3_text_calls_carry_an_output_limit(tmp_path: Path) -> None:
+    """A text call without max_tokens let a model that rambles hold the request, and the document, for as
+    long as it liked."""
+
+    def text_model(name: str, **options: Any) -> bh3_llm.LLM:
+        return bridge.make_llm(
+            "https://openrouter.ai/api/v1", "sk-or-test-not-real", name, cache_dir=tmp_path / name, **options
+        )
+
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(
+            side_effect=[
+                httpx.Response(200, json=completion('{"layers": []}')),
+                httpx.Response(200, json=completion('{"BoreholeName": null}')),
+                httpx.Response(200, json=completion('{"layers": []}')),
+            ]
+        )
+        plain = text_model("fictional/text-model")
+        plain.normalise_layers(["fictional grey sand"])
+        plain.fill_header("FICTIONAL HEADER TEXT", ["BoreholeName"])
+        thinking = text_model(
+            "fictional/thinking-text-model",
+            extra_body=bridge.openrouter_body({"effort": "low"}),
+            reasoning_extra_tokens=1000,
+        )
+        thinking.normalise_layers(["fictional grey sand"])
+    limits = [json.loads(c.request.content)["max_tokens"] for c in route.calls]
+    assert limits == [
+        bh3_llm.LAYERS_MAX_TOKENS,
+        bh3_llm.HEADER_MAX_TOKENS,
+        bh3_llm.LAYERS_MAX_TOKENS + 1000,  # room for the thinking, as on the vision calls
+    ]
+
+
+# OpenRouter's other "No endpoints found" answers are not about the response schema.
+DATA_POLICY = {"error": {"message": "No endpoints found matching your data policy.", "code": 404}}
+
+
+async def test_only_the_parameters_404_is_a_refused_schema_and_only_success_is_remembered(
+    db: None, env: Any
+) -> None:
+    async def classify() -> PageLabel:
+        result = await LlmClient().structured(
+            output=PageLabel,
+            system="fictional system prompt",
+            content=[text_part("fictional")],
+            purpose="classify",
+            document_id=None,
+            role="classifier",
+            max_tokens=600,
+        )
+        return result.data
+
+    env(OPENROUTER_API_KEY="sk-or-test-not-real", CLASSIFIER_MODEL="fictional/policy-blocked-model")
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(return_value=httpx.Response(404, json=DATA_POLICY))
+        with pytest.raises(ProviderError):
+            await classify()
+    assert route.call_count == 1  # not asked again in JSON mode
+    assert ("fictional/policy-blocked-model", "PageLabel") not in providers_llm._JSON_MODE
+
+    # A refused schema whose JSON-mode request fails as well leaves the model as it was.
+    env(OPENROUTER_API_KEY="sk-or-test-not-real", CLASSIFIER_MODEL="fictional/fails-in-json-mode-too")
+    with respx.mock() as mock:
+        mock.post(OPENROUTER).mock(
+            side_effect=[httpx.Response(404, json=NO_ENDPOINT), httpx.Response(404, json=DATA_POLICY)]
+        )
+        with pytest.raises(ProviderError):
+            await classify()
+    assert ("fictional/fails-in-json-mode-too", "PageLabel") not in providers_llm._JSON_MODE
+
+
+def test_bh3_does_not_take_a_data_policy_404_for_a_refused_schema(tmp_path: Path) -> None:
+    llm = bridge.make_llm(
+        "https://openrouter.ai/api/v1",
+        "sk-or-test-not-real",
+        "fictional/policy-blocked-vision",
+        cache_dir=tmp_path,
+    )
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(return_value=httpx.Response(404, json=DATA_POLICY))
+        out, meta = llm.complete_vision_json(
+            png(20, 20), "image/png", "s", "u", schema, "classify", max_tokens=600
+        )
+    assert out is None and meta["error"] and route.call_count == 1
+    assert "fictional/policy-blocked-vision" not in bh3_llm._SCHEMA_REFUSED
+
+
+def test_bh3_does_not_repeat_a_text_answer_cut_at_the_limit(tmp_path: Path) -> None:
+    llm = bridge.make_llm(
+        "https://openrouter.ai/api/v1",
+        "sk-or-test-not-real",
+        "fictional/rambling-text-model",
+        cache_dir=tmp_path,
+    )
+    cut = completion('{"layers": [{"id": 0, "lithology": "Sa', finish="length")
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(return_value=httpx.Response(200, json=cut))
+        assert llm.normalise_layers(["fictional grey sand"]) == [None]
+    assert route.call_count == 1  # the same request would be cut, and billed, again
+
+
+async def test_vision_ocr_falls_back_to_json_mode_when_no_endpoint_takes_the_schema(
+    db: None, env: Any
+) -> None:
+    env(OPENROUTER_API_KEY="sk-or-test-not-real", OPENROUTER_OCR_MODEL="fictional/open-weights-ocr")
+    with respx.mock() as mock:
+        route = mock.post(OPENROUTER).mock(
+            side_effect=[
+                httpx.Response(404, json=NO_ENDPOINT),
+                httpx.Response(200, json=completion(json.dumps(FICTIONAL_READING))),
+            ]
+        )
+        response = await OpenRouterVisionOcrClient().ocr(
+            png(1000, 1400), "image/png", document_id=None, page_count=1
+        )
+    assert response.raw["pages"]
+    bodies = [json.loads(c.request.content) for c in route.calls]
+    assert bodies[0]["response_format"]["type"] == "json_schema"
+    assert bodies[1]["response_format"] == {"type": "json_object"}
+    assert '"blocks"' in bodies[1]["messages"][0]["content"]  # the schema, in the system prompt
 
 
 def _vision_llm(tmp_path: Path) -> bh3_llm.LLM:
