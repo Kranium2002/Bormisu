@@ -22,6 +22,7 @@ const SECTION: Record<RouteKind, Section | null> = {
   detail: 'map',
   sheet: 'map',
   report: 'map',
+  view3d: 'map',
   list: 'list',
   queue: 'queue',
   reviewIndex: 'queue',

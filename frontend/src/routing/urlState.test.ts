@@ -11,6 +11,7 @@ import {
   reviewPath,
   routePath,
   sameScreen,
+  view3dPath,
   type AppRoute,
 } from './urlState';
 
@@ -157,5 +158,26 @@ describe('report URL', () => {
     expect(parseLocation('/report', '?line=aln_B&buffer=0&unrev=yes')).toMatchObject({ buffer: null, unrev: null });
     expect(parseLocation('/report', '?line=aln_B&buffer=5000')).toMatchObject({ buffer: null });
     expect(parseLocation('/report/x', '').kind).toBe('notFound');
+  });
+});
+
+describe('3D view URL', () => {
+  it('reads and writes the 3D view of a result set and of a planned line', () => {
+    expect(parseLocation('/3d', '?rs=rs_A')).toEqual({ kind: 'view3d', rs: 'rs_A', line: null, buffer: null, unrev: null });
+    const line = parseLocation('/3d', '?rs=rs_A&line=aln_B&buffer=150&unrev=1');
+    expect(line).toEqual({ kind: 'view3d', rs: 'rs_A', line: 'aln_B', buffer: 150, unrev: true });
+    expect(routePath(line)).toBe('/3d?rs=rs_A&line=aln_B&buffer=150&unrev=1');
+    expect(view3dPath({ rs: 'rs_A' })).toBe('/3d?rs=rs_A');
+    expect(view3dPath({ rs: null })).toBe('/3d');
+    // The same selection as the report's, so the report and the 3D view link to each other.
+    expect(view3dPath({ rs: 'rs_A', line: 'aln_B', buffer: 150, unrev: false })).toBe(
+      reportPath({ rs: 'rs_A', line: 'aln_B', buffer: 150, unrev: false }).replace('/report', '/3d'),
+    );
+  });
+
+  it('ignores a distance or scope it cannot read, and a path below /3d', () => {
+    expect(parseLocation('/3d', '?line=aln_B&buffer=0&unrev=yes')).toMatchObject({ buffer: null, unrev: null });
+    expect(parseLocation('/3d', '?line=aln_B&buffer=5000')).toMatchObject({ buffer: null });
+    expect(parseLocation('/3d/x', '').kind).toBe('notFound');
   });
 });

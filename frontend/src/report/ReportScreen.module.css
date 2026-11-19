@@ -46,6 +46,14 @@
   composes: secondary small from '../styles/buttons.module.css';
 }
 
+/* 3D VIEW: a link that looks like the toolbar's buttons. */
+.view3d {
+  composes: secondary small from '../styles/buttons.module.css';
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .loading {
   margin: 20vh auto;
   text-align: center;

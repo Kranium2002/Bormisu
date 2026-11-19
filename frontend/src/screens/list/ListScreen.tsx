@@ -18,6 +18,7 @@ import { listRows, recordsToLoad, type RecordState } from './listModel';
 import styles from './ListScreen.module.css';
 import { ListTable, NO_BOREHOLES, NO_MATCH_SEARCH, type Pointed } from './ListTable';
 import { ReportButton } from '../../report/ReportButton';
+import { View3DButton } from '../../view3d/View3DButton';
 
 /** Empty table while a result set is active: it has no member, or none the app holds (deleted meanwhile). */
 const NO_MATCH = 'No borehole matches this selection.';
@@ -131,6 +132,7 @@ export function ListScreen() {
           <>
             <ResultSetSummary resultSet={resultSet} busy={resultSetBusy} error={resultSetError} onClear={clearResultSet} />
             {rows.length > 0 && <ReportButton scope="list" query={query} className={styles.report} />}
+            {rows.length > 0 && <View3DButton scope="list" query={query} className={styles.report} />}
           </>
         }
         onVisible={onVisible}

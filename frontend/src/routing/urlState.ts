@@ -10,6 +10,9 @@
  *   /boreholes/:uid?layer=<n>
  *   /inbox?q=<clarification id>     the questions, with the open one's dialog
  *   /verify/:uid?page=<n>           side-by-side check of a borehole: original page n next to its extracted values
+ *   /report?rs=<result set id>&line=<planned line id>&buffer=<m>&unrev=<0|1>
+ *                                   the printable report of a selection
+ *   /3d?rs=…&line=…&buffer=…&unrev=… the 3D view of the same selection
  *   anything else                   not found
  *
  * The path names the screen (a new history entry); the query holds state within the screen (the map
@@ -29,6 +32,7 @@ export const ROUTE = {
   sheet: 'sheet/:uid',
   verify: 'verify/:uid',
   report: 'report',
+  view3d: '3d',
 } as const;
 
 /** Centre and zoom of the map. */
@@ -64,9 +68,11 @@ export type AppRoute =
    * the planned line's hits by chainage, queried again with `buffer` m and `unrev` on a reload.
    */
   | ({ kind: 'report' } & ReportUrlState)
+  /** The 3D view of a selection, below the map: the same URL state as the report. */
+  | ({ kind: 'view3d' } & ReportUrlState)
   | { kind: 'notFound'; path: string };
 
-/** The report's URL state: what it is about. */
+/** The report's URL state: what it is about (the 3D view reads the same). */
 export interface ReportUrlState {
   rs: string | null;
   line: string | null;
@@ -132,6 +138,11 @@ function flag(text: string | null): boolean | null {
   return text === '1' ? true : text === '0' ? false : null;
 }
 
+/** The selection a /report or /3d query names; a value it cannot read is null. */
+function readSelection(q: URLSearchParams): ReportUrlState {
+  return { rs: param(q, 'rs'), line: param(q, 'line'), buffer: bufferM(param(q, 'buffer')), unrev: flag(param(q, 'unrev')) };
+}
+
 /** The decoded path segments, or null when a segment is not valid percent-encoding. */
 function segments(pathname: string): string[] | null {
   const parts = pathname.split('/').filter(Boolean);
@@ -163,9 +174,8 @@ export function parseLocation(pathname: string, search: string): AppRoute {
   if (head === 'list' && uid === undefined) return { kind: 'list' };
   if (head === 'sheet' && uid) return { kind: 'sheet', uid, lang: param(q, 'lang') };
   if (head === 'verify' && uid) return { kind: 'verify', uid, page: positiveInt(param(q, 'page')) };
-  if (head === 'report' && uid === undefined) {
-    return { kind: 'report', rs: param(q, 'rs'), line: param(q, 'line'), buffer: bufferM(param(q, 'buffer')), unrev: flag(param(q, 'unrev')) };
-  }
+  if (head === 'report' && uid === undefined) return { kind: 'report', ...readSelection(q) };
+  if (head === '3d' && uid === undefined) return { kind: 'view3d', ...readSelection(q) };
   return notFound;
 }
 
@@ -212,14 +222,24 @@ export function verifyPath(uid: string, page?: number | null): string {
   return `/verify/${enc(uid)}${query([['page', page != null ? String(page) : null]])}`;
 }
 
-/** /report of a selection (only the parts that are set). */
-export function reportPath(s: Partial<ReportUrlState> & { rs: string | null }): string {
-  return `/${ROUTE.report}${query([
+/** `/<screen>` with a selection's query (only the parts that are set; distance and scope only with a line). */
+function selectionPath(screen: string, s: Partial<ReportUrlState> & { rs: string | null }): string {
+  return `/${screen}${query([
     ['rs', s.rs ? enc(s.rs) : null],
     ['line', s.line ? enc(s.line) : null],
     ['buffer', s.line && s.buffer != null ? String(s.buffer) : null],
     ['unrev', s.line && s.unrev != null ? (s.unrev ? '1' : '0') : null],
   ])}`;
+}
+
+/** /report of a selection (only the parts that are set). */
+export function reportPath(s: Partial<ReportUrlState> & { rs: string | null }): string {
+  return selectionPath(ROUTE.report, s);
+}
+
+/** /3d of a selection (only the parts that are set). */
+export function view3dPath(s: Partial<ReportUrlState> & { rs: string | null }): string {
+  return selectionPath(ROUTE.view3d, s);
 }
 
 /** The URL of a route. */
@@ -245,6 +265,8 @@ export function routePath(r: AppRoute): string {
       return verifyPath(r.uid, r.page);
     case 'report':
       return reportPath(r);
+    case 'view3d':
+      return view3dPath(r);
     case 'notFound':
       return r.path;
   }

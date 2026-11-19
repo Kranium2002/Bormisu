@@ -28,7 +28,7 @@ import { downloadBlob } from '../export/download';
 import type { Cell } from '../export/standardXlsx';
 import { useLang } from '../i18n';
 import { useLocationRoute } from '../routing/RouteSync';
-import { boreholePath, mapPath, type ReportUrlState } from '../routing/urlState';
+import { boreholePath, mapPath, view3dPath, type ReportUrlState } from '../routing/urlState';
 import { ProfileColumn } from '../screens/detail/ProfileColumn';
 import { sheetT, type SheetLang } from '../screens/sheet/sheetModel';
 import { useAppStore } from '../store/appStore';
@@ -79,17 +79,19 @@ export function ReportScreen() {
       </div>
     );
   }
-  return <Report selection={data.selection} records={data.records} missing={data.missing} lang={lang} />;
+  return <Report url={url} selection={data.selection} records={data.records} missing={data.missing} lang={lang} />;
 }
 
 interface ReportProps {
+  /** The report's own URL state: 3D VIEW opens the same selection. */
+  url: ReportUrlState;
   selection: ReportSelection;
   records: Borehole[];
   missing: number;
   lang: SheetLang;
 }
 
-function Report({ selection, records, missing, lang }: ReportProps) {
+function Report({ url, selection, records, missing, lang }: ReportProps) {
   const t = (en: string) => sheetT(lang, en);
   const showToast = useAppStore((s) => s.showToast);
   const [today] = useState(() => new Date());
@@ -143,6 +145,9 @@ function Report({ selection, records, missing, lang }: ReportProps) {
           {t('‹ BACK')}
         </Link>
         <span className={styles.toolbarTitle}>{model.subtitle}</span>
+        <Link className={styles.view3d} to={view3dPath(url)} data-testid="view-3d">
+          {t('3D VIEW')}
+        </Link>
         <button type="button" className={styles.secondary} onClick={() => void download('csv')}>
           {t('LAYERS CSV')}
         </button>
