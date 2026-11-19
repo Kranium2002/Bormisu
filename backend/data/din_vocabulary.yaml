@@ -442,4 +442,4 @@ compound_languages: [de, nl, "no", sv, da]
 compound_min_prefix: 3
 # DIN notation printed instead of words ("G, s, u'"): the main code first, then lower-case secondary
 # codes optionally marked weak (') or strong (*, ¯, ̅).
-notation_secondary_pattern: "^[a-zäöü]{1,3}['’*¯̅]?$"
+notation_secondary_pattern: "^[a-zäöü]{1,3}[1-5]?['’*¯̅]?$"

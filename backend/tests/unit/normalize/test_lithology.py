@@ -186,6 +186,28 @@ def test_a_din_short_form_printed_in_brackets_names_the_main_component() -> None
     assert din_code_from_text("Wechsellagerung (T) und (G)", "de") is None
 
 
+def test_a_notation_that_names_several_main_components_gives_the_first_named() -> None:
+    from app.normalize.lithology import din_code_from_notation
+
+    cases = {
+        "G,fX,mS-fS": "G",  # gravel, fine cobbles, medium to fine sand
+        "S,G,fX": "S",
+        "S,mG-fG": "S",
+        "gG,fX(mg,fg2,ms)": "gG",
+        "G(s4,u2)": "G",  # secondary components with an intensity digit
+        # several sizes of the first-named soil: the soil itself
+        "fS,mS(g)": "S",
+        "mG,gG(u,fs,ms)": "G",
+        "(mG-gG)(s2,fg2)": "G",
+        "(fS-mS)(u2),mG-gG": "S",
+        "mS-fS(u)": "S",
+    }
+    assert {n: din_code_from_notation(n) for n in cases} == cases
+    # not a notation, an unknown code, or a range across two soils: no code
+    for n in ("G, sandy gravel", "G,xyz9", "Lc(h)", "(fS-mG)(u)"):
+        assert din_code_from_notation(n) is None
+
+
 def test_the_main_code_of_a_printed_short_notation() -> None:
     from app.normalize.lithology import din_code_from_notation
 

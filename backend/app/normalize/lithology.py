@@ -280,21 +280,59 @@ _NOTATION_HEAD = re.compile(r"^([^\W\d_]+)(.*)$")
 _BRACKETED = re.compile(r"\(((?:[^()]|\([^()]*\))*)\)")
 
 
+_NOTATION_RANGE_HEAD = re.compile(r"^\(([^()]+)\)(.*)$")
+_SIZE_PREFIXES = ("f", "m", "g")
+
+
+def _main_components(part: str) -> list[str] | None:
+    """The listed codes a notation part names as a main component: a code ("S"), a size of a listed code
+    that has no code of its own ("fX"), or a range of them ("mS-fS"); None when it is anything else."""
+    found: list[str] = []
+    for piece in part.split("-"):
+        code = valid_din_code(piece)
+        if code is None and len(piece) > 1 and piece[0] in _SIZE_PREFIXES:
+            code = valid_din_code(piece[1:])
+        if code is None:
+            return None
+        found.append(code)
+    return found
+
+
 def din_code_from_notation(text: str | None) -> str | None:
-    """The main code of a DIN 4023 short notation as printed ("fS(u)", "G(s)", "G, s, u'", "U"), else None:
-    a listed code followed only by secondary components (short lower-case codes, in brackets or after
-    commas)."""
+    """The main code of a short notation as printed ("fS(u)", "G(s)", "G, s, u'", "U", "G,fX,mS-fS",
+    "(fS-mS)(u2),mG"), else None: a listed code, or a bracketed range of sizes of one soil, followed only by
+    secondary components (short lower-case codes, in brackets or after commas) and by further main
+    components (listed codes and ranges of them). The first-named component is the main one; when the
+    notation names several sizes of that soil ("fS,mS", "(mG-gG)"), the main code is the soil itself."""
     if text is None or not text.strip() or len(text) > 60:
         return None
-    match = _NOTATION_HEAD.match(unicodedata.normalize("NFC", text).strip())
-    if match is None:
-        return None
-    main = valid_din_code(match.group(1))
-    if main is None:
-        return None
-    pattern = _vocabulary().notation_secondary
-    parts = [part for part in re.split(r"[,;()\s]+", match.group(2)) if part]
-    return main if all(pattern.match(part) for part in parts) else None
+    vocab = _vocabulary()
+    printed = unicodedata.normalize("NFC", text).strip()
+    ranged = _NOTATION_RANGE_HEAD.match(printed)
+    if ranged is not None:
+        head = _main_components(ranged.group(1).strip())
+        if head is None or len({vocab.base_of.get(c, c) for c in head}) != 1:
+            return None
+        mains, rest = head, ranged.group(2)
+    else:
+        match = _NOTATION_HEAD.match(printed)
+        if match is None:
+            return None
+        main = valid_din_code(match.group(1))
+        if main is None:
+            return None
+        mains, rest = [main], match.group(2)
+    for part in re.split(r"[,;()\s]+", rest):
+        part = part.lstrip("-")  # "mS-fS(u)": the range goes on from the head
+        if not part or vocab.notation_secondary.match(part):
+            continue
+        further = _main_components(part)
+        if further is None:
+            return None
+        mains += further
+    base = vocab.base_of.get(mains[0], mains[0])
+    same = {c for c in mains if vocab.base_of.get(c, c) == base}
+    return mains[0] if len(same) == 1 else valid_din_code(base)
 
 
 def _bracketed_notation(description: str) -> str | None:

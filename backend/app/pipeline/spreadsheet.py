@@ -1999,6 +1999,10 @@ class _Result:
         code = row.first("din4023_code")
         if code is not None and top is not None:
             self.din_cells[top.ref] = code
+        # A code column may print a short notation ("G(s)", "G,fX,mS-fS") instead of one code: it is kept as
+        # printed, and its main component is read from it (app.normalize.lithology.din_code_from_notation).
+        printed = (code.text.strip() or None) if code is not None else None
+        is_code = valid_din_code(printed) is not None
         out.append(
             ExtractedLayer(
                 from_raw=c.raw(top),
@@ -2006,8 +2010,8 @@ class _Result:
                 description_raw=c.joined(row.values.get("description"), self.join),
                 description_language=row.language,
                 english_lithology=None,
-                din4023_code=code.text.strip() if code is not None else None,
-                din4023_notation=None,
+                din4023_code=printed if is_code else None,
+                din4023_notation=None if is_code else printed,
                 uscs_raw=c.raw(row.first("uscs")),
                 colour_raw=c.raw(row.first("colour")),
                 consistency_raw=c.raw(row.first("consistency")),
@@ -2173,6 +2177,11 @@ def draft_borehole(document_id: str, bh: BoreholeRows) -> SheetDraft:
         code_cell = result_builder.din_cells.get(top.cell or "") if top is not None else None
         if code_cell is not None and layer.get("din4023_code") == valid_din_code(code_cell.text):
             provenance[f"stratigraphy[{i}].din4023_code"] = ProvenanceIn(
+                document_id=document_id, cell=code_cell.ref, raw=code_cell.text, method="read"
+            )
+        # A short notation printed in that column is read from its cell too.
+        if code_cell is not None and layer.get("din4023_notation") == code_cell.text.strip():
+            provenance[f"stratigraphy[{i}].din4023_notation"] = ProvenanceIn(
                 document_id=document_id, cell=code_cell.ref, raw=code_cell.text, method="read"
             )
     # Text values hold what the cell stores, not the parser's text.
