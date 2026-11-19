@@ -212,6 +212,46 @@ def test_printed_coordinates_are_checked_even_when_the_borehole_is_not_placed() 
     assert sc.score_borehole(portal, document(), [none])["position"].missing == 1
 
 
+# Findings of the whole-branch review.
+
+
+def test_a_label_matches_the_portals_name_on_its_whole_number_only() -> None:
+    portal = truth(name="Bohlsbach In den Matten B 15")
+
+    def judged(label: str) -> tuple[int, int]:
+        tally = sc.score_borehole(portal, document(), [record_with(borehole_id=label)])["name"]
+        return tally.match, tally.mismatch
+
+    assert judged("B 15") == (1, 0) and judged("15") == (1, 0)
+    # part of the number, or a label with no number at all, is not this borehole
+    assert [judged(label) for label in ("B 1", "1", "5", "IN", "B")] == [(0, 1)] * 5
+
+
+def test_a_portal_date_on_the_first_of_january_is_a_year() -> None:
+    # 7513-1596: the portal says 01.01.1953
+    row = sc.score_borehole(truth(date="01.01.1953"), document(), [record_with(start_date="1953-06-12")])
+    assert row["date"].match == 1
+    row = sc.score_borehole(truth(date="01.01.1953"), document(), [record_with(start_date="1954-06-12")])
+    assert row["date"].mismatch == 1
+
+
+def test_the_report_says_which_values_it_scored() -> None:
+    text = sc.render([sc.score_borehole(truth(), document(), [record()])], {})
+    assert "as first extracted" not in text and "as the app holds it now" in text
+
+
+@respx.mock
+def test_score_stops_when_the_app_does_not_answer_for_the_boreholes(tmp_path: Path) -> None:
+    make_data(tmp_path, "0000-7", uploaded_as="doc_1")
+    respx.get("http://app.test/api/v1/documents/doc_1").mock(
+        return_value=httpx.Response(200, json=document())
+    )
+    respx.get("http://app.test/api/v1/documents/doc_1/boreholes").mock(return_value=httpx.Response(500))
+    # an expired session or a server error must not be scored as "this sheet gave no borehole"
+    with httpx.Client(base_url="http://app.test") as client, pytest.raises(httpx.HTTPStatusError):
+        sc.score(client, tmp_path)
+
+
 def one_page_pdf() -> bytes:
     pdf = pdfium.PdfDocument.new()
     pdf.new_page(595, 842)

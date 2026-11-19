@@ -166,6 +166,14 @@ def _canonical(label: str) -> str:
     return _LEADING_ZEROS.sub("", _CANON_STRIP.sub("", label.strip().upper()))
 
 
+def _names(label: str, portal_name: str) -> bool:
+    """Whether a sheet's (canonical) label is the hole in the portal's (canonical) name: it must carry a
+    number and be found with that number whole, so "B1", "1" and "5" are not "B15"."""
+    if not any(ch.isdigit() for ch in label):
+        return False
+    return re.search(rf"(?<!\d){re.escape(label)}(?!\d)", portal_name) is not None
+
+
 def _minutes(document: dict[str, Any]) -> float | None:
     try:
         start = datetime.fromisoformat(str(document.get("created_at")).replace("Z", "+00:00"))
@@ -235,8 +243,11 @@ def score_borehole(
     _within(row["final_depth"], depth, meta.get("borehole_depth_m"), FINAL_DEPTH_TOLERANCE_M)
     _within(row["elevation"], elevation, meta.get("surface_elevation_mASL"), ELEVATION_TOLERANCE_M)
     day = _GERMAN_DATE.match(str(truth.get("date") or ""))
-    # the portal writes the first of the month where it knows no day: then the month is what can be compared
-    width = 7 if day and day.group(1) == "01" else 10
+    # the portal writes the first of the month where it knows no day, and the first of January where it
+    # knows the year only: then the month, or the year, is what can be compared
+    width = 10
+    if day and day.group(1) == "01":
+        width = 4 if day.group(2) == "01" else 7
     expected_day = f"{day.group(3)}-{day.group(2)}-{day.group(1)}"[:width] if day else None
     our_days = {
         str(meta[key])[:width] for key in ("drilling_date", "start_date", "end_date") if meta.get(key)
@@ -245,7 +256,12 @@ def score_borehole(
     # the portal's name is the site and the hole ("Bohlsbach In den Matten B 5"); a sheet prints the hole
     portal_name = _canonical(str(truth.get("name") or ""))
     our_names = {_canonical(str(n)) for n in (meta.get("borehole_id"), *(meta.get("aliases") or [])) if n}
-    _judge(row["name"], bool(portal_name), bool(our_names), any(label in portal_name for label in our_names))
+    _judge(
+        row["name"],
+        bool(portal_name),
+        bool(our_names),
+        any(_names(label, portal_name) for label in our_names),
+    )
 
     truth_layers = [
         (bottom, lay)
@@ -298,8 +314,9 @@ def render(rows: list[dict[str, Any]], excluded: dict[str, str]) -> str:
         "# LGRB scorecard",
         "",
         f"{len(rows)} boreholes uploaded, {len(excluded)} excluded. Truth: the LGRB-BW portal's own data per",
-        "borehole (https://bohrungen.lgrb-bw.de/). Scored: what the app returned for the sheet, as first",
-        "extracted. Wrong: the app returned a different value. Not read: the portal has a value and the app",
+        "borehole (https://bohrungen.lgrb-bw.de/). Scored: what the app returns for the sheet,",
+        "as the app holds it now; records revised since extraction are named under the side facts.",
+        "Wrong: the app returned a different value. Not read: the portal has a value and the app",
         "returned none (the sheet may not print it; the portal also holds registry data). A value the portal",
         "does not give, or that cannot be compared fairly, is not comparable and never counts against the",
         "app. A sheet that came back as no borehole or as several is counted in the first row only.",
@@ -444,8 +461,8 @@ def score(client: httpx.Client, data_dir: Path) -> Path:
         document = client.get(f"/api/v1/documents/{item['document_id']}")
         document.raise_for_status()
         records = client.get(f"/api/v1/documents/{item['document_id']}/boreholes")
-        found = records.json() if records.status_code == 200 else []
-        rows.append(score_borehole(truth, document.json(), found))
+        records.raise_for_status()  # an expired session or a server error is not "no borehole on this sheet"
+        rows.append(score_borehole(truth, document.json(), records.json()))
     report = out_dir / "report.md"
     report.write_text(render(rows, excluded), encoding="utf-8")
     flat = [_flat(row) for row in rows]
