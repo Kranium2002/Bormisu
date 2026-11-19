@@ -34,17 +34,19 @@ class Tally:
     and this scorer must run from a plain interpreter against a stack somewhere else."""
 
     match: int = 0
-    mismatch: int = 0
+    mismatch: int = 0  # the app returned a different value
+    missing: int = 0  # the portal has a value, the app returned none
     not_comparable: int = 0
 
     def add(self, other: Tally) -> None:
         self.match += other.match
         self.mismatch += other.mismatch
+        self.missing += other.missing
         self.not_comparable += other.not_comparable
 
     @property
     def compared(self) -> int:
-        return self.match + self.mismatch
+        return self.match + self.mismatch + self.missing
 
 
 BOTTOM_TOLERANCE_M = 0.15
@@ -56,11 +58,11 @@ METRIC_LABELS = {
     "count": "One sheet gives one borehole",
     "final_depth": "Final depth within 0.10 m",
     "boundaries": "Layer bottoms found within 0.15 m",
-    "din": "DIN 4023 main code on matched layers",
-    "position": "Position within 25 m (plotted boreholes)",
+    "din": "DIN 4023 soil type on matched layers (grain-size prefix ignored)",
+    "position": "Coordinates within 25 m (placed, or as printed in Gauss-Krüger 3 / UTM 32)",
     "elevation": "Collar elevation within 0.05 m",
-    "date": "Drilling date",
-    "name": "Borehole name",
+    "date": "Drilling date (the month where the portal has no day)",
+    "name": "Sheet's borehole label found in the portal's name",
 }
 FINISHED = ("needs_review", "done")  # document statuses with a result to score
 
@@ -70,8 +72,10 @@ _GERMAN_DATE = re.compile(r"^\s*(\d{2})\.(\d{2})\.(\d{4})\s*$")
 _CANON_STRIP = re.compile(r"[\s\-_]+")
 _LEADING_ZEROS = re.compile(r"(?<![0-9])0+(?=[0-9])")
 _UTM32 = re.compile(r"^\s*32U\s+O:\s*(-?\d+(?:\.\d+)?)\s*\|\s*N:\s*(-?\d+(?:\.\d+)?)\s*$")
-_LEADING_LETTERS = re.compile(r"^[^\W\d_]+")
+_LEADING_LETTERS = re.compile(r"^\(?([^\W\d_]+)")  # "U(fs4)" and the mixture "(G-S)(u2,s4)" both start a code
+_NOT_A_DIGIT = re.compile(r"[^\d.,]")
 _UTM32_TO_WGS84 = Transformer.from_crs(25832, 4326, always_xy=True)
+_UTM32_TO_GK3 = Transformer.from_crs(25832, 31467, always_xy=True)  # what older sheets of the area print
 _GEOD = Geod(ellps="WGS84")
 
 
@@ -106,13 +110,36 @@ def match_bottoms(
     return sorted(pairs), (sum(errors) / len(errors) if errors else None)
 
 
-def truth_wgs84(text: str | None) -> tuple[float, float] | None:
-    """(latitude, longitude) of the portal's "32U O: … | N: …" (ETRS89 / UTM 32N); None for anything else."""
+def truth_utm32(text: str | None) -> tuple[float, float] | None:
+    """(easting, northing) of the portal's "32U O: … | N: …" (ETRS89 / UTM 32N); None for anything else."""
     found = _UTM32.match(text or "")
-    if found is None:
+    return (float(found.group(1)), float(found.group(2))) if found else None
+
+
+def truth_wgs84(text: str | None) -> tuple[float, float] | None:
+    """(latitude, longitude) of the portal's coordinates."""
+    utm = truth_utm32(text)
+    if utm is None:
         return None
-    lon, lat = _UTM32_TO_WGS84.transform(float(found.group(1)), float(found.group(2)))
+    lon, lat = _UTM32_TO_WGS84.transform(*utm)
     return lat, lon
+
+
+def printed_position_matches(utm: tuple[float, float], x_raw: Any, y_raw: Any) -> bool | None:
+    """Whether the coordinates a sheet prints are the portal's point, read as UTM 32 or Gauss-Krüger zone 3
+    in either axis order. None when the two printed values are not both numbers."""
+    printed = []
+    for raw in (x_raw, y_raw):
+        digits = _NOT_A_DIGIT.sub("", str(raw or "")).replace(",", ".")
+        try:
+            printed.append(float(digits))
+        except ValueError:
+            return None
+    for east, north in (utm, _UTM32_TO_GK3.transform(*utm)):
+        for x, y in (printed, printed[::-1]):
+            if ((x - east) ** 2 + (y - north) ** 2) ** 0.5 <= POSITION_TOLERANCE_M:
+                return True
+    return False
 
 
 def distance_m(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -124,8 +151,15 @@ def truth_din(layer: dict[str, Any]) -> str | None:
     """The DIN 4023 main code of a portal layer: its own petrography code when that is a DIN code, else the
     code of its words, else None (not comparable)."""
     leading = _LEADING_LETTERS.match(str((layer.get("codes") or {}).get("petro") or "").strip())
-    code = valid_din_code(leading.group(0)) if leading else None
+    code = valid_din_code(leading.group(1)) if leading else None
     return code or din_code_from_text(layer.get("Petrographie"), "de")
+
+
+def _soil(code: str | None) -> str | None:
+    """A DIN code without its grain-size prefix ("fG" and "G" are both gravel)."""
+    if code and len(code) == 2 and code[0] in "fmg" and code[1].isupper():
+        return code[1]
+    return code
 
 
 def _canonical(label: str) -> str:
@@ -144,16 +178,20 @@ def _minutes(document: dict[str, Any]) -> float | None:
 def _within(tally: Tally, expected: float | None, ours: Any, tolerance: float) -> None:
     if expected is None:
         tally.not_comparable += 1
-    elif isinstance(ours, int | float) and abs(expected - float(ours)) <= tolerance + 1e-9:
+    elif not isinstance(ours, int | float):
+        tally.missing += 1
+    elif abs(expected - float(ours)) <= tolerance + 1e-9:
         tally.match += 1
     else:
         tally.mismatch += 1
 
 
-def _equal(tally: Tally, expected: str | None, ours: set[str]) -> None:
-    if expected is None:
+def _judge(tally: Tally, comparable: bool, ours_present: bool, same: bool) -> None:
+    if not comparable:
         tally.not_comparable += 1
-    elif expected in ours:
+    elif not ours_present:
+        tally.missing += 1
+    elif same:
         tally.match += 1
     else:
         tally.mismatch += 1
@@ -197,11 +235,17 @@ def score_borehole(
     _within(row["final_depth"], depth, meta.get("borehole_depth_m"), FINAL_DEPTH_TOLERANCE_M)
     _within(row["elevation"], elevation, meta.get("surface_elevation_mASL"), ELEVATION_TOLERANCE_M)
     day = _GERMAN_DATE.match(str(truth.get("date") or ""))
-    our_days = {str(meta[key])[:10] for key in ("drilling_date", "start_date", "end_date") if meta.get(key)}
-    _equal(row["date"], f"{day.group(3)}-{day.group(2)}-{day.group(1)}" if day else None, our_days)
-    name = str(truth.get("name") or "").strip()
+    # the portal writes the first of the month where it knows no day: then the month is what can be compared
+    width = 7 if day and day.group(1) == "01" else 10
+    expected_day = f"{day.group(3)}-{day.group(2)}-{day.group(1)}"[:width] if day else None
+    our_days = {
+        str(meta[key])[:width] for key in ("drilling_date", "start_date", "end_date") if meta.get(key)
+    }
+    _judge(row["date"], day is not None, bool(our_days), expected_day in our_days)
+    # the portal's name is the site and the hole ("Bohlsbach In den Matten B 5"); a sheet prints the hole
+    portal_name = _canonical(str(truth.get("name") or ""))
     our_names = {_canonical(str(n)) for n in (meta.get("borehole_id"), *(meta.get("aliases") or [])) if n}
-    _equal(row["name"], _canonical(name) if name else None, our_names)
+    _judge(row["name"], bool(portal_name), bool(our_names), any(label in portal_name for label in our_names))
 
     truth_layers = [
         (bottom, lay)
@@ -215,17 +259,23 @@ def score_borehole(
     row["boundary_extra"] = len(our_layers) - len(pairs)
     row["boundary_mae"] = mae
     for i, j in pairs:
-        _equal(row["din"], truth_din(truth_layers[i][1]), {str(our_layers[j].get("din4023_code"))})
+        portal_code, our_code = truth_din(truth_layers[i][1]), our_layers[j].get("din4023_code")
+        _judge(row["din"], portal_code is not None, bool(our_code), _soil(portal_code) == _soil(our_code))
 
-    expected = truth_wgs84(truth.get("coordinates"))
+    # A placed borehole is compared on the map. One the app holds back until a person confirms the
+    # coordinate system is compared on the numbers its sheet prints.
+    utm = truth_utm32(truth.get("coordinates"))
     coordinates = meta.get("coordinates") or {}
     lat, lon = coordinates.get("latitude"), coordinates.get("longitude")
-    if expected is None or not record.get("plotted") or lat is None or lon is None:
-        row["position"].not_comparable += 1
-    elif distance_m(expected, (float(lat), float(lon))) <= POSITION_TOLERANCE_M:
-        row["position"].match += 1
+    if utm is not None and record.get("plotted") and lat is not None and lon is not None:
+        portal_point = _UTM32_TO_WGS84.transform(*utm)[::-1]
+        placed = distance_m(portal_point, (float(lat), float(lon))) <= POSITION_TOLERANCE_M
+        _judge(row["position"], True, True, placed)
     else:
-        row["position"].mismatch += 1
+        printed = (
+            None if utm is None else printed_position_matches(utm, *map(coordinates.get, ("x_raw", "y_raw")))
+        )
+        _judge(row["position"], utm is not None, printed is not None, bool(printed))
     return row
 
 
@@ -249,26 +299,26 @@ def render(rows: list[dict[str, Any]], excluded: dict[str, str]) -> str:
         "",
         f"{len(rows)} boreholes uploaded, {len(excluded)} excluded. Truth: the LGRB-BW portal's own data per",
         "borehole (https://bohrungen.lgrb-bw.de/). Scored: what the app returned for the sheet, as first",
-        "extracted. A value the portal does not give, or that cannot be compared fairly, is not comparable",
-        "and never counts as wrong.",
+        "extracted. Wrong: the app returned a different value. Not read: the portal has a value and the app",
+        "returned none (the sheet may not print it; the portal also holds registry data). A value the portal",
+        "does not give, or that cannot be compared fairly, is not comparable and never counts against the",
+        "app. A sheet that came back as no borehole or as several is counted in the first row only.",
         "",
-        "| Metric | Right | Wrong | Not comparable | Right of compared |",
-        "|---|---|---|---|---|",
+        "| Metric | Right | Wrong | Not read | Not comparable | Right of compared |",
+        "|---|---|---|---|---|---|",
     ]
     for metric in METRICS:
         tally = total[metric]
         share = f"{100 * tally.match / tally.compared:.0f} %" if tally.compared else "-"
-        counts = f"{tally.match} | {tally.mismatch} | {tally.not_comparable}"
+        counts = f"{tally.match} | {tally.mismatch} | {tally.missing} | {tally.not_comparable}"
         out.append(f"| {METRIC_LABELS[metric]} | {counts} | {share} |")
     scored = [row for row in rows if row["status"] in FINISHED]
     unfinished = Counter(str(row["status"]) for row in rows if row["status"] not in FINISHED)
     unplotted = Counter(str(row["unplotted_reason"]) for row in scored if row["plotted"] is False)
     changed = [str(row["id"]) for row in scored if row["revision"] not in (None, 1)]
     maes = [row["boundary_mae"] for row in scored if row["boundary_mae"] is not None]
-    minutes = [row["minutes"] for row in rows if row["minutes"] is not None]
     extra = sum(row["boundary_extra"] for row in scored)
     mae_line = f"{sum(maes) / len(maes):.3f} m" if maes else "none matched"
-    minutes_line = f"{sum(minutes) / len(minutes):.1f}" if minutes else "unknown"
     out += [
         "",
         "## Side facts (not part of the score)",
@@ -279,8 +329,8 @@ def render(rows: list[dict[str, Any]], excluded: dict[str, str]) -> str:
         f"- Pages the classifier left unused: {sum(row['pages_unused'] for row in rows)}",
         f"- Our layer bottoms with no partner in the portal's table: {extra}",
         f"- Mean error of matched layer bottoms: {mae_line}",
-        f"- Records changed after the first extraction (revision > 1): {', '.join(changed) or 'none'}",
-        f"- Mean minutes per document (created to last update): {minutes_line}",
+        "- Records revised after extraction, by the pipeline's second read or by a person (revision > 1): "
+        f"{', '.join(changed) or 'none'}",
         "",
         "## Per borehole",
         "",
@@ -374,6 +424,7 @@ def _flat(row: dict[str, Any]) -> dict[str, Any]:
         tally: Tally = row[metric]
         flat[f"{metric}_right"] = tally.match
         flat[f"{metric}_wrong"] = tally.mismatch
+        flat[f"{metric}_not_read"] = tally.missing
         flat[f"{metric}_not_comparable"] = tally.not_comparable
     return flat
 

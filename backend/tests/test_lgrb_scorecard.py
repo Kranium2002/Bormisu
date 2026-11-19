@@ -66,6 +66,13 @@ def record(**over: Any) -> dict[str, Any]:
     return {**base, **over}
 
 
+def record_with(**metadata: Any) -> dict[str, Any]:
+    """`record()` with some metadata fields replaced."""
+    base = record()
+    base["metadata"] = {**base["metadata"], **metadata}
+    return base
+
+
 def document(**over: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "status": "needs_review",
@@ -141,13 +148,68 @@ def test_a_layer_without_a_bottom_is_left_out() -> None:
 
 
 def test_an_unplotted_borehole_is_not_a_position_error() -> None:
+    # held back by the app and with no printed coordinates returned: not read, never wrong
     row = sc.score_borehole(truth(), document(), [record(plotted=False, unplotted_reason="crs_unconfirmed")])
-    assert row["position"].not_comparable == 1 and row["unplotted_reason"] == "crs_unconfirmed"
+    assert (row["position"].mismatch, row["position"].missing) == (0, 1)
+    assert row["unplotted_reason"] == "crs_unconfirmed"
 
 
 def test_render_names_the_denominators() -> None:
     text = sc.render([sc.score_borehole(truth(), document(), [record()])], {"0000-2": "no own sheet"})
     assert "not comparable" in text and "0000-2" in text and "no own sheet" in text
+
+
+# The cases below come from checking the first real run by eye against the portal (public LGRB records).
+
+
+def test_the_portals_first_of_month_is_a_month_not_a_day() -> None:
+    # 7513-1041: the portal says 01.03.1982, the sheet prints 24.03.1982
+    row = sc.score_borehole(truth(date="01.03.1982"), document(), [record_with(start_date="1982-03-24")])
+    assert row["date"].match == 1
+    # 7513-66: portal 30.08.1963, read as 1965: a real day in the portal must match exactly
+    row = sc.score_borehole(truth(date="30.08.1963"), document(), [record_with(start_date="1965-08-30")])
+    assert row["date"].mismatch == 1
+
+
+def test_a_value_the_app_did_not_read_is_not_read_rather_than_wrong() -> None:
+    row = sc.score_borehole(truth(), document(), [record_with(surface_elevation_mASL=None)])
+    elevation = row["elevation"]
+    assert (elevation.match, elevation.mismatch, elevation.missing) == (0, 0, 1) and elevation.compared == 1
+    text = sc.render([row], {})
+    assert "| Not read |" in text
+
+
+def test_the_sheets_label_inside_the_portals_site_name_is_the_same_borehole() -> None:
+    portal = truth(name="Bohlsbach In den Matten B 5")  # 7513-1041
+    assert sc.score_borehole(portal, document(), [record_with(borehole_id="5")])["name"].match == 1
+    assert sc.score_borehole(portal, document(), [record_with(borehole_id="B 7")])["name"].mismatch == 1
+
+
+def test_truth_din_reads_mixtures_and_compares_the_soil_type() -> None:
+    assert sc.truth_din({"Petrographie": "", "codes": {"petro": "(G-S)(u2,s4)"}}) == "G"  # 7513-66
+    fine_gravel = truth(
+        layers=[{"von": "0.0", "bis": "1.0", "Petrographie": "", "codes": {"petro": "fG(gs,ms)"}}]
+    )
+    row = sc.score_borehole(fine_gravel, document(), [record(stratigraphy=[layer(1.0, "G")])])
+    assert row["din"].match == 1  # the grain-size prefix is the portal's refinement, not a different soil
+
+
+def test_printed_coordinates_are_checked_even_when_the_borehole_is_not_placed() -> None:
+    # 7513-66: the sheet prints Gauss-Krüger zone 3, the app waits for a person to confirm the system
+    portal = truth(coordinates="32U O: 422765.354 | N: 5365952.254")
+    unplaced = record_with(
+        coordinates={"latitude": None, "longitude": None, "x_raw": "34 22 810", "y_raw": "5367 660"}
+    )
+    unplaced.update(plotted=False, unplotted_reason="crs_unconfirmed")
+    assert sc.score_borehole(portal, document(), [unplaced])["position"].match == 1
+    far = record_with(
+        coordinates={"latitude": None, "longitude": None, "x_raw": "34 29 810", "y_raw": "5367 660"}
+    )
+    far.update(plotted=False, unplotted_reason="crs_unconfirmed")
+    assert sc.score_borehole(portal, document(), [far])["position"].mismatch == 1
+    none = record_with(coordinates={"latitude": None, "longitude": None, "x_raw": None, "y_raw": None})
+    none.update(plotted=False, unplotted_reason="no_coordinates")
+    assert sc.score_borehole(portal, document(), [none])["position"].missing == 1
 
 
 def one_page_pdf() -> bytes:
