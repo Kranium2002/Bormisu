@@ -42,7 +42,8 @@ _REASONING_REQUIRED: set[str] = set()
 # base URLs whose server refused the seed field in this process: sent without it from then on
 _SEED_REFUSED: set[str] = set()
 # OpenRouter's 404 when no provider of the model takes the request's parameters, i.e. a strict response schema
-NO_ENDPOINT = "no endpoints found"
+# (its other "No endpoints found ..." answers, such as the data policy one, are not about the schema)
+NO_ENDPOINT = "no endpoints found that can handle the requested parameters"
 # models that got that answer in this process: asked in JSON mode with the schema in the prompt from then on
 _SCHEMA_REFUSED: set[str] = set()
 
@@ -249,11 +250,16 @@ class LLM:
             kwargs["response_format"] = {"type": "json_schema",
                                          "json_schema": {"name": name, "strict": True, "schema": schema}}
         out = None
+        refused = False                     # no endpoint took the strict schema in this call
         for attempt in range(3):
             try:
                 self.calls += 1
                 resp = self.client.chat.completions.create(**kwargs)
                 self._report(name, model, resp, True)
+                if getattr(resp.choices[0], "finish_reason", None) == "length":
+                    # the same request would be cut, and billed, again
+                    log.warning("text call cut at max_tokens=%d for %s", kwargs["max_tokens"], name)
+                    break
                 content = resp.choices[0].message.content or ""
                 out = _parse_json(content)
                 if out is not None:
@@ -265,13 +271,14 @@ class LLM:
                 log.warning("LLM call failed (%s): %s", attempt, msg[:200])
                 if self._seed_refused(kwargs, msg) or self._needs_reasoning(model, kwargs, msg):
                     continue
-                if NO_ENDPOINT in msg.lower():
-                    _SCHEMA_REFUSED.add(model)
+                refused = refused or NO_ENDPOINT in msg.lower()
                 if "json_schema" in msg or "response_format" in msg or "400" in msg or NO_ENDPOINT in msg.lower():
                     # server does not support structured outputs → degrade gracefully
                     kwargs.update(json_mode)
                 time.sleep(1.5 * (attempt + 1))
         if out is not None:
+            if refused:
+                _SCHEMA_REFUSED.add(model)  # remembered only once JSON mode has answered
             ck.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
         return out
 
@@ -373,6 +380,7 @@ class LLM:
 
         _set_format(schema_mode)
         out = None
+        refused = False                     # no endpoint took the strict schema in this call
         delay = 2.0
         for attempt in range(6):
             t0 = time.time()
@@ -413,8 +421,7 @@ class LLM:
                 if "413" in msg or "too large" in low or "payload" in low or "image" in low and "size" in low:
                     meta["error"] = "image-too-large"
                     return None, meta
-                if schema_mode == "json_schema" and NO_ENDPOINT in low:
-                    _SCHEMA_REFUSED.add(model)
+                refused = refused or (schema_mode == "json_schema" and NO_ENDPOINT in low)
                 if schema_mode == "json_schema" and ("json_schema" in low or "response_format" in low
                                                      or "structured" in low or "schema" in low
                                                      or NO_ENDPOINT in low):
@@ -431,6 +438,8 @@ class LLM:
                 return None, meta
         meta["schema_mode"] = schema_mode
         if out is not None:
+            if refused:
+                _SCHEMA_REFUSED.add(model)  # remembered only once JSON mode has answered
             ck.write_text(json.dumps({"result": out, "_schema_mode": schema_mode, "_model": model},
                                      ensure_ascii=False), encoding="utf-8")
         return out, meta
